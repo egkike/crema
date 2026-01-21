@@ -1,7 +1,7 @@
 {
-  "name": "backend-template-ts",
+  "name": "crema-backend",
   "version": "1.0.0",
-  "description": "Template backend REST API con TypeScript, Express y PostgreSQL",
+  "description": "Backend de Crema - Plataforma all-in-one para creadores y afiliados",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {

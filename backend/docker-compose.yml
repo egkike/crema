@@ -2,8 +2,8 @@ version: '3.9'
 
 services:
   api:
-    image: node-ts-api  # Imagen genérica (cámbiala por el nombre de tu proyecto en Dockerfile si lo tenés)
-    container_name: api
+    image: crema-api
+    container_name: crema-api
     ports:
       - "3000:3000"
     dns:
@@ -26,7 +26,7 @@ services:
 
   db:
     image: postgres:18
-    container_name: postgres-db
+    container_name: crema-db
     restart: always
     env_file:
       - .env
