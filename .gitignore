@@ -1,0 +1,29 @@
+# Archivos de sistema y OS
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# Editor / IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Dependencias y builds de frontend (cuando lo agregues)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/build/
+
+# Archivos sensibles o locales en raíz
+.env.local
+.env.*.local
+
+# Cachés y temporales generales
+.cache/
+tmp/
+temp/
+
+# Ignorar todo dentro de carpetas vacías si usás .gitkeep
+!.gitkeep
