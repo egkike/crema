@@ -100,7 +100,7 @@ CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 TRUST_PROXY=true  # si usas reverse proxy (nginx, etc.)
 ```
 
-## Base de datos - Acceso (PostgreSQL)
+## Base de datos (PostgreSQL)
 - Las tablas se crean a partir de los scripts de `./db/init/*.sql`, cuando corre `docker-compose.yml`.
 
 **Recomendación**: Usa pgAdmin o DBeaver para ver las tablas.
