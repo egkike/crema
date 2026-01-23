@@ -101,8 +101,9 @@ TRUST_PROXY=true  # si usas reverse proxy (nginx, etc.)
 ```
 
 ## Base de datos - Acceso (PostgreSQL)
+- Las tablas se crean a partir de los scripts de `./db/init/*.sql`, cuando corre `docker-compose.yml`.
 
-**Recomendación**: Usa pgAdmin o DBeaver para ejecutar ver las tablas.
+**Recomendación**: Usa pgAdmin o DBeaver para ver las tablas.
 - pgAdmin integrado: http://localhost:5050 (user: admin@local.com, pass: admin)
 - Conexión automática a `db` (host: db, puerto: 5432, user: app_user)
 
