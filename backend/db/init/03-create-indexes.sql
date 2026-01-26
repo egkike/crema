@@ -22,6 +22,7 @@ CREATE INDEX idx_refresh_tokens_cleanup ON refresh_tokens (expires_at) WHERE rev
 -- Índices útiles para rendimiento
 CREATE INDEX idx_products_creator_id ON products(creator_id);
 CREATE INDEX idx_products_type ON products(type);
+CREATE INDEX idx_products_status ON products(status);
 CREATE INDEX idx_orders_buyer_id ON orders(buyer_id);
 CREATE INDEX idx_orders_product_id ON orders(product_id);
 CREATE INDEX idx_commissions_affiliate_id ON commissions(affiliate_id);

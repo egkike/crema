@@ -12,6 +12,7 @@ import logger from './utils/logger';
 // Importamos las rutas
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
+import productsRoutes from './routes/products.routes';
 
 const app = express();
 
@@ -80,6 +81,7 @@ app.use('/api', authRoutes);
 
 // Rutas protegidas (todas las operaciones de usuarios - con jwt middleware dentro del router)
 app.use('/api', userRoutes);
+app.use('/api/products', productsRoutes);
 
 // Ruta de health check (útil para monitoreo y pruebas rápidas)
 app.get('/health', (req: Request, res: Response) => {

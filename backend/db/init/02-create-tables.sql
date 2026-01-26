@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS products (
     price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
     content_url TEXT,                     -- link a archivo (S3, Cloudinary, local)
     affiliate_commission_percent DECIMAL(5,2) DEFAULT 50.00,
+    status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),  -- agregado para control de visibilidad
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -53,7 +54,8 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(50) DEFAULT 'pending',  -- pending, paid, refunded
     payment_method VARCHAR(50),            -- 'mercadopago', 'crypto', etc.
     transaction_id TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS commissions (
@@ -62,5 +64,6 @@ CREATE TABLE IF NOT EXISTS commissions (
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     amount DECIMAL(10,2) NOT NULL,
     status VARCHAR(50) DEFAULT 'pending',  -- pending, paid
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    paid_at TIMESTAMP WITH TIME ZONE        -- cuando se paga la comisión al afiliado
 );
