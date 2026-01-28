@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(50) DEFAULT 'pending',  -- pending, paid, refunded
     payment_method VARCHAR(50),            -- 'mercadopago', 'crypto', etc.
     transaction_id TEXT,
+    external_reference VARCHAR(255) UNIQUE, -- ID único que nosotros generamos y le enviamos a MP
+    gateway_status VARCHAR(50),             -- Para guardar el estado "crudo" que devuelve la pasarela
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

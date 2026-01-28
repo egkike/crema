@@ -25,4 +25,5 @@ CREATE INDEX idx_products_type ON products(type);
 CREATE INDEX idx_products_status ON products(status);
 CREATE INDEX idx_orders_buyer_id ON orders(buyer_id);
 CREATE INDEX idx_orders_product_id ON orders(product_id);
+CREATE INDEX idx_orders_external_ref ON orders(external_reference);
 CREATE INDEX idx_commissions_affiliate_id ON commissions(affiliate_id);

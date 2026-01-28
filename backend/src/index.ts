@@ -13,6 +13,8 @@ import logger from './utils/logger';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import productsRoutes from './routes/products.routes';
+import paymentsRouter from './routes/payments.routes';
+import { handleWebhook } from './controllers/payment.controller';
 
 const app = express();
 
@@ -73,6 +75,9 @@ app.use(
 // Rate limiting específico por ruta
 app.use('/api/login', loginLimiter); // Protege login
 app.use('/api/refresh', refreshLimiter); // Protege refresh
+// Webhook público y dedicado (sin auth ni rate limit)
+app.post('/api/payments/webhook', handleWebhook);
+
 // Rate limiting general para rutas protegidas (opcional)
 app.use('/api', apiLimiter); // Aplica a todo /api después de login/refresh
 
@@ -82,6 +87,9 @@ app.use('/api', authRoutes);
 // Rutas protegidas (todas las operaciones de usuarios - con jwt middleware dentro del router)
 app.use('/api', userRoutes);
 app.use('/api/products', productsRoutes);
+
+// monta el router de pagos (que incluye create-preference con auth)
+app.use('/api/payments', paymentsRouter);
 
 // Ruta de health check (útil para monitoreo y pruebas rápidas)
 app.get('/health', (req: Request, res: Response) => {
