@@ -121,4 +121,29 @@ export const orderRepository = {
       throw error;
     }
   },
+
+  /**
+   * Verifica si un usuario específico ya pagó por un producto específico.
+   * Se usa para proteger el acceso al contenido digital.
+   */
+  async checkPaidOrder(userId: string, productId: string): Promise<boolean> {
+    const query = `
+      SELECT id FROM "${schema}".orders 
+      WHERE buyer_id = $1 
+        AND product_id = $2 
+        AND status = 'paid'
+      LIMIT 1;
+    `;
+
+    try {
+      const { rows } = await pool.query(query, [userId, productId]);
+      return rows.length > 0;
+    } catch (error: any) {
+      logger.error(
+        { error: error.message, userId, productId },
+        'Error al verificar propiedad de la orden'
+      );
+      return false;
+    }
+  },
 };
