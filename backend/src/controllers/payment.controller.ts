@@ -5,6 +5,7 @@ import { config } from '../config/index';
 import { AppError } from '../errors/AppError';
 import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
+import { CommissionService } from '../services/commission.service'; // Importamos el nuevo servicio
 import logger from '../utils/logger';
 
 const mpClient = new MercadoPagoConfig({
@@ -32,6 +33,7 @@ export const createPreference = async (req: Request, res: Response, next: NextFu
     const externalReference = `ORD-${user.id}-${Date.now()}`;
     const totalAmount = Number(product.price) * quantity;
 
+    // Persistencia inicial de la orden [cite: 23]
     await orderRepository.create({
       buyer_id: user.id,
       product_id: product.id,
@@ -43,7 +45,6 @@ export const createPreference = async (req: Request, res: Response, next: NextFu
 
     const preferenceClient = new Preference(mpClient);
 
-    // Cambiamos la estructura para cumplir con el SDK de MP y TS
     const mpResponse = await preferenceClient.create({
       body: {
         items: [
@@ -83,51 +84,56 @@ export const createPreference = async (req: Request, res: Response, next: NextFu
       },
     });
   } catch (err) {
-    next(err); // Aquí sí se usa 'next'
+    next(err);
   }
 };
 
 export const handleWebhook = async (req: Request, res: Response) => {
   try {
-    // 1. Normalización defensiva de objetos
     const query = (req.query || {}) as any;
     const body = (req.body || {}) as any;
 
-    // 2. Identificación del tipo de evento (MP usa varios campos según la versión)
     const type = query.type || query.topic || body.type || body.action;
 
     if (type === 'payment' || type === 'payment.created' || type === 'payment.updated') {
-      // 3. Extracción de ID ultra-segura (sin usar optional chaining para evitar fallos de compilación)
-      let paymentId = null;
-
-      if (query.id) {
-        paymentId = query.id;
-      } else if (query['data.id']) {
-        paymentId = query['data.id'];
-      } else if (body.data && body.data.id) {
-        paymentId = body.data.id;
-      } else if (body.id) {
-        paymentId = body.id;
-      }
+      // Corregimos a 'const' usando una asignación directa con OR
+      const paymentId = query.id || query['data.id'] || (body.data && body.data.id) || body.id;
 
       if (!paymentId) {
         logger.warn('Webhook recibido pero no se pudo extraer un paymentId');
         return res.status(200).send('OK');
       }
 
-      logger.info(`Consultando pago en Mercado Pago: ${paymentId}`);
-
-      // 4. Obtención de datos reales desde la API de MP
+      logger.info(`[Crema-Payments] Consultando pago en Mercado Pago: ${paymentId}`);
       const payment = await new Payment(mpClient).get({ id: String(paymentId) });
-
       const { status, external_reference: externalRef } = payment;
 
-      // 5. Actualización de la base de datos
       if (externalRef) {
         let internalStatus = 'pending';
-        if (status === 'approved') internalStatus = 'paid';
-        if (status === 'rejected' || status === 'cancelled') internalStatus = 'failed';
 
+        // 1. Mapeo de estados según lógica de Crema
+        if (status === 'approved') {
+          internalStatus = 'paid';
+
+          try {
+            // 2. Obtener datos completos de la orden para procesar comisiones
+            const order = await orderRepository.getByExternalRef(externalRef);
+
+            if (order) {
+              const product = await productRepository.getProductById(order.product_id);
+              // 3. Ejecutar motor de comisiones (Plataforma + Afiliado) [cite: 6, 31]
+              await CommissionService.processOrderCommissions(order, product);
+              logger.info(`💰 Comisiones calculadas y registradas para la orden: ${externalRef}`);
+            }
+          } catch (commError) {
+            // Logueamos pero no detenemos el proceso de actualización de la orden
+            logger.error({ error: commError }, 'Error al procesar comisiones en el webhook');
+          }
+        } else if (status === 'rejected' || status === 'cancelled') {
+          internalStatus = 'failed';
+        }
+
+        // 4. Actualización final de la orden en DB
         const updatedOrder = await orderRepository.updateByExternalRef(externalRef, {
           status: internalStatus,
           transaction_id: String(paymentId),
@@ -144,19 +150,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
       }
     }
 
-    // Siempre respondemos 200 a Mercado Pago
     res.status(200).send('OK');
   } catch (err: any) {
     logger.error(
-      {
-        message: err.message,
-        stack: err.stack,
-        context: 'handleWebhook',
-      },
+      { message: err.message, context: 'handleWebhook' },
       'Error crítico procesando webhook'
     );
-
-    // Respondemos 200 para evitar que MP reintente infinitamente un error de código
     res.status(200).send('OK');
   }
 };

@@ -69,3 +69,11 @@ CREATE TABLE IF NOT EXISTS commissions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     paid_at TIMESTAMP WITH TIME ZONE        -- cuando se paga la comisión al afiliado
 );
+
+-- Tabla para parámetros globales del sistema
+CREATE TABLE IF NOT EXISTS platform_configs (
+    key VARCHAR(50) PRIMARY KEY,
+    value DECIMAL(10,4) NOT NULL, -- Mayor precisión para porcentajes
+    description TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

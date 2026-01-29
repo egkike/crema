@@ -100,4 +100,25 @@ export const orderRepository = {
       throw error;
     }
   },
+  /**
+   * Obtener una orden completa por su referencia externa
+   * Útil para procesar comisiones en el webhook
+   */
+  async getByExternalRef(externalRef: string) {
+    const query = `
+      SELECT * FROM "${schema}".orders 
+      WHERE external_reference = $1;
+    `;
+
+    try {
+      const { rows } = await pool.query(query, [externalRef]);
+      return rows[0] || null;
+    } catch (error: any) {
+      logger.error(
+        { error: error.message, externalRef },
+        'Error al obtener orden por external_reference'
+      );
+      throw error;
+    }
+  },
 };
