@@ -15,7 +15,6 @@ export interface UserBalance {
 export const balanceRepository = {
   /**
    * Suma ganancias al balance específico de una moneda.
-   * ON CONFLICT ahora usa la clave compuesta (user_id, currency).
    */
   async addEarnings(userId: string, amount: number, client?: any, currency: string = 'ARS') {
     const query = `
@@ -35,6 +34,37 @@ export const balanceRepository = {
       logger.error(
         { error: error.message, userId, amount, currency },
         'DB Error: addEarnings failed'
+      );
+      throw error;
+    }
+  },
+
+  /**
+   * ✅ NUEVO: Resta saldo disponible al solicitar un retiro.
+   * Se ejecuta dentro de una transacción de Payout.
+   */
+  async subtractAvailableBalance(userId: string, amount: number, currency: string, client: any) {
+    const query = `
+      UPDATE "${schema}".user_balances 
+      SET available_balance = available_balance - $1, 
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE user_id = $2 AND currency = $3
+      RETURNING *;
+    `;
+
+    try {
+      // Usamos obligatoriamente el client de la transacción
+      const { rows } = await client.query(query, [amount, userId, currency]);
+
+      if (rows.length === 0) {
+        throw new Error('No se encontró el balance para actualizar');
+      }
+
+      return rows[0];
+    } catch (error: any) {
+      logger.error(
+        { error: error.message, userId, amount, currency },
+        'DB Error: subtractAvailableBalance failed'
       );
       throw error;
     }
@@ -81,8 +111,7 @@ export const balanceRepository = {
   },
 
   /**
-   * Obtiene todos los balances (billeteras) de un usuario.
-   * Útil para mostrar un resumen: "Tienes $1000 ARS y 50 USDT".
+   * Obtiene todos los balances de un usuario.
    */
   async getAllBalancesByUserId(userId: string): Promise<UserBalance[]> {
     const query = `

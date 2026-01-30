@@ -1,44 +1,40 @@
-import { orderRepository } from '../repositories/order.repository';
 import { productRepository } from '../repositories/product.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
 export class AccessService {
   /**
-   * Valida el acceso y retorna el contenido del producto.
+   * Retorna el contenido del producto.
+   * Nota: La validación de compra/autoría ya se realizó en el Middleware.
    */
   static async getProtectedContent(userId: string, productId: string) {
-    // 1. Validar si la orden está pagada
-    // El repo lanza error si falla la DB, así que aquí solo manejamos la lógica
-    const hasAccess = await orderRepository.checkPaidOrder(userId, productId);
-
-    if (!hasAccess) {
-      logger.warn(`Intento de acceso no autorizado: User ${userId} -> Product ${productId}`);
-      throw new AppError('No tienes acceso a este contenido. Debes adquirirlo primero.', 403);
-    }
-
-    // 2. Obtener los detalles del producto
+    // 1. Obtener los detalles del producto
     const product = await productRepository.getProductById(productId);
 
-    // SOLUCIÓN: Si es null, lanzamos AppError 404.
-    // Esto elimina el error de "posiblemente null" para las líneas siguientes.
+    // Validación de existencia
     if (!product) {
       throw new AppError('El producto solicitado no existe.', 404);
     }
 
-    // 3. Validar estado del producto
+    // 2. Validar estado del producto (opcional, por si quieres ocultar productos pausados)
     if (product.status !== 'published') {
-      throw new AppError('El producto no está disponible actualmente.', 404);
+      // Si el usuario es el creador, quizás sí deba verlo aunque no esté publicado
+      if (product.creator_id !== userId) {
+        throw new AppError('El contenido no está disponible temporalmente.', 403);
+      }
     }
 
-    // 4. Log de acceso exitoso
-    logger.info(`Acceso concedido: User ${userId} visualizando ${product.title}`);
+    // 3. Log de acceso exitoso
+    logger.info({ userId, productId }, `Acceso concedido al contenido: ${product.title}`);
 
+    // 4. Retornamos solo lo necesario para el cliente
     return {
+      id: product.id,
       title: product.title,
       type: product.type,
-      content_url: product.content_url,
+      contentUrl: product.content_url, // URL del video, PDF, etc.
       description: product.description,
+      instructions: (product as any).access_instructions || '', // Por si tienes campo de texto extra
     };
   }
 }

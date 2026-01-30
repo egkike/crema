@@ -8,7 +8,7 @@ export interface CreateOrderDTO {
   buyer_id: string;
   product_id: string;
   amount: number;
-  currency: string; // <-- Añadido: Obligatorio para integridad financiera
+  currency: string;
   payment_method: string;
   external_reference: string;
   status?: string;
@@ -18,14 +18,14 @@ export interface CreateOrderDTO {
 
 export const orderRepository = {
   /**
-   * Helper para formatear montos de la DB
+   * Helper para formatear montos de la DB y asegurar tipos numéricos
    */
   mapRowToOrder(row: any) {
     if (!row) return null;
     return {
       ...row,
       amount: Number(row.amount),
-      commission_amount: Number(row.commission_amount),
+      commission_amount: row.commission_amount ? Number(row.commission_amount) : 0,
     };
   },
 
@@ -44,7 +44,7 @@ export const orderRepository = {
       data.product_id,
       data.affiliate_id || null,
       data.amount,
-      data.currency, // <-- Inyectamos la moneda
+      data.currency,
       data.commission_amount || 0,
       data.status || 'pending',
       data.payment_method,
@@ -97,16 +97,10 @@ export const orderRepository = {
     }
   },
 
-  async getById(id: string) {
-    try {
-      const { rows } = await pool.query(`SELECT * FROM "${schema}".orders WHERE id = $1`, [id]);
-      return this.mapRowToOrder(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, id }, 'DB Error: Fetch order by ID failed');
-      throw error;
-    }
-  },
-
+  /**
+   * ✅ VALIDACIÓN DE SEGURIDAD:
+   * Verifica si un comprador específico ya pagó por un producto específico.
+   */
   async checkPaidOrder(userId: string, productId: string): Promise<boolean> {
     const query = `
       SELECT id FROM "${schema}".orders 
