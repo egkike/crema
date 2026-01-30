@@ -20,10 +20,8 @@ export const createPreference = async (req: Request, res: Response, next: NextFu
     const { productId, quantity = 1 } = req.body;
     if (!productId) throw new AppError('productId es requerido', 400);
 
-    // 1. Cambio: El repo devuelve Product | null
     const product = await productRepository.getProductById(productId);
 
-    // Validamos existencia
     if (!product) {
       throw new AppError('El producto solicitado no existe', 404);
     }
@@ -35,10 +33,12 @@ export const createPreference = async (req: Request, res: Response, next: NextFu
     const externalReference = `ORD-${user.id}-${Date.now()}`;
     const totalAmount = Number(product.price) * quantity;
 
+    // ✅ CORRECCIÓN: Ahora pasamos la moneda del producto a la orden
     await orderRepository.create({
       buyer_id: user.id,
       product_id: product.id,
       amount: totalAmount,
+      currency: product.currency || 'ARS', // Heredamos la moneda del producto
       payment_method: 'mercadopago',
       external_reference: externalReference,
       status: 'pending',
@@ -54,7 +54,7 @@ export const createPreference = async (req: Request, res: Response, next: NextFu
             title: product.title,
             description: product.description || 'Contenido digital - Crema',
             quantity: Number(quantity),
-            currency_id: 'ARS',
+            currency_id: (product.currency as any) || 'ARS', // Mercado Pago usa currency_id
             unit_price: Number(product.price),
           },
         ],
@@ -94,17 +94,16 @@ export const handleWebhook = async (req: Request, res: Response) => {
     const query = (req.query || {}) as any;
     const body = (req.body || {}) as any;
 
+    // MP a veces manda el ID en distintos lugares según el evento
     const type = query.type || query.topic || body.type || body.action;
 
     if (type === 'payment' || type === 'payment.created' || type === 'payment.updated') {
       const paymentId = query.id || query['data.id'] || (body.data && body.data.id) || body.id;
 
       if (!paymentId) {
-        logger.warn('Webhook recibido pero no se pudo extraer un paymentId');
         return res.status(200).send('OK');
       }
 
-      logger.info(`[Crema-Payments] Consultando pago en Mercado Pago: ${paymentId}`);
       const payment = await new Payment(mpClient).get({ id: String(paymentId) });
       const { status, external_reference: externalRef } = payment;
 
@@ -117,48 +116,34 @@ export const handleWebhook = async (req: Request, res: Response) => {
           try {
             const order = await orderRepository.getByExternalRef(externalRef);
 
-            if (order) {
-              // Validamos que el producto exista para que el motor de comisiones no falle
+            // Evitar doble procesamiento si el webhook llega dos veces
+            if (order && !order.commissions_calculated) {
               const product = await productRepository.getProductById(order.product_id);
 
               if (product) {
+                // ✅ El CommissionService ya está preparado para recibir order y product con moneda
                 await CommissionService.processOrderCommissions(order, product);
-                logger.info(`💰 Comisiones calculadas y registradas para la orden: ${externalRef}`);
-              } else {
-                logger.error(
-                  `❌ Error crìtico: Orden ${externalRef} pagada pero el producto no existe`
-                );
+                logger.info(`💰 Comisiones registradas: ${externalRef}`);
               }
             }
-          } catch (commError) {
-            logger.error({ error: commError }, 'Error al procesar comisiones en el webhook');
+          } catch (commError: any) {
+            logger.error({ error: commError.message }, 'Error procesando comisiones');
           }
         } else if (status === 'rejected' || status === 'cancelled') {
           internalStatus = 'failed';
         }
 
-        const updatedOrder = await orderRepository.updateByExternalRef(externalRef, {
+        await orderRepository.updateByExternalRef(externalRef, {
           status: internalStatus,
           transaction_id: String(paymentId),
           gateway_status: status ?? 'unknown',
         });
-
-        if (updatedOrder) {
-          logger.info(
-            `✅ Orden ${externalRef} actualizada a [${internalStatus}] (MP Status: ${status})`
-          );
-        } else {
-          logger.warn(`❌ No se encontró orden con external_reference: ${externalRef}`);
-        }
       }
     }
 
     res.status(200).send('OK');
   } catch (err: any) {
-    logger.error(
-      { message: err.message, context: 'handleWebhook' },
-      'Error crítico procesando webhook'
-    );
-    res.status(200).send('OK');
+    logger.error({ error: err.message }, 'Error en webhook');
+    res.status(200).send('OK'); // Siempre 200 para que MP no reintente infinitamente
   }
 };

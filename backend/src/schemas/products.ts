@@ -17,9 +17,17 @@ export const createProductSchema = z.object({
 
   description: z.string().optional(),
 
-  type: productTypeEnum, // ← unión de literals: rechaza todo lo que no sea uno de los 6 valores
+  type: productTypeEnum,
 
-  price: z.number().positive({ message: 'El precio debe ser mayor que cero' }),
+  price: z.number().min(0, { message: 'El precio no puede ser negativo' }),
+
+  // ✅ AÑADIDO: Validación para la moneda
+  currency: z
+    .string()
+    .min(3, { message: 'Formato de moneda inválido (ej: ARS)' })
+    .max(10)
+    .optional()
+    .default('ARS'),
 
   contentUrl: z.string().url({ message: 'Debe ser una URL válida' }).optional(),
 

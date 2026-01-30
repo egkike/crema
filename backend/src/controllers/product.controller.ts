@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
+import { z } from 'zod'; // <--- Aquí se declara
 
 import { productRepository } from '../repositories/product.repository';
 import { AppError } from '../errors/AppError';
@@ -11,25 +11,18 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     const user = (req as any).user;
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
-    // 1. Validación Zod
-    let validatedData: z.infer<typeof createProductSchema>;
-    try {
-      validatedData = createProductSchema.parse(req.body);
-    } catch (err: any) {
-      const errorMsg = err.errors?.[0]?.message || 'Datos inválidos para crear producto';
-      throw new AppError(errorMsg, 400);
-    }
+    // 1. Aquí se lee "z" indirectamente a través del schema,
+    // pero para que el compilador esté 100% seguro de que lo usas:
+    const validatedData = createProductSchema.parse(req.body);
 
-    // 2. Construcción dinámica para cumplir con exactOptionalPropertyTypes
-    // Primero las obligatorias
     const productInput: ProductInput = {
       creatorId: user.id,
       title: validatedData.title,
       type: validatedData.type,
       price: validatedData.price,
+      currency: validatedData.currency || 'ARS',
     };
 
-    // Solo agregamos las opcionales si no son undefined
     if (validatedData.description !== undefined)
       productInput.description = validatedData.description;
     if (validatedData.contentUrl !== undefined) productInput.contentUrl = validatedData.contentUrl;
@@ -37,31 +30,20 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       productInput.commissionPercent = validatedData.commissionPercent;
     if (validatedData.status !== undefined) productInput.status = validatedData.status;
 
-    // 3. Crear el producto
     const product = await productRepository.createProduct(productInput);
 
     res.status(201).json({
       success: true,
       data: product,
     });
-  } catch (error) {
-    next(error);
-  }
-};
+  } catch (error: any) {
+    // Verificamos si es un error de Zod
+    if (error instanceof z.ZodError) {
+      // ✅ Usamos .issues en lugar de .errors
+      const message = error.issues.map(issue => issue.message).join(', ');
+      return next(new AppError(`Error de validación: ${message}`, 400));
+    }
 
-export const getMyProducts = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const user = (req as any).user;
-    if (!user) throw new AppError('Usuario no autenticado', 401);
-
-    // El repositorio devuelve Product[] directamente
-    const products = await productRepository.getProductsByCreator(user.id);
-
-    res.status(200).json({
-      success: true,
-      data: products,
-    });
-  } catch (error) {
     next(error);
   }
 };

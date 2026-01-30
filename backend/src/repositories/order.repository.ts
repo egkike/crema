@@ -8,6 +8,7 @@ export interface CreateOrderDTO {
   buyer_id: string;
   product_id: string;
   amount: number;
+  currency: string; // <-- Añadido: Obligatorio para integridad financiera
   payment_method: string;
   external_reference: string;
   status?: string;
@@ -16,13 +17,25 @@ export interface CreateOrderDTO {
 }
 
 export const orderRepository = {
+  /**
+   * Helper para formatear montos de la DB
+   */
+  mapRowToOrder(row: any) {
+    if (!row) return null;
+    return {
+      ...row,
+      amount: Number(row.amount),
+      commission_amount: Number(row.commission_amount),
+    };
+  },
+
   async create(data: CreateOrderDTO) {
     const query = `
       INSERT INTO "${schema}".orders (
-        buyer_id, product_id, affiliate_id, amount, 
+        buyer_id, product_id, affiliate_id, amount, currency,
         commission_amount, status, payment_method, external_reference
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *;
     `;
 
@@ -31,6 +44,7 @@ export const orderRepository = {
       data.product_id,
       data.affiliate_id || null,
       data.amount,
+      data.currency, // <-- Inyectamos la moneda
       data.commission_amount || 0,
       data.status || 'pending',
       data.payment_method,
@@ -39,9 +53,8 @@ export const orderRepository = {
 
     try {
       const { rows } = await pool.query(query, values);
-      return rows[0];
+      return this.mapRowToOrder(rows[0]);
     } catch (error: any) {
-      // Logueamos el error técnico, pero relanzamos para que el Service decida qué hacer
       logger.error(
         { error: error.message, ref: data.external_reference },
         'DB Error: Insert order failed'
@@ -64,7 +77,7 @@ export const orderRepository = {
         updates.gateway_status || null,
         externalRef,
       ]);
-      return rows[0] || null;
+      return this.mapRowToOrder(rows[0]);
     } catch (error: any) {
       logger.error({ error: error.message, externalRef }, 'DB Error: Update order failed');
       throw error;
@@ -77,9 +90,19 @@ export const orderRepository = {
         `SELECT * FROM "${schema}".orders WHERE external_reference = $1`,
         [externalRef]
       );
-      return rows[0] || null;
+      return this.mapRowToOrder(rows[0]);
     } catch (error: any) {
       logger.error({ error: error.message, externalRef }, 'DB Error: Fetch order by ref failed');
+      throw error;
+    }
+  },
+
+  async getById(id: string) {
+    try {
+      const { rows } = await pool.query(`SELECT * FROM "${schema}".orders WHERE id = $1`, [id]);
+      return this.mapRowToOrder(rows[0]);
+    } catch (error: any) {
+      logger.error({ error: error.message, id }, 'DB Error: Fetch order by ID failed');
       throw error;
     }
   },
@@ -90,24 +113,11 @@ export const orderRepository = {
       WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
       LIMIT 1;
     `;
-
     try {
       const { rows } = await pool.query(query, [userId, productId]);
       return rows.length > 0;
     } catch (error: any) {
-      // AQUÍ: No devolvemos false, lanzamos el error.
-      // El AccessService capturará esto y lanzará un AppError 500.
       logger.error({ error: error.message, userId, productId }, 'DB Error: checkPaidOrder failed');
-      throw error;
-    }
-  },
-
-  async getById(id: string) {
-    try {
-      const { rows } = await pool.query(`SELECT * FROM "${schema}".orders WHERE id = $1`, [id]);
-      return rows[0] || null;
-    } catch (error: any) {
-      logger.error({ error: error.message, id }, 'DB Error: Fetch order by ID failed');
       throw error;
     }
   },
