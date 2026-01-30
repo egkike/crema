@@ -6,8 +6,8 @@ const schema = config.db.schema;
 
 export const configRepository = {
   /**
-   * Obtiene todas las configuraciones de la plataforma y las transforma
-   * en un objeto clave-valor para facilitar el acceso.
+   * Obtiene todas las configuraciones y las transforma en objeto clave-valor.
+   * Si la DB falla, lanza el error para que el Service lo maneje.
    */
   async getAllConfigs(): Promise<Record<string, number>> {
     const query = `SELECT key, value FROM "${schema}".platform_configs`;
@@ -15,7 +15,12 @@ export const configRepository = {
     try {
       const { rows } = await pool.query(query);
 
-      // Transformamos el array de filas en un objeto: { fee_percent: 0.099, ... }
+      // Si la tabla está vacía, es un error de configuración del sistema
+      if (rows.length === 0) {
+        logger.error('La tabla platform_configs está vacía');
+        throw new Error('Configuraciones de plataforma no encontradas');
+      }
+
       return rows.reduce(
         (acc, row) => {
           acc[row.key] = parseFloat(row.value);
@@ -24,14 +29,13 @@ export const configRepository = {
         {} as Record<string, number>
       );
     } catch (error: any) {
-      logger.error({ error: error.message }, 'Error al obtener configuraciones de plataforma');
-      // Retornamos un objeto vacío o valores por defecto para evitar que la app explote
-      return {};
+      logger.error({ error: error.message }, 'DB Error: getAllConfigs failed');
+      throw error; // Lanzamos el error para que CommissionService use AppError
     }
   },
 
   /**
-   * Permite actualizar un valor de configuración (Útil para el futuro panel admin)
+   * Actualiza un valor de configuración.
    */
   async updateConfig(key: string, value: number) {
     const query = `
@@ -43,12 +47,9 @@ export const configRepository = {
 
     try {
       const { rows } = await pool.query(query, [value, key]);
-      return rows[0];
+      return rows[0] || null;
     } catch (error: any) {
-      logger.error(
-        { error: error.message, key },
-        'Error al actualizar configuración de plataforma'
-      );
+      logger.error({ error: error.message, key }, 'DB Error: updateConfig failed');
       throw error;
     }
   },

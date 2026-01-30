@@ -5,8 +5,8 @@ import { config } from '../config/index';
 const schema = config.db.schema;
 
 export interface CreateOrderDTO {
-  buyer_id: string; // UUID
-  product_id: string; // UUID
+  buyer_id: string;
+  product_id: string;
   amount: number;
   payment_method: string;
   external_reference: string;
@@ -16,21 +16,11 @@ export interface CreateOrderDTO {
 }
 
 export const orderRepository = {
-  /**
-   * 1. Crear la orden (Antes de ir a Mercado Pago)
-   * Aquí el transaction_id suele ser NULL porque aún no se pagó.
-   */
   async create(data: CreateOrderDTO) {
     const query = `
       INSERT INTO "${schema}".orders (
-        buyer_id, 
-        product_id, 
-        affiliate_id,
-        amount, 
-        commission_amount,
-        status,
-        payment_method, 
-        external_reference
+        buyer_id, product_id, affiliate_id, amount, 
+        commission_amount, status, payment_method, external_reference
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
@@ -51,87 +41,53 @@ export const orderRepository = {
       const { rows } = await pool.query(query, values);
       return rows[0];
     } catch (error: any) {
+      // Logueamos el error técnico, pero relanzamos para que el Service decida qué hacer
       logger.error(
         { error: error.message, ref: data.external_reference },
-        'Error al insertar orden'
+        'DB Error: Insert order failed'
       );
       throw error;
     }
   },
 
-  /**
-   * 2. Actualizar la orden (Cuando vuelve el Webhook de MP)
-   * Aquí SI guardamos el transaction_id que nos da la pasarela.
-   */
-  async updateByExternalRef(
-    externalRef: string,
-    updates: {
-      status: string;
-      transaction_id: string; // ID de MP o Hash de Crypto
-      gateway_status?: string | null; // Agregamos | null para compatibilidad
-    }
-  ) {
+  async updateByExternalRef(externalRef: string, updates: any) {
     try {
       const query = `
         UPDATE "${schema}".orders 
-        SET 
-          status = $1, 
-          transaction_id = $2, 
-          gateway_status = $3,
-          updated_at = CURRENT_TIMESTAMP
+        SET status = $1, transaction_id = $2, gateway_status = $3, updated_at = CURRENT_TIMESTAMP
         WHERE external_reference = $4
         RETURNING *;
       `;
-
-      const values = [
+      const { rows } = await pool.query(query, [
         updates.status,
-        updates.transaction_id, // Guardamos el ID oficial del pago
+        updates.transaction_id,
         updates.gateway_status || null,
         externalRef,
-      ];
-
-      const { rows } = await pool.query(query, values);
-      return rows[0];
-    } catch (error: any) {
-      logger.error(
-        { error: error.message, externalRef },
-        'Error al actualizar orden con transaction_id'
-      );
-      throw error;
-    }
-  },
-  /**
-   * Obtener una orden completa por su referencia externa
-   * Útil para procesar comisiones en el webhook
-   */
-  async getByExternalRef(externalRef: string) {
-    const query = `
-      SELECT * FROM "${schema}".orders 
-      WHERE external_reference = $1;
-    `;
-
-    try {
-      const { rows } = await pool.query(query, [externalRef]);
+      ]);
       return rows[0] || null;
     } catch (error: any) {
-      logger.error(
-        { error: error.message, externalRef },
-        'Error al obtener orden por external_reference'
-      );
+      logger.error({ error: error.message, externalRef }, 'DB Error: Update order failed');
       throw error;
     }
   },
 
-  /**
-   * Verifica si un usuario específico ya pagó por un producto específico.
-   * Se usa para proteger el acceso al contenido digital.
-   */
+  async getByExternalRef(externalRef: string) {
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM "${schema}".orders WHERE external_reference = $1`,
+        [externalRef]
+      );
+      return rows[0] || null;
+    } catch (error: any) {
+      logger.error({ error: error.message, externalRef }, 'DB Error: Fetch order by ref failed');
+      throw error;
+    }
+  },
+
   async checkPaidOrder(userId: string, productId: string): Promise<boolean> {
     const query = `
       SELECT id FROM "${schema}".orders 
-      WHERE buyer_id = $1 
-        AND product_id = $2 
-        AND status = 'paid'
+      WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
       LIMIT 1;
     `;
 
@@ -139,11 +95,20 @@ export const orderRepository = {
       const { rows } = await pool.query(query, [userId, productId]);
       return rows.length > 0;
     } catch (error: any) {
-      logger.error(
-        { error: error.message, userId, productId },
-        'Error al verificar propiedad de la orden'
-      );
-      return false;
+      // AQUÍ: No devolvemos false, lanzamos el error.
+      // El AccessService capturará esto y lanzará un AppError 500.
+      logger.error({ error: error.message, userId, productId }, 'DB Error: checkPaidOrder failed');
+      throw error;
+    }
+  },
+
+  async getById(id: string) {
+    try {
+      const { rows } = await pool.query(`SELECT * FROM "${schema}".orders WHERE id = $1`, [id]);
+      return rows[0] || null;
+    } catch (error: any) {
+      logger.error({ error: error.message, id }, 'DB Error: Fetch order by ID failed');
+      throw error;
     }
   },
 };

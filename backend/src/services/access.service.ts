@@ -9,6 +9,7 @@ export class AccessService {
    */
   static async getProtectedContent(userId: string, productId: string) {
     // 1. Validar si la orden está pagada
+    // El repo lanza error si falla la DB, así que aquí solo manejamos la lógica
     const hasAccess = await orderRepository.checkPaidOrder(userId, productId);
 
     if (!hasAccess) {
@@ -17,21 +18,20 @@ export class AccessService {
     }
 
     // 2. Obtener los detalles del producto
-    const productResult = await productRepository.getProductById(productId);
+    const product = await productRepository.getProductById(productId);
 
-    // SOLUCIÓN AL ERROR DE LINT: Verificamos si hay un error en el resultado
-    if ('error' in productResult) {
-      throw new AppError(productResult.error, 404);
+    // SOLUCIÓN: Si es null, lanzamos AppError 404.
+    // Esto elimina el error de "posiblemente null" para las líneas siguientes.
+    if (!product) {
+      throw new AppError('El producto solicitado no existe.', 404);
     }
 
-    // Ahora TypeScript sabe que 'productResult' es un 'Product' y tiene .status
-    const product = productResult;
-
+    // 3. Validar estado del producto
     if (product.status !== 'published') {
       throw new AppError('El producto no está disponible actualmente.', 404);
     }
 
-    // 3. Log de acceso exitoso
+    // 4. Log de acceso exitoso
     logger.info(`Acceso concedido: User ${userId} visualizando ${product.title}`);
 
     return {

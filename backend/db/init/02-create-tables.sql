@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS orders (
     transaction_id TEXT,
     external_reference VARCHAR(255) UNIQUE, -- ID único que nosotros generamos y le enviamos a MP
     gateway_status VARCHAR(50),             -- Para guardar el estado "crudo" que devuelve la pasarela
+    commissions_calculated BOOLEAN DEFAULT FALSE;
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -76,4 +77,42 @@ CREATE TABLE IF NOT EXISTS platform_configs (
     value DECIMAL(10,4) NOT NULL, -- Mayor precisión para porcentajes
     description TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de Balances que guardará el acumulado de comisiones (creadores y afiliados)
+CREATE TABLE IF NOT EXISTS user_balances (
+    user_id UUID PRIMARY KEY REFERENCES users(id),
+    total_earned DECIMAL(12,2) DEFAULT 0.00, -- Todo lo ganado históricamente
+    available_balance DECIMAL(12,2) DEFAULT 0.00, -- Lo que puede retirar hoy
+    pending_balance DECIMAL(12,2) DEFAULT 0.00, -- Dinero en periodo de garantía
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla donde registremos cada "mordida" que toma la plataforma.
+CREATE TABLE IF NOT EXISTS platform_earnings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES orders(id),
+    
+    -- Desglose de la ganancia por transacción
+    variable_amount DECIMAL(12,2) DEFAULT 0.00, -- El 9.9%
+    fixed_amount DECIMAL(12,2) DEFAULT 0.00,    -- El $0.10 o $0.50
+    
+    -- Otros tipos de ingresos
+    subscription_amount DECIMAL(12,2) DEFAULT 0.00,
+    service_amount DECIMAL(12,2) DEFAULT 0.00, -- Por si cobras por soporte, etc.
+    
+    total_amount DECIMAL(12,2) NOT NULL, -- La suma de todo lo anterior    
+    currency VARCHAR(3) DEFAULT 'USD',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla para que el usuario pueda ver el detalle de por qué su balance cambió
+CREATE TABLE IF NOT EXISTS balance_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    order_id UUID REFERENCES orders(id),
+    amount DECIMAL(12,2) NOT NULL,
+    type VARCHAR(50) NOT NULL, -- 'sale_creator' (venta propia) o 'sale_affiliate' (comisión)
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

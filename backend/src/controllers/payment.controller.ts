@@ -5,7 +5,7 @@ import { config } from '../config/index';
 import { AppError } from '../errors/AppError';
 import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
-import { CommissionService } from '../services/commission.service'; // Importamos el nuevo servicio
+import { CommissionService } from '../services/commission.service';
 import logger from '../utils/logger';
 
 const mpClient = new MercadoPagoConfig({
@@ -20,12 +20,14 @@ export const createPreference = async (req: Request, res: Response, next: NextFu
     const { productId, quantity = 1 } = req.body;
     if (!productId) throw new AppError('productId es requerido', 400);
 
-    const productResult = await productRepository.getProductById(productId);
-    if ('error' in productResult) {
-      throw new AppError(productResult.error, 404);
+    // 1. Cambio: El repo devuelve Product | null
+    const product = await productRepository.getProductById(productId);
+
+    // Validamos existencia
+    if (!product) {
+      throw new AppError('El producto solicitado no existe', 404);
     }
 
-    const product = productResult;
     if (product.status !== 'published') {
       throw new AppError('Este producto no está disponible para compra', 400);
     }
@@ -33,7 +35,6 @@ export const createPreference = async (req: Request, res: Response, next: NextFu
     const externalReference = `ORD-${user.id}-${Date.now()}`;
     const totalAmount = Number(product.price) * quantity;
 
-    // Persistencia inicial de la orden [cite: 23]
     await orderRepository.create({
       buyer_id: user.id,
       product_id: product.id,
@@ -96,7 +97,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
     const type = query.type || query.topic || body.type || body.action;
 
     if (type === 'payment' || type === 'payment.created' || type === 'payment.updated') {
-      // Corregimos a 'const' usando una asignación directa con OR
       const paymentId = query.id || query['data.id'] || (body.data && body.data.id) || body.id;
 
       if (!paymentId) {
@@ -111,29 +111,32 @@ export const handleWebhook = async (req: Request, res: Response) => {
       if (externalRef) {
         let internalStatus = 'pending';
 
-        // 1. Mapeo de estados según lógica de Crema
         if (status === 'approved') {
           internalStatus = 'paid';
 
           try {
-            // 2. Obtener datos completos de la orden para procesar comisiones
             const order = await orderRepository.getByExternalRef(externalRef);
 
             if (order) {
+              // Validamos que el producto exista para que el motor de comisiones no falle
               const product = await productRepository.getProductById(order.product_id);
-              // 3. Ejecutar motor de comisiones (Plataforma + Afiliado) [cite: 6, 31]
-              await CommissionService.processOrderCommissions(order, product);
-              logger.info(`💰 Comisiones calculadas y registradas para la orden: ${externalRef}`);
+
+              if (product) {
+                await CommissionService.processOrderCommissions(order, product);
+                logger.info(`💰 Comisiones calculadas y registradas para la orden: ${externalRef}`);
+              } else {
+                logger.error(
+                  `❌ Error crìtico: Orden ${externalRef} pagada pero el producto no existe`
+                );
+              }
             }
           } catch (commError) {
-            // Logueamos pero no detenemos el proceso de actualización de la orden
             logger.error({ error: commError }, 'Error al procesar comisiones en el webhook');
           }
         } else if (status === 'rejected' || status === 'cancelled') {
           internalStatus = 'failed';
         }
 
-        // 4. Actualización final de la orden en DB
         const updatedOrder = await orderRepository.updateByExternalRef(externalRef, {
           status: internalStatus,
           transaction_id: String(paymentId),

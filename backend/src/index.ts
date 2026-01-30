@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 
+import { testCommissionLogic } from './controllers/test.controller';
+import { handleWebhook } from './controllers/payment.controller';
 import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit';
 import { AppError } from './errors/AppError';
 import { config } from './config/index';
@@ -14,7 +16,7 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import productsRoutes from './routes/products.routes';
 import paymentsRouter from './routes/payments.routes';
-import { handleWebhook } from './controllers/payment.controller';
+import balanceRoutes from './routes/balance.routes';
 
 const app = express();
 
@@ -75,8 +77,13 @@ app.use(
 // Rate limiting específico por ruta
 app.use('/api/login', loginLimiter); // Protege login
 app.use('/api/refresh', refreshLimiter); // Protege refresh
+// Ruta para Test de comisiones
+app.post('/test/process-commissions', testCommissionLogic);
+
 // Webhook público y dedicado (sin auth ni rate limit)
 app.post('/api/payments/webhook', handleWebhook);
+
+
 
 // Rate limiting general para rutas protegidas (opcional)
 app.use('/api', apiLimiter); // Aplica a todo /api después de login/refresh
@@ -90,6 +97,8 @@ app.use('/api/products', productsRoutes);
 
 // monta el router de pagos (que incluye create-preference con auth)
 app.use('/api/payments', paymentsRouter);
+
+app.use('/api/balances', balanceRoutes);
 
 // Ruta de health check (útil para monitoreo y pruebas rápidas)
 app.get('/health', (req: Request, res: Response) => {
