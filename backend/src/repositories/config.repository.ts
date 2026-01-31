@@ -6,41 +6,59 @@ const schema = config.db.schema;
 
 export const configRepository = {
   /**
-   * Obtiene configuraciones numéricas (porcentajes, fees, montos)
+   * Obtiene configuraciones numéricas filtradas por moneda.
+   * Si no se especifica moneda, por defecto busca 'ARS'.
    */
-  async getAllConfigs(): Promise<Record<string, number>> {
-    const query = `SELECT key, value FROM "${schema}".platform_configs`;
+  async getConfigsByCurrency(currency: string = 'ARS'): Promise<Record<string, number>> {
+    // Buscamos específicamente las reglas para la moneda de la transacción
+    const query = `
+      SELECT key, value 
+      FROM "${schema}".platform_configs 
+      WHERE currency = $1
+    `;
 
     try {
-      const { rows } = await pool.query(query);
+      const { rows } = await pool.query(query, [currency]);
 
       if (rows.length === 0) {
-        logger.error('La tabla platform_configs está vacía');
-        throw new Error('Configuraciones numéricas no encontradas');
+        logger.warn(
+          { currency },
+          'No se encontraron configuraciones para esta moneda en platform_configs'
+        );
+        // Opcional: Podrías lanzar error o devolver un objeto con valores por defecto seguros
+        return {};
       }
 
       return rows.reduce(
         (acc, row) => {
-          acc[row.key] = Number(row.value); // Usamos Number para mayor seguridad con decimales
+          acc[row.key] = Number(row.value);
           return acc;
         },
         {} as Record<string, number>
       );
     } catch (error: any) {
-      logger.error({ error: error.message }, 'DB Error: getAllConfigs failed');
+      logger.error({ error: error.message, currency }, 'DB Error: getConfigsByCurrency failed');
       throw error;
     }
   },
 
   /**
-   * Obtiene configuraciones de texto (Moneda, Email Soporte, etc.)
+   * Mantenemos getAllConfigs pero ahora es un "fetch all" real
+   * por si necesitas una vista administrativa de todas las monedas.
+   */
+  async getAllConfigsRaw(): Promise<any[]> {
+    const query = `SELECT * FROM "${schema}".platform_configs ORDER BY currency, key`;
+    const { rows } = await pool.query(query);
+    return rows;
+  },
+
+  /**
+   * Obtiene configuraciones de texto (Globales, no dependen de la moneda de venta)
    */
   async getSystemSettings(): Promise<Record<string, string>> {
     const query = `SELECT key, value FROM "${schema}".system_settings`;
-
     try {
       const { rows } = await pool.query(query);
-
       return rows.reduce(
         (acc, row) => {
           acc[row.key] = row.value;
@@ -54,16 +72,12 @@ export const configRepository = {
     }
   },
 
-  /**
-   * Obtiene un valor específico de texto (ej. la moneda actual)
-   */
   async getSetting(key: string, defaultValue: string = 'ARS'): Promise<string> {
     const query = `SELECT value FROM "${schema}".system_settings WHERE key = $1`;
     try {
       const { rows } = await pool.query(query, [key]);
       return rows[0]?.value || defaultValue;
     } catch (error: any) {
-      // Usamos la variable 'error' para el log, y así el Linter queda feliz
       logger.error({ error: error.message, key }, 'Error fetching setting, using default');
       return defaultValue;
     }

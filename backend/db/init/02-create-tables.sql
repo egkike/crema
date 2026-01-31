@@ -35,10 +35,8 @@ CREATE TABLE IF NOT EXISTS products (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     type VARCHAR(50) NOT NULL CHECK (type IN ('course', 'ebook', 'membership', 'software', 'podcast', 'audiobook')),
-    price DECIMAL(18,8) NOT NULL CHECK (price >= 0),
-    currency VARCHAR(10) DEFAULT 'ARS',
     content_url TEXT,                     -- link a archivo (S3, Cloudinary, local)
-    affiliate_commission_percent DECIMAL(18,8) DEFAULT 50.00,
+    affiliate_commission_percent DECIMAL(18,8) DEFAULT 10.00,
     status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),  -- agregado para control de visibilidad
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -58,6 +56,7 @@ CREATE TABLE IF NOT EXISTS orders (
     external_reference VARCHAR(255) UNIQUE, -- ID único que nosotros generamos y le enviamos a MP
     gateway_status VARCHAR(50),             -- Para guardar el estado "crudo" que devuelve la pasarela
     commissions_calculated BOOLEAN DEFAULT FALSE,
+    balance_released BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -75,10 +74,13 @@ CREATE TABLE IF NOT EXISTS commissions (
 
 -- Tabla para parámetros globales del sistema
 CREATE TABLE IF NOT EXISTS platform_configs (
-    key VARCHAR(50) PRIMARY KEY,
+    key VARCHAR(50) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'ARS',
     value DECIMAL(18,8) NOT NULL, -- Mayor precisión para porcentajes
     description TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+
+    PRIMARY KEY (key, currency)
 );
 
 -- Tabla de Balances que guardará el acumulado de comisiones (creadores y afiliados)
@@ -144,4 +146,23 @@ CREATE TABLE IF NOT EXISTS payouts (
     admin_notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla para controlar qué monedas opera la plataforma (Orquestador)
+CREATE TABLE IF NOT EXISTS enabled_currencies (
+    code VARCHAR(10) PRIMARY KEY, -- 'ARS', 'USDT', 'BTC'
+    name VARCHAR(50) NOT NULL,    -- 'Pesos Argentinos', 'Tether'
+    symbol VARCHAR(5) NOT NULL,   -- '$', '₮'
+    is_active BOOLEAN DEFAULT TRUE,
+    payment_gateway VARCHAR(50) NOT NULL, -- 'mercadopago', 'binance_pay', etc.
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de Precios (Relación Muchos a Muchos)
+CREATE TABLE IF NOT EXISTS product_prices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    currency VARCHAR(10) NOT NULL REFERENCES enabled_currencies(code),
+    amount DECIMAL(18,8) NOT NULL CHECK (amount >= 0),
+    UNIQUE(product_id, currency) -- Un producto no puede tener dos precios en la misma moneda
 );

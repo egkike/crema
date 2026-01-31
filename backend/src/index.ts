@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
+import cron from 'node-cron';
 
 import { testCommissionLogic } from './controllers/test.controller';
 import { handleWebhook } from './controllers/payment.controller';
@@ -11,6 +12,7 @@ import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimi
 import { AppError } from './errors/AppError';
 import { config } from './config/index';
 import logger from './utils/logger';
+import { ReleaseService } from './services/release.service';
 // Importamos las rutas
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -82,8 +84,6 @@ app.post('/test/process-commissions', testCommissionLogic);
 
 // Webhook público y dedicado (sin auth ni rate limit)
 app.post('/api/payments/webhook', handleWebhook);
-
-
 
 // Rate limiting general para rutas protegidas (opcional)
 app.use('/api', apiLimiter); // Aplica a todo /api después de login/refresh
@@ -229,6 +229,22 @@ app.use((err: any, req: Request, res: Response, _: NextFunction) => {
   }
 
   res.status(statusCode).json(response);
+});
+
+// --- CONFIGURACIÓN DEL CRON JOB ---
+/**
+ * Programación de liberación de saldos (Garantía vencida)
+ * Se ejecuta todos los días a las 00:00 (Medianoche)
+ * Formato: (minuto hora día_del_mes mes día_de_la_semana)
+ */
+cron.schedule('0 0 * * *', async () => {
+  logger.info('SISTEMA: Iniciando proceso automático de liberación de saldos...');
+  try {
+    await ReleaseService.processPendingBalances();
+    logger.info('SISTEMA: Proceso de liberación completado con éxito.');
+  } catch (error: any) {
+    logger.error({ error: error.message }, 'SISTEMA: Error en el Cron Job de liberación');
+  }
 });
 
 // Iniciar servidor

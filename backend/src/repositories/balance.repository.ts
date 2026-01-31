@@ -14,7 +14,9 @@ export interface UserBalance {
 
 export const balanceRepository = {
   /**
-   * Suma ganancias al balance específico de una moneda.
+   * Suma ganancias al balance.
+   * El dinero nuevo entra en 'pending_balance' (por seguridad)
+   * y se suma al 'total_earned'.
    */
   async addEarnings(userId: string, amount: number, client?: any, currency: string = 'ARS') {
     const query = `
@@ -40,26 +42,47 @@ export const balanceRepository = {
   },
 
   /**
-   * ✅ NUEVO: Resta saldo disponible al solicitar un retiro.
-   * Se ejecuta dentro de una transacción de Payout.
+   * Mueve saldo de 'pending' a 'available' (por ejemplo, tras 7 días de garantía).
+   */
+  async releaseBalance(userId: string, amount: number, currency: string, client?: any) {
+    const query = `
+      UPDATE "${schema}".user_balances 
+      SET pending_balance = pending_balance - $1,
+          available_balance = available_balance + $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $2 AND currency = $3 AND pending_balance >= $1
+      RETURNING *;
+    `;
+    try {
+      const db = client || pool;
+      const { rows } = await db.query(query, [amount, userId, currency]);
+      return rows[0];
+    } catch (error: any) {
+      logger.error(
+        { error: error.message, userId, amount, currency },
+        'DB Error: releaseBalance failed'
+      );
+      throw error;
+    }
+  },
+
+  /**
+   * Resta saldo disponible al solicitar un retiro (Payout).
    */
   async subtractAvailableBalance(userId: string, amount: number, currency: string, client: any) {
     const query = `
       UPDATE "${schema}".user_balances 
       SET available_balance = available_balance - $1, 
           updated_at = CURRENT_TIMESTAMP 
-      WHERE user_id = $2 AND currency = $3
+      WHERE user_id = $2 AND currency = $3 AND available_balance >= $1
       RETURNING *;
     `;
 
     try {
-      // Usamos obligatoriamente el client de la transacción
       const { rows } = await client.query(query, [amount, userId, currency]);
-
       if (rows.length === 0) {
-        throw new Error('No se encontró el balance para actualizar');
+        throw new Error('Saldo insuficiente o balance no encontrado');
       }
-
       return rows[0];
     } catch (error: any) {
       logger.error(
@@ -111,13 +134,14 @@ export const balanceRepository = {
   },
 
   /**
-   * Obtiene todos los balances de un usuario.
+   * Obtiene todos los balances del usuario (una fila por moneda).
    */
   async getAllBalancesByUserId(userId: string): Promise<UserBalance[]> {
     const query = `
       SELECT total_earned, available_balance, pending_balance, currency, updated_at
       FROM "${schema}".user_balances 
-      WHERE user_id = $1;
+      WHERE user_id = $1
+      ORDER BY currency ASC;
     `;
 
     try {

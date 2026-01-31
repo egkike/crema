@@ -11,27 +11,27 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     const user = (req as any).user;
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
+    // 1. Validamos los datos (ahora incluye el array 'prices')
     const validatedData = createProductSchema.parse(req.body);
 
+    // 2. Mapeamos al input del repositorio
     const productInput: ProductInput = {
       creatorId: user.id,
       title: validatedData.title,
       type: validatedData.type,
-      price: validatedData.price,
-      currency: validatedData.currency || 'ARS',
+      prices: validatedData.prices, // <--- Enviamos el array completo
+      description: validatedData.description,
+      contentUrl: validatedData.contentUrl,
+      commissionPercent: validatedData.commissionPercent,
+      status: validatedData.status,
     };
 
-    if (validatedData.description !== undefined)
-      productInput.description = validatedData.description;
-    if (validatedData.contentUrl !== undefined) productInput.contentUrl = validatedData.contentUrl;
-    if (validatedData.commissionPercent !== undefined)
-      productInput.commissionPercent = validatedData.commissionPercent;
-    if (validatedData.status !== undefined) productInput.status = validatedData.status;
-
+    // 3. El repo se encarga de la transacción (product + prices)
     const product = await productRepository.createProduct(productInput);
 
     res.status(201).json({
       success: true,
+      message: 'Producto creado exitosamente con sus precios',
       data: product,
     });
   } catch (error: any) {
@@ -43,14 +43,11 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-/**
- * Agregamos esta función que faltaba en tu router
- */
 export const getMyProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = (req as any).user;
 
-    // CAMBIA ESTA LÍNEA: de getProductsByCreatorId a getProductsByCreator
+    // Ahora devuelve los productos con sus arrays de precios gracias al json_agg del repo
     const products = await productRepository.getProductsByCreator(user.id);
 
     res.status(200).json({
@@ -62,7 +59,6 @@ export const getMyProducts = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-// --- ESTO ES LO QUE ARREGLA EL ERROR EN PRODUCT.ROUTES.TS ---
 export const productController = {
   createProduct,
   getMyProducts,

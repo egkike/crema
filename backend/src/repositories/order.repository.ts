@@ -4,22 +4,21 @@ import { config } from '../config/index';
 
 const schema = config.db.schema;
 
+// Ajustamos el DTO para que use camelCase en el código (más estándar en TS)
+// y coincida con lo que el Controller enviará.
 export interface CreateOrderDTO {
-  buyer_id: string;
-  product_id: string;
+  buyerId: string;
+  productId: string;
   amount: number;
   currency: string;
-  payment_method: string;
-  external_reference: string;
+  paymentMethod: string;
+  externalReference: string;
   status?: string;
-  affiliate_id?: string | null;
-  commission_amount?: number;
+  affiliateId?: string | null;
+  commissionAmount?: number;
 }
 
 export const orderRepository = {
-  /**
-   * Helper para formatear montos de la DB y asegurar tipos numéricos
-   */
   mapRowToOrder(row: any) {
     if (!row) return null;
     return {
@@ -40,15 +39,15 @@ export const orderRepository = {
     `;
 
     const values = [
-      data.buyer_id,
-      data.product_id,
-      data.affiliate_id || null,
+      data.buyerId,
+      data.productId,
+      data.affiliateId || null,
       data.amount,
       data.currency,
-      data.commission_amount || 0,
+      data.commissionAmount || 0,
       data.status || 'pending',
-      data.payment_method,
-      data.external_reference,
+      data.paymentMethod,
+      data.externalReference,
     ];
 
     try {
@@ -56,63 +55,57 @@ export const orderRepository = {
       return this.mapRowToOrder(rows[0]);
     } catch (error: any) {
       logger.error(
-        { error: error.message, ref: data.external_reference },
+        { error: error.message, ref: data.externalReference },
         'DB Error: Insert order failed'
       );
       throw error;
     }
   },
 
-  async updateByExternalRef(externalRef: string, updates: any) {
-    try {
-      const query = `
-        UPDATE "${schema}".orders 
-        SET status = $1, transaction_id = $2, gateway_status = $3, updated_at = CURRENT_TIMESTAMP
-        WHERE external_reference = $4
-        RETURNING *;
-      `;
-      const { rows } = await pool.query(query, [
-        updates.status,
-        updates.transaction_id,
-        updates.gateway_status || null,
-        externalRef,
-      ]);
-      return this.mapRowToOrder(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, externalRef }, 'DB Error: Update order failed');
-      throw error;
-    }
-  },
-
-  async getByExternalRef(externalRef: string) {
-    try {
-      const { rows } = await pool.query(
-        `SELECT * FROM "${schema}".orders WHERE external_reference = $1`,
-        [externalRef]
-      );
-      return this.mapRowToOrder(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, externalRef }, 'DB Error: Fetch order by ref failed');
-      throw error;
-    }
-  },
-
   /**
-   * ✅ VALIDACIÓN DE SEGURIDAD:
-   * Verifica si un comprador específico ya pagó por un producto específico.
+   * ✅ ACTUALIZACIÓN: Ahora también verificamos que el usuario pueda acceder
+   * si es el CREADOR del producto, no solo si lo compró.
    */
-  async checkPaidOrder(userId: string, productId: string): Promise<boolean> {
+  async checkAccess(userId: string, productId: string): Promise<boolean> {
     const query = `
-      SELECT id FROM "${schema}".orders 
-      WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
+      SELECT o.id FROM "${schema}".orders o
+      WHERE o.buyer_id = $1 AND o.product_id = $2 AND o.status = 'paid'
+      UNION
+      SELECT p.id FROM "${schema}".products p
+      WHERE p.creator_id = $1 AND p.id = $2
       LIMIT 1;
     `;
     try {
       const { rows } = await pool.query(query, [userId, productId]);
       return rows.length > 0;
     } catch (error: any) {
-      logger.error({ error: error.message, userId, productId }, 'DB Error: checkPaidOrder failed');
+      logger.error({ error: error.message, userId, productId }, 'DB Error: checkAccess failed');
       throw error;
     }
+  },
+
+  // ... (los métodos updateByExternalRef y getByExternalRef se mantienen igual)
+  async updateByExternalRef(externalRef: string, updates: any) {
+    const query = `
+      UPDATE "${schema}".orders 
+      SET status = $1, transaction_id = $2, gateway_status = $3, updated_at = CURRENT_TIMESTAMP
+      WHERE external_reference = $4
+      RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [
+      updates.status,
+      updates.transaction_id,
+      updates.gateway_status || null,
+      externalRef,
+    ]);
+    return this.mapRowToOrder(rows[0]);
+  },
+
+  async getByExternalRef(externalRef: string) {
+    const { rows } = await pool.query(
+      `SELECT * FROM "${schema}".orders WHERE external_reference = $1`,
+      [externalRef]
+    );
+    return this.mapRowToOrder(rows[0]);
   },
 };

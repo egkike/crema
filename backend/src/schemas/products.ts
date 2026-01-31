@@ -1,13 +1,22 @@
 import { z } from 'zod';
 
-const productTypeEnum = z.union([
-  z.literal('course'),
-  z.literal('ebook'),
-  z.literal('membership'),
-  z.literal('software'),
-  z.literal('podcast'),
-  z.literal('audiobook'),
+const productTypeEnum = z.enum([
+  'course',
+  'ebook',
+  'membership',
+  'software',
+  'podcast',
+  'audiobook',
 ]);
+
+// Definimos el schema para un precio individual
+const priceSchema = z.object({
+  currency: z
+    .string()
+    .min(3, { message: 'El código de moneda debe tener al menos 3 caracteres (ej: ARS)' })
+    .max(10),
+  amount: z.number().min(0, { message: 'El precio no puede ser negativo' }),
+});
 
 export const createProductSchema = z.object({
   title: z
@@ -19,15 +28,10 @@ export const createProductSchema = z.object({
 
   type: productTypeEnum,
 
-  price: z.number().min(0, { message: 'El precio no puede ser negativo' }),
-
-  // ✅ AÑADIDO: Validación para la moneda
-  currency: z
-    .string()
-    .min(3, { message: 'Formato de moneda inválido (ej: ARS)' })
-    .max(10)
-    .optional()
-    .default('ARS'),
+  // ✅ CAMBIO CLAVE: Ahora validamos un array de precios
+  prices: z
+    .array(priceSchema)
+    .min(1, { message: 'Debes asignar al menos un precio en una moneda habilitada' }),
 
   contentUrl: z.string().url({ message: 'Debe ser una URL válida' }).optional(),
 

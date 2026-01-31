@@ -27,3 +27,7 @@ CREATE INDEX idx_orders_buyer_id ON orders(buyer_id);
 CREATE INDEX idx_orders_product_id ON orders(product_id);
 CREATE INDEX idx_orders_external_ref ON orders(external_reference);
 CREATE INDEX idx_commissions_affiliate_id ON commissions(affiliate_id);
+
+-- Opcional: Crear un índice para que el Cron Job sea súper rápido
+CREATE INDEX IF NOT EXISTS idx_orders_balance_release 
+ON orders (status, balance_released, updated_at);
