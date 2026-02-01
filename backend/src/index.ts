@@ -162,7 +162,9 @@ const server = app.listen(config.port, () => {
   logger.info(`🚀 Servidor en puerto ${config.port} (${config.nodeEnv})`);
 
   // Opcional: Ejecutar liberación al arrancar para procesar pendientes acumulados por downtime
-  // ReleaseService.processPendingBalances().catch(err => logger.error('Error en liberación inicial', err));
+  ReleaseService.processPendingBalances().catch(err =>
+    logger.error('Error en liberación inicial', err)
+  );
 });
 
 // --- GRACEFUL SHUTDOWN ---

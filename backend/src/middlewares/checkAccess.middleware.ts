@@ -4,35 +4,33 @@ import { orderRepository } from '../repositories/order.repository';
 import { productRepository } from '../repositories/product.repository';
 import { AppError } from '../errors/AppError';
 
+// src/middlewares/checkAccess.middleware.ts
 export const checkContentAccess = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).user?.id;
-    const productId = req.params.productId as string;
+    const user = (req as any).user;
+    const { productId } = req.params;
 
-    if (!userId || !productId) {
-      throw new AppError('Acceso denegado: Información de usuario o producto incompleta', 400);
+    if (!user?.id || !productId) {
+      throw new AppError('Acceso denegado: Identificación incompleta', 400);
     }
 
-    // 1. Verificamos primero si el producto existe
-    const product = await productRepository.getProductById(productId);
-    if (!product) {
-      throw new AppError('Producto no encontrado', 404);
-    }
+    // 1. Si es Administrador (Level 99), acceso total para soporte
+    if (user.level >= 99) return next();
 
-    // 2. Usamos el método correcto del repositorio: checkAccess
-    // Este método ya verifica internamente:
-    // - Si el usuario compró el producto (status 'paid')
-    // - O si el usuario es el creador del producto
-    const hasAccess = await orderRepository.checkAccess(userId, productId);
+    // 2. Buscamos el producto para ver quién es el dueño
+    const product = await productRepository.getProductById(productId as string);
+    if (!product) throw new AppError('Producto no encontrado', 404);
+
+    // 3. Si es el creador del producto, tiene acceso
+    if (product.creator_id === user.id) return next();
+
+    // 4. Verificamos si tiene una compra exitosa y no reembolsada
+    const hasAccess = await orderRepository.checkAccess(user.id, productId as string);
 
     if (!hasAccess) {
-      throw new AppError(
-        'No tienes permiso para acceder a este contenido. Adquiérelo primero.',
-        403
-      );
+      throw new AppError('No tienes permiso para acceder a este contenido.', 403);
     }
 
-    // Todo bien, adelante
     next();
   } catch (error) {
     next(error);

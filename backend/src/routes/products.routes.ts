@@ -1,34 +1,34 @@
 import { Router } from 'express';
 
-// 1. Importamos las instancias de los controladores
 import { productController } from '../controllers/product.controller';
 import { contentController } from '../controllers/content.controller';
-// 2. Importamos los middlewares
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
 import { checkContentAccess } from '../middlewares/checkAccess.middleware';
 
 const router = Router();
 
-// Todas las rutas de productos requieren autenticación
+/**
+ * 🔓 RUTAS PÚBLICAS (Opcional)
+ * Si decides que el catálogo sea abierto, mueve 'getProductById'
+ * ANTES del middleware de JWT.
+ */
+
+// --- RUTAS PROTEGIDAS (Requieren Login) ---
 router.use(jwtAuthMiddleware);
 
-/**
- * Solo productores (level >= 5) pueden crear productos
- */
+// 1. Crear (Solo Nivel 5+)
 router.post('/create', restrictTo(5), (req, res, next) =>
   productController.createProduct(req, res, next)
 );
 
-/**
- * Listar MIS productos creados
- */
+// 2. Listar propios (Palabra fija 'my-products' siempre antes que el parámetro :productId)
 router.get('/my-products', (req, res, next) => productController.getMyProducts(req, res, next));
 
-/**
- * RUTA CRÍTICA: Acceso al contenido comprado
- * Aplicamos checkContentAccess para validar la compra o autoría
- */
+// 3. Ver detalle (Ruta dinámica)
+router.get('/:productId', (req, res, next) => productController.getProductById(req, res, next));
+
+// 4. Acceso al contenido (Ruta dinámica con middleware de validación de compra)
 router.get('/:productId/content', checkContentAccess, (req, res, next) =>
   contentController.getProductContent(req, res, next)
 );

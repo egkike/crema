@@ -17,7 +17,7 @@ export class CommissionService {
     try {
       await client.query('BEGIN');
 
-      // 1. Bloqueo de fila (Pessimistic Locking) para evitar Race Conditions
+      // 1. Bloqueo de fila para evitar condiciones de carrera (Race Conditions)
       const checkQuery = `SELECT commissions_calculated FROM "${schema}".orders WHERE id = $1 FOR UPDATE`;
       const { rows } = await client.query(checkQuery, [order.id]);
 
@@ -30,39 +30,37 @@ export class CommissionService {
       const configs = await configRepository.getConfigsByCurrency(orderCurrency);
       const totalAmount = Number(order.amount);
 
-      // 2. Obtención de parámetros de la plataforma
-      const percentValue = configs['fee_percent'] ?? 0.099; // 9.9%
-      const threshold = configs['price_threshold'] ?? 22500;
-      const lowFee = configs['fixed_fee_low'] ?? 150.0;
-      const highFee = configs['fixed_fee_high'] ?? 750.0;
+      // 2. Parámetros de la plataforma (Fees)
+      const percentValue = Number(configs['fee_percent'] ?? 0.099); // 9.9%
+      const threshold = Number(configs['price_threshold'] ?? 22500);
+      const lowFee = Number(configs['fixed_fee_low'] ?? 150.0);
+      const highFee = Number(configs['fixed_fee_high'] ?? 750.0);
 
-      // 3. Cálculo de la "Mordida" de la plataforma
+      // 3. Cálculo de la comisión de la plataforma
       const variableFee = totalAmount * percentValue;
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
-      const totalCremaFee = variableFee + fixedFee;
+      const totalPlatformFee = variableFee + fixedFee;
 
-      // Monto que queda para repartir entre Creador y Afiliado
-      let remainingNet = totalAmount - totalCremaFee;
+      let remainingNet = totalAmount - totalPlatformFee;
 
       // 4. Registro de Ganancias de Plataforma
       await client.query(
-        `INSERT INTO "${schema}".platform_earnings (order_id, variable_amount, fixed_amount, total_amount, currency, status) 
+        `INSERT INTO "${schema}".platform_earnings 
+         (order_id, variable_amount, fixed_amount, total_amount, currency, status) 
          VALUES ($1, $2, $3, $4, $5, 'active')`,
-        [order.id, variableFee, fixedFee, totalCremaFee, orderCurrency]
+        [order.id, variableFee, fixedFee, totalPlatformFee, orderCurrency]
       );
 
-      // 5. Lógica de Afiliado (si aplica)
+      // 5. Lógica de Afiliado
       if (order.affiliate_id && Number(product.affiliate_commission_percent) > 0) {
         const affiliateAmount = remainingNet * (Number(product.affiliate_commission_percent) / 100);
 
-        // Creamos registro de comisión pendiente
         await client.query(
           `INSERT INTO "${schema}".commissions (affiliate_id, order_id, amount, currency, status) 
            VALUES ($1, $2, $3, $4, 'pending')`,
           [order.affiliate_id, order.id, affiliateAmount, orderCurrency]
         );
 
-        // Sumamos al saldo PENDIENTE del afiliado (No disponible aún)
         await balanceRepository.addPendingBalance(
           order.affiliate_id,
           affiliateAmount,
@@ -76,13 +74,13 @@ export class CommissionService {
           amount: affiliateAmount,
           currency: orderCurrency,
           type: 'sale_affiliate',
-          description: `Comisión pendiente por venta de: ${product.title}`,
+          description: `Comisión pendiente: ${product.title}`,
         });
 
         remainingNet -= affiliateAmount;
       }
 
-      // 6. Ganancia del Creador (Lo que sobra va al creador)
+      // 6. Ganancia del Creador
       await balanceRepository.addPendingBalance(
         product.creator_id,
         remainingNet,
@@ -96,26 +94,25 @@ export class CommissionService {
         amount: remainingNet,
         currency: orderCurrency,
         type: 'sale_creator',
-        description: `Venta directa de: ${product.title}`,
+        description: `Venta directa: ${product.title}`,
       });
 
-      // 7. Marcamos la orden como procesada
+      // 7. Cierre de la orden - ATENCIÓN: En tu tabla la columna es 'commission_amount' (sin la 's')
       await client.query(
-        `UPDATE "${schema}".orders SET commissions_calculated = TRUE, commissions_amount = $1 WHERE id = $2`,
-        [totalCremaFee, order.id]
+        `UPDATE "${schema}".orders 
+         SET commissions_calculated = TRUE, commission_amount = $1 
+         WHERE id = $2`,
+        [totalPlatformFee, order.id]
       );
 
       await client.query('COMMIT');
-      logger.info(
-        { orderId: order.id, currency: orderCurrency },
-        '💰 Dinero repartido en saldos pendientes'
-      );
+      logger.info({ orderId: order.id }, 'Dinero distribuido exitosamente');
 
-      return { cremaFee: totalCremaFee, creatorNet: remainingNet };
+      return { platformFee: totalPlatformFee, creatorNet: remainingNet };
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, orderId: order.id }, 'Error repartiendo comisiones');
-      throw new AppError('Error interno al repartir comisiones', 500);
+      logger.error({ error: error.message, orderId: order.id }, 'Error en CommissionService');
+      throw new AppError('Error al procesar comisiones', 500);
     } finally {
       client.release();
     }

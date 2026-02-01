@@ -13,18 +13,15 @@ export interface UserBalance {
 }
 
 export const balanceRepository = {
-  /**
-   * Suma dinero al saldo PENDIENTE y al total acumulado histórico.
-   * Este es el método que llama el CommissionService.
-   */
   async addPendingBalance(userId: string, amount: number, currency: string, client?: any) {
+    // Usamos casting explícito ::numeric para evitar problemas de tipos con decimales
     const query = `
       INSERT INTO "${schema}".user_balances (user_id, total_earned, pending_balance, currency)
       VALUES ($1, $2, $2, $3)
       ON CONFLICT (user_id, currency) 
       DO UPDATE SET
-        total_earned = user_balances.total_earned + EXCLUDED.total_earned,
-        pending_balance = user_balances.pending_balance + EXCLUDED.pending_balance,
+        total_earned = (user_balances.total_earned + EXCLUDED.total_earned)::numeric,
+        pending_balance = (user_balances.pending_balance + EXCLUDED.pending_balance)::numeric,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *;
     `;
@@ -34,22 +31,16 @@ export const balanceRepository = {
       const { rows } = await db.query(query, [userId, amount, currency]);
       return rows[0];
     } catch (error: any) {
-      logger.error(
-        { error: error.message, userId, amount, currency },
-        'DB Error: addPendingBalance failed'
-      );
+      logger.error({ error: error.message, userId, amount }, 'DB Error: addPendingBalance failed');
       throw error;
     }
   },
 
-  /**
-   * Mueve saldo de 'pending' a 'available' (Liberación de fondos).
-   */
   async releaseBalance(userId: string, amount: number, currency: string, client?: any) {
     const query = `
       UPDATE "${schema}".user_balances 
-      SET pending_balance = pending_balance - $1,
-          available_balance = available_balance + $1,
+      SET pending_balance = (pending_balance - $1)::numeric,
+          available_balance = (available_balance + $1)::numeric,
           updated_at = CURRENT_TIMESTAMP
       WHERE user_id = $2 AND currency = $3 AND pending_balance >= $1
       RETURNING *;
@@ -57,23 +48,19 @@ export const balanceRepository = {
     try {
       const db = client || pool;
       const { rows } = await db.query(query, [amount, userId, currency]);
+      if (rows.length === 0) throw new Error('Saldo pendiente insuficiente para liberar');
       return rows[0];
     } catch (error: any) {
-      logger.error(
-        { error: error.message, userId, amount, currency },
-        'DB Error: releaseBalance failed'
-      );
+      logger.error({ error: error.message, userId }, 'DB Error: releaseBalance failed');
       throw error;
     }
   },
 
-  /**
-   * Resta saldo disponible (Payouts).
-   */
   async subtractAvailableBalance(userId: string, amount: number, currency: string, client: any) {
+    // Aquí el bloqueo de fila ocurre implícitamente por el UPDATE
     const query = `
       UPDATE "${schema}".user_balances 
-      SET available_balance = available_balance - $1, 
+      SET available_balance = (available_balance - $1)::numeric, 
           updated_at = CURRENT_TIMESTAMP 
       WHERE user_id = $2 AND currency = $3 AND available_balance >= $1
       RETURNING *;
@@ -86,10 +73,7 @@ export const balanceRepository = {
       }
       return rows[0];
     } catch (error: any) {
-      logger.error(
-        { error: error.message, userId, amount, currency },
-        'DB Error: subtractAvailableBalance failed'
-      );
+      logger.error({ error: error.message, userId }, 'DB Error: subtractAvailableBalance failed');
       throw error;
     }
   },
@@ -168,6 +152,23 @@ export const balanceRepository = {
       }));
     } catch (error: any) {
       logger.error({ error: error.message, userId }, 'DB Error: getAllBalancesByUserId failed');
+      throw error;
+    }
+  },
+
+  async addAvailableBalance(userId: string, amount: number, currency: string, client: any) {
+    const query = `
+    UPDATE "${schema}".user_balances 
+    SET available_balance = (available_balance + $1)::numeric,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = $2 AND currency = $3
+    RETURNING *;
+  `;
+    try {
+      const { rows } = await client.query(query, [amount, userId, currency]);
+      return rows[0];
+    } catch (error: any) {
+      logger.error({ error: error.message, userId }, 'DB Error: addAvailableBalance failed');
       throw error;
     }
   },

@@ -5,7 +5,7 @@ import logger from '../utils/logger';
 export class AccessService {
   /**
    * Retorna el contenido del producto.
-   * La validación de compra/autoría reside en el middleware de acceso.
+   * La validación de compra/autoría reside en el middleware 'checkContentAccess'.
    */
   static async getProtectedContent(userId: string, productId: string) {
     const product = await productRepository.getProductById(productId);
@@ -14,27 +14,26 @@ export class AccessService {
       throw new AppError('El producto solicitado no existe.', 404);
     }
 
-    // 1. Lógica de estados
-    // Si está archivado, bloqueamos acceso total.
+    // 1. Lógica de estados del producto
     if (product.status === 'archived') {
-      throw new AppError('Este producto ha sido retirado permanentemente.', 410); // 410 Gone
+      throw new AppError('Este producto ha sido retirado permanentemente.', 410);
     }
 
-    // Si no está publicado y el usuario NO es el dueño, bloqueamos.
+    // Un creador puede ver su contenido aunque sea 'draft', un comprador solo si es 'published'
     if (product.status !== 'published' && product.creator_id !== userId) {
       throw new AppError('El contenido no está disponible actualmente.', 403);
     }
 
     logger.info({ userId, productId }, `Acceso concedido al contenido: ${product.title}`);
 
-    // 2. Retorno estructurado
+    // 2. Retorno estructurado (Normalizando nombres de propiedades)
     return {
       id: product.id,
       title: product.title,
       type: product.type,
-      contentUrl: product.content_url,
+      // Aseguramos que tome el valor de la columna de la DB (snake_case)
+      contentUrl: product.content_url || (product as any).contentUrl,
       description: product.description,
-      // Usamos el nombre de columna tal cual está en la DB o fallback
       updatedAt: product.updated_at,
     };
   }

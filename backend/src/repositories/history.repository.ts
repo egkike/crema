@@ -4,7 +4,13 @@ import logger from '../utils/logger';
 
 const schema = config.db.schema;
 
-export type HistoryType = 'sale_creator' | 'sale_affiliate' | 'refund' | 'payout_request';
+// 1. Añadimos 'payout_refund' para soportar devoluciones de retiros fallidos
+export type HistoryType =
+  | 'sale_creator'
+  | 'sale_affiliate'
+  | 'refund'
+  | 'payout_request'
+  | 'payout_refund';
 
 export interface BalanceHistoryRecord {
   id: string;
@@ -18,9 +24,6 @@ export interface BalanceHistoryRecord {
 }
 
 export const historyRepository = {
-  /**
-   * Helper para mapear y asegurar tipos numéricos
-   */
   mapRow(row: any): BalanceHistoryRecord {
     return {
       ...row,
@@ -28,10 +31,6 @@ export const historyRepository = {
     };
   },
 
-  /**
-   * Crea un registro histórico dentro de una transacción.
-   * Obligatorio pasar el 'client' para asegurar atomicidad con el balance.
-   */
   async createRecordWithClient(
     client: any,
     data: {
@@ -50,20 +49,18 @@ export const historyRepository = {
     `;
 
     try {
-      const values = [
+      const { rows } = await client.query(query, [
         data.userId,
         data.order_id,
         data.amount,
         data.currency,
         data.type,
         data.description,
-      ];
-
-      const { rows } = await client.query(query, values);
+      ]);
       return this.mapRow(rows[0]);
     } catch (error: any) {
       logger.error(
-        { error: error.message, userId: data.userId, orderId: data.order_id },
+        { error: error.message, userId: data.userId },
         'DB Error: createRecordWithClient history failed'
       );
       throw error;
@@ -71,34 +68,43 @@ export const historyRepository = {
   },
 
   /**
-   * Obtiene el historial de un usuario con filtros opcionales.
-   * Ideal para el panel de "Mis Movimientos".
+   * Obtiene el historial con conteo total para paginación en el frontend
    */
-  async getByUserId(
+  async getByUserIdWithCount(
     userId: string,
     limit: number = 20,
     offset: number = 0,
     currency?: string
-  ): Promise<BalanceHistoryRecord[]> {
-    let query = `
-      SELECT * FROM "${schema}".balance_history 
-      WHERE user_id = $1
-    `;
+  ) {
+    let whereClause = `WHERE user_id = $1`;
     const params: any[] = [userId];
 
     if (currency) {
       params.push(currency);
-      query += ` AND currency = $${params.length}`;
+      whereClause += ` AND currency = $${params.length}`;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(limit, offset);
+    const dataQuery = `
+      SELECT * FROM "${schema}".balance_history 
+      ${whereClause}
+      ORDER BY created_at DESC 
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+
+    const countQuery = `SELECT COUNT(*) FROM "${schema}".balance_history ${whereClause}`;
 
     try {
-      const { rows } = await pool.query(query, params);
-      return rows.map(row => this.mapRow(row));
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(dataQuery, [...params, limit, offset]),
+        pool.query(countQuery, params),
+      ]);
+
+      return {
+        data: dataRes.rows.map(row => this.mapRow(row)),
+        total: parseInt(countRes.rows[0].count, 10),
+      };
     } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'DB Error: getByUserId history failed');
+      logger.error({ error: error.message, userId }, 'DB Error: getByUserIdWithCount failed');
       throw error;
     }
   },

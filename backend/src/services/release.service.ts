@@ -9,28 +9,26 @@ const schema = config.db.schema;
 export const ReleaseService = {
   async processPendingBalances() {
     const daysOfGuarantee = 7;
-    // Usamos el pool para obtener el cliente de la consulta de selección
     const client = await pool.connect();
 
     try {
-      // 1. Buscamos órdenes candidatas a liberación
+      // 1. Join con products para obtener el creator_id real
       const query = `
-        SELECT id, product_id, creator_id, affiliate_id, amount, currency 
-        FROM "${schema}".orders 
-        WHERE status = 'paid' 
-        AND commissions_calculated = TRUE 
-        AND balance_released = FALSE
-        AND updated_at <= NOW() - INTERVAL '${daysOfGuarantee} days'
-        FOR UPDATE SKIP LOCKED;
+        SELECT o.id, o.product_id, p.creator_id, o.affiliate_id, o.amount, o.currency 
+        FROM "${schema}".orders o
+        JOIN "${schema}".products p ON o.product_id = p.id
+        WHERE o.status = 'paid' 
+        AND o.commissions_calculated = TRUE 
+        AND o.balance_released = FALSE
+        AND o.updated_at <= NOW() - INTERVAL '${daysOfGuarantee} days'
+        FOR UPDATE OF o SKIP LOCKED;
       `;
 
       const { rows: ordersToRelease } = await client.query(query);
 
-      if (ordersToRelease.length === 0) {
-        return;
-      }
+      if (ordersToRelease.length === 0) return;
 
-      logger.info(`Iniciando liberación de saldos para ${ordersToRelease.length} órdenes.`);
+      logger.info(`Iniciando liberación de ${ordersToRelease.length} órdenes.`);
 
       for (const order of ordersToRelease) {
         try {
@@ -44,17 +42,15 @@ export const ReleaseService = {
             if (affiliateComm && affiliateComm.status === 'pending') {
               await balanceRepository.releaseBalance(
                 order.affiliate_id,
-                affiliateComm.amount,
+                Number(affiliateComm.amount),
                 order.currency,
                 client
               );
-              // Actualizamos el estado de la comisión a 'paid'
               await commissionRepository.updateStatusByOrder(order.id, 'paid', client);
             }
           }
 
           // --- B. LIBERAR AL CREADOR ---
-          // Usamos el creator_id que ya viene en la fila de la orden
           const creatorAmount = await this.calculateCreatorNet(order, client);
 
           if (creatorAmount > 0) {
@@ -73,13 +69,9 @@ export const ReleaseService = {
           );
 
           await client.query('COMMIT');
-          logger.info({ orderId: order.id }, '✅ Saldo liberado exitosamente');
         } catch (error: any) {
           await client.query('ROLLBACK');
-          logger.error(
-            { orderId: order.id, error: error.message },
-            '❌ Error liberando orden individual'
-          );
+          logger.error({ orderId: order.id, error: error.message }, 'Error liberando orden');
         }
       }
     } catch (error: any) {
@@ -95,7 +87,8 @@ export const ReleaseService = {
       WHERE order_id = $1 AND user_id = $2 AND type = 'sale_creator' 
       LIMIT 1
     `;
-    const { rows } = await client.query(query, [order.id, order.creator_id]);
+    const db = client || pool;
+    const { rows } = await db.query(query, [order.id, order.creator_id]);
     return rows[0] ? Math.abs(Number(rows[0].amount)) : 0;
   },
 };

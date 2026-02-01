@@ -41,7 +41,6 @@ export interface ProductInput {
 export const productRepository = {
   /**
    * Mapea una fila de la base de datos al objeto de dominio Product.
-   * Garantiza que los tipos de datos sean correctos (ej. convertir strings de DB a Numbers).
    */
   mapRowToProduct(row: any): Product {
     return {
@@ -50,18 +49,19 @@ export const productRepository = {
       title: row.title,
       description: row.description,
       type: row.type,
-      content_url: row.content_url,
+      content_url: row.content_url || row.contentUrl,
       affiliate_commission_percent: Number(row.affiliate_commission_percent),
       status: row.status,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      // prices ya viene como array JSON desde las consultas que usan json_agg
+      // Maneja tanto el array de la subconsulta como el pasado manualmente
       prices: row.prices || [],
     };
   },
 
   /**
    * Crea un producto y sus múltiples precios en una sola transacción atómica.
+   * Optimizado con inserción masiva para los precios.
    */
   async createProduct(input: ProductInput): Promise<Product> {
     const client = await pool.connect();
@@ -90,14 +90,22 @@ export const productRepository = {
 
       const productRow = productRes.rows[0];
 
-      // 2. Insertar los precios en la tabla relacionada 'product_prices'
-      const priceQuery = `
-        INSERT INTO "${schema}".product_prices (product_id, currency, amount)
-        VALUES ($1, $2, $3);
-      `;
+      // 2. Insertar los precios en bulk (más eficiente que un loop)
+      if (input.prices && input.prices.length > 0) {
+        const values: any[] = [];
+        const valueRows: string[] = [];
 
-      for (const p of input.prices) {
-        await client.query(priceQuery, [productRow.id, p.currency, p.amount]);
+        input.prices.forEach((p, index) => {
+          const offset = index * 3;
+          valueRows.push(`($${offset + 1}, $${offset + 2}, $${offset + 3})`);
+          values.push(productRow.id, p.currency, p.amount);
+        });
+
+        const priceBulkQuery = `
+          INSERT INTO "${schema}".product_prices (product_id, currency, amount)
+          VALUES ${valueRows.join(', ')};
+        `;
+        await client.query(priceBulkQuery, values);
       }
 
       await client.query('COMMIT');
@@ -107,7 +115,7 @@ export const productRepository = {
     } catch (error: any) {
       await client.query('ROLLBACK');
       logger.error(
-        { error: error.message, input },
+        { error: error.message, title: input.title },
         'Error en transacción: Falló creación de producto'
       );
       throw error;
@@ -117,14 +125,17 @@ export const productRepository = {
   },
 
   /**
-   * Obtiene un producto por ID incluyendo su lista de precios mediante una subconsulta JSON.
+   * Obtiene un producto por ID incluyendo su lista de precios mediante JSON_AGG.
    */
   async getProductById(id: string): Promise<Product | null> {
     try {
       const query = `
         SELECT p.*, 
-               (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
-                FROM "${schema}".product_prices pp WHERE pp.product_id = p.id) as prices
+               COALESCE(
+                 (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+                  FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+                 '[]'::json
+               ) as prices
         FROM "${schema}".products p
         WHERE p.id = $1;
       `;
@@ -146,8 +157,11 @@ export const productRepository = {
     try {
       const query = `
         SELECT p.*, 
-               (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
-                FROM "${schema}".product_prices pp WHERE pp.product_id = p.id) as prices
+               COALESCE(
+                 (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+                  FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+                 '[]'::json
+               ) as prices
         FROM "${schema}".products p
         WHERE p.creator_id = $1
         ORDER BY p.created_at DESC;
@@ -161,8 +175,7 @@ export const productRepository = {
   },
 
   /**
-   * Recupera el precio oficial para una moneda específica de un producto.
-   * Utilizado críticamente en el flujo de pagos para evitar manipulaciones de precio desde el front.
+   * Recupera el precio oficial para una moneda específica.
    */
   async getPriceByCurrency(productId: string, currency: string): Promise<number | null> {
     const query = `

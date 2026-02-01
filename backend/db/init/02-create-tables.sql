@@ -88,14 +88,29 @@ CREATE TABLE IF NOT EXISTS user_balances (
     -- Eliminamos PRIMARY KEY de aquí para definirla abajo como compuesta
     user_id UUID NOT NULL REFERENCES users(id),
     total_earned DECIMAL(18,8) DEFAULT 0.00,
-    available_balance DECIMAL(18,8) DEFAULT 0.00,
-    pending_balance DECIMAL(18,8) DEFAULT 0.00,
+    available_balance DECIMAL(18,8) DEFAULT 0.00 CHECK (available_balance >= 0),
+    pending_balance DECIMAL(18,8) DEFAULT 0.00 CHECK (pending_balance >= 0),
     currency VARCHAR(10) DEFAULT 'ARS',
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- Definimos la PK compuesta: Un registro único por cada combinación de usuario/moneda
     PRIMARY KEY (user_id, currency)
 );
+
+-- Función para el trigger
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Trigger para la tabla user_balances
+CREATE TRIGGER update_user_balances_modtime
+    BEFORE UPDATE ON user_balances
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_updated_at_column();
 
 -- Tabla donde registremos cada "mordida" que toma la plataforma.
 CREATE TABLE IF NOT EXISTS platform_earnings (
@@ -123,7 +138,7 @@ CREATE TABLE IF NOT EXISTS balance_history (
     currency VARCHAR(10) DEFAULT 'ARS',
     -- Definimos el tipo con un CHECK inline para integridad de datos
     type VARCHAR(50) NOT NULL CHECK (
-        type IN ('sale_creator', 'sale_affiliate', 'refund', 'payout_request')
+        type IN ('sale_creator', 'sale_affiliate', 'refund', 'payout_request', 'payout_refund')
     ),
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

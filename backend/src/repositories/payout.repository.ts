@@ -5,9 +5,6 @@ import { config } from '../config/index';
 const schema = config.db.schema;
 
 export const payoutRepository = {
-  /**
-   * Helper para asegurar que los montos sean numéricos
-   */
   mapRow(row: any) {
     if (!row) return null;
     return {
@@ -17,14 +14,29 @@ export const payoutRepository = {
   },
 
   /**
-   * Crea una solicitud de retiro.
-   * Siempre requiere un 'client' porque esto DEBE ocurrir dentro de una transacción
-   * que descuente el saldo del usuario simultáneamente.
+   * Obtiene un payout bloqueando la fila para actualización.
+   * Fundamental para evitar que dos admins procesen el mismo retiro.
    */
+  async getByIdForUpdate(id: string, client: any) {
+    const query = `
+      SELECT * FROM "${schema}".payouts 
+      WHERE id = $1 
+      FOR UPDATE;
+    `;
+    try {
+      const { rows } = await client.query(query, [id]);
+      return this.mapRow(rows[0]);
+    } catch (error: any) {
+      logger.error({ error: error.message, id }, 'DB Error: getByIdForUpdate payout failed');
+      throw error;
+    }
+  },
+
   async create(
     data: { userId: string; amount: number; currency: string; destination: string },
     client: any
   ) {
+    // Asegúrate de que el nombre de la columna sea destination_account como en tu tabla
     const query = `
       INSERT INTO "${schema}".payouts (user_id, amount, currency, destination_account)
       VALUES ($1, $2, $3, $4) RETURNING *;
@@ -43,21 +55,18 @@ export const payoutRepository = {
     }
   },
 
-  /**
-   * Actualiza el estado de un payout (Aprobado, Rechazado, etc.)
-   */
-  async updateStatus(payoutId: string, status: string, notes?: string, client?: any) {
+  async updateStatus(payoutId: string, status: string, client?: any) {
     const query = `
       UPDATE "${schema}".payouts 
-      SET status = $1, admin_notes = $2, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $3 RETURNING *;
+      SET status = $1, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $2 RETURNING *;
     `;
     try {
       const db = client || pool;
-      const { rows } = await db.query(query, [status, notes || null, payoutId]);
+      const { rows } = await db.query(query, [status, payoutId]);
       return this.mapRow(rows[0]);
     } catch (error: any) {
-      logger.error({ error: error.message, payoutId }, 'DB Error: update payout status failed');
+      logger.error({ error: error.message, payoutId }, 'DB Error: updateStatus payout failed');
       throw error;
     }
   },
