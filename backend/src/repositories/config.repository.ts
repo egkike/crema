@@ -7,10 +7,9 @@ const schema = config.db.schema;
 export const configRepository = {
   /**
    * Obtiene configuraciones numéricas filtradas por moneda.
-   * Si no se especifica moneda, por defecto busca 'ARS'.
+   * Si no encuentra para la moneda específica, intenta buscar una por defecto (ej. 'USD' o 'ARS').
    */
   async getConfigsByCurrency(currency: string = 'ARS'): Promise<Record<string, number>> {
-    // Buscamos específicamente las reglas para la moneda de la transacción
     const query = `
       SELECT key, value 
       FROM "${schema}".platform_configs 
@@ -18,15 +17,20 @@ export const configRepository = {
     `;
 
     try {
-      const { rows } = await pool.query(query, [currency]);
+      let { rows } = await pool.query(query, [currency]);
 
-      if (rows.length === 0) {
+      // Fallback: Si no hay config para la moneda, intentamos con la moneda base del sistema
+      if (rows.length === 0 && currency !== 'ARS') {
         logger.warn(
           { currency },
-          'No se encontraron configuraciones para esta moneda en platform_configs'
+          'Configuración no encontrada. Reintentando con moneda base (ARS)'
         );
-        // Opcional: Podrías lanzar error o devolver un objeto con valores por defecto seguros
-        return {};
+        const fallbackRes = await pool.query(query, ['ARS']);
+        rows = fallbackRes.rows;
+      }
+
+      if (rows.length === 0) {
+        throw new Error(`Configuración crítica no encontrada para moneda: ${currency}`);
       }
 
       return rows.reduce(
@@ -43,17 +47,22 @@ export const configRepository = {
   },
 
   /**
-   * Mantenemos getAllConfigs pero ahora es un "fetch all" real
-   * por si necesitas una vista administrativa de todas las monedas.
+   * Actualiza o inserta una configuración de plataforma (Upsert)
    */
-  async getAllConfigsRaw(): Promise<any[]> {
-    const query = `SELECT * FROM "${schema}".platform_configs ORDER BY currency, key`;
-    const { rows } = await pool.query(query);
-    return rows;
+  async upsertPlatformConfig(key: string, currency: string, value: number, description?: string) {
+    const query = `
+      INSERT INTO "${schema}".platform_configs (key, currency, value, description, updated_at)
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+      ON CONFLICT (key, currency) 
+      DO UPDATE SET value = EXCLUDED.value, description = EXCLUDED.description, updated_at = CURRENT_TIMESTAMP
+      RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [key, currency, value, description || null]);
+    return rows[0];
   },
 
   /**
-   * Obtiene configuraciones de texto (Globales, no dependen de la moneda de venta)
+   * Obtiene configuraciones de texto (Globales)
    */
   async getSystemSettings(): Promise<Record<string, string>> {
     const query = `SELECT key, value FROM "${schema}".system_settings`;
@@ -72,13 +81,16 @@ export const configRepository = {
     }
   },
 
-  async getSetting(key: string, defaultValue: string = 'ARS'): Promise<string> {
+  /**
+   * Obtiene un setting específico con fallback
+   */
+  async getSetting(key: string, defaultValue: string = ''): Promise<string> {
     const query = `SELECT value FROM "${schema}".system_settings WHERE key = $1`;
     try {
       const { rows } = await pool.query(query, [key]);
-      return rows[0]?.value || defaultValue;
+      return rows[0]?.value ?? defaultValue;
     } catch (error: any) {
-      logger.error({ error: error.message, key }, 'Error fetching setting, using default');
+      logger.error({ error: error.message, key }, 'Error fetching setting');
       return defaultValue;
     }
   },

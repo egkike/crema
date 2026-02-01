@@ -6,21 +6,22 @@ import { AppError } from '../errors/AppError';
 
 export class BalanceController {
   /**
-   * Obtiene el resumen de saldos del usuario (Total, Disponible, Pendiente)
+   * Obtiene todos los balances del usuario (una fila por moneda)
    */
   async getMyBalance(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user?.id;
 
-      if (!user?.id) {
+      if (!userId) {
         throw new AppError('Usuario no autenticado', 401);
       }
 
-      const balance = await balanceRepository.getByUserId(user.id);
+      // Cambiamos 'getByUserId' por 'getAllBalancesByUserId' que devuelve un array [ARS, USDT, etc]
+      const balances = await balanceRepository.getAllBalancesByUserId(userId);
 
       return res.status(200).json({
         success: true,
-        data: balance,
+        data: balances,
       });
     } catch (error) {
       next(error);
@@ -32,13 +33,18 @@ export class BalanceController {
    */
   async getMyHistory(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user?.id;
 
-      if (!user?.id) {
+      if (!userId) {
         throw new AppError('Usuario no autenticado', 401);
       }
 
-      const history = await historyRepository.getByUserId(user.id);
+      // Extraemos query params para paginación opcional
+      const limit = Number(req.query.limit) || 20;
+      const offset = Number(req.query.offset) || 0;
+
+      // Usamos el método correcto del historyRepository
+      const history = await historyRepository.getByUserId(userId, limit, offset);
 
       return res.status(200).json({
         success: true,
@@ -50,5 +56,4 @@ export class BalanceController {
   }
 }
 
-// Exportamos una instancia para las rutas
 export const balanceController = new BalanceController();

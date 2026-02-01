@@ -7,26 +7,23 @@ import { AppError } from '../errors/AppError';
 export const checkContentAccess = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = (req as any).user?.id;
-    // Forzamos a que sea tratado como string para evitar el error de "string | string[]"
     const productId = req.params.productId as string;
 
     if (!userId || !productId) {
       throw new AppError('Acceso denegado: Información de usuario o producto incompleta', 400);
     }
 
-    // 1. Verificamos si el producto existe
+    // 1. Verificamos primero si el producto existe
     const product = await productRepository.getProductById(productId);
     if (!product) {
       throw new AppError('Producto no encontrado', 404);
     }
 
-    // 2. Si el usuario es el Creador (Dueño), tiene acceso total
-    if (product.creator_id === userId) {
-      return next();
-    }
-
-    // 3. Verificamos si existe una compra pagada
-    const hasAccess = await orderRepository.checkPaidOrder(userId, productId);
+    // 2. Usamos el método correcto del repositorio: checkAccess
+    // Este método ya verifica internamente:
+    // - Si el usuario compró el producto (status 'paid')
+    // - O si el usuario es el creador del producto
+    const hasAccess = await orderRepository.checkAccess(userId, productId);
 
     if (!hasAccess) {
       throw new AppError(

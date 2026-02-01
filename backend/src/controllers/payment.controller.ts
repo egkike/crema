@@ -17,155 +17,146 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
     const user = (req as any).user;
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
-    const { productId, currency = 'ARS', quantity = 1 } = req.body;
+    // 1. Recibimos el gateway explícitamente desde el body
+    const { productId, currency = 'ARS', quantity = 1, gateway } = req.body;
+
     if (!productId) throw new AppError('productId es requerido', 400);
+    if (!gateway) throw new AppError('Debe seleccionar una pasarela de pago (gateway)', 400);
 
-    // 1. Validamos existencia y estado del producto
     const product = await productRepository.getProductById(productId);
-    if (!product) throw new AppError('El producto solicitado no existe', 404);
-    if (product.status !== 'published')
-      throw new AppError('Producto no disponible para compra', 400);
+    if (!product || product.status !== 'published') {
+      throw new AppError('Producto no disponible', 404);
+    }
 
-    // 2. VALIDACIÓN CRÍTICA: Obtener el precio oficial para la moneda elegida
     const officialPrice = await productRepository.getPriceByCurrency(productId, currency);
     if (!officialPrice) {
-      throw new AppError(`Este producto no tiene un precio definido en ${currency}`, 400);
+      throw new AppError(`Precio no definido para ${currency}`, 400);
     }
 
     const totalAmount = officialPrice * quantity;
     const externalReference = `ORD-${user.id}-${Date.now()}`;
 
-    // 3. Crear la orden en la DB (Usando nuestro nuevo repositorio con CamelCase)
-    await orderRepository.create({
-      buyerId: user.id,
-      productId: product.id,
-      amount: totalAmount,
-      currency: currency,
-      paymentMethod: currency === 'ARS' ? 'mercadopago' : 'crypto_gateway', // Lógica de ruteo
-      externalReference: externalReference,
-      status: 'pending',
-    });
+    // 2. Lógica Dinámica de Pasarelas
+    // Aquí podrías consultar a la tabla 'currency_gateways' si ese gateway es válido para esa moneda
 
-    // 4. RUTEO DE PASARELA
-    if (currency === 'ARS') {
+    if (gateway === 'mercadopago' && currency === 'ARS') {
       const preferenceClient = new Preference(mpClient);
+      const notificationUrl = `${config.apiBaseUrl}/payments/webhook`;
+
+      // Creamos la orden con el gateway elegido
+      await orderRepository.create({
+        buyerId: user.id,
+        productId: product.id,
+        amount: totalAmount,
+        currency: currency,
+        paymentMethod: 'mercadopago', // Ahora viene validado
+        externalReference,
+        status: 'pending',
+      });
+
       const mpResponse = await preferenceClient.create({
         body: {
           items: [
             {
               id: product.id,
               title: product.title,
-              description: product.description || 'Contenido digital - Crema',
               quantity: Number(quantity),
               currency_id: 'ARS',
-              unit_price: officialPrice,
+              unit_price: Number(officialPrice),
             },
           ],
           payer: { email: user.email },
+          notification_url: notificationUrl,
+          external_reference: externalReference,
+          binary_mode: true,
           back_urls: {
             success: `${config.apiBaseUrl.replace('/api', '')}/pago/exito`,
             failure: `${config.apiBaseUrl.replace('/api', '')}/pago/fallo`,
             pending: `${config.apiBaseUrl.replace('/api', '')}/pago/pendiente`,
           },
           auto_return: 'approved',
-          notification_url: `${config.apiBaseUrl}/api/payments/webhook`,
-          external_reference: externalReference,
         },
       });
 
       return res.status(201).json({
         success: true,
-        data: {
-          init_point: mpResponse.init_point,
-          gateway: 'mercadopago',
-          external_reference: externalReference,
-        },
+        data: { init_point: mpResponse.init_point, gateway: 'mercadopago', externalReference },
       });
     }
 
-    // Lógica para otras monedas (Binance Pay, etc.)
-    if (currency === 'USDT' || currency === 'BTC') {
-      // Aquí iría la llamada a binancePayService.createOrder(...)
+    // Ejemplo de escalabilidad: Otra pasarela para la MISMA moneda (ARS)
+    if (gateway === 'stripe' && currency === 'ARS') {
+      // Lógica de Stripe...
+      throw new AppError('Stripe para ARS está en mantenimiento', 400);
+    }
+
+    // Pasarelas Crypto
+    if (gateway === 'binance_pay' && ['USDT', 'BTC'].includes(currency)) {
+      await orderRepository.create({
+        buyerId: user.id,
+        productId: product.id,
+        amount: totalAmount,
+        currency,
+        paymentMethod: 'binance_pay',
+        externalReference,
+        status: 'pending',
+      });
+
       return res.status(201).json({
         success: true,
-        message: 'Lógica de pago crypto pendiente de implementación',
-        data: { gateway: 'crypto', amount: totalAmount, currency },
+        message: 'Lógica de Binance Pay pendiente',
+        data: { gateway: 'binance_pay', amount: totalAmount, currency },
       });
     }
 
-    throw new AppError('Método de pago no soportado para esta moneda', 400);
+    throw new AppError(`El método ${gateway} no está habilitado para ${currency}`, 400);
   } catch (err) {
     next(err);
   }
 };
 
-// ... El handleWebhook se mantiene similar, pero asegurando que use la moneda de la orden ...
 export const handleWebhook = async (req: Request, res: Response) => {
   try {
-    const query = (req.query || {}) as any;
-    const body = (req.body || {}) as any;
+    const { type, data } = req.body;
+    const paymentId = data?.id || req.query.id;
 
-    // 1. Identificar el tipo de evento y el ID del pago
-    const type = query.type || query.topic || body.type || body.action;
-
-    if (type === 'payment' || type === 'payment.created' || type === 'payment.updated') {
-      const paymentId = query.id || query['data.id'] || (body.data && body.data.id) || body.id;
-
-      if (!paymentId) return res.status(200).send('OK');
-
-      // ✅ Uso de 'Payment' (importado de mercadopago)
+    if (type === 'payment' && paymentId) {
       const payment = await new Payment(mpClient).get({ id: String(paymentId) });
       const { status, external_reference: externalRef } = payment;
 
       if (externalRef) {
         const order = await orderRepository.getByExternalRef(externalRef);
 
-        if (!order) {
-          logger.warn({ externalRef }, 'Webhook recibido para una orden no encontrada');
-          return res.status(200).send('OK');
-        }
+        // Verificamos que la orden pertenezca a este gateway para mayor seguridad
+        if (
+          order &&
+          order.payment_method === 'mercadopago' &&
+          status === 'approved' &&
+          !order.commissions_calculated
+        ) {
+          const product = await productRepository.getProductById(order.product_id);
 
-        let internalStatus = 'pending';
-
-        if (status === 'approved') {
-          internalStatus = 'paid';
-
-          // ✅ Uso de 'CommissionService' y 'logger'
-          if (!order.commissions_calculated) {
-            try {
-              const product = await productRepository.getProductById(order.product_id);
-              if (product) {
-                // Aquí el Service reparte el dinero en la moneda de la orden (ARS, USDT, etc.)
-                await CommissionService.processOrderCommissions(order, product);
-                logger.info(
-                  `💰 Pago aprobado y comisiones repartidas: ${externalRef} (${order.currency})`
-                );
-              }
-            } catch (commError: any) {
-              logger.error(
-                { error: commError.message, externalRef },
-                'Error al procesar comisiones en webhook'
-              );
-            }
+          if (product) {
+            await CommissionService.processOrderCommissions(order, product);
+            await orderRepository.updateByExternalRef(externalRef, {
+              status: 'paid',
+              transaction_id: String(paymentId),
+              gateway_status: status,
+              commissions_calculated: true,
+            });
+            logger.info({ externalRef }, '✅ Pago MP procesado');
           }
-        } else if (status === 'rejected' || status === 'cancelled') {
-          internalStatus = 'failed';
-          logger.info(`❌ Pago rechazado: ${externalRef}`);
+        } else if (order && (status === 'rejected' || status === 'cancelled')) {
+          await orderRepository.updateByExternalRef(externalRef, {
+            status: 'failed',
+            gateway_status: status,
+          });
         }
-
-        // Actualizar estado final de la orden
-        await orderRepository.updateByExternalRef(externalRef, {
-          status: internalStatus,
-          transaction_id: String(paymentId),
-          gateway_status: status ?? 'unknown',
-        });
       }
     }
-
     res.status(200).send('OK');
   } catch (err: any) {
-    // ✅ Uso de 'logger' para errores inesperados
-    logger.error({ error: err.message }, 'Error crítico en el controlador de Webhook');
+    logger.error({ error: err.message }, 'Error en Webhook MP');
     res.status(200).send('OK');
   }
 };

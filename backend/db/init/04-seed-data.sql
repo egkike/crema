@@ -16,6 +16,18 @@ INSERT INTO platform_configs (key, value, description) VALUES
 ('fixed_fee_high', 750.00000000, 'Fee fijo para productos > 22500 ARS'),
 ('price_threshold', 22500.00000000, 'Límite de precio para cambio de fee fijo');
 
--- Configuración de Moneda
+-- Configuración de Moneda del sistema
 INSERT INTO system_settings (key, value, description) 
 VALUES ('platform_currency', 'ARS', 'Moneda principal de operación');
+
+-- Configuración de Moneda habilitada para Argentina
+INSERT INTO enabled_currencies (code, name, symbol) 
+VALUES ('ARS', 'Pesos Argentinos', '$');
+
+-- Configuración de Gateway habilitado para Argentina
+INSERT INTO payment_gateways (id, name) 
+VALUES ('mercadopago', 'Mercado Pago');
+
+-- Configuración de Moneda y Gateway habilitados para Argentina
+INSERT INTO currency_gateways (currency_code, gateway_id) 
+VALUES ('ARS', 'mercadopago');

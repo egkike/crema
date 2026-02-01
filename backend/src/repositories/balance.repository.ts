@@ -14,11 +14,10 @@ export interface UserBalance {
 
 export const balanceRepository = {
   /**
-   * Suma ganancias al balance.
-   * El dinero nuevo entra en 'pending_balance' (por seguridad)
-   * y se suma al 'total_earned'.
+   * Suma dinero al saldo PENDIENTE y al total acumulado histórico.
+   * Este es el método que llama el CommissionService.
    */
-  async addEarnings(userId: string, amount: number, client?: any, currency: string = 'ARS') {
+  async addPendingBalance(userId: string, amount: number, currency: string, client?: any) {
     const query = `
       INSERT INTO "${schema}".user_balances (user_id, total_earned, pending_balance, currency)
       VALUES ($1, $2, $2, $3)
@@ -26,23 +25,25 @@ export const balanceRepository = {
       DO UPDATE SET
         total_earned = user_balances.total_earned + EXCLUDED.total_earned,
         pending_balance = user_balances.pending_balance + EXCLUDED.pending_balance,
-        updated_at = CURRENT_TIMESTAMP;
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *;
     `;
 
     try {
       const db = client || pool;
-      return await db.query(query, [userId, amount, currency]);
+      const { rows } = await db.query(query, [userId, amount, currency]);
+      return rows[0];
     } catch (error: any) {
       logger.error(
         { error: error.message, userId, amount, currency },
-        'DB Error: addEarnings failed'
+        'DB Error: addPendingBalance failed'
       );
       throw error;
     }
   },
 
   /**
-   * Mueve saldo de 'pending' a 'available' (por ejemplo, tras 7 días de garantía).
+   * Mueve saldo de 'pending' a 'available' (Liberación de fondos).
    */
   async releaseBalance(userId: string, amount: number, currency: string, client?: any) {
     const query = `
@@ -67,7 +68,7 @@ export const balanceRepository = {
   },
 
   /**
-   * Resta saldo disponible al solicitar un retiro (Payout).
+   * Resta saldo disponible (Payouts).
    */
   async subtractAvailableBalance(userId: string, amount: number, currency: string, client: any) {
     const query = `
@@ -94,8 +95,26 @@ export const balanceRepository = {
   },
 
   /**
-   * Obtiene el balance de un usuario para una moneda específica.
+   * Deduce del pendiente (Refunds/Devoluciones).
    */
+  async deductPendingEarnings(userId: string, amount: number, currency: string, client: any) {
+    const query = `
+      UPDATE "${schema}".user_balances 
+      SET total_earned = total_earned - $1,
+          pending_balance = pending_balance - $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $2 AND currency = $3 AND pending_balance >= $1
+      RETURNING *;
+    `;
+    try {
+      const { rows } = await client.query(query, [amount, userId, currency]);
+      return rows[0];
+    } catch (error: any) {
+      logger.error({ error: error.message, userId }, 'DB Error: deductPendingEarnings failed');
+      throw error;
+    }
+  },
+
   async getByUserIdAndCurrency(userId: string, currency: string = 'ARS'): Promise<UserBalance> {
     const query = `
       SELECT total_earned, available_balance, pending_balance, currency, updated_at
@@ -105,7 +124,6 @@ export const balanceRepository = {
 
     try {
       const { rows } = await pool.query(query, [userId, currency]);
-
       if (rows.length === 0) {
         return {
           total_earned: 0,
@@ -115,7 +133,6 @@ export const balanceRepository = {
           updated_at: new Date(),
         };
       }
-
       const row = rows[0];
       return {
         total_earned: Number(row.total_earned),
@@ -133,9 +150,6 @@ export const balanceRepository = {
     }
   },
 
-  /**
-   * Obtiene todos los balances del usuario (una fila por moneda).
-   */
   async getAllBalancesByUserId(userId: string): Promise<UserBalance[]> {
     const query = `
       SELECT total_earned, available_balance, pending_balance, currency, updated_at
@@ -143,7 +157,6 @@ export const balanceRepository = {
       WHERE user_id = $1
       ORDER BY currency ASC;
     `;
-
     try {
       const { rows } = await pool.query(query, [userId]);
       return rows.map(row => ({

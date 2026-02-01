@@ -4,7 +4,8 @@ import { config } from '../config/index';
 
 const schema = config.db.schema;
 
-// Interfaces actualizadas
+// --- INTERFACES ---
+
 export interface ProductPrice {
   currency: string;
   amount: number;
@@ -21,7 +22,7 @@ export interface Product {
   status: string;
   created_at: Date;
   updated_at: Date;
-  prices?: ProductPrice[]; // Incluimos los precios en el retorno
+  prices: ProductPrice[];
 }
 
 export interface ProductInput {
@@ -29,23 +30,38 @@ export interface ProductInput {
   title: string;
   type: string;
   prices: ProductPrice[];
-  // Agregamos "| undefined" a todos los que pueden venir vacíos desde Zod
-  description?: string | undefined;
-  contentUrl?: string | undefined;
-  commissionPercent?: number | undefined;
-  status?: string | undefined;
+  description?: string;
+  contentUrl?: string;
+  commissionPercent?: number;
+  status?: string;
 }
 
+// --- REPOSITORIO ---
+
 export const productRepository = {
+  /**
+   * Mapea una fila de la base de datos al objeto de dominio Product.
+   * Garantiza que los tipos de datos sean correctos (ej. convertir strings de DB a Numbers).
+   */
   mapRowToProduct(row: any): Product {
     return {
-      ...row,
+      id: row.id,
+      creator_id: row.creator_id,
+      title: row.title,
+      description: row.description,
+      type: row.type,
+      content_url: row.content_url,
       affiliate_commission_percent: Number(row.affiliate_commission_percent),
+      status: row.status,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      // prices ya viene como array JSON desde las consultas que usan json_agg
+      prices: row.prices || [],
     };
   },
 
   /**
-   * Crea un producto y sus múltiples precios en una sola transacción
+   * Crea un producto y sus múltiples precios en una sola transacción atómica.
    */
   async createProduct(input: ProductInput): Promise<Product> {
     const client = await pool.connect();
@@ -54,7 +70,6 @@ export const productRepository = {
       await client.query('BEGIN');
 
       // 1. Insertar en la tabla principal 'products'
-      // (Nota: Ya no enviamos price ni currency aquí)
       const productQuery = `
         INSERT INTO "${schema}".products (
           creator_id, title, description, type, content_url, 
@@ -70,27 +85,31 @@ export const productRepository = {
         input.type,
         input.contentUrl || null,
         input.commissionPercent ?? 50.0,
-        input.status || 'draft',
+        input.status || 'published',
       ]);
 
-      const newProduct = this.mapRowToProduct(productRes.rows[0]);
+      const productRow = productRes.rows[0];
 
-      // 2. Insertar los precios en 'product_prices'
+      // 2. Insertar los precios en la tabla relacionada 'product_prices'
       const priceQuery = `
         INSERT INTO "${schema}".product_prices (product_id, currency, amount)
         VALUES ($1, $2, $3);
       `;
 
       for (const p of input.prices) {
-        await client.query(priceQuery, [newProduct.id, p.currency, p.amount]);
+        await client.query(priceQuery, [productRow.id, p.currency, p.amount]);
       }
 
       await client.query('COMMIT');
 
-      return { ...newProduct, prices: input.prices };
+      // Devolvemos el producto completo mapeado
+      return this.mapRowToProduct({ ...productRow, prices: input.prices });
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, input }, 'DB Transaction Error: Create product failed');
+      logger.error(
+        { error: error.message, input },
+        'Error en transacción: Falló creación de producto'
+      );
       throw error;
     } finally {
       client.release();
@@ -98,11 +117,10 @@ export const productRepository = {
   },
 
   /**
-   * Obtiene un producto incluyendo su lista de precios
+   * Obtiene un producto por ID incluyendo su lista de precios mediante una subconsulta JSON.
    */
   async getProductById(id: string): Promise<Product | null> {
     try {
-      // Usamos un JOIN o una subconsulta para traer los precios
       const query = `
         SELECT p.*, 
                (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
@@ -114,14 +132,16 @@ export const productRepository = {
 
       if (!rows[0]) return null;
 
-      const product = this.mapRowToProduct(rows[0]);
-      return { ...product, prices: rows[0].prices || [] };
+      return this.mapRowToProduct(rows[0]);
     } catch (error: any) {
-      logger.error({ id, error: error.message }, 'DB Error: getProductById failed');
+      logger.error({ id, error: error.message }, 'Error DB: getProductById falló');
       throw error;
     }
   },
 
+  /**
+   * Lista los productos de un creador específico.
+   */
   async getProductsByCreator(creatorId: string): Promise<Product[]> {
     try {
       const query = `
@@ -133,27 +153,31 @@ export const productRepository = {
         ORDER BY p.created_at DESC;
       `;
       const { rows } = await pool.query(query, [creatorId]);
-      return rows.map(row => ({
-        ...this.mapRowToProduct(row),
-        prices: row.prices || [],
-      }));
+      return rows.map(row => this.mapRowToProduct(row));
     } catch (error: any) {
-      logger.error({ creatorId, error: error.message }, 'DB Error: getProductsByCreator failed');
+      logger.error({ creatorId, error: error.message }, 'Error DB: getProductsByCreator falló');
       throw error;
     }
   },
 
+  /**
+   * Recupera el precio oficial para una moneda específica de un producto.
+   * Utilizado críticamente en el flujo de pagos para evitar manipulaciones de precio desde el front.
+   */
   async getPriceByCurrency(productId: string, currency: string): Promise<number | null> {
     const query = `
-    SELECT amount 
-    FROM "${schema}".product_prices 
-    WHERE product_id = $1 AND currency = $2
-  `;
+      SELECT amount 
+      FROM "${schema}".product_prices 
+      WHERE product_id = $1 AND currency = $2
+    `;
     try {
       const { rows } = await pool.query(query, [productId, currency]);
       return rows[0] ? Number(rows[0].amount) : null;
-    } catch (error) {
-      logger.error({ productId, currency, error }, 'Error obteniendo precio específico');
+    } catch (error: any) {
+      logger.error(
+        { productId, currency, error: error.message },
+        'Error obteniendo precio específico'
+      );
       throw error;
     }
   },

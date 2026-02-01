@@ -1,8 +1,5 @@
 -- 02-create-tables.sql
 -- Crea las tablas principales en el schema por defecto 'public'
--- No usamos schema custom para mantener el template simple y estándar
-
---CREATE EXTENSION IF NOT EXISTS "uuid-ossp";  -- Habilitar uuid_generate_v4()
 
 -- Tabla users
 CREATE TABLE IF NOT EXISTS users (
@@ -50,7 +47,9 @@ CREATE TABLE IF NOT EXISTS orders (
     amount DECIMAL(18,8) NOT NULL,
     currency VARCHAR(10) DEFAULT 'ARS', -- Añadido: Moneda de la venta
     commission_amount DECIMAL(18,8),
-    status VARCHAR(50) DEFAULT 'pending',  -- pending, paid, refunded
+    status VARCHAR(50) DEFAULT 'pending' CHECK (
+        status IN ('pending', 'paid', 'refunded')
+    ),
     payment_method VARCHAR(50),            -- 'mercadopago', 'crypto', etc.
     transaction_id TEXT,
     external_reference VARCHAR(255) UNIQUE, -- ID único que nosotros generamos y le enviamos a MP
@@ -67,7 +66,9 @@ CREATE TABLE IF NOT EXISTS commissions (
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     amount DECIMAL(18,8) NOT NULL,
     currency VARCHAR(10) DEFAULT 'ARS',
-    status VARCHAR(50) DEFAULT 'pending',  -- pending, paid
+    status VARCHAR(50) DEFAULT 'pending' CHECK (
+        status IN ('pending', 'paid', 'refunded')
+    ),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     paid_at TIMESTAMP WITH TIME ZONE        -- cuando se paga la comisión al afiliado
 );
@@ -78,8 +79,7 @@ CREATE TABLE IF NOT EXISTS platform_configs (
     currency VARCHAR(10) DEFAULT 'ARS',
     value DECIMAL(18,8) NOT NULL, -- Mayor precisión para porcentajes
     description TEXT,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (key, currency)
 );
 
@@ -100,17 +100,16 @@ CREATE TABLE IF NOT EXISTS user_balances (
 -- Tabla donde registremos cada "mordida" que toma la plataforma.
 CREATE TABLE IF NOT EXISTS platform_earnings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID REFERENCES orders(id),
-    
+    order_id UUID REFERENCES orders(id),   
     -- Desglose de la ganancia por transacción
     variable_amount DECIMAL(18,8) DEFAULT 0.00, -- El 9.9%
     fixed_amount DECIMAL(18,8) DEFAULT 0.00,    -- El $0.10 o $0.50
-    
     -- Otros tipos de ingresos
     subscription_amount DECIMAL(18,8) DEFAULT 0.00,
     service_amount DECIMAL(18,8) DEFAULT 0.00, -- Por si cobras por soporte, etc.
-    
-    total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior    
+
+    total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior  
+    status VARCHAR(20) DEFAULT 'active', -- active, paid, refunded
     currency VARCHAR(10) DEFAULT 'ARS',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -118,11 +117,14 @@ CREATE TABLE IF NOT EXISTS platform_earnings (
 -- Tabla para que el usuario pueda ver el detalle de por qué su balance cambió
 CREATE TABLE IF NOT EXISTS balance_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    order_id UUID REFERENCES orders(id),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    order_id UUID REFERENCES orders(id) ON DELETE SET NULL, -- Si se borra la orden, mantenemos el historial
     amount DECIMAL(18,8) NOT NULL,
     currency VARCHAR(10) DEFAULT 'ARS',
-    type VARCHAR(50) NOT NULL, -- 'sale_creator' (venta propia) o 'sale_affiliate' (comisión)
+    -- Definimos el tipo con un CHECK inline para integridad de datos
+    type VARCHAR(50) NOT NULL CHECK (
+        type IN ('sale_creator', 'sale_affiliate', 'refund', 'payout_request')
+    ),
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -138,10 +140,10 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- Tabla para trackear solicitudes de Payouts
 CREATE TABLE IF NOT EXISTS payouts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Agregada referencia
     amount DECIMAL(18,8) NOT NULL,
     currency VARCHAR(10) NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'rejected'
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'rejected', 'refunded'
     destination_account TEXT NOT NULL, -- CBU/CVU o Wallet Address
     admin_notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -150,12 +152,27 @@ CREATE TABLE IF NOT EXISTS payouts (
 
 -- Tabla para controlar qué monedas opera la plataforma (Orquestador)
 CREATE TABLE IF NOT EXISTS enabled_currencies (
-    code VARCHAR(10) PRIMARY KEY, -- 'ARS', 'USDT', 'BTC'
-    name VARCHAR(50) NOT NULL,    -- 'Pesos Argentinos', 'Tether'
-    symbol VARCHAR(5) NOT NULL,   -- '$', '₮'
+    code VARCHAR(10) PRIMARY KEY, -- 'ARS', 'USDT'
+    name VARCHAR(50) NOT NULL,
+    symbol VARCHAR(5) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    payment_gateway VARCHAR(50) NOT NULL, -- 'mercadopago', 'binance_pay', etc.
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de Pasarelas
+CREATE TABLE IF NOT EXISTS payment_gateways (
+    id VARCHAR(50) PRIMARY KEY, -- 'mercadopago', 'binance_pay', 'stripe'
+    name VARCHAR(100) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Tabla permite que una moneda tenga múltiples pasarelas y viceversa
+CREATE TABLE IF NOT EXISTS currency_gateways (
+    currency_code VARCHAR(10) REFERENCES enabled_currencies(code),
+    gateway_id VARCHAR(50) REFERENCES payment_gateways(id),
+    is_default BOOLEAN DEFAULT FALSE, -- Para saber cuál mostrar primero
+    priority INTEGER DEFAULT 1,       -- Para ordenar en el frontend
+    PRIMARY KEY (currency_code, gateway_id)
 );
 
 -- Tabla de Precios (Relación Muchos a Muchos)
@@ -165,4 +182,17 @@ CREATE TABLE IF NOT EXISTS product_prices (
     currency VARCHAR(10) NOT NULL REFERENCES enabled_currencies(code),
     amount DECIMAL(18,8) NOT NULL CHECK (amount >= 0),
     UNIQUE(product_id, currency) -- Un producto no puede tener dos precios en la misma moneda
+);
+
+-- Tabla para devoluciones por garantias
+CREATE TABLE IF NOT EXISTS refunds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    seller_id UUID NOT NULL REFERENCES users(id),
+    buyer_id UUID NOT NULL REFERENCES users(id),
+    amount DECIMAL(18,8) NOT NULL CHECK (amount > 0),
+    currency VARCHAR(10) DEFAULT 'ARS',
+    reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

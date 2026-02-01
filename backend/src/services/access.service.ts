@@ -5,36 +5,37 @@ import logger from '../utils/logger';
 export class AccessService {
   /**
    * Retorna el contenido del producto.
-   * Nota: La validación de compra/autoría ya se realizó en el Middleware.
+   * La validación de compra/autoría reside en el middleware de acceso.
    */
   static async getProtectedContent(userId: string, productId: string) {
-    // 1. Obtener los detalles del producto
     const product = await productRepository.getProductById(productId);
 
-    // Validación de existencia
     if (!product) {
       throw new AppError('El producto solicitado no existe.', 404);
     }
 
-    // 2. Validar estado del producto (opcional, por si quieres ocultar productos pausados)
-    if (product.status !== 'published') {
-      // Si el usuario es el creador, quizás sí deba verlo aunque no esté publicado
-      if (product.creator_id !== userId) {
-        throw new AppError('El contenido no está disponible temporalmente.', 403);
-      }
+    // 1. Lógica de estados
+    // Si está archivado, bloqueamos acceso total.
+    if (product.status === 'archived') {
+      throw new AppError('Este producto ha sido retirado permanentemente.', 410); // 410 Gone
     }
 
-    // 3. Log de acceso exitoso
+    // Si no está publicado y el usuario NO es el dueño, bloqueamos.
+    if (product.status !== 'published' && product.creator_id !== userId) {
+      throw new AppError('El contenido no está disponible actualmente.', 403);
+    }
+
     logger.info({ userId, productId }, `Acceso concedido al contenido: ${product.title}`);
 
-    // 4. Retornamos solo lo necesario para el cliente
+    // 2. Retorno estructurado
     return {
       id: product.id,
       title: product.title,
       type: product.type,
-      contentUrl: product.content_url, // URL del video, PDF, etc.
+      contentUrl: product.content_url,
       description: product.description,
-      instructions: (product as any).access_instructions || '', // Por si tienes campo de texto extra
+      // Usamos el nombre de columna tal cual está en la DB o fallback
+      updatedAt: product.updated_at,
     };
   }
 }
