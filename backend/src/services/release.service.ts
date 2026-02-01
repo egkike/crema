@@ -11,8 +11,13 @@ export const ReleaseService = {
     const daysOfGuarantee = 7;
     const client = await pool.connect();
 
+    // Inicializamos el resumen para el logger del index.ts
+    const stats = {
+      count: 0,
+      totalAmount: {} as Record<string, number>,
+    };
+
     try {
-      // 1. Join con products para obtener el creator_id real
       const query = `
         SELECT o.id, o.product_id, p.creator_id, o.affiliate_id, o.amount, o.currency 
         FROM "${schema}".orders o
@@ -26,7 +31,7 @@ export const ReleaseService = {
 
       const { rows: ordersToRelease } = await client.query(query);
 
-      if (ordersToRelease.length === 0) return;
+      if (ordersToRelease.length === 0) return stats;
 
       logger.info(`Iniciando liberación de ${ordersToRelease.length} órdenes.`);
 
@@ -69,13 +74,24 @@ export const ReleaseService = {
           );
 
           await client.query('COMMIT');
+
+          // --- D. ACTUALIZAR ESTADÍSTICAS ---
+          stats.count++;
+          stats.totalAmount[order.currency] =
+            (stats.totalAmount[order.currency] || 0) + Number(order.amount);
         } catch (error: any) {
           await client.query('ROLLBACK');
-          logger.error({ orderId: order.id, error: error.message }, 'Error liberando orden');
+          logger.error(
+            { orderId: order.id, error: error.message },
+            'Error liberando orden individual'
+          );
         }
       }
+
+      return stats; // Devolvemos el resultado al Cron del index.ts
     } catch (error: any) {
       logger.error({ error: error.message }, 'Fallo crítico en ReleaseService');
+      throw error;
     } finally {
       client.release();
     }

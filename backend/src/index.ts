@@ -148,12 +148,32 @@ app.use((err: any, req: Request, res: Response, _: NextFunction) => {
  * Liberación de saldos automática a medianoche
  */
 cron.schedule('0 0 * * *', async () => {
+  const startTime = Date.now();
   logger.info('SISTEMA: Iniciando proceso diario de liberación de saldos...');
+
   try {
-    await ReleaseService.processPendingBalances();
-    logger.info('SISTEMA: Liberación de saldos completada.');
+    // Capturamos el resultado del servicio
+    const result = await ReleaseService.processPendingBalances();
+
+    const duration = Date.now() - startTime;
+
+    // Log detallado del éxito
+    logger.info(
+      {
+        duration: `${duration}ms`,
+        ordersProcessed: result.count,
+        totalAmount: result.totalAmount, // Ejemplo: { ARS: 50000, USD: 200 }
+      },
+      'SISTEMA: Liberación de saldos completada con éxito'
+    );
   } catch (error: any) {
-    logger.error({ error: error.message }, 'SISTEMA: Error en Cron Job de liberación');
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+      },
+      'SISTEMA: Error crítico en Cron Job de liberación'
+    );
   }
 });
 
@@ -161,10 +181,10 @@ cron.schedule('0 0 * * *', async () => {
 const server = app.listen(config.port, () => {
   logger.info(`🚀 Servidor en puerto ${config.port} (${config.nodeEnv})`);
 
-  // Opcional: Ejecutar liberación al arrancar para procesar pendientes acumulados por downtime
-  ReleaseService.processPendingBalances().catch(err =>
-    logger.error('Error en liberación inicial', err)
-  );
+  // Ejecución inicial con log controlado
+  ReleaseService.processPendingBalances()
+    .then(res => logger.info({ count: res.count }, 'SISTEMA: Liberación inicial completada'))
+    .catch(err => logger.error('SISTEMA: Error en liberación inicial post-arranque', err));
 });
 
 // --- GRACEFUL SHUTDOWN ---
