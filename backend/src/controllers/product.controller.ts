@@ -40,10 +40,11 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
 export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // SOLUCIÓN AL ERROR DE TIPO: Validamos que productId sea string
-    const { productId } = req.params;
-    if (typeof productId !== 'string') {
-      throw new AppError('ID de producto no válido', 400);
+    // 1. Extraemos y aseguramos que sea un string simple
+    const productId = req.params.productId as string;
+
+    if (!productId || typeof productId !== 'string') {
+      throw new AppError('El ID del producto es inválido', 400);
     }
 
     const user = (req as any).user;
@@ -51,16 +52,15 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
     const product = await productRepository.getProductById(productId);
     if (!product) throw new AppError('Producto no encontrado', 404);
 
-    // Lógica de privacidad: Ocultar content_url en la vista pública
     const isOwner = user && product.creator_id === user.id;
-    const isAdmin = user && user.level >= 99;
+    const isAdmin = user && user.level >= 10; // Usamos el nivel de admin que definimos
 
-    // Clonamos para no mutar el objeto original si viene de una caché
     const productData = { ...product };
 
+    // Si no es el dueño ni admin, protegemos el contenido digital
     if (!isOwner && !isAdmin) {
-      delete (productData as any).content_url;
       delete (productData as any).contentUrl;
+      // También podrías ocultar el porcentaje de comisión si es privado
     }
 
     res.status(200).json({ success: true, data: productData });

@@ -6,7 +6,7 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import cron from 'node-cron';
 
-import { testCommissionLogic } from './controllers/test.controller';
+import { testController } from './controllers/test.controller';
 import { handleWebhook } from './controllers/payment.controller';
 import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit';
 import { AppError } from './errors/AppError';
@@ -20,6 +20,8 @@ import productsRoutes from './routes/products.routes';
 import paymentsRouter from './routes/payments.routes';
 import balanceRoutes from './routes/balance.routes';
 import refundRoutes from './routes/refund.routes';
+import payoutRoutes from './routes/payout.routes';
+import adminPayoutRoutes from './routes/admin.payout.routes';
 
 const app = express();
 
@@ -71,7 +73,11 @@ app.use('/api/login', loginLimiter);
 app.use('/api/refresh', refreshLimiter);
 
 // --- RUTAS ESPECIALES ---
-app.post('/test/process-commissions', testCommissionLogic);
+// Nota: En producción deberías proteger estas rutas o eliminarlas
+app.post('/test/process-commissions', testController.processCommissions);
+app.post('/test/force-release', testController.forceRelease);
+app.post('/test/reset-balance', testController.resetBalance);
+
 app.post('/api/payments/webhook', handleWebhook); // Webhook público
 
 // --- RUTAS DE LA API ---
@@ -82,6 +88,8 @@ app.use('/api/products', productsRoutes);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/balances', balanceRoutes);
 app.use('/api/refunds', refundRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/admin/payouts', adminPayoutRoutes);
 
 // --- HEALTH & STATUS ---
 app.get('/health', (req: Request, res: Response) => {

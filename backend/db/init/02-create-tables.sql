@@ -62,16 +62,22 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE TABLE IF NOT EXISTS commissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    affiliate_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     amount DECIMAL(18,8) NOT NULL,
+    fee_applied DECIMAL(18,8) NOT NULL DEFAULT 0,
+    net_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
     currency VARCHAR(10) DEFAULT 'ARS',
+    type VARCHAR(20) DEFAULT 'creator', -- 'creator' o 'affiliate'
     status VARCHAR(50) DEFAULT 'pending' CHECK (
-        status IN ('pending', 'paid', 'refunded')
+        status IN ('pending', 'paid', 'refunded', 'cancelled')
     ),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     paid_at TIMESTAMP WITH TIME ZONE        -- cuando se paga la comisión al afiliado
 );
+-- Un comentario para que tu equipo sepa qué es cada cosa
+COMMENT ON COLUMN commissions.fee_applied IS 'Comisión retenida por la plataforma';
+COMMENT ON COLUMN commissions.net_amount IS 'Monto neto que se acredita al usuario';
 
 -- Tabla para parámetros globales del sistema
 CREATE TABLE IF NOT EXISTS platform_configs (

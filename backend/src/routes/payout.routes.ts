@@ -7,18 +7,14 @@ const router = Router();
 
 /**
  * @route POST /api/payouts/request
- * @desc  Solicitar retiro de fondos
+ * @desc  Solicitar retiro de fondos (Solo usuarios autenticados)
  */
-router.post('/request', jwtAuthMiddleware, (req, res, next) =>
-  payoutController.requestPayout(req, res, next)
-);
+router.post('/request', jwtAuthMiddleware, payoutController.requestPayout);
 
 /**
  * @route GET /api/payouts/me
- * @desc  Ver mis solicitudes de retiro
+ * @desc  Ver historial personal de solicitudes de retiro
  */
-router.get('/me', jwtAuthMiddleware, (req, res, next) =>
-  payoutController.getMyPayouts(req, res, next)
-);
+router.get('/me', jwtAuthMiddleware, payoutController.getMyPayouts);
 
 export default router;
