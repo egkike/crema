@@ -5,7 +5,6 @@ import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 import { validatePartialUser } from '../schemas/users';
 import logger from '../utils/logger';
 import { config } from '../config/index';
-// CORRECCIÓN: Importamos UserWithPassword explícitamente
 import { userRepository, type UserWithPassword } from '../repositories/user.repository';
 import { AppError } from '../errors/AppError';
 
@@ -38,12 +37,23 @@ export class AuthController {
       throw new AppError('Usuario inactivo. Contacta al administrador.', 403);
     }
 
+    const cookieOptions = {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'strict' as const,
+      path: '/',
+    };
+
+    // MEJORA: Seguridad en el "Primer Login"
     if (user.must_change_password) {
-      const tempToken = generateAccessToken({ id: user.id, username: user.username });
-      res.cookie('access_token', tempToken, {
-        httpOnly: true,
-        secure: config.nodeEnv === 'production',
-      });
+      // Enviamos el flag partial: true para que el middleware bloquee otras rutas
+      const tempToken = generateAccessToken({
+        id: user.id,
+        username: user.username,
+        partial: true,
+      } as any);
+
+      res.cookie('access_token', tempToken, cookieOptions);
 
       return res.status(403).json({
         success: false,
@@ -58,6 +68,7 @@ export class AuthController {
       email: user.email,
       fullname: user.fullname,
       level: user.level,
+      active: user.active,
     };
 
     const accessToken = generateAccessToken(payload);
@@ -69,20 +80,12 @@ export class AuthController {
       new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     );
 
-    const cookieOptions = {
-      httpOnly: true,
-      secure: config.nodeEnv === 'production',
-      sameSite: 'strict' as const,
-      path: '/',
-    };
-
     res.cookie('access_token', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
     res.cookie('refresh_token', refreshToken, {
       ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // CORRECCIÓN: Quitamos el password para la respuesta
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _, ...publicUser } = user as UserWithPassword;
     return res.status(200).json({ success: true, user: publicUser });
@@ -91,8 +94,6 @@ export class AuthController {
   async logout(req: Request, res: Response) {
     const user = (req as any).user;
 
-    // Si el linter sigue chillando aquí, asegúrate de que el archivo
-    // user.repository.ts tenga el método revokeRefreshToken y esté guardado.
     if (user?.id) {
       await userRepository.revokeRefreshToken(user.id);
     }

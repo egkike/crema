@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcrypt';
 
 import { validatePartialUser, validatePasswordDetailed } from '../schemas/users';
 import { userRepository } from '../repositories/user.repository';
@@ -80,18 +81,47 @@ export class UserController {
   }
 
   async chgPassUser(req: Request, res: Response) {
-    const { id, password } = req.body;
-    if (!id || !password) throw new AppError('ID y contraseña requeridos', 400);
+    const { id, oldPassword, password } = req.body;
 
+    // Accedemos de forma segura al user del request
+    const reqUser = (req as any).user;
+
+    if (!id || !password || !oldPassword) {
+      throw new AppError('ID, contraseña actual y nueva contraseña requeridos', 400);
+    }
+
+    // 1. Buscamos el usuario con su hash de password actual
+    // Usamos el username del token o el ID provisto
+    const identifier = reqUser?.username || id;
+    const user = await userRepository.findByCredentials(identifier);
+
+    if (!user) throw new AppError('Usuario no encontrado', 404);
+
+    // 2. Verificamos que la contraseña anterior sea la correcta
+    // Usamos bcrypt.compare (no crypto, ya que usamos bcrypt para el hash)
+    const isOldValid = await bcrypt.compare(oldPassword, user.password);
+    if (!isOldValid) {
+      throw new AppError('La contraseña actual no es correcta', 401);
+    }
+
+    // 3. Validamos la complejidad de la nueva password
     const pwdCheck = validatePasswordDetailed(password);
     if (!pwdCheck.valid) {
       throw new AppError(pwdCheck.errors?.join('; ') || 'Contraseña inválida', 400);
     }
 
+    // 4. Ejecutamos el cambio
     const result = await userRepository.chgPassUser({ id, input: { password } });
-    if (!result) throw new AppError('Usuario no encontrado', 404);
+    if (!result) throw new AppError('Error al actualizar la contraseña', 500);
 
-    return res.status(200).json({ success: true, message: 'Contraseña actualizada correctamente' });
+    // 5. Limpiamos cookies para forzar re-login
+    res.clearCookie('access_token');
+    res.clearCookie('refresh_token');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Contraseña actualizada correctamente. Inicie sesión nuevamente.',
+    });
   }
 
   async deleteUser(req: Request, res: Response) {

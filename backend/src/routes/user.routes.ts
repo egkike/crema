@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { UserController } from '../controllers/user.controller';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
+import { enforceFullAuth } from '../middlewares/auth/password.middleware';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 import { userRepository } from '../repositories/user.repository';
 
@@ -10,6 +11,7 @@ const router = Router();
 
 // Middleware de autenticación para todas las rutas protegidas
 router.use(jwtAuthMiddleware);
+router.use(enforceFullAuth);
 
 // Instanciamos directamente el controlador
 const userController = new UserController();
