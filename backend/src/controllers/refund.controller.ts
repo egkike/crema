@@ -9,8 +9,9 @@ export const processRefund = async (req: Request, res: Response, next: NextFunct
     const user = (req as any).user;
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
-    // 1. Verificación de rol (Opcional si ya tienes un middleware de isAdmin)
-    if (user.role !== 'admin') {
+    // 1. Verificación por NIVEL (Cambiamos user.role por user.level)
+    // Usamos >= 10 o el valor que consideres para staff/admin
+    if (user.level < 10) {
       throw new AppError('No tienes permisos para esta acción', 403);
     }
 

@@ -6,91 +6,85 @@ import { commissionRepository } from '../repositories/commission.repository';
 import { refundRepository } from '../repositories/refund.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
-import { config } from '../config/index';
-
-const schema = config.db.schema;
 
 export class RefundService {
+  /**
+   * Procesa el reembolso de una orden.
+   * Revierte los saldos pendientes de todos los involucrados (creador y afiliados).
+   */
   static async processRefund(orderId: string, reason: string = 'Reembolso solicitado') {
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // 1. Obtener orden con bloqueo para evitar colisiones
+      // 1. Obtener la orden con bloqueo para evitar condiciones de carrera
       const order = await orderRepository.getById(orderId, client);
       if (!order) throw new AppError('La orden no existe', 404);
       if (order.status === 'refunded') throw new AppError('La orden ya fue reembolsada', 400);
 
-      // Regla de Oro: Solo se reembolsa si el dinero sigue "congelado" (Pending)
+      // REGLA DE SEGURIDAD: Solo se reembolsa si el dinero no ha sido liberado al disponible
       if (order.balance_released) {
         throw new AppError(
-          'El saldo ya fue liberado al creador. El reembolso debe gestionarse por soporte.',
+          'El saldo ya fue liberado al creador. El reembolso debe gestionarse manualmente por soporte.',
           400
         );
       }
 
       const orderCurrency = order.currency;
 
-      // 2. DESCONTAR AL AFILIADO
+      // 2. OBTENER TODAS LAS COMISIONES (Creador y Afiliados)
+      // Usamos el repositorio que ya mapea correctamente a userId y netAmount
       const commissions = await commissionRepository.getByOrderId(orderId);
-      const affiliateComm = commissions.find(c => c.affiliate_id === order.affiliate_id);
 
-      if (affiliateComm && affiliateComm.status === 'pending') {
-        const affAmount = Number(affiliateComm.amount);
-        await balanceRepository.deductPendingEarnings(
-          affiliateComm.affiliate_id,
-          affAmount,
-          orderCurrency,
-          client
-        );
-
-        await historyRepository.createRecordWithClient(client, {
-          userId: affiliateComm.affiliate_id,
-          order_id: orderId, // Usamos snake_case según tu Repo
-          amount: -affAmount,
-          currency: orderCurrency,
-          type: 'refund' as any,
-          description: `Deducción por reembolso: Orden #${orderId}`,
-        });
+      if (commissions.length === 0) {
+        logger.warn({ orderId }, 'No se encontraron registros de comisiones para reembolsar');
       }
 
-      // 3. DESCONTAR AL CREADOR (Buscamos el registro exacto en el historial)
-      const creatorEntry = await client.query(
-        `SELECT amount FROM "${schema}".balance_history 
-         WHERE order_id = $1 AND user_id = $2 AND type = 'sale_creator'`,
-        [orderId, order.seller_id || order.creator_id]
-      );
+      // 3. REVERTIR SALDOS PARA CADA INVOLUCRADO
+      for (const comm of commissions) {
+        // Solo revertimos si la comisión aún está pendiente de pago
+        if (comm.status === 'pending') {
+          const amountToDeduct = Number(comm.netAmount);
 
-      if (creatorEntry.rows[0]) {
-        const creatorAmount = Math.abs(Number(creatorEntry.rows[0].amount));
+          // Restamos del saldo pendiente (pending_balance)
+          await balanceRepository.deductPendingEarnings(
+            comm.userId,
+            amountToDeduct,
+            orderCurrency,
+            client
+          );
 
-        await balanceRepository.deductPendingEarnings(
-          order.seller_id || order.creator_id,
-          creatorAmount,
-          orderCurrency,
-          client
-        );
+          // Registramos el movimiento negativo en el historial para transparencia
+          await historyRepository.createRecordWithClient(client, {
+            userId: comm.userId,
+            order_id: orderId,
+            amount: -amountToDeduct,
+            currency: orderCurrency,
+            type: 'refund' as any,
+            description: `Deducción por reembolso: Orden #${orderId}`,
+          });
 
-        await historyRepository.createRecordWithClient(client, {
-          userId: order.seller_id || order.creator_id,
-          order_id: orderId,
-          amount: -creatorAmount,
-          currency: orderCurrency,
-          type: 'refund' as any,
-          description: `Deducción por reembolso: Orden #${orderId}`,
-        });
+          logger.info(
+            { userId: comm.userId, amount: amountToDeduct },
+            'Saldo pendiente revertido por reembolso'
+          );
+        }
       }
 
-      // 4. Actualizar estados en cascada
+      // 4. ACTUALIZAR ESTADOS EN CASCADA
+      // Marcamos la orden como reembolsada
       await orderRepository.updateStatus(orderId, 'refunded', client);
+
+      // Marcamos todas las comisiones de esa orden como reembolsadas
       await commissionRepository.updateStatusByOrder(orderId, 'refunded', client);
 
-      // 5. Auditoría de Reembolso
+      // 5. REGISTRO DE AUDITORÍA EN TABLA DE REEMBOLSOS
+      // Nota: Asegúrate que order.seller_id u order.creator_id existan en tu objeto Order
       await refundRepository.create(
         {
           orderId,
-          sellerId: order.seller_id || order.creator_id,
+          sellerId: order.creator_id || order.seller_id,
           buyerId: order.buyer_id,
           amount: Number(order.amount),
           currency: orderCurrency,
@@ -100,13 +94,15 @@ export class RefundService {
       );
 
       await client.query('COMMIT');
-      logger.info({ orderId }, 'Reembolso procesado y saldos pendientes revertidos');
+      logger.info({ orderId }, '✅ Proceso de reembolso completado exitosamente');
 
       return { success: true };
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, orderId }, 'Fallo en proceso de reembolso');
-      throw error instanceof AppError ? error : new AppError('Error interno en reembolso', 500);
+      logger.error({ error: error.message, orderId }, '❌ Fallo en el proceso de reembolso');
+
+      if (error instanceof AppError) throw error;
+      throw new AppError('Error interno al procesar el reembolso', 500);
     } finally {
       client.release();
     }

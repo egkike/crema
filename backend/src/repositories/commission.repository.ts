@@ -84,18 +84,19 @@ export const commissionRepository = {
   },
 
   /**
-   * Actualiza el estado de las comisiones (ej: de 'pending' a 'paid')
+   * Actualiza el estado de las comisiones (ej: de 'pending' a 'paid' o 'refunded')
    */
   async updateStatusByOrder(orderId: string, newStatus: string, client?: any) {
     const query = `
       UPDATE "${schema}".commissions 
-      SET status = $1, 
-          paid_at = CASE WHEN $1 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END
-      WHERE order_id = $2
+      SET status = $1::text, 
+          paid_at = CASE WHEN $1::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END
+      WHERE order_id = $2::uuid
       RETURNING *;
     `;
     try {
       const db = client || pool;
+      // Forzamos el envío de parámetros limpios
       const { rows } = await db.query(query, [newStatus, orderId]);
       return rows.map(row => this.mapRowToCommission(row));
     } catch (error: any) {
