@@ -50,3 +50,21 @@ export function verifyToken(token: string): UserTokenPayload | null {
     return null;
   }
 }
+
+/**
+ * Verifica un token y devuelve su contenido.
+ * Reutilizamos verifyToken ya que usas el mismo secret.
+ */
+export function verifyRefreshToken(token: string): UserTokenPayload | null {
+  return verifyToken(token);
+}
+
+/**
+ * Limpia el payload para generar un nuevo token
+ * Evita errores de JWT al intentar firmar un objeto que ya tiene iat/exp
+ */
+export function cleanPayload(payload: UserTokenPayload): UserTokenPayload {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { iat: _iat, exp: _exp, ...clean } = payload;
+  return clean as UserTokenPayload;
+}

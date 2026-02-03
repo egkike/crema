@@ -162,7 +162,8 @@ CREATE TABLE IF NOT EXISTS platform_earnings (
     total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior  
     status VARCHAR(20) DEFAULT 'active', -- active, paid, refunded
     currency VARCHAR(10) REFERENCES enabled_currencies(code),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Tabla para que el usuario pueda ver el detalle de por qué su balance cambió
@@ -223,10 +224,11 @@ END;
 $$ language 'plpgsql';
 
 -- Triggers de actualización automática
-CREATE TRIGGER trg_upd_user_balances BEFORE UPDATE ON user_balances FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER trg_upd_system_settings BEFORE UPDATE ON system_settings FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER trg_upd_platform_configs BEFORE UPDATE ON platform_configs FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER trg_upd_products BEFORE UPDATE ON products FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER trg_upd_orders BEFORE UPDATE ON orders FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER trg_upd_payouts BEFORE UPDATE ON payouts FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER trg_upd_refunds BEFORE UPDATE ON refunds FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER trg_upd_user_balances BEFORE UPDATE ON user_balances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_system_settings BEFORE UPDATE ON system_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_platform_configs BEFORE UPDATE ON platform_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_products BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_orders BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_payouts BEFORE UPDATE ON payouts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_refunds BEFORE UPDATE ON refunds FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_platform_earnings BEFORE UPDATE ON platform_earnings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

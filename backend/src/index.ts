@@ -13,6 +13,7 @@ import { AppError } from './errors/AppError';
 import { config } from './config/index';
 import logger from './utils/logger';
 import { ReleaseService } from './services/release.service';
+import { AuthCleanupService } from './services/auth.cleanup.service';
 // Importamos las rutas
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -32,11 +33,11 @@ app.use(
       useDefaults: true,
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net'],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net', 'https://*.mercadopago.com'],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'https://images.unsplash.com', 'https://via.placeholder.com'],
-        connectSrc: ["'self'", 'https://api.tu-dominio.com', 'wss://tu-dominio.com'],
-        fontSrc: ["'self'", 'data:', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
+        connectSrc: ["'self'", 'https://api.tu-dominio.com', 'wss://tu-dominio.com', 'https://*.mercadopago.com'],
+        fontSrc: ["'self'", 'data:', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com', 'https://*.mercadopago.com'],
         objectSrc: ["'none'"],
         frameAncestors: ["'self'"],
         formAction: ["'self'"],
@@ -183,6 +184,11 @@ cron.schedule('0 0 * * *', async () => {
       'SISTEMA: Error crítico en Cron Job de liberación'
     );
   }
+});
+
+// Ejecutar limpieza de tokens cada día a la medianoche
+cron.schedule('0 3 * * *', async () => {
+  await AuthCleanupService.cleanExpiredTokens();
 });
 
 // --- START SERVER ---

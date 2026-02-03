@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { validatePartialUser } from '../schemas/users';
 import logger from '../utils/logger';
 import { config } from '../config/index';
@@ -92,14 +92,67 @@ export class AuthController {
   }
 
   async logout(req: Request, res: Response) {
-    const user = (req as any).user;
+    // 1. Obtenemos el token específico de la cookie
+    const refreshToken = req.cookies.refresh_token;
 
-    if (user?.id) {
-      await userRepository.revokeRefreshToken(user.id);
+    if (refreshToken) {
+      // Borramos SOLO este token específico de la tabla
+      await userRepository.deleteSpecificRefreshToken(refreshToken);
     }
 
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
+    // 2. Limpiamos las cookies con las mismas opciones que se crearon
+    const cookieOptions = {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'strict' as const,
+      path: '/',
+    };
+
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
+
     return res.status(200).json({ success: true, message: 'Sesión cerrada correctamente' });
+  }
+
+  async refresh(req: Request, res: Response) {
+    try {
+      const refreshToken = req.cookies.refresh_token;
+
+      if (!refreshToken) {
+        throw new AppError('Refresh token no proporcionado', 401);
+      }
+
+      // 1. Validar que el token exista en la base de datos
+      const tokenData = await userRepository.findRefreshToken(refreshToken);
+      if (!tokenData) {
+        throw new AppError('Token inválido o expirado', 403);
+      }
+
+      // 2. Verificar la integridad del JWT
+      const decoded = verifyRefreshToken(refreshToken) as any;
+
+      // 3. Generar nuevo Access Token
+      const newAccessToken = generateAccessToken({
+        id: decoded.id,
+        username: decoded.username,
+        email: decoded.email,
+        fullname: decoded.fullname,
+        level: decoded.level,
+      });
+
+      // 4. Enviar la nueva cookie
+      res.cookie('access_token', newAccessToken, {
+        httpOnly: true,
+        secure: config.nodeEnv === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 15 * 60 * 1000, // 15 minutos
+      });
+
+      return res.status(200).json({ success: true, message: 'Token renovado' });
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'Error en Auth Refresh');
+      throw new AppError('No se pudo renovar la sesión', 403);
+    }
   }
 }

@@ -168,7 +168,6 @@ export const userRepository = {
     }
   },
 
-  // ESTE ES EL MÉTODO QUE FALTABA
   async revokeRefreshToken(userId: string): Promise<void> {
     try {
       await pool.query(
@@ -181,5 +180,35 @@ export const userRepository = {
       logger.error({ error: error.message, userId }, 'DB Error: revokeRefreshToken failed');
       throw error;
     }
+  },
+
+  /**
+   * Elimina un token específico (Logout quirúrgico)
+   */
+  async deleteSpecificRefreshToken(token: string): Promise<void> {
+    const query = `
+    DELETE FROM "${schema}".refresh_tokens 
+    WHERE token = $1
+  `;
+    await pool.query(query, [token]);
+  },
+
+  /**
+   * Elimina tokens expirados (Para el Cron Job)
+   */
+  async deleteExpiredTokens(): Promise<number> {
+    const query = `
+    DELETE FROM "${schema}".refresh_tokens 
+    WHERE expires_at < NOW()
+  `;
+    const result = await pool.query(query);
+    return result.rowCount || 0;
+  },
+
+  // Buscar el token en la tabla
+  async findRefreshToken(token: string) {
+    const query = `SELECT * FROM "${schema}".refresh_tokens WHERE token = $1`;
+    const { rows } = await pool.query(query, [token]);
+    return rows[0] || null;
   },
 };
