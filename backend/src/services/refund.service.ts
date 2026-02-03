@@ -6,6 +6,9 @@ import { commissionRepository } from '../repositories/commission.repository';
 import { refundRepository } from '../repositories/refund.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
+import { config } from '../config/index';
+
+const schema = config.db.schema;
 
 export class RefundService {
   /**
@@ -78,6 +81,15 @@ export class RefundService {
 
       // Marcamos todas las comisiones de esa orden como reembolsadas
       await commissionRepository.updateStatusByOrder(orderId, 'refunded', client);
+
+      // 4.5 REVERTIR GANANCIAS DE LA PLATAFORMA
+      // Marcamos como 'refunded' para que no sume en tus reportes de utilidades
+      await client.query(
+        `UPDATE "${schema}".platform_earnings 
+         SET status = 'refunded', updated_at = CURRENT_TIMESTAMP 
+         WHERE order_id = $1`,
+        [orderId]
+      );
 
       // 5. REGISTRO DE AUDITORÍA EN TABLA DE REEMBOLSOS
       // Nota: Asegúrate que order.seller_id u order.creator_id existan en tu objeto Order

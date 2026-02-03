@@ -11,7 +11,6 @@ export const ReleaseService = {
     const daysOfGuarantee = 7;
     const client = await pool.connect();
 
-    // Inicializamos el resumen para el logger del index.ts
     const stats = {
       count: 0,
       totalAmount: {} as Record<string, number>,
@@ -39,35 +38,26 @@ export const ReleaseService = {
         try {
           await client.query('BEGIN');
 
-          // --- A. LIBERAR AL AFILIADO ---
-          if (order.affiliate_id) {
-            const commissions = await commissionRepository.getByOrderId(order.id);
-            const affiliateComm = commissions.find(c => c.affiliate_id === order.affiliate_id);
+          // 1. OBTENER TODAS LAS COMISIONES DE LA ORDEN
+          // Usamos 'user_id' y 'type' que es lo que realmente tiene tu tabla commissions
+          const commissions = await commissionRepository.getByOrderId(order.id);
 
-            if (affiliateComm && affiliateComm.status === 'pending') {
+          for (const comm of commissions) {
+            if (comm.status === 'pending') {
+              // Liberamos el saldo al usuario correspondiente (sea creador o afiliado)
               await balanceRepository.releaseBalance(
-                order.affiliate_id,
-                Number(affiliateComm.amount),
+                comm.userId,
+                Number(comm.amount),
                 order.currency,
                 client
               );
-              await commissionRepository.updateStatusByOrder(order.id, 'paid', client);
             }
           }
 
-          // --- B. LIBERAR AL CREADOR ---
-          const creatorAmount = await this.calculateCreatorNet(order, client);
+          // 2. ACTUALIZAR ESTADO DE COMISIONES A 'paid'
+          await commissionRepository.updateStatusByOrder(order.id, 'paid', client);
 
-          if (creatorAmount > 0) {
-            await balanceRepository.releaseBalance(
-              order.creator_id,
-              creatorAmount,
-              order.currency,
-              client
-            );
-          }
-
-          // --- C. MARCAR ORDEN COMO LIBERADA ---
+          // 3. MARCAR ORDEN COMO LIBERADA
           await client.query(
             `UPDATE "${schema}".orders SET balance_released = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
             [order.id]
@@ -75,7 +65,6 @@ export const ReleaseService = {
 
           await client.query('COMMIT');
 
-          // --- D. ACTUALIZAR ESTADÍSTICAS ---
           stats.count++;
           stats.totalAmount[order.currency] =
             (stats.totalAmount[order.currency] || 0) + Number(order.amount);
@@ -88,23 +77,12 @@ export const ReleaseService = {
         }
       }
 
-      return stats; // Devolvemos el resultado al Cron del index.ts
+      return stats;
     } catch (error: any) {
       logger.error({ error: error.message }, 'Fallo crítico en ReleaseService');
       throw error;
     } finally {
       client.release();
     }
-  },
-
-  async calculateCreatorNet(order: any, client: any): Promise<number> {
-    const query = `
-      SELECT amount FROM "${schema}".balance_history 
-      WHERE order_id = $1 AND user_id = $2 AND type = 'sale_creator' 
-      LIMIT 1
-    `;
-    const db = client || pool;
-    const { rows } = await db.query(query, [order.id, order.creator_id]);
-    return rows[0] ? Math.abs(Number(rows[0].amount)) : 0;
   },
 };

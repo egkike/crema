@@ -4,6 +4,18 @@ import { config } from '../config/index';
 
 const schema = config.db.schema;
 
+// Definimos la interfaz para que el Service no tenga errores de tipado
+export interface CreatePayoutDTO {
+  userId: string;
+  amount: number;
+  currency: string;
+  destination_account: string;
+  bank_name?: string | undefined;
+  account_holder?: string | undefined;
+  tax_id?: string | undefined;
+  alias?: string | undefined;
+}
+
 export const payoutRepository = {
   mapRow(row: any) {
     if (!row) return null;
@@ -15,7 +27,6 @@ export const payoutRepository = {
 
   /**
    * Obtiene un payout bloqueando la fila para actualización.
-   * Fundamental para evitar que dos admins procesen el mismo retiro.
    */
   async getByIdForUpdate(id: string, client: any) {
     const query = `
@@ -32,22 +43,31 @@ export const payoutRepository = {
     }
   },
 
-  async create(
-    data: { userId: string; amount: number; currency: string; destination: string },
-    client: any
-  ) {
-    // Asegúrate de que el nombre de la columna sea destination_account como en tu tabla
+  /**
+   * Crea el registro con todos los campos de transferencia argentinos.
+   */
+  async create(data: CreatePayoutDTO, client: any) {
     const query = `
-      INSERT INTO "${schema}".payouts (user_id, amount, currency, destination_account)
-      VALUES ($1, $2, $3, $4) RETURNING *;
+      INSERT INTO "${schema}".payouts (
+        user_id, amount, currency, destination_account, 
+        bank_name, account_holder, tax_id, alias, status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending') 
+      RETURNING *;
     `;
     try {
-      const { rows } = await client.query(query, [
+      const values = [
         data.userId,
         data.amount,
         data.currency,
-        data.destination,
-      ]);
+        data.destination_account,
+        data.bank_name || null,
+        data.account_holder || null,
+        data.tax_id || null,
+        data.alias || null,
+      ];
+
+      const { rows } = await client.query(query, values);
       return this.mapRow(rows[0]);
     } catch (error: any) {
       logger.error({ error: error.message, userId: data.userId }, 'DB Error: Create payout failed');
@@ -55,15 +75,21 @@ export const payoutRepository = {
     }
   },
 
-  async updateStatus(payoutId: string, status: string, client?: any) {
+  /**
+   * Actualiza estado y permite añadir notas administrativas.
+   */
+  async updateStatus(payoutId: string, status: string, client: any, adminNotes?: string) {
     const query = `
       UPDATE "${schema}".payouts 
-      SET status = $1, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $2 RETURNING *;
+      SET status = $1, 
+          admin_notes = $2,
+          processed_at = CASE WHEN $1 = 'completed' THEN CURRENT_TIMESTAMP ELSE processed_at END,
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $3 RETURNING *;
     `;
     try {
       const db = client || pool;
-      const { rows } = await db.query(query, [status, payoutId]);
+      const { rows } = await db.query(query, [status, adminNotes || null, payoutId]);
       return this.mapRow(rows[0]);
     } catch (error: any) {
       logger.error({ error: error.message, payoutId }, 'DB Error: updateStatus payout failed');
@@ -72,7 +98,7 @@ export const payoutRepository = {
   },
 
   /**
-   * Obtiene payouts por estado (útil para el dashboard de administración)
+   * Obtiene payouts por estado con info del usuario.
    */
   async getByStatus(status: string) {
     const query = `
@@ -92,7 +118,7 @@ export const payoutRepository = {
   },
 
   /**
-   * Historial de retiros de un usuario específico
+   * Historial de retiros de un usuario específico.
    */
   async getByUserId(userId: string) {
     const query = `

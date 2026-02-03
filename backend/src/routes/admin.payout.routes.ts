@@ -39,33 +39,27 @@ router.get('/pending', async (req, res, next) => {
 router.patch('/:id/status', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, admin_notes } = req.body; // <-- Capturamos las notas
     const adminId = (req as any).user.id;
 
     if (!['completed', 'rejected'].includes(status)) {
       throw new AppError('Estado no válido. Use completed o rejected', 400);
     }
 
-    // LOG CRÍTICO: Registramos la acción administrativa antes de ejecutarla
     logger.warn(
-      { adminId, payoutId: id, newStatus: status },
+      { adminId, payoutId: id, newStatus: status, admin_notes },
       `ADMIN: Intentando cambiar estado de retiro a ${status}`
     );
 
-    const result = await PayoutService.updatePayoutStatus(id, status, adminId);
-
-    logger.info(
-      { adminId, payoutId: id, status: result.status },
-      'ADMIN: Cambio de estado completado exitosamente'
-    );
+    // Pasamos admin_notes al servicio
+    const result = await PayoutService.updatePayoutStatus(id, status, adminId, admin_notes);
 
     res.status(200).json({
       success: true,
-      message: `El retiro ha sido ${status === 'completed' ? 'aprobado' : 'rechazado'} correctamente.`,
+      message: `El retiro ha sido ${status === 'completed' ? 'marcado como pagado' : 'rechazado'} correctamente.`,
       data: result,
     });
   } catch (error: any) {
-    // Log de error para administración
     logger.error(
       { adminId: (req as any).user?.id, payoutId: req.params.id, error: error.message },
       'ADMIN: Falló la actualización del retiro'

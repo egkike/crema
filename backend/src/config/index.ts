@@ -29,6 +29,7 @@ const envSchema = z.object({
 
   // URL Base para Webhooks y Callbacks
   API_BASE_URL: z.string().url('API_BASE_URL debe ser una URL válida').optional(),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
 });
 
 const env = envSchema.parse({
@@ -84,6 +85,7 @@ export const config = {
 
   // Esta es la URL que usará el controlador para notificaciones
   apiBaseUrl: env.API_BASE_URL || `http://localhost:${env.PORT}`,
+  frontendUrl: env.FRONTEND_URL,
 } as const;
 
 if (config.nodeEnv === 'development') {

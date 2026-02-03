@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { MercadoPagoConfig, Preference } from 'mercadopago';
 
 import { config } from '../config/index';
 import { AppError } from '../errors/AppError';
 import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
-import { CommissionService } from '../services/commission.service'; // Servicio clave
+import { OrderService } from '../services/order.service'; // <--- El nuevo Director de Orquesta
 import logger from '../utils/logger';
 
 const mpClient = new MercadoPagoConfig({
@@ -31,19 +31,15 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
     }
 
     const officialPrice = await productRepository.getPriceByCurrency(productId, currency);
-    if (!officialPrice) {
-      throw new AppError(`Precio no definido para ${currency}`, 400);
-    }
+    if (!officialPrice) throw new AppError(`Precio no definido para ${currency}`, 400);
 
     const totalAmount = officialPrice * quantity;
     const externalReference = `ORD-${user.id}-${Date.now()}`;
 
-    // Lógica para Mercado Pago
     if (gateway === 'mercadopago' && currency === 'ARS') {
       const preferenceClient = new Preference(mpClient);
-      const notificationUrl = `${config.apiBaseUrl}/payments/webhook`;
 
-      // 1. Registramos la orden en estado 'pending'
+      // 1. Registro inicial de la orden
       await orderRepository.create({
         buyerId: user.id,
         productId: product.id,
@@ -54,7 +50,7 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
         status: 'pending',
       });
 
-      // 2. Creamos la preferencia en MP
+      // 2. Creación de preferencia
       const mpResponse = await preferenceClient.create({
         body: {
           items: [
@@ -67,13 +63,13 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
             },
           ],
           payer: { email: user.email },
-          notification_url: notificationUrl,
+          notification_url: `${config.apiBaseUrl}/payments/webhook`,
           external_reference: externalReference,
           binary_mode: true,
           back_urls: {
-            success: `${config.apiBaseUrl.replace('/api', '')}/pago/exito`,
-            failure: `${config.apiBaseUrl.replace('/api', '')}/pago/fallo`,
-            pending: `${config.apiBaseUrl.replace('/api', '')}/pago/pendiente`,
+            success: `${config.frontendUrl}/pago/exito`,
+            failure: `${config.frontendUrl}/pago/fallo`,
+            pending: `${config.frontendUrl}/pago/pendiente`,
           },
           auto_return: 'approved',
         },
@@ -81,12 +77,11 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
 
       return res.status(201).json({
         success: true,
-        data: { init_point: mpResponse.init_point, gateway: 'mercadopago', externalReference },
+        data: { init_point: mpResponse.init_point, externalReference },
       });
     }
 
-    // Otras pasarelas (Stripe, Binance Pay, etc.)
-    throw new AppError(`El método ${gateway} no está habilitado para ${currency}`, 400);
+    throw new AppError(`Método ${gateway} no habilitado para ${currency}`, 400);
   } catch (err) {
     next(err);
   }
@@ -96,58 +91,20 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
  * Recibe las notificaciones de Mercado Pago
  */
 export const handleWebhook = async (req: Request, res: Response) => {
+  // Respondemos 200 inmediatamente a MP para evitar latencia y reintentos
+  res.status(200).send('OK');
+
   try {
     const { type, data } = req.body;
     const paymentId = data?.id || req.query.id;
 
-    // Solo procesamos si la notificación es de un pago
     if (type === 'payment' && paymentId) {
-      const payment = await new Payment(mpClient).get({ id: String(paymentId) });
-      const { status, external_reference: externalRef } = payment;
+      logger.info({ paymentId }, '🔔 Webhook recibido, delegando a OrderService...');
 
-      if (externalRef) {
-        const order = await orderRepository.getByExternalRef(externalRef);
-
-        // CONDICIÓN CRÍTICA: La orden debe existir, ser MP, estar aprobada y NO haber sido procesada antes
-        if (
-          order &&
-          order.payment_method === 'mercadopago' &&
-          status === 'approved' &&
-          !order.commissions_calculated // Evita duplicar dinero si MP manda el webhook 2 veces
-        ) {
-          const product = await productRepository.getProductById(order.product_id);
-
-          if (product) {
-            // --- AQUÍ OCURRE LA MAGIA FINANCIERA ---
-            // 1. Distribuye el dinero (Creator, Plataforma, etc.)
-            await CommissionService.processOrderCommissions(order, product);
-
-            // 2. Actualiza la orden marcándola como pagada y procesada
-            await orderRepository.updateByExternalRef(externalRef, {
-              status: 'paid',
-              transaction_id: String(paymentId),
-              gateway_status: status,
-              commissions_calculated: true,
-            });
-
-            logger.info({ externalRef, paymentId }, '✅ Pago MP y Distribución de Comisiones OK');
-          }
-        } else if (order && (status === 'rejected' || status === 'cancelled')) {
-          // Si el pago falló, marcamos la orden como fallida
-          await orderRepository.updateByExternalRef(externalRef, {
-            status: 'failed',
-            gateway_status: status,
-          });
-          logger.warn({ externalRef, status }, '⚠️ Pago MP rechazado o cancelado');
-        }
-      }
+      // Delegamos toda la lógica (validar MP, buscar orden, repartir comisiones)
+      await OrderService.handlePaymentWebhook(String(paymentId));
     }
-
-    // Mercado Pago espera un 200 siempre para dejar de reintentar
-    res.status(200).send('OK');
   } catch (err: any) {
-    logger.error({ error: err.message }, 'Error procesando Webhook de MP');
-    // Respondemos 200 aunque falle nuestro código para evitar que MP nos sature a reintentos
-    res.status(200).send('OK');
+    logger.error({ error: err.message }, '❌ Error procesando lógica de Webhook');
   }
 };

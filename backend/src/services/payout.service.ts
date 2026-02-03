@@ -9,13 +9,19 @@ import logger from '../utils/logger';
 export class PayoutService {
   /**
    * Solicita un nuevo retiro.
-   * Valida monto mínimo y resta saldo disponible inmediatamente.
+   * Ajustado para los nuevos campos de transferencia (CBU, Alias, CUIT).
    */
   static async requestPayout(
     userId: string,
     amount: number,
     currency: string,
-    destination: string
+    payoutData: {
+      destination_account: string;
+      bank_name?: string | undefined;
+      account_holder?: string | undefined;
+      tax_id?: string | undefined;
+      alias?: string | undefined;
+    }
   ) {
     // 1. Validaciones básicas
     if (amount <= 0) {
@@ -35,36 +41,37 @@ export class PayoutService {
     try {
       await client.query('BEGIN');
 
-      // 3. Restar saldo disponible (Lanza error si no hay suficiente)
+      // 3. Restar saldo disponible (Usa el CHECK de la DB para validar saldo >= amount)
       await balanceRepository.subtractAvailableBalance(userId, amount, currency, client);
 
-      // 4. Crear registro con estado 'pending'
+      // 4. Crear registro con los nuevos campos detallados
       const payout = await payoutRepository.create(
         {
           userId,
           amount,
           currency,
-          destination,
+          ...payoutData, // Incluye destination_account, bank_name, tax_id, etc.
         },
         client
       );
 
-      // 5. Historial de solicitud (Monto negativo)
+      // 5. Historial de solicitud (Monto negativo en el historial)
       await historyRepository.createRecordWithClient(client, {
         userId,
         order_id: null,
         amount: -Math.abs(amount),
         currency,
         type: 'payout_request' as any,
-        description: `Retiro pendiente a: ${destination}`,
+        description: `Retiro pendiente a: ${payoutData.alias || payoutData.destination_account}`,
       });
 
       await client.query('COMMIT');
-      logger.info({ userId, amount, payoutId: payout.id }, '💰 Retiro solicitado');
+      logger.info({ userId, amount, payoutId: payout.id }, '💰 Retiro solicitado exitosamente');
 
       return payout;
     } catch (error: any) {
       await client.query('ROLLBACK');
+      // Capturamos el error del CHECK balance_available >= 0 de la tabla
       if (error.code === '23514' || error.message.includes('balance')) {
         throw new AppError('Saldo insuficiente para realizar el retiro.', 400);
       }
@@ -81,24 +88,26 @@ export class PayoutService {
   static async updatePayoutStatus(
     payoutId: string,
     status: 'completed' | 'rejected',
-    adminId: string
+    adminId: string,
+    adminNotes?: string
   ) {
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // 1. Bloqueo y obtención del payout
+      // 1. Bloqueo y obtención del payout para evitar condiciones de carrera
       const payout = await payoutRepository.getByIdForUpdate(payoutId, client);
       if (!payout) throw new AppError('Registro de retiro no encontrado', 404);
-      if (payout.status !== 'pending') throw new AppError('Este retiro ya ha sido procesado', 400);
+      if (payout.status !== 'pending')
+        throw new AppError('Este retiro ya ha sido procesado anteriormente', 400);
 
       if (status === 'completed') {
-        // Simplemente marcamos como completado
-        await payoutRepository.updateStatus(payoutId, 'completed', client);
+        // Marcamos como completado y grabamos fecha de procesamiento
+        await payoutRepository.updateStatus(payoutId, 'completed', client, adminNotes);
         logger.info({ payoutId, adminId }, '✅ Retiro marcado como completado');
       } else if (status === 'rejected') {
-        // REVERSIÓN: El dinero vuelve al disponible
+        // REVERSIÓN: El dinero vuelve al disponible del usuario
         await balanceRepository.addAvailableBalance(
           payout.user_id,
           Number(payout.amount),
@@ -106,16 +115,16 @@ export class PayoutService {
           client
         );
 
-        await payoutRepository.updateStatus(payoutId, 'rejected', client);
+        await payoutRepository.updateStatus(payoutId, 'rejected', client, adminNotes);
 
-        // Historial de reintegro (Monto positivo)
+        // Historial de reintegro (Monto positivo para compensar el negativo inicial)
         await historyRepository.createRecordWithClient(client, {
           userId: payout.user_id,
           order_id: null,
           amount: Number(payout.amount),
           currency: payout.currency,
           type: 'payout_refund' as any,
-          description: `Reintegro por retiro rechazado #${payoutId}`,
+          description: `Reintegro por retiro rechazado #${payoutId.substring(0, 8)}`,
         });
 
         logger.warn({ payoutId, adminId }, '❌ Retiro rechazado y fondos reintegrados');
@@ -125,7 +134,10 @@ export class PayoutService {
       return { success: true, status };
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, payoutId }, 'Error al actualizar estado de payout');
+      logger.error(
+        { error: error.message, payoutId },
+        'Error al procesar el cambio de estado del payout'
+      );
       throw error;
     } finally {
       client.release();

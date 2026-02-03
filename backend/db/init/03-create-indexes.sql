@@ -1,10 +1,6 @@
 -- 03-create-indexes.sql
 -- Crea índices útiles sobre las tablas principales (en schema 'public' por defecto)
 
--- Índices en tabla users
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-
 -- Índices recomendados en tabla refresh_tokens
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id 
   ON refresh_tokens (user_id);

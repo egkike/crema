@@ -62,7 +62,7 @@ export class CommissionService {
           {
             userId: order.affiliate_id,
             orderId: order.id,
-            amount: remainingNet, // El monto base para el afiliado es lo que quedaba tras el fee de plataforma
+            amount: totalAmount,
             feeApplied: 0, // Por ahora no cobramos fee al afiliado sobre su parte
             netAmount: affiliateAmount,
             currency: orderCurrency,

@@ -1,6 +1,8 @@
 -- 02-create-tables.sql
 -- Crea las tablas principales en el schema por defecto 'public'
 
+-- 1. Tablas Base (Sin dependencias externas)
+
 -- Tabla users
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -14,6 +16,32 @@ CREATE TABLE IF NOT EXISTS users (
     createdate TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabla para controlar qué monedas opera la plataforma (Orquestador)
+CREATE TABLE IF NOT EXISTS enabled_currencies (
+    code VARCHAR(10) PRIMARY KEY, -- 'ARS', 'USDT'
+    name VARCHAR(50) NOT NULL,
+    symbol VARCHAR(5) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de configuraciones generales
+CREATE TABLE IF NOT EXISTS system_settings (
+    key VARCHAR(50) PRIMARY KEY,
+    value TEXT NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de Pasarelas
+CREATE TABLE IF NOT EXISTS payment_gateways (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- 2. Tablas con Dependencias (Foreign Keys)
+
 -- Tabla refresh_tokens (almacenamiento de tokens de refresco)
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,6 +53,25 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     revoked_at TIMESTAMP WITH TIME ZONE
 );
 
+-- Tabla para parámetros globales del sistema
+CREATE TABLE IF NOT EXISTS platform_configs (
+    key VARCHAR(50) NOT NULL,
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
+    value DECIMAL(18,8) NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (key, currency)
+);
+
+-- Tabla permite que una moneda tenga múltiples pasarelas y viceversa
+CREATE TABLE IF NOT EXISTS currency_gateways (
+    currency_code VARCHAR(10) REFERENCES enabled_currencies(code),
+    gateway_id VARCHAR(50) REFERENCES payment_gateways(id),
+    is_default BOOLEAN DEFAULT FALSE, -- Para saber cuál mostrar primero
+    priority INTEGER DEFAULT 1,       -- Para ordenar en el frontend
+    PRIMARY KEY (currency_code, gateway_id)
+);
+
 -- Tablas para productos digitales, órdenes y comisiones
 CREATE TABLE IF NOT EXISTS products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -32,11 +79,20 @@ CREATE TABLE IF NOT EXISTS products (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     type VARCHAR(50) NOT NULL CHECK (type IN ('course', 'ebook', 'membership', 'software', 'podcast', 'audiobook')),
-    content_url TEXT,                     -- link a archivo (S3, Cloudinary, local)
+    content_url TEXT,
     affiliate_commission_percent DECIMAL(18,8) DEFAULT 10.00,
-    status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),  -- agregado para control de visibilidad
+    status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de Precios x monedas
+CREATE TABLE IF NOT EXISTS product_prices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    currency VARCHAR(10) NOT NULL REFERENCES enabled_currencies(code),
+    amount DECIMAL(18,8) NOT NULL CHECK (amount >= 0),
+    UNIQUE(product_id, currency) -- Un producto no puede tener dos precios en la misma moneda
 );
 
 CREATE TABLE IF NOT EXISTS orders (
@@ -45,7 +101,7 @@ CREATE TABLE IF NOT EXISTS orders (
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     affiliate_id UUID REFERENCES users(id) ON DELETE SET NULL,
     amount DECIMAL(18,8) NOT NULL,
-    currency VARCHAR(10) DEFAULT 'ARS', -- Añadido: Moneda de la venta
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
     commission_amount DECIMAL(18,8),
     status VARCHAR(50) DEFAULT 'pending' CHECK (
         status IN ('pending', 'paid', 'refunded')
@@ -67,7 +123,7 @@ CREATE TABLE IF NOT EXISTS commissions (
     amount DECIMAL(18,8) NOT NULL,
     fee_applied DECIMAL(18,8) NOT NULL DEFAULT 0,
     net_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
-    currency VARCHAR(10) DEFAULT 'ARS',
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
     type VARCHAR(20) DEFAULT 'creator', -- 'creator' o 'affiliate'
     status VARCHAR(50) DEFAULT 'pending' CHECK (
         status IN ('pending', 'paid', 'refunded', 'cancelled')
@@ -79,44 +135,18 @@ CREATE TABLE IF NOT EXISTS commissions (
 COMMENT ON COLUMN commissions.fee_applied IS 'Comisión retenida por la plataforma';
 COMMENT ON COLUMN commissions.net_amount IS 'Monto neto que se acredita al usuario';
 
--- Tabla para parámetros globales del sistema
-CREATE TABLE IF NOT EXISTS platform_configs (
-    key VARCHAR(50) NOT NULL,
-    currency VARCHAR(10) DEFAULT 'ARS',
-    value DECIMAL(18,8) NOT NULL, -- Mayor precisión para porcentajes
-    description TEXT,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (key, currency)
-);
-
 -- Tabla de Balances que guardará el acumulado de comisiones (creadores y afiliados)
 CREATE TABLE IF NOT EXISTS user_balances (
-    -- Eliminamos PRIMARY KEY de aquí para definirla abajo como compuesta
     user_id UUID NOT NULL REFERENCES users(id),
     total_earned DECIMAL(18,8) DEFAULT 0.00,
     available_balance DECIMAL(18,8) DEFAULT 0.00 CHECK (available_balance >= 0),
     pending_balance DECIMAL(18,8) DEFAULT 0.00 CHECK (pending_balance >= 0),
-    currency VARCHAR(10) DEFAULT 'ARS',
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- Definimos la PK compuesta: Un registro único por cada combinación de usuario/moneda
     PRIMARY KEY (user_id, currency)
 );
-
--- Función para el trigger
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Trigger para la tabla user_balances
-CREATE TRIGGER update_user_balances_modtime
-    BEFORE UPDATE ON user_balances
-    FOR EACH ROW
-    EXECUTE PROCEDURE update_updated_at_column();
 
 -- Tabla donde registremos cada "mordida" que toma la plataforma.
 CREATE TABLE IF NOT EXISTS platform_earnings (
@@ -131,7 +161,7 @@ CREATE TABLE IF NOT EXISTS platform_earnings (
 
     total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior  
     status VARCHAR(20) DEFAULT 'active', -- active, paid, refunded
-    currency VARCHAR(10) DEFAULT 'ARS',
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -141,7 +171,7 @@ CREATE TABLE IF NOT EXISTS balance_history (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     order_id UUID REFERENCES orders(id) ON DELETE SET NULL, -- Si se borra la orden, mantenemos el historial
     amount DECIMAL(18,8) NOT NULL,
-    currency VARCHAR(10) DEFAULT 'ARS',
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
     -- Definimos el tipo con un CHECK inline para integridad de datos
     type VARCHAR(50) NOT NULL CHECK (
         type IN ('sale_creator', 'sale_affiliate', 'refund', 'payout_request', 'payout_refund')
@@ -150,59 +180,24 @@ CREATE TABLE IF NOT EXISTS balance_history (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla de configuraciones generales
-CREATE TABLE IF NOT EXISTS system_settings (
-    key VARCHAR(50) PRIMARY KEY,
-    value TEXT NOT NULL,
-    description TEXT,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Tabla para trackear solicitudes de Payouts
 CREATE TABLE IF NOT EXISTS payouts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Agregada referencia
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     amount DECIMAL(18,8) NOT NULL,
-    currency VARCHAR(10) NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'rejected', 'refunded'
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (
+        status IN ('pending', 'processing', 'completed', 'rejected', 'refunded')
+    ),
     destination_account TEXT NOT NULL, -- CBU/CVU o Wallet Address
     admin_notes TEXT,
+    bank_name VARCHAR(100),
+    account_holder VARCHAR(100),
+    tax_id VARCHAR(50), -- CUIT/CUIL
+    alias VARCHAR(100),
+    processed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabla para controlar qué monedas opera la plataforma (Orquestador)
-CREATE TABLE IF NOT EXISTS enabled_currencies (
-    code VARCHAR(10) PRIMARY KEY, -- 'ARS', 'USDT'
-    name VARCHAR(50) NOT NULL,
-    symbol VARCHAR(5) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabla de Pasarelas
-CREATE TABLE IF NOT EXISTS payment_gateways (
-    id VARCHAR(50) PRIMARY KEY, -- 'mercadopago', 'binance_pay', 'stripe'
-    name VARCHAR(100) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE
-);
-
--- Tabla permite que una moneda tenga múltiples pasarelas y viceversa
-CREATE TABLE IF NOT EXISTS currency_gateways (
-    currency_code VARCHAR(10) REFERENCES enabled_currencies(code),
-    gateway_id VARCHAR(50) REFERENCES payment_gateways(id),
-    is_default BOOLEAN DEFAULT FALSE, -- Para saber cuál mostrar primero
-    priority INTEGER DEFAULT 1,       -- Para ordenar en el frontend
-    PRIMARY KEY (currency_code, gateway_id)
-);
-
--- Tabla de Precios (Relación Muchos a Muchos)
-CREATE TABLE IF NOT EXISTS product_prices (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    currency VARCHAR(10) NOT NULL REFERENCES enabled_currencies(code),
-    amount DECIMAL(18,8) NOT NULL CHECK (amount >= 0),
-    UNIQUE(product_id, currency) -- Un producto no puede tener dos precios en la misma moneda
 );
 
 -- Tabla para devoluciones por garantias
@@ -212,8 +207,26 @@ CREATE TABLE IF NOT EXISTS refunds (
     seller_id UUID NOT NULL REFERENCES users(id),
     buyer_id UUID NOT NULL REFERENCES users(id),
     amount DECIMAL(18,8) NOT NULL CHECK (amount > 0),
-    currency VARCHAR(10) DEFAULT 'ARS',
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
     reason TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Función para los triggers
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Triggers de actualización automática
+CREATE TRIGGER trg_upd_user_balances BEFORE UPDATE ON user_balances FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER trg_upd_system_settings BEFORE UPDATE ON system_settings FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER trg_upd_platform_configs BEFORE UPDATE ON platform_configs FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER trg_upd_products BEFORE UPDATE ON products FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER trg_upd_orders BEFORE UPDATE ON orders FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER trg_upd_payouts BEFORE UPDATE ON payouts FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER trg_upd_refunds BEFORE UPDATE ON refunds FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
