@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import { PayoutService } from '../services/payout.service';
 import { payoutRepository } from '../repositories/payout.repository';
+import { adminRepository } from '../repositories/admin.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
@@ -63,6 +64,31 @@ router.patch('/:id/status', async (req, res, next) => {
     logger.error(
       { adminId: (req as any).user?.id, payoutId: req.params.id, error: error.message },
       'ADMIN: Falló la actualización del retiro'
+    );
+    next(error);
+  }
+});
+
+/**
+ * @route GET /api/admin/stats
+ * @desc Resumen financiero global para el Dashboard
+ */
+router.get('/stats', async (req, res, next) => {
+  try {
+    const adminId = (req as any).user.id;
+    logger.info({ adminId }, 'ADMIN: Accediendo a estadísticas globales');
+
+    const stats = await adminRepository.getGlobalFinancialStats();
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    logger.error(
+      { error: error.message, stack: error.stack },
+      'ADMIN: Error al obtener estadísticas'
     );
     next(error);
   }
