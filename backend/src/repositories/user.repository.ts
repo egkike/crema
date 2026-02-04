@@ -211,4 +211,17 @@ export const userRepository = {
     const { rows } = await pool.query(query, [token]);
     return rows[0] || null;
   },
+
+  // Método que limpia el flag must_change_password en la base de datos.
+  async updatePasswordAndClearFlag(id: string, passwordHash: string): Promise<boolean> {
+    const query = `
+    UPDATE "${schema}".users 
+    SET password = $1, 
+        must_change_password = FALSE, 
+        active = 1 
+    WHERE id = $2
+  `;
+    const result = await pool.query(query, [passwordHash, id]);
+    return (result.rowCount ?? 0) > 0;
+  },
 };

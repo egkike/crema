@@ -115,6 +115,8 @@ const authController = new AuthController();
  */
 router.post('/login', authController.login);
 
+router.post('/change-password', jwtAuthMiddleware, authController.changePasswordFirstLogin);
+
 /**
  * @swagger
  * /api/logout:
@@ -148,6 +150,6 @@ router.post('/login', authController.login);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/logout', jwtAuthMiddleware, authController.logout); // ← Agrega jwtAuthMiddleware aquí
+router.post('/logout', jwtAuthMiddleware, authController.logout);
 
 export default router;

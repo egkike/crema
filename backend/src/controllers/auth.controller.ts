@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
-import { validatePartialUser } from '../schemas/users';
+import { validatePartialUser, validatePasswordDetailed } from '../schemas/users';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 import { userRepository, type UserWithPassword } from '../repositories/user.repository';
@@ -154,5 +154,40 @@ export class AuthController {
       logger.error({ error: error.message }, 'Error en Auth Refresh');
       throw new AppError('No se pudo renovar la sesión', 403);
     }
+  }
+
+  async changePasswordFirstLogin(req: Request, res: Response) {
+    const { password } = req.body;
+    const user = (req as any).user; // Viene del token parcial
+
+    // 1. Validar complejidad con tu función detallada
+    const pwdCheck = validatePasswordDetailed(password);
+    if (!pwdCheck.valid) {
+      throw new AppError(pwdCheck.errors.join('; '), 400);
+    }
+
+    // 2. Encriptar
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // 3. Actualizar DB (Apaga el flag y activa al usuario)
+    const success = await userRepository.updatePasswordAndClearFlag(user.id, passwordHash);
+
+    if (!success) throw new AppError('No se pudo actualizar la contraseña', 500);
+
+    // 4. Limpiar cookies para forzar login real
+    const cookieOptions = {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'strict' as const,
+      path: '/',
+    };
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Contraseña actualizada. Ahora puedes iniciar sesión normalmente.',
+    });
   }
 }

@@ -3,10 +3,10 @@ import { z } from 'zod';
 const userSchema = z.object({
   id: z.string().uuid().optional(), // opcional porque al crear no lo tenemos
   username: z.string().min(4, { message: 'Username debe tener al menos 4 caracteres' }).max(20),
-  password: z.string().min(6, { message: 'Password debe tener al menos 6 caracteres' }),
+  password: z.string().min(8, { message: 'Password debe tener al menos 8 caracteres' }),
   email: z.string().email({ message: 'Email inválido' }),
   fullname: z.string().min(4, { message: 'Fullname debe tener al menos 4 caracteres' }).max(255),
-  level: z.number().int().min(0).max(10).default(1),
+  level: z.number().int().min(0).max(99).default(1),
   active: z.number().int().min(0).max(1).default(0),
 });
 
@@ -27,8 +27,8 @@ export function validatePartialUser(input: unknown) {
 export function validatePasswordDetailed(value: string): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  if (value.length < 6) {
-    errors.push('La contraseña debe tener al menos 6 caracteres');
+  if (value.length < 8) {
+    errors.push('La contraseña debe tener al menos 8 caracteres');
   }
   if (!/[a-z]/.test(value)) {
     errors.push('Debe contener al menos una letra minúscula');
