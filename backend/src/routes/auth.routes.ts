@@ -115,7 +115,7 @@ const authController = new AuthController();
  */
 router.post('/login', authController.login);
 
-router.post('/change-password', jwtAuthMiddleware, authController.changePasswordFirstLogin);
+router.post('/user/change-password-first-login', jwtAuthMiddleware, authController.changePasswordFirstLogin);
 
 /**
  * @swagger

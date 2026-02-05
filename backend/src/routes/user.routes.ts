@@ -9,14 +9,43 @@ import { userRepository } from '../repositories/user.repository';
 
 const router = Router();
 
-// Middleware de autenticación para todas las rutas protegidas
-router.use(jwtAuthMiddleware);
-router.use(enforceFullAuth);
-
 // Instanciamos directamente el controlador
 const userController = new UserController();
 
+// --- RUTAS PÚBLICAS (O semi-públicas) ---
+// ESTA RUTA DEBE IR ANTES DE LOS MIDDLEWARES DE AUTH
+
+// 1. Verificación de email (Pilar 1)
+/**
+ * @swagger
+ * /api/user/verify:
+ * get:
+ * summary: Verifica y activa la cuenta de un usuario mediante token
+ * tags: [Auth]
+ */
+router.get('/user/verify', userController.verifyEmail);
+
+// 2. Registro de nuevos usuarios (Creadores/Afiliados)
+/**
+ * @swagger
+ * /api/user/create:
+ * post:
+ * summary: Registro público de nuevos usuarios
+ * description: Permite que nuevos creadores y afiliados se unan a Crema.
+ */
+router.post('/user/create', userController.createUser);
+
+// --- MIDDLEWARES DE PROTECCIÓN ---
+// A partir de aquí, todas las rutas requieren estar logueado
+router.use(jwtAuthMiddleware);
+
+// --- RUTAS QUE REQUIEREN LOGIN Y PASSWORD YA CAMBIADO ---
+router.use(enforceFullAuth);
+
 // Rutas protegidas
+/**
+ * Rutas de Usuario estándar
+ */
 
 /**
  * @swagger
@@ -84,85 +113,6 @@ const userController = new UserController();
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/session', userController.getSession);
-
-/**
- * @swagger
- * /api/users:
- *   get:
- *     summary: Lista todos los usuarios (con filtros opcionales)
- *     tags: [Users]
- *     description: Requiere permisos administrativos (level >= 5)
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: query
- *         name: active
- *         schema:
- *           type: integer
- *           enum: [0, 1]
- *         description: Filtrar por estado activo (0 = inactivo, 1 = activo)
- *       - in: query
- *         name: level
- *         schema:
- *           type: integer
- *           minimum: 0
- *           maximum: 10
- *         description: Filtrar por nivel de usuario
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Número de página (paginación)
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Cantidad de resultados por página
- *     responses:
- *       200:
- *         description: Lista de usuarios
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 users:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       username:
- *                         type: string
- *                       email:
- *                         type: string
- *                       fullname:
- *                         type: string
- *                       level:
- *                         type: integer
- *                       active:
- *                         type: integer
- *                       must_change_password:
- *                         type: boolean
- *       401:
- *         description: No autorizado
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       403:
- *         description: No tienes permisos suficientes
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.get('/users', restrictTo(5), userController.getUsers); // Solo level >= 5
 
 /**
  * @swagger
@@ -249,45 +199,47 @@ router.get('/users', restrictTo(5), userController.getUsers); // Solo level >= 5
 router.post('/user/getbyid', userController.getById);
 
 /**
+ * Rutas Administrativas (Level >= 5)
+ */
+
+/**
  * @swagger
- * /api/user/create:
- *   post:
- *     summary: Crea un nuevo usuario
+ * /api/users:
+ *   get:
+ *     summary: Lista todos los usuarios (con filtros opcionales)
  *     tags: [Users]
- *     description: Requiere autenticación y permisos administrativos (level >= 5)
+ *     description: Requiere permisos administrativos (level >= 5)
  *     security:
  *       - cookieAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *               - email
- *               - fullname
- *             properties:
- *               username:
- *                 type: string
- *                 minLength: 4
- *                 description: Nombre de usuario único
- *               password:
- *                 type: string
- *                 minLength: 6
- *                 description: Contraseña (debe cumplir requisitos de seguridad)
- *               email:
- *                 type: string
- *                 format: email
- *                 description: Email válido y único
- *               fullname:
- *                 type: string
- *                 minLength: 4
- *                 description: Nombre completo
+ *     parameters:
+ *       - in: query
+ *         name: active
+ *         schema:
+ *           type: integer
+ *           enum: [0, 1]
+ *         description: Filtrar por estado activo (0 = inactivo, 1 = activo)
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           maximum: 10
+ *         description: Filtrar por nivel de usuario
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número de página (paginación)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Cantidad de resultados por página
  *     responses:
- *       201:
- *         description: Usuario creado correctamente
+ *       200:
+ *         description: Lista de usuarios
  *         content:
  *           application/json:
  *             schema:
@@ -295,30 +247,25 @@ router.post('/user/getbyid', userController.getById);
  *               properties:
  *                 success:
  *                   type: boolean
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       format: uuid
- *                     username:
- *                       type: string
- *                     email:
- *                       type: string
- *                     fullname:
- *                       type: string
- *                     level:
- *                       type: integer
- *                     active:
- *                       type: integer
- *                     must_change_password:
- *                       type: boolean
- *       400:
- *         description: Datos inválidos o contraseña débil
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       username:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       fullname:
+ *                         type: string
+ *                       level:
+ *                         type: integer
+ *                       active:
+ *                         type: integer
+ *                       must_change_password:
+ *                         type: boolean
  *       401:
  *         description: No autorizado
  *         content:
@@ -331,14 +278,8 @@ router.post('/user/getbyid', userController.getById);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *       409:
- *         description: Username o email ya existe
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/user/create', restrictTo(5), userController.createUser); // Solo level >= 5
+router.get('/users', restrictTo(5), userController.getUsers); // Solo level >= 5
 
 /**
  * @swagger
@@ -569,6 +510,8 @@ router.patch('/user/chgpass', restrictTo(5), userController.chgPassUser); // Sol
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/user/delete', restrictTo(5), userController.deleteUser); // Solo level >= 5
+
+// --- REFRESH TOKEN ---
 
 /**
  * @swagger

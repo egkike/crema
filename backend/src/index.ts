@@ -25,6 +25,8 @@ import payoutRoutes from './routes/payout.routes';
 import adminPayoutRoutes from './routes/admin.payout.routes';
 
 const app = express();
+app.use(express.json()); 
+app.use(express.urlencoded({ extended: true }));
 
 // --- HELMET & SECURITY ---
 app.use(
@@ -58,7 +60,6 @@ app.use(
 );
 
 // --- MIDDLEWARES GLOBALES ---
-app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({

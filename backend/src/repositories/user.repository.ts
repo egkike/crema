@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 import bcrypt from 'bcrypt';
 
 import pool from '../db/postgres';
@@ -64,21 +66,53 @@ export const userRepository = {
     }
   },
 
-  async createUser(input: any): Promise<User> {
+  async createUser(input: any): Promise<User & { verificationToken: string }> {
     const { username, password, email, fullname } = input;
+
+    // Pilar 1: Generar token de verificación
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const expires = new Date();
+    expires.setHours(expires.getHours() + 24);
+
     try {
-      const hash = await bcrypt.hash(password, 10);
-      const { rows } = await pool.query(
-        `INSERT INTO "${schema}".users (username, password, email, fullname)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, username, email, fullname, level, active, must_change_password, createdate`,
-        [username, hash, email, fullname]
-      );
-      return rows[0];
+      // Pilar 2: Password Pepper + Salt 12 para alta seguridad
+      const passwordWithPepper = password + config.passwordPepper;
+      const hash = await bcrypt.hash(passwordWithPepper, 12);
+
+      const query = `
+        INSERT INTO "${schema}".users 
+          (username, password, email, fullname, active, verification_token, verification_token_expires)
+        VALUES ($1, $2, $3, $4, 0, $5, $6)
+        RETURNING id, username, email, fullname, level, active, must_change_password, createdate
+      `;
+
+      const { rows } = await pool.query(query, [
+        username,
+        hash,
+        email,
+        fullname,
+        verificationToken,
+        expires,
+      ]);
+
+      return { ...rows[0], verificationToken };
     } catch (error: any) {
       logger.error({ error: error.message }, 'DB Error: createUser failed');
       throw error;
     }
+  },
+
+  async verifyAccount(token: string): Promise<boolean> {
+    const query = `
+      UPDATE "${schema}".users 
+      SET active = 1, 
+          verification_token = NULL, 
+          verification_token_expires = NULL 
+      WHERE verification_token = $1 
+        AND verification_token_expires > NOW()
+    `;
+    const { rowCount } = await pool.query(query, [token]);
+    return (rowCount ?? 0) > 0;
   },
 
   async updUser({ id, input }: { id: string; input: any }): Promise<User | null> {
@@ -116,7 +150,10 @@ export const userRepository = {
 
   async chgPassUser({ id, input }: { id: string; input: any }): Promise<boolean> {
     try {
-      const hash = await bcrypt.hash(input.password, 10);
+      // Aplicamos Pepper también en el cambio de contraseña
+      const passwordWithPepper = input.password + config.passwordPepper;
+      const hash = await bcrypt.hash(passwordWithPepper, 12);
+
       const { rowCount } = await pool.query(
         `UPDATE "${schema}".users SET password = $1, must_change_password = FALSE WHERE id = $2`,
         [hash, id]
@@ -182,37 +219,23 @@ export const userRepository = {
     }
   },
 
-  /**
-   * Elimina un token específico (Logout quirúrgico)
-   */
   async deleteSpecificRefreshToken(token: string): Promise<void> {
-    const query = `
-    DELETE FROM "${schema}".refresh_tokens 
-    WHERE token = $1
-  `;
+    const query = `DELETE FROM "${schema}".refresh_tokens WHERE token_hash = $1`;
     await pool.query(query, [token]);
   },
 
-  /**
-   * Elimina tokens expirados (Para el Cron Job)
-   */
   async deleteExpiredTokens(): Promise<number> {
-    const query = `
-    DELETE FROM "${schema}".refresh_tokens 
-    WHERE expires_at < NOW()
-  `;
+    const query = `DELETE FROM "${schema}".refresh_tokens WHERE expires_at < NOW()`;
     const result = await pool.query(query);
     return result.rowCount || 0;
   },
 
-  // Buscar el token en la tabla
   async findRefreshToken(token: string) {
-    const query = `SELECT * FROM "${schema}".refresh_tokens WHERE token = $1`;
+    const query = `SELECT * FROM "${schema}".refresh_tokens WHERE token_hash = $1`;
     const { rows } = await pool.query(query, [token]);
     return rows[0] || null;
   },
 
-  // Método que limpia el flag must_change_password en la base de datos.
   async updatePasswordAndClearFlag(id: string, passwordHash: string): Promise<boolean> {
     const query = `
     UPDATE "${schema}".users 
@@ -220,7 +243,7 @@ export const userRepository = {
         must_change_password = FALSE, 
         active = 1 
     WHERE id = $2
-  `;
+    `;
     const result = await pool.query(query, [passwordHash, id]);
     return (result.rowCount ?? 0) > 0;
   },

@@ -30,6 +30,7 @@ const envSchema = z.object({
   // URL Base para Webhooks y Callbacks
   API_BASE_URL: z.string().url('API_BASE_URL debe ser una URL válida').optional(),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+  RECAPTCHA_SECRET_KEY: z.string().optional().default(''),
 });
 
 const env = envSchema.parse({
@@ -51,6 +52,8 @@ const env = envSchema.parse({
   MERCADO_PAGO_WEBHOOK_SECRET: process.env.MERCADO_PAGO_WEBHOOK_SECRET,
 
   API_BASE_URL: process.env.API_BASE_URL,
+  FRONTEND_URL: process.env.FRONTEND_URL,
+  RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
 });
 
 export const config = {
@@ -86,6 +89,20 @@ export const config = {
   // Esta es la URL que usará el controlador para notificaciones
   apiBaseUrl: env.API_BASE_URL || `http://localhost:${env.PORT}`,
   frontendUrl: env.FRONTEND_URL,
+
+  smtp: {
+    host: process.env.SMTP_HOST || 'sandbox.smtp.mailtrap.io',
+    port: parseInt(process.env.SMTP_PORT || '2525'),
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+    from: process.env.EMAIL_FROM || '"Crema" <noreply@crema.com>',
+  },
+  appUrl: process.env.APP_URL || 'http://localhost:5173',
+
+  // AQUÍ LA DEFINICIÓN DEL PEPPER
+  passwordPepper: process.env.PASSWORD_PEPPER || 'dev_pepper_fallback_local',
+
+  recaptchaSecretKey: process.env.RECAPTCHA_SECRET_KEY,
 } as const;
 
 if (config.nodeEnv === 'development') {

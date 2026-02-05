@@ -27,14 +27,17 @@ export class AuthController {
       throw new AppError('Credenciales inválidas', 401);
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    // AJUSTE: Aplicar Pepper antes de comparar
+    const isValidPassword = await bcrypt.compare(password + config.passwordPepper, user.password);
+
     if (!isValidPassword) {
       logger.warn({ identifier }, 'Intento de login: Password incorrecto');
       throw new AppError('Credenciales inválidas', 401);
     }
 
+    // AJUSTE: Verificación de estado de cuenta (Pilar 1)
     if (user.active === 0) {
-      throw new AppError('Usuario inactivo. Contacta al administrador.', 403);
+      throw new AppError('Cuenta no verificada o inactiva. Revisa tu email.', 403);
     }
 
     const cookieOptions = {
@@ -44,9 +47,7 @@ export class AuthController {
       path: '/',
     };
 
-    // MEJORA: Seguridad en el "Primer Login"
     if (user.must_change_password) {
-      // Enviamos el flag partial: true para que el middleware bloquee otras rutas
       const tempToken = generateAccessToken({
         id: user.id,
         username: user.username,
@@ -92,15 +93,12 @@ export class AuthController {
   }
 
   async logout(req: Request, res: Response) {
-    // 1. Obtenemos el token específico de la cookie
     const refreshToken = req.cookies.refresh_token;
 
     if (refreshToken) {
-      // Borramos SOLO este token específico de la tabla
       await userRepository.deleteSpecificRefreshToken(refreshToken);
     }
 
-    // 2. Limpiamos las cookies con las mismas opciones que se crearon
     const cookieOptions = {
       httpOnly: true,
       secure: config.nodeEnv === 'production',
@@ -122,16 +120,13 @@ export class AuthController {
         throw new AppError('Refresh token no proporcionado', 401);
       }
 
-      // 1. Validar que el token exista en la base de datos
       const tokenData = await userRepository.findRefreshToken(refreshToken);
       if (!tokenData) {
         throw new AppError('Token inválido o expirado', 403);
       }
 
-      // 2. Verificar la integridad del JWT
       const decoded = verifyRefreshToken(refreshToken) as any;
 
-      // 3. Generar nuevo Access Token
       const newAccessToken = generateAccessToken({
         id: decoded.id,
         username: decoded.username,
@@ -140,13 +135,12 @@ export class AuthController {
         level: decoded.level,
       });
 
-      // 4. Enviar la nueva cookie
       res.cookie('access_token', newAccessToken, {
         httpOnly: true,
         secure: config.nodeEnv === 'production',
         sameSite: 'strict',
         path: '/',
-        maxAge: 15 * 60 * 1000, // 15 minutos
+        maxAge: 15 * 60 * 1000,
       });
 
       return res.status(200).json({ success: true, message: 'Token renovado' });
@@ -158,24 +152,21 @@ export class AuthController {
 
   async changePasswordFirstLogin(req: Request, res: Response) {
     const { password } = req.body;
-    const user = (req as any).user; // Viene del token parcial
+    const user = (req as any).user;
 
-    // 1. Validar complejidad con tu función detallada
     const pwdCheck = validatePasswordDetailed(password);
     if (!pwdCheck.valid) {
       throw new AppError(pwdCheck.errors.join('; '), 400);
     }
 
-    // 2. Encriptar
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    // AJUSTE: Aplicar Pepper y Salt 12 para consistencia de seguridad
+    const passwordWithPepper = password + config.passwordPepper;
+    const passwordHash = await bcrypt.hash(passwordWithPepper, 12);
 
-    // 3. Actualizar DB (Apaga el flag y activa al usuario)
     const success = await userRepository.updatePasswordAndClearFlag(user.id, passwordHash);
 
     if (!success) throw new AppError('No se pudo actualizar la contraseña', 500);
 
-    // 4. Limpiar cookies para forzar login real
     const cookieOptions = {
       httpOnly: true,
       secure: config.nodeEnv === 'production',

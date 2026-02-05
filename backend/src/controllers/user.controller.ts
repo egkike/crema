@@ -2,10 +2,12 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 
 import { validatePartialUser, validatePasswordDetailed } from '../schemas/users';
+import { CaptchaService } from '../services/captcha.service';
 import { userRepository } from '../repositories/user.repository';
-// Importamos UserWithPassword para el cast de seguridad
-import type { UserWithPassword } from '../repositories/user.repository';
+import { EmailService } from '../services/email.service';
+import { config } from '../config/index';
 import { AppError } from '../errors/AppError';
+import logger from '../utils/logger';
 
 export class UserController {
   getSession(req: Request, res: Response) {
@@ -31,14 +33,23 @@ export class UserController {
   }
 
   async createUser(req: Request, res: Response) {
-    const validation = validatePartialUser(req.body);
+    const { captchaToken, ...userData } = req.body;
+
+    // 1. Validar Captcha (Solo si no estamos en entorno de test/dev local muy cerrado)
+    if (config.nodeEnv !== 'test') {
+      const isHuman = await CaptchaService.verifyToken(captchaToken);
+      if (!isHuman) {
+        throw new AppError('Fallo en la validación de seguridad (reCAPTCHA)', 403);
+      }
+    }
+
+    const validation = validatePartialUser(userData);
     if (!validation.success) {
       const errorMsg = JSON.parse(validation.error.message)[0]?.message;
       throw new AppError(errorMsg || 'Datos inválidos', 400);
     }
 
     const { username, password, email, fullname } = validation.data;
-
     if (!password) throw new AppError('La contraseña es requerida', 400);
 
     const pwdCheck = validatePasswordDetailed(password);
@@ -46,6 +57,7 @@ export class UserController {
       throw new AppError(pwdCheck.errors?.join('; ') || 'Contraseña inválida', 400);
     }
 
+    // 1. Crear usuario (active = 0 + token)
     const newUser = await userRepository.createUser({
       username: username!,
       password: password!,
@@ -53,15 +65,37 @@ export class UserController {
       fullname: fullname!,
     });
 
-    /**
-     * Usamos 'as UserWithPassword' porque el objeto que retorna el repo
-     * en el create (RETURNING *) sí contiene el password, aunque la
-     * interfaz User base no lo declare.
-     */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password: _, ...publicUser } = newUser as UserWithPassword;
+    // 2. Enviar email de verificación
+    EmailService.sendVerificationEmail(
+      newUser.email,
+      newUser.fullname,
+      newUser.verificationToken
+    ).catch(err => logger.error('Error enviando email: ' + err.message));
 
-    return res.status(201).json({ success: true, user: publicUser });
+    // Quitamos password y token de la respuesta pública
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _, verificationToken: __, ...publicUser } = newUser as any;
+
+    return res.status(201).json({
+      success: true,
+      message: 'Usuario registrado. Por favor verifica tu email para activar la cuenta.',
+      user: publicUser,
+    });
+  }
+
+  async verifyEmail(req: Request, res: Response) {
+    const { token } = req.query;
+    if (!token) throw new AppError('Token de verificación requerido', 400);
+
+    const success = await userRepository.verifyAccount(token as string);
+    if (!success) {
+      throw new AppError('Token inválido o expirado. Solicita uno nuevo.', 400);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cuenta activada correctamente. Ya puedes iniciar sesión.',
+    });
   }
 
   async updUser(req: Request, res: Response) {
@@ -75,52 +109,38 @@ export class UserController {
     }
 
     const updated = await userRepository.updUser({ id, input: validation.data });
-    if (!updated) throw new AppError('Usuario no encontrado para actualizar', 404);
+    if (!updated) throw new AppError('Usuario no encontrado', 404);
 
     return res.status(200).json({ success: true, user: updated });
   }
 
   async chgPassUser(req: Request, res: Response) {
     const { id, oldPassword, password } = req.body;
-
-    // Accedemos de forma segura al user del request
     const reqUser = (req as any).user;
 
     if (!id || !password || !oldPassword) {
-      throw new AppError('ID, contraseña actual y nueva contraseña requeridos', 400);
+      throw new AppError('Faltan datos requeridos', 400);
     }
 
-    // 1. Buscamos el usuario con su hash de password actual
-    // Usamos el username del token o el ID provisto
     const identifier = reqUser?.username || id;
     const user = await userRepository.findByCredentials(identifier);
-
     if (!user) throw new AppError('Usuario no encontrado', 404);
 
-    // 2. Verificamos que la contraseña anterior sea la correcta
-    // Usamos bcrypt.compare (no crypto, ya que usamos bcrypt para el hash)
-    const isOldValid = await bcrypt.compare(oldPassword, user.password);
-    if (!isOldValid) {
-      throw new AppError('La contraseña actual no es correcta', 401);
-    }
+    // Comparar usando Pepper para mantener consistencia
+    const isOldValid = await bcrypt.compare(oldPassword + config.passwordPepper, user.password);
+    if (!isOldValid) throw new AppError('Contraseña actual incorrecta', 401);
 
-    // 3. Validamos la complejidad de la nueva password
     const pwdCheck = validatePasswordDetailed(password);
-    if (!pwdCheck.valid) {
-      throw new AppError(pwdCheck.errors?.join('; ') || 'Contraseña inválida', 400);
-    }
+    if (!pwdCheck.valid) throw new AppError('Nueva contraseña débil', 400);
 
-    // 4. Ejecutamos el cambio
-    const result = await userRepository.chgPassUser({ id, input: { password } });
-    if (!result) throw new AppError('Error al actualizar la contraseña', 500);
+    await userRepository.chgPassUser({ id, input: { password } });
 
-    // 5. Limpiamos cookies para forzar re-login
     res.clearCookie('access_token');
     res.clearCookie('refresh_token');
 
     return res.status(200).json({
       success: true,
-      message: 'Contraseña actualizada correctamente. Inicie sesión nuevamente.',
+      message: 'Contraseña actualizada correctamente.',
     });
   }
 
@@ -129,8 +149,8 @@ export class UserController {
     if (!id) throw new AppError('ID requerido', 400);
 
     const success = await userRepository.deleteUser(id);
-    if (!success) throw new AppError('Usuario no encontrado o ya eliminado', 404);
+    if (!success) throw new AppError('Usuario no encontrado', 404);
 
-    return res.status(200).json({ success: true, message: 'Usuario eliminado correctamente' });
+    return res.status(200).json({ success: true, message: 'Usuario eliminado' });
   }
 }
