@@ -1,19 +1,9 @@
 -- 04-seed-data.sql
 
--- Inserta datos iniciales de prueba en la tabla users (en schema 'public' por defecto)
--- Hash password = Admin1 (Se recomienda cambiar por un hash propio en producción)
-INSERT INTO users (username, password, email, fullname) VALUES 
-('admin', '$2b$10$K59x//Okkfudik.Cs6jwmeROognDsr./JA90.oeS4cg3l/l.36OaG', 'admin@midominio.com', 'Usuario Administrador')
-ON CONFLICT (username) DO NOTHING;
-
-UPDATE users SET level = 99, active = 1, must_change_password = false
-WHERE username = 'admin';
-
--- 1. Usuarios adicionales para probar el ecosistema
--- Password: User123 (Hash de ejemplo)
+-- Inserta datos iniciales en la tabla users (en schema 'public' por defecto)
+-- Hash password = UnaNuevaClaveSegura2026! (Se recomienda cambiar por un hash propio en producción)
 INSERT INTO users (username, password, email, fullname, level, active, must_change_password) VALUES 
-('creador_test', '$2b$10$K59x//Okkfudik.Cs6jwmeROognDsr./JA90.oeS4cg3l/l.36OaG', 'creador@test.com', 'Juan Creador', 1, 1, false),
-('afiliado_test', '$2b$10$K59x//Okkfudik.Cs6jwmeROognDsr./JA90.oeS4cg3l/l.36OaG', 'afiliado@test.com', 'Pedro Afiliado', 1, 1, false)
+('admin_crema', '$2b$12$7OR1Xy6A2.hqaskZjOizle13AcMRLUVBH//NKR40MyeQJx4//CeSq', 'admin@crema.com', 'Super Administrador Crema', 99, 1, false)
 ON CONFLICT (username) DO NOTHING;
 
 -- Configuración de Moneda del sistema
@@ -41,11 +31,4 @@ INSERT INTO platform_configs (key, currency, value, description) VALUES
 ('fixed_fee_high', 'ARS', 750.00000000, 'Fee fijo para productos > 22500 ARS'),
 ('price_threshold', 'ARS', 22500.00000000, 'Límite de precio para cambio de fee fijo'),
 ('min_payout_amount', 'ARS', 15000.00000000, 'Monto mínimo para solicitar retiro en Pesos'),
-('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en Crypto')
-ON CONFLICT (key, currency) DO NOTHING;
-
--- Asegurar que los balances existan (para evitar errores de FK al vender)
--- Esto lo podrías automatizar por trigger, pero para el seed es mejor ser explícito
-INSERT INTO user_balances (user_id, currency, available_balance, pending_balance, total_earned)
-SELECT id, 'ARS', 0, 0, 0 FROM users
-ON CONFLICT (user_id, currency) DO NOTHING;
+('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en Crypto');

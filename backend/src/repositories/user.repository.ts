@@ -66,8 +66,12 @@ export const userRepository = {
     }
   },
 
+  /**
+   * Crea un nuevo usuario.
+   * Por defecto asigna level 1 (Comprador) si no se especifica.
+   */
   async createUser(input: any): Promise<User & { verificationToken: string }> {
-    const { username, password, email, fullname } = input;
+    const { username, password, email, fullname, level = 1 } = input;
 
     // Pilar 1: Generar token de verificación
     const verificationToken = crypto.randomBytes(32).toString('hex');
@@ -75,14 +79,14 @@ export const userRepository = {
     expires.setHours(expires.getHours() + 24);
 
     try {
-      // Pilar 2: Password Pepper + Salt 12 para alta seguridad
+      // Pilar 2: Password Pepper + Salt 12
       const passwordWithPepper = password + config.passwordPepper;
       const hash = await bcrypt.hash(passwordWithPepper, 12);
 
       const query = `
         INSERT INTO "${schema}".users 
-          (username, password, email, fullname, active, verification_token, verification_token_expires)
-        VALUES ($1, $2, $3, $4, 0, $5, $6)
+          (username, password, email, fullname, level, active, verification_token, verification_token_expires)
+        VALUES ($1, $2, $3, $4, $5, 0, $6, $7)
         RETURNING id, username, email, fullname, level, active, must_change_password, createdate
       `;
 
@@ -91,6 +95,7 @@ export const userRepository = {
         hash,
         email,
         fullname,
+        level,
         verificationToken,
         expires,
       ]);
@@ -98,6 +103,25 @@ export const userRepository = {
       return { ...rows[0], verificationToken };
     } catch (error: any) {
       logger.error({ error: error.message }, 'DB Error: createUser failed');
+      throw error;
+    }
+  },
+
+  /**
+   * Sube el nivel de un usuario (ej. de Comprador a Afiliado).
+   * Solo permite subir, no bajar niveles mediante esta función.
+   */
+  async upgradeLevel(id: string, newLevel: number): Promise<boolean> {
+    const query = `
+      UPDATE "${schema}".users 
+      SET level = $1 
+      WHERE id = $2 AND level < $1
+    `;
+    try {
+      const { rowCount } = await pool.query(query, [newLevel, id]);
+      return (rowCount ?? 0) > 0;
+    } catch (error: any) {
+      logger.error({ id, newLevel, error: error.message }, 'DB Error: upgradeLevel failed');
       throw error;
     }
   },
@@ -150,7 +174,6 @@ export const userRepository = {
 
   async chgPassUser({ id, input }: { id: string; input: any }): Promise<boolean> {
     try {
-      // Aplicamos Pepper también en el cambio de contraseña
       const passwordWithPepper = input.password + config.passwordPepper;
       const hash = await bcrypt.hash(passwordWithPepper, 12);
 

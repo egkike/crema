@@ -71,3 +71,27 @@ export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunctio
 
   next();
 };
+
+/**
+ * Middleware de autenticación JWT OPCIONAL
+ * - Si hay token, valida y pone al usuario en req.user.
+ * - Si NO hay token o es inválido, deja pasar la petición (req.user será null).
+ */
+export const optionalJwtAuth = (req: Request, res: Response, next: NextFunction) => {
+  const token = req.cookies.access_token;
+
+  if (!token) {
+    (req as any).user = null;
+    return next();
+  }
+
+  const user = verifyToken(token);
+
+  if (!user) {
+    (req as any).user = null;
+    return next();
+  }
+
+  (req as any).user = user;
+  next();
+};

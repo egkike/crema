@@ -35,12 +35,13 @@ export class UserController {
   async createUser(req: Request, res: Response) {
     const { captchaToken, ...userData } = req.body;
 
-    // 1. Validar Captcha (Solo si no estamos en entorno de test/dev local muy cerrado)
-    if (config.nodeEnv !== 'test') {
-      const isHuman = await CaptchaService.verifyToken(captchaToken);
-      if (!isHuman) {
-        throw new AppError('Fallo en la validación de seguridad (reCAPTCHA)', 403);
+    // 1. Validar Captcha en registro manual
+    if (config.nodeEnv === 'production') {
+      if (!config.recaptchaSecretKey) {
+        throw new AppError('Configuración de seguridad faltante en producción', 500);
       }
+      const isHuman = await CaptchaService.verifyToken(captchaToken);
+      if (!isHuman) throw new AppError('Fallo en la validación de seguridad', 403);
     }
 
     const validation = validatePartialUser(userData);
