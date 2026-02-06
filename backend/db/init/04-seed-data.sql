@@ -31,4 +31,4 @@ INSERT INTO platform_configs (key, currency, value, description) VALUES
 ('fixed_fee_high', 'ARS', 750.00000000, 'Fee fijo para productos > 22500 ARS'),
 ('price_threshold', 'ARS', 22500.00000000, 'Límite de precio para cambio de fee fijo'),
 ('min_payout_amount', 'ARS', 15000.00000000, 'Monto mínimo para solicitar retiro en Pesos'),
-('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en Crypto');
+('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en USDT Crypto');

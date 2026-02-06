@@ -25,7 +25,8 @@ import payoutRoutes from './routes/payout.routes';
 import adminPayoutRoutes from './routes/admin.payout.routes';
 
 const app = express();
-app.use(express.json()); 
+app.set('trust proxy', 1);
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // --- HELMET & SECURITY ---
@@ -35,11 +36,28 @@ app.use(
       useDefaults: true,
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net', 'https://*.mercadopago.com'],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          'https://cdn.jsdelivr.net',
+          'https://*.mercadopago.com',
+        ],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'https://images.unsplash.com', 'https://via.placeholder.com'],
-        connectSrc: ["'self'", 'https://api.tu-dominio.com', 'wss://tu-dominio.com', 'https://*.mercadopago.com'],
-        fontSrc: ["'self'", 'data:', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com', 'https://*.mercadopago.com'],
+        connectSrc: [
+          "'self'",
+          'https://api.tu-dominio.com',
+          'wss://tu-dominio.com',
+          'https://*.mercadopago.com',
+        ],
+        fontSrc: [
+          "'self'",
+          'data:',
+          'https://fonts.googleapis.com',
+          'https://fonts.gstatic.com',
+          'https://*.mercadopago.com',
+        ],
         objectSrc: ["'none'"],
         frameAncestors: ["'self'"],
         formAction: ["'self'"],
@@ -70,30 +88,7 @@ app.use(
   })
 );
 
-// --- RATE LIMITING ---
-app.use('/api/login', loginLimiter);
-app.use('/api/refresh', refreshLimiter);
-
-// --- RUTAS ESPECIALES ---
-// Nota: En producción deberías proteger estas rutas o eliminarlas
-app.post('/test/process-commissions', testController.processCommissions);
-app.post('/test/force-release', testController.forceRelease);
-app.post('/test/reset-balance', testController.resetBalance);
-
-app.post('/api/payments/webhook', handleWebhook); // Webhook público
-
-// --- RUTAS DE LA API ---
-app.use('/api', apiLimiter);
-app.use('/api', authRoutes);
-app.use('/api', userRoutes);
-app.use('/api/products', productsRoutes);
-app.use('/api/payments', paymentsRouter);
-app.use('/api/balances', balanceRoutes);
-app.use('/api/refunds', refundRoutes);
-app.use('/api/payouts', payoutRoutes);
-app.use('/api/admin/payouts', adminPayoutRoutes);
-
-// --- HEALTH & STATUS ---
+// --- HEALTH & STATUS (Público total) ---
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
@@ -107,6 +102,36 @@ app.get('/health', (req: Request, res: Response) => {
 app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'Crema Backend - Online 🚀' });
 });
+
+// --- RATE LIMITING ---
+app.use('/api/login', loginLimiter);
+app.use('/api/refresh', refreshLimiter);
+app.use('/api', apiLimiter);
+
+// --- 1. RUTAS PÚBLICAS Y WEBHOOKS (Sin candados) ---
+// El webhook debe estar arriba de todo para que MP nunca encuentre bloqueos
+app.post('/api/payments/webhook', handleWebhook);
+
+// --- 2. RUTAS ESPECIALES DE TEST (Solo Dev) ---
+if (config.nodeEnv === 'development') {
+  app.post('/test/process-commissions', testController.processCommissions);
+  app.post('/test/force-release', testController.forceRelease);
+  app.post('/test/reset-balance', testController.resetBalance);
+}
+
+// --- 3. RUTAS CON AUTH OPCIONAL O PÚBLICAS ---
+// Ponemos payments aquí para que el checkout de invitados funcione
+app.use('/api/payments', paymentsRouter);
+app.use('/api', authRoutes); // Contiene /login, /verify, etc.
+
+// --- 4. RUTAS PROTEGIDAS (Las que tienen middlewares estrictos adentro) ---
+// Estas van al final porque sus archivos internos usan router.use(jwtAuthMiddleware)
+app.use('/api', userRoutes);
+app.use('/api/products', productsRoutes);
+app.use('/api/balances', balanceRoutes);
+app.use('/api/refunds', refundRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/admin/payouts', adminPayoutRoutes);
 
 // --- SWAGGER DOCS ---
 if (config.nodeEnv !== 'production') {
@@ -154,40 +179,15 @@ app.use((err: any, req: Request, res: Response, _: NextFunction) => {
 });
 
 // --- CRON JOBS ---
-/**
- * Liberación de saldos automática a medianoche
- */
 cron.schedule('0 0 * * *', async () => {
-  const startTime = Date.now();
-  logger.info('SISTEMA: Iniciando proceso diario de liberación de saldos...');
-
   try {
-    // Capturamos el resultado del servicio
     const result = await ReleaseService.processPendingBalances();
-
-    const duration = Date.now() - startTime;
-
-    // Log detallado del éxito
-    logger.info(
-      {
-        duration: `${duration}ms`,
-        ordersProcessed: result.count,
-        totalAmount: result.totalAmount, // Ejemplo: { ARS: 50000, USD: 200 }
-      },
-      'SISTEMA: Liberación de saldos completada con éxito'
-    );
+    logger.info({ ordersProcessed: result.count }, 'SISTEMA: Liberación de saldos completada');
   } catch (error: any) {
-    logger.error(
-      {
-        error: error.message,
-        stack: error.stack,
-      },
-      'SISTEMA: Error crítico en Cron Job de liberación'
-    );
+    logger.error({ error: error.message }, 'SISTEMA: Error en Cron Job');
   }
 });
 
-// Ejecutar limpieza de tokens cada día a la medianoche
 cron.schedule('0 3 * * *', async () => {
   await AuthCleanupService.cleanExpiredTokens();
 });
@@ -195,16 +195,9 @@ cron.schedule('0 3 * * *', async () => {
 // --- START SERVER ---
 const server = app.listen(config.port, () => {
   logger.info(`🚀 Servidor en puerto ${config.port} (${config.nodeEnv})`);
-
-  // Ejecución inicial con log controlado
-  ReleaseService.processPendingBalances()
-    .then(res => logger.info({ count: res.count }, 'SISTEMA: Liberación inicial completada'))
-    .catch(err => logger.error('SISTEMA: Error en liberación inicial post-arranque', err));
 });
 
-// --- GRACEFUL SHUTDOWN ---
 process.on('SIGTERM', () => {
-  logger.info('SIGTERM recibido: Cerrando servidor HTTP de forma segura...');
   server.close(() => {
     logger.info('Servidor HTTP cerrado.');
     process.exit(0);
