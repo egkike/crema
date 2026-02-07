@@ -106,4 +106,11 @@ export const orderRepository = {
     const { rows } = await pool.query(query, [userId, productId]);
     return rows.length > 0;
   },
+
+  async getById(orderId: string, client?: any) {
+    const query = `SELECT * FROM "${schema}".orders WHERE id = $1`;
+    const db = client || pool;
+    const { rows } = await db.query(query, [orderId]);
+    return this.mapRowToOrder(rows[0]);
+  },
 };
