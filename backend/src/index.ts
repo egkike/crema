@@ -7,7 +7,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import cron from 'node-cron';
 
 import { testController } from './controllers/test.controller';
-import { handleWebhook } from './controllers/payment.controller';
+// Nota: Eliminamos la importación directa de handleWebhook porque ahora vive en payments.routes
 import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit';
 import { AppError } from './errors/AppError';
 import { config } from './config/index';
@@ -18,7 +18,7 @@ import { AuthCleanupService } from './services/auth.cleanup.service';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import productsRoutes from './routes/products.routes';
-import paymentsRouter from './routes/payments.routes';
+import paymentsRouter from './routes/payments.routes'; // Aquí residen las rutas de MP
 import balanceRoutes from './routes/balance.routes';
 import refundRoutes from './routes/refund.routes';
 import payoutRoutes from './routes/payout.routes';
@@ -108,24 +108,19 @@ app.use('/api/login', loginLimiter);
 app.use('/api/refresh', refreshLimiter);
 app.use('/api', apiLimiter);
 
-// --- 1. RUTAS PÚBLICAS Y WEBHOOKS (Sin candados) ---
-// El webhook debe estar arriba de todo para que MP nunca encuentre bloqueos
-app.post('/api/payments/webhook', handleWebhook);
-
-// --- 2. RUTAS ESPECIALES DE TEST (Solo Dev) ---
+// --- 1. RUTAS ESPECIALES DE TEST (Solo Dev) ---
 if (config.nodeEnv === 'development') {
   app.post('/test/process-commissions', testController.processCommissions);
   app.post('/test/force-release', testController.forceRelease);
   app.post('/test/reset-balance', testController.resetBalance);
 }
 
-// --- 3. RUTAS CON AUTH OPCIONAL O PÚBLICAS ---
-// Ponemos payments aquí para que el checkout de invitados funcione
+// --- 2. RUTAS PÚBLICAS Y DE PAGOS ---
+// Centralizamos aquí Mercado Pago y futuras pasarelas
 app.use('/api/payments', paymentsRouter);
-app.use('/api', authRoutes); // Contiene /login, /verify, etc.
 
-// --- 4. RUTAS PROTEGIDAS (Las que tienen middlewares estrictos adentro) ---
-// Estas van al final porque sus archivos internos usan router.use(jwtAuthMiddleware)
+// --- 3. OTRAS RUTAS ---
+app.use('/api', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/balances', balanceRoutes);

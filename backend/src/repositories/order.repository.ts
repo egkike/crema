@@ -1,5 +1,4 @@
 import pool from '../db/postgres';
-import logger from '../utils/logger';
 import { config } from '../config/index';
 
 const schema = config.db.schema;
@@ -17,9 +16,6 @@ export interface CreateOrderDTO {
 }
 
 export const orderRepository = {
-  /**
-   * Helper para transformar filas de la DB a objetos de JS limpios
-   */
   mapRowToOrder(row: any) {
     if (!row) return null;
     return {
@@ -27,6 +23,9 @@ export const orderRepository = {
       amount: Number(row.amount),
       commission_amount: row.commission_amount ? Number(row.commission_amount) : 0,
       total_amount: Number(row.amount), // Alias para compatibilidad con el Service
+      buyerId: row.buyer_id,
+      productId: row.product_id,
+      affiliateId: row.affiliate_id,
     };
   },
 
@@ -52,36 +51,13 @@ export const orderRepository = {
       data.externalReference,
     ];
 
-    try {
-      const { rows } = await pool.query(query, values);
-      return this.mapRowToOrder(rows[0]);
-    } catch (error: any) {
-      logger.error(
-        { error: error.message, ref: data.externalReference },
-        'DB Error: Insert order failed'
-      );
-      throw error;
-    }
+    const { rows } = await pool.query(query, values);
+    return this.mapRowToOrder(rows[0]);
   },
 
-  async checkAccess(userId: string, productId: string): Promise<boolean> {
-    const query = `
-      SELECT id FROM "${schema}".orders 
-      WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
-      UNION
-      SELECT id FROM "${schema}".products 
-      WHERE creator_id = $1 AND id = $2
-      LIMIT 1;
-    `;
-    try {
-      const { rows } = await pool.query(query, [userId, productId]);
-      return rows.length > 0;
-    } catch (error: any) {
-      logger.error({ error: error.message, userId, productId }, 'DB Error: checkAccess failed');
-      throw error;
-    }
-  },
-
+  /**
+   * Actualiza campos dinámicamente usando la referencia externa.
+   */
   async updateByExternalRef(externalReference: string, data: Partial<any>, client?: any) {
     const fields = Object.keys(data)
       .map((key, i) => `"${key}" = $${i + 1}`)
@@ -102,30 +78,8 @@ export const orderRepository = {
 
   async getByExternalRef(externalRef: string) {
     const query = `SELECT * FROM "${schema}".orders WHERE external_reference = $1`;
-    try {
-      const { rows } = await pool.query(query, [externalRef]);
-      return this.mapRowToOrder(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, externalRef }, 'DB Error: getByExternalRef failed');
-      throw error;
-    }
-  },
-
-  async getById(orderId: string, client?: any) {
-    const query = `
-      SELECT o.*, p.creator_id as seller_id 
-      FROM "${schema}".orders o
-      INNER JOIN "${schema}".products p ON o.product_id = p.id
-      WHERE o.id = $1
-    `;
-    try {
-      const db = client || pool;
-      const { rows } = await db.query(query, [orderId]);
-      return this.mapRowToOrder(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, orderId }, 'DB Error: getById failed');
-      throw error;
-    }
+    const { rows } = await pool.query(query, [externalRef]);
+    return this.mapRowToOrder(rows[0]);
   },
 
   async updateStatus(orderId: string, status: string, client?: any) {
@@ -135,13 +89,21 @@ export const orderRepository = {
       WHERE id = $2 
       RETURNING *;
     `;
-    try {
-      const db = client || pool;
-      const { rows } = await db.query(query, [status, orderId]);
-      return this.mapRowToOrder(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, orderId }, 'DB Error: updateStatus failed');
-      throw error;
-    }
+    const db = client || pool;
+    const { rows } = await db.query(query, [status, orderId]);
+    return this.mapRowToOrder(rows[0]);
+  },
+
+  async checkAccess(userId: string, productId: string): Promise<boolean> {
+    const query = `
+      SELECT id FROM "${schema}".orders 
+      WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
+      UNION
+      SELECT id FROM "${schema}".products 
+      WHERE creator_id = $1 AND id = $2
+      LIMIT 1;
+    `;
+    const { rows } = await pool.query(query, [userId, productId]);
+    return rows.length > 0;
   },
 };

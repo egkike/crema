@@ -88,7 +88,7 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
         },
         // Mantenemos tu auto_return si lo usabas (en tu versión no estaba, pero MP lo agradece)
         external_reference: externalReference,
-        notification_url: `${config.apiBaseUrl}/api/payments/webhook`,
+        notification_url: `${config.apiBaseUrl}/api/payments/mercadopago/webhook`,
         statement_descriptor: 'CREMA',
       },
     });

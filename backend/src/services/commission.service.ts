@@ -29,13 +29,30 @@ export class CommissionService {
 
       const orderCurrency = order.currency;
       const configs = await configRepository.getConfigsByCurrency(orderCurrency);
+
+      // Validamos que existan las configuraciones para esta moneda en la tabla platform_configs
+      if (!configs || Object.keys(configs).length === 0) {
+        throw new AppError(
+          `No se encontró configuración de comisiones para la moneda: ${orderCurrency}`,
+          500
+        );
+      }
+
       const totalAmount = Number(order.amount);
 
-      // 2. Parámetros de la plataforma (Fees)
-      const percentValue = Number(configs['fee_percent'] ?? 0.099);
-      const threshold = Number(configs['price_threshold'] ?? 22500);
-      const lowFee = Number(configs['fixed_fee_low'] ?? 150.0);
-      const highFee = Number(configs['fixed_fee_high'] ?? 750.0);
+      // 2. Parámetros de la plataforma (Fees) obtenidos dinámicamente
+      const percentValue = Number(configs['fee_percent']);
+      const threshold = Number(configs['price_threshold']);
+      const lowFee = Number(configs['fixed_fee_low']);
+      const highFee = Number(configs['fixed_fee_high']);
+
+      // Validación de seguridad: si falta algún parámetro clave, abortamos
+      if (isNaN(percentValue) || isNaN(threshold)) {
+        throw new AppError(
+          `Parámetros de comisión incompletos para ${orderCurrency} en platform_configs`,
+          500
+        );
+      }
 
       // 3. Cálculo de la comisión de la plataforma
       const variableFee = totalAmount * percentValue;
@@ -44,7 +61,7 @@ export class CommissionService {
 
       let remainingNet = totalAmount - totalPlatformFee;
 
-      // 4. Registro de Ganancias de Plataforma (Tabla de auditoría interna)
+      // 4. Registro de Ganancias de Plataforma
       await client.query(
         `INSERT INTO "${schema}".platform_earnings 
          (order_id, variable_amount, fixed_amount, total_amount, currency, status) 
@@ -57,13 +74,12 @@ export class CommissionService {
       if (order.affiliate_id && Number(product.affiliate_commission_percent) > 0) {
         affiliateAmount = remainingNet * (Number(product.affiliate_commission_percent) / 100);
 
-        // Registro detallado en la tabla commissions para el afiliado
         await commissionRepository.create(
           {
             userId: order.affiliate_id,
             orderId: order.id,
             amount: totalAmount,
-            feeApplied: 0, // Por ahora no cobramos fee al afiliado sobre su parte
+            feeApplied: 0,
             netAmount: affiliateAmount,
             currency: orderCurrency,
             type: 'affiliate',
@@ -91,8 +107,7 @@ export class CommissionService {
         remainingNet -= affiliateAmount;
       }
 
-      // 6. Registro de Ganancia del Creador (Siempre ocurre)
-      // Ahora usamos el repositorio para que SIEMPRE haya un registro en 'commissions'
+      // 6. Registro de Ganancia del Creador
       await commissionRepository.create(
         {
           userId: product.creator_id,
@@ -141,7 +156,7 @@ export class CommissionService {
     } catch (error: any) {
       await client.query('ROLLBACK');
       logger.error({ error: error.message, orderId: order.id }, 'Error en CommissionService');
-      throw new AppError('Error al procesar comisiones', 500);
+      throw error instanceof AppError ? error : new AppError('Error al procesar comisiones', 500);
     } finally {
       client.release();
     }

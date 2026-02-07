@@ -7,9 +7,9 @@ const schema = config.db.schema;
 export const configRepository = {
   /**
    * Obtiene configuraciones numéricas filtradas por moneda.
-   * Si no encuentra para la moneda específica, intenta buscar una por defecto (ej. 'USD' o 'ARS').
+   * Eliminamos el fallback a ARS para garantizar que cada moneda use sus propias reglas.
    */
-  async getConfigsByCurrency(currency: string = 'ARS'): Promise<Record<string, number>> {
+  async getConfigsByCurrency(currency: string): Promise<Record<string, number>> {
     const query = `
       SELECT key, value 
       FROM "${schema}".platform_configs 
@@ -17,20 +17,13 @@ export const configRepository = {
     `;
 
     try {
-      let { rows } = await pool.query(query, [currency]);
-
-      // Fallback: Si no hay config para la moneda, intentamos con la moneda base del sistema
-      if (rows.length === 0 && currency !== 'ARS') {
-        logger.warn(
-          { currency },
-          'Configuración no encontrada. Reintentando con moneda base (ARS)'
-        );
-        const fallbackRes = await pool.query(query, ['ARS']);
-        rows = fallbackRes.rows;
-      }
+      const { rows } = await pool.query(query, [currency]);
 
       if (rows.length === 0) {
-        throw new Error(`Configuración crítica no encontrada para moneda: ${currency}`);
+        // Error explícito si no hay configuración para la moneda de la orden.
+        throw new Error(
+          `Configuración crítica no encontrada en platform_configs para la moneda: ${currency}`
+        );
       }
 
       return rows.reduce(
@@ -62,7 +55,7 @@ export const configRepository = {
   },
 
   /**
-   * Obtiene configuraciones de texto (Globales)
+   * Obtiene todas las configuraciones de texto (Globales)
    */
   async getSystemSettings(): Promise<Record<string, string>> {
     const query = `SELECT key, value FROM "${schema}".system_settings`;
@@ -82,7 +75,7 @@ export const configRepository = {
   },
 
   /**
-   * Obtiene un setting específico con fallback
+   * Obtiene un setting específico con fallback (Restaurado de tu original)
    */
   async getSetting(key: string, defaultValue: string = ''): Promise<string> {
     const query = `SELECT value FROM "${schema}".system_settings WHERE key = $1`;
