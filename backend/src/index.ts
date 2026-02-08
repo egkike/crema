@@ -173,6 +173,24 @@ app.use((err: any, req: Request, res: Response, _: NextFunction) => {
   });
 });
 
+// --- EJECUCIÓN INMEDIATA AL ARRANCAR ---
+(async () => {
+  try {
+    logger.info('SISTEMA: Ejecutando liberación de saldos inicial (Startup)...');
+
+    // En desarrollo pasamos 'true' para forzar la liberación sin esperar los 7 días
+    const isDev = config.nodeEnv === 'development';
+    const result = await ReleaseService.processPendingBalances(isDev);
+
+    logger.info(
+      { ordersProcessed: result.count, released: result.releasedToUsers },
+      'SISTEMA: Proceso inicial de arranque completado'
+    );
+  } catch (error: any) {
+    logger.error({ error: error.message }, 'SISTEMA: Error en la ejecución inicial de saldos');
+  }
+})();
+
 // --- CRON JOBS ---
 cron.schedule('0 0 * * *', async () => {
   try {

@@ -7,50 +7,64 @@ import { config } from '../config/index';
 const schema = config.db.schema;
 
 export const ReleaseService = {
-  async processPendingBalances() {
-    const daysOfGuarantee = 7;
+  /**
+   * Procesa la liberación de saldos de 'pending' a 'available'.
+   * @param force - Si es true, ignora la garantía de 7 días (útil para tests).
+   */
+  async processPendingBalances(force: boolean = false) {
     const client = await pool.connect();
 
     const stats = {
       count: 0,
-      totalAmount: {} as Record<string, number>,
+      releasedToUsers: {} as Record<string, number>, // Dinero real entregado a creadores/afiliados
     };
 
     try {
+      // Definimos la condición de tiempo (si force es true, el intervalo es de 0 segundos)
+      const timeCondition = force ? '0 seconds' : `${config.daysOfGuarantee} days`;
+
       const query = `
-        SELECT o.id, o.product_id, p.creator_id, o.affiliate_id, o.amount, o.currency 
+        SELECT o.id, o.amount, o.currency 
         FROM "${schema}".orders o
-        JOIN "${schema}".products p ON o.product_id = p.id
         WHERE o.status = 'paid' 
         AND o.commissions_calculated = TRUE 
         AND o.balance_released = FALSE
-        AND o.updated_at <= NOW() - INTERVAL '${daysOfGuarantee} days'
+        AND o.updated_at <= NOW() - INTERVAL '${timeCondition}'
         FOR UPDATE OF o SKIP LOCKED;
       `;
 
       const { rows: ordersToRelease } = await client.query(query);
 
-      if (ordersToRelease.length === 0) return stats;
+      if (ordersToRelease.length === 0) {
+        logger.info('No hay órdenes pendientes de liberación.');
+        return stats;
+      }
 
-      logger.info(`Iniciando liberación de ${ordersToRelease.length} órdenes.`);
+      logger.info(
+        `Iniciando liberación de ${ordersToRelease.length} órdenes. (Force mode: ${force})`
+      );
 
       for (const order of ordersToRelease) {
         try {
           await client.query('BEGIN');
 
           // 1. OBTENER TODAS LAS COMISIONES DE LA ORDEN
-          // Usamos 'user_id' y 'type' que es lo que realmente tiene tu tabla commissions
+          // El repositorio ya nos da netAmount (lo que el usuario debe recibir)
           const commissions = await commissionRepository.getByOrderId(order.id);
 
           for (const comm of commissions) {
             if (comm.status === 'pending') {
-              // Liberamos el saldo al usuario correspondiente (sea creador o afiliado)
+              // LIBERACIÓN: Mueve de pending_balance a available_balance en user_balances
               await balanceRepository.releaseBalance(
                 comm.userId,
-                Number(comm.amount),
+                Number(comm.netAmount), // <-- CORREGIDO: Usamos el monto neto, no el bruto de la orden
                 order.currency,
                 client
               );
+
+              // Acumulamos en las estadísticas de la ejecución
+              stats.releasedToUsers[order.currency] =
+                (stats.releasedToUsers[order.currency] || 0) + Number(comm.netAmount);
             }
           }
 
@@ -64,10 +78,7 @@ export const ReleaseService = {
           );
 
           await client.query('COMMIT');
-
           stats.count++;
-          stats.totalAmount[order.currency] =
-            (stats.totalAmount[order.currency] || 0) + Number(order.amount);
         } catch (error: any) {
           await client.query('ROLLBACK');
           logger.error(
@@ -77,6 +88,7 @@ export const ReleaseService = {
         }
       }
 
+      logger.info(stats, 'Proceso de liberación completado exitosamente');
       return stats;
     } catch (error: any) {
       logger.error({ error: error.message }, 'Fallo crítico en ReleaseService');

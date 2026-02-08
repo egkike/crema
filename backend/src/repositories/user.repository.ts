@@ -8,6 +8,9 @@ import { config } from '../config/index';
 const schema = config.db.schema;
 
 export const userRepository = {
+  /**
+   * Busca un usuario por username o email para el proceso de Login.
+   */
   async findByCredentials(identifier: string) {
     const query = `
       SELECT id, username, password, email, fullname, level, active, must_change_password, createdate
@@ -18,6 +21,9 @@ export const userRepository = {
     return rows[0] || null;
   },
 
+  /**
+   * Obtiene la información pública/básica de un usuario por su ID.
+   */
   async getById(id: string) {
     const query = `SELECT id, username, email, fullname, level, active, must_change_password, createdate 
                    FROM "${schema}".users WHERE id = $1`;
@@ -25,6 +31,61 @@ export const userRepository = {
     return rows[0] || null;
   },
 
+  // --- MÉTODOS DE REFRESH TOKEN (Ajustados a tu tabla SQL) ---
+
+  /**
+   * Guarda el hash del token de refresco.
+   * Limpia tokens anteriores para mantener un solo dispositivo/sesión activa por simplicidad.
+   */
+  async saveRefreshToken(userId: string, tokenHash: string, expiresAt: Date) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Eliminamos tokens previos del usuario
+      await client.query(`DELETE FROM "${schema}".refresh_tokens WHERE user_id = $1`, [userId]);
+
+      // Insertamos el nuevo hash según tu esquema (token_hash)
+      const query = `
+        INSERT INTO "${schema}".refresh_tokens (user_id, token_hash, expires_at)
+        VALUES ($1, $2, $3)
+      `;
+      await client.query(query, [userId, tokenHash, expiresAt]);
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  /**
+   * Busca un token de refresco válido.
+   */
+  async getRefreshToken(tokenHash: string) {
+    const query = `
+      SELECT * FROM "${schema}".refresh_tokens 
+      WHERE token_hash = $1 AND revoked = FALSE AND expires_at > CURRENT_TIMESTAMP
+    `;
+    const { rows } = await pool.query(query, [tokenHash]);
+    return rows[0] || null;
+  },
+
+  /**
+   * Elimina el token (útil para Logout).
+   */
+  async deleteRefreshToken(userId: string) {
+    const query = `DELETE FROM "${schema}".refresh_tokens WHERE user_id = $1`;
+    await pool.query(query, [userId]);
+  },
+
+  // --- MÉTODOS DE GESTIÓN DE USUARIO ---
+
+  /**
+   * Crea un nuevo usuario con cifrado Pepper + Bcrypt.
+   */
   async createUser(input: any) {
     const { username, password, email, fullname, level = 1 } = input;
     const verificationToken = crypto.randomBytes(32).toString('hex');
@@ -53,6 +114,9 @@ export const userRepository = {
     return { ...rows[0], verificationToken };
   },
 
+  /**
+   * Actualiza datos del usuario de forma dinámica.
+   */
   async updUser({ id, input }: { id: string; input: any }) {
     const { fullname, level, active } = input;
     const updates: string[] = [];
