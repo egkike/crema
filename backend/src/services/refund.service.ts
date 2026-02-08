@@ -1,3 +1,5 @@
+import { MercadoPagoConfig, PaymentRefund } from 'mercadopago';
+
 import pool from '../db/postgres';
 import { balanceRepository } from '../repositories/balance.repository';
 import { historyRepository } from '../repositories/history.repository';
@@ -7,6 +9,10 @@ import { refundRepository } from '../repositories/refund.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { config } from '../config/index';
+
+const mpClient = new MercadoPagoConfig({
+  accessToken: config.mercadoPago.accessToken,
+});
 
 const schema = config.db.schema;
 
@@ -32,6 +38,26 @@ export class RefundService {
           'El saldo ya fue liberado al creador. El reembolso debe gestionarse manualmente por soporte.',
           400
         );
+      }
+
+      // --- PASO DE: REEMBOLSO AUTOMÁTICO EN MERCADO PAGO ---
+      if (order.payment_method === 'mercadopago' && order.transaction_id) {
+        try {
+          logger.info(
+            { transactionId: order.transaction_id },
+            '🔄 Iniciando reembolso en Mercado Pago...'
+          );
+          const refundInstance = new PaymentRefund(mpClient);
+
+          await refundInstance.create({
+            payment_id: Number(order.transaction_id),
+          });
+
+          logger.info('✅ Mercado Pago procesó el reembolso correctamente');
+        } catch (mpError: any) {
+          logger.error({ mpError: mpError.message }, '❌ Error en API de Mercado Pago');
+          throw new AppError(`Mercado Pago no pudo procesar el reembolso: ${mpError.message}`, 400);
+        }
       }
 
       const orderCurrency = order.currency;
