@@ -83,7 +83,6 @@ export class PayoutService {
 
   /**
    * Actualiza el estado de un retiro (Uso para Administradores).
-   * Si se rechaza, los fondos vuelven al balance disponible del usuario.
    */
   static async updatePayoutStatus(
     payoutId: string,
@@ -96,18 +95,16 @@ export class PayoutService {
     try {
       await client.query('BEGIN');
 
-      // 1. Bloqueo y obtención del payout para evitar condiciones de carrera
       const payout = await payoutRepository.getByIdForUpdate(payoutId, client);
       if (!payout) throw new AppError('Registro de retiro no encontrado', 404);
       if (payout.status !== 'pending')
         throw new AppError('Este retiro ya ha sido procesado anteriormente', 400);
 
       if (status === 'completed') {
-        // Marcamos como completado y grabamos fecha de procesamiento
-        await payoutRepository.updateStatus(payoutId, 'completed', client, adminNotes);
+        // ✅ CORREGIDO: adminNotes va antes que client
+        await payoutRepository.updateStatus(payoutId, 'completed', adminNotes, client);
         logger.info({ payoutId, adminId }, '✅ Retiro marcado como completado');
       } else if (status === 'rejected') {
-        // REVERSIÓN: El dinero vuelve al disponible del usuario
         await balanceRepository.addAvailableBalance(
           payout.user_id,
           Number(payout.amount),
@@ -115,9 +112,9 @@ export class PayoutService {
           client
         );
 
-        await payoutRepository.updateStatus(payoutId, 'rejected', client, adminNotes);
+        // ✅ CORREGIDO: adminNotes va antes que client
+        await payoutRepository.updateStatus(payoutId, 'rejected', adminNotes, client);
 
-        // Historial de reintegro (Monto positivo para compensar el negativo inicial)
         await historyRepository.createRecordWithClient(client, {
           userId: payout.user_id,
           order_id: null,

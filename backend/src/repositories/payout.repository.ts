@@ -78,21 +78,32 @@ export const payoutRepository = {
   /**
    * Actualiza estado y permite añadir notas administrativas.
    */
-  async updateStatus(payoutId: string, status: string, client: any, adminNotes?: string) {
+  async updateStatus(id: string, status: string, adminNotes?: string, client?: any) {
+    const db = client || pool;
+
+    // Usamos un casting ultra-explícito en cada parámetro
     const query = `
-      UPDATE "${schema}".payouts 
-      SET status = $1, 
-          admin_notes = $2,
-          processed_at = CASE WHEN $1 = 'completed' THEN CURRENT_TIMESTAMP ELSE processed_at END,
-          updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $3 RETURNING *;
-    `;
+    UPDATE "${schema}".payouts 
+    SET 
+      status = $1::text, 
+      admin_notes = COALESCE($2::text, admin_notes),
+      processed_at = CASE 
+        WHEN $1::text = 'completed' OR $1::text = 'rejected' THEN CURRENT_TIMESTAMP 
+        ELSE processed_at 
+      END,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $3::uuid
+    RETURNING *;
+  `;
+
     try {
-      const db = client || pool;
-      const { rows } = await db.query(query, [status, adminNotes || null, payoutId]);
-      return this.mapRow(rows[0]);
+      // Aseguramos que los valores pasados sean strings limpios o null
+      const values = [String(status), adminNotes ? String(adminNotes) : null, id];
+
+      const { rows } = await db.query(query, values);
+      return rows[0] || null;
     } catch (error: any) {
-      logger.error({ error: error.message, payoutId }, 'DB Error: updateStatus payout failed');
+      logger.error({ payoutId: id, error: error.message }, 'DB Error: updateStatus payout failed');
       throw error;
     }
   },
