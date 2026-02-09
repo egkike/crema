@@ -135,7 +135,8 @@ export class PayoutService {
     payoutId: string,
     status: 'completed' | 'rejected',
     adminId: string,
-    adminNotes?: string
+    adminNotes?: string,
+    transactionReceipt?: string // <-- Recibimos el comprobante del controlador
   ) {
     const client = await pool.connect();
 
@@ -147,43 +148,66 @@ export class PayoutService {
       if (payout.status !== 'pending')
         throw new AppError('Este retiro ya ha sido procesado anteriormente', 400);
 
-      // Obtenemos los datos del usuario antes de cerrar para el envío de email
       const user = await userRepository.getById(payout.user_id);
 
       if (status === 'completed') {
-        await payoutRepository.updateStatus(payoutId, 'completed', adminNotes, client);
+        // REGLA DE NEGOCIO: Obligatorio el recibo para marcar como completado
+        if (!transactionReceipt) {
+          throw new AppError(
+            'Debes proporcionar el número de comprobante o ID de transacción bancaria',
+            400
+          );
+        }
 
-        await client.query('COMMIT'); // Cerramos transacción antes de enviar email
+        await payoutRepository.updateStatus(
+          payoutId,
+          'completed',
+          adminNotes,
+          transactionReceipt,
+          adminId,
+          client
+        );
+
+        await client.query('COMMIT');
 
         if (user) {
+          // Ajustamos el email para que incluya el comprobante
           EmailService.sendPayoutCompletedEmail(
             user.email,
             user.fullname,
             Number(payout.amount),
             payout.currency,
-            payout.alias || payout.destination_account
+            payout.alias || payout.destination_account,
+            transactionReceipt // <--- Enviar el comprobante al usuario para su tranquilidad
           );
         }
 
-        logger.info({ payoutId, adminId }, '✅ Retiro completado y email enviado');
+        logger.info({ payoutId, adminId, transactionReceipt }, '✅ Retiro completado con éxito');
       } else if (status === 'rejected') {
-        // REVERSIÓN: El dinero vuelve al disponible
+        // ... (Lógica de reversión de saldo que ya tenías)
         await balanceRepository.addAvailableBalance(
           payout.user_id,
           Number(payout.amount),
           payout.currency,
           client
         );
+        await payoutRepository.updateStatus(
+          payoutId,
+          'rejected',
+          adminNotes,
+          null,
+          adminId,
+          client
+        );
 
-        await payoutRepository.updateStatus(payoutId, 'rejected', adminNotes, client);
-
+        // Registro en historial (como ya tenías)
         await historyRepository.createRecordWithClient(client, {
           userId: payout.user_id,
           order_id: null,
           amount: Number(payout.amount),
           currency: payout.currency,
           type: 'payout_refund' as any,
-          description: `Reintegro por retiro rechazado #${payoutId.substring(0, 8)}`,
+          description: `Reintegro por retiro rechazado: ${adminNotes || 'S/M'}`,
         });
 
         await client.query('COMMIT'); // Cerramos transacción

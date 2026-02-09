@@ -25,7 +25,6 @@ router.use(restrictTo(ADMIN_LEVEL));
 router.get('/pending', async (req, res, next) => {
   try {
     const adminId = (req as any).user.id;
-    // Log de auditoría: quién está consultando los pendientes
     logger.info({ adminId }, 'ADMIN: Consultando retiros pendientes');
 
     const payouts = await payoutRepository.getByStatus('pending');
@@ -37,11 +36,13 @@ router.get('/pending', async (req, res, next) => {
 
 /**
  * @route PATCH /api/admin/payouts/:id/status
+ * @desc Aprueba o rechaza un retiro. Si se aprueba, requiere transaction_receipt.
  */
 router.patch('/:id/status', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, admin_notes } = req.body; // <-- Capturamos las notas
+    // Capturamos transaction_receipt además de notas y status
+    const { status, admin_notes, transaction_receipt } = req.body;
     const adminId = (req as any).user.id;
 
     if (!['completed', 'rejected'].includes(status)) {
@@ -49,12 +50,19 @@ router.patch('/:id/status', async (req, res, next) => {
     }
 
     logger.warn(
-      { adminId, payoutId: id, newStatus: status, admin_notes },
-      `ADMIN: Intentando cambiar estado de retiro a ${status}`
+      { adminId, payoutId: id, newStatus: status, receipt: transaction_receipt },
+      `ADMIN: Procesando cambio de estado de retiro`
     );
 
-    // Pasamos admin_notes al servicio
-    const result = await PayoutService.updatePayoutStatus(id, status, adminId, admin_notes);
+    // Pasamos los argumentos al servicio en el orden correcto:
+    // payoutId, status, adminId, admin_notes, transaction_receipt
+    const result = await PayoutService.updatePayoutStatus(
+      id,
+      status,
+      adminId,
+      admin_notes,
+      transaction_receipt
+    );
 
     res.status(200).json({
       success: true,
@@ -76,7 +84,7 @@ router.patch('/:id/status', async (req, res, next) => {
  */
 router.get('/stats', async (req, res, next) => {
   try {
-    const { currency } = req.query; // Ejemplo: ?currency=USDT
+    const { currency } = req.query;
     const stats = await adminRepository.getGlobalFinancialStats((currency as string) || 'ARS');
 
     res.status(200).json({
@@ -130,7 +138,7 @@ router.get('/export/refunds', async (req, res, next) => {
  */
 router.get('/export/payouts', async (req, res, next) => {
   try {
-    const { status } = req.query; // Puede ser 'completed', 'pending', etc.
+    const { status } = req.query;
     const csv = await ExportService.exportPayoutsToCSV(status as string);
 
     const date = new Date().toISOString().split('T')[0];

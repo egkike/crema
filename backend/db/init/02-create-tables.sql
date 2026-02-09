@@ -198,6 +198,8 @@ CREATE TABLE IF NOT EXISTS payouts (
     account_holder VARCHAR(100),
     tax_id VARCHAR(50), -- CUIT/CUIL
     alias VARCHAR(100),
+    transaction_receipt TEXT, -- Nro de transferencia, Hash o ID de transacción bancaria
+    admin_id UUID, -- ID del administrador que ejecutó la transferencia
     processed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

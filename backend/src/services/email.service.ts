@@ -105,7 +105,8 @@ export class EmailService {
     fullname: string,
     amount: number,
     currency: string,
-    destination: string
+    destination: string,
+    transactionReceipt: string
   ) {
     const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
@@ -115,6 +116,7 @@ export class EmailService {
       <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
         <p><strong>Monto:</strong> ${amount} ${currency}</p>
         <p><strong>Destino:</strong> ${destination}</p>
+        <p><strong>Comprobante de operación:</strong> ${transactionReceipt}</p>
       </div>
       <p>El dinero debería verse reflejado en tu cuenta en breve, dependiendo de los tiempos de procesamiento de tu banco o red.</p>
       <p>¡Gracias por confiar en Crema!</p>

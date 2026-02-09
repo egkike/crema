@@ -76,29 +76,36 @@ export const payoutRepository = {
   },
 
   /**
-   * Actualiza estado y permite añadir notas administrativas.
+   * Actualiza estado con soporte para recibos de transacción y ID de administrador.
    */
-  async updateStatus(id: string, status: string, adminNotes?: string, client?: any) {
+  async updateStatus(
+    id: string,
+    status: string,
+    adminNotes: string | null = null,
+    transactionReceipt: string | null = null,
+    adminId: string | null = null,
+    client?: any
+  ) {
     const db = client || pool;
 
-    // Usamos un casting ultra-explícito en cada parámetro
     const query = `
     UPDATE "${schema}".payouts 
     SET 
       status = $1::text, 
       admin_notes = COALESCE($2::text, admin_notes),
+      transaction_receipt = COALESCE($3::text, transaction_receipt),
+      admin_id = COALESCE($4::uuid, admin_id),
       processed_at = CASE 
         WHEN $1::text = 'completed' OR $1::text = 'rejected' THEN CURRENT_TIMESTAMP 
         ELSE processed_at 
       END,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $3::uuid
+    WHERE id = $5::uuid
     RETURNING *;
   `;
 
     try {
-      // Aseguramos que los valores pasados sean strings limpios o null
-      const values = [String(status), adminNotes ? String(adminNotes) : null, id];
+      const values = [status, adminNotes || null, transactionReceipt || null, adminId || null, id];
 
       const { rows } = await db.query(query, values);
       return rows[0] || null;
