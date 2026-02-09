@@ -4,39 +4,40 @@ import { config } from '../config/index';
 const schema = config.db.schema || 'public';
 
 export const adminRepository = {
-  async getGlobalFinancialStats() {
+  async getGlobalFinancialStats(currency: string = 'ARS') {
     const query = `
       SELECT 
-        -- 1. Ganancias de la plataforma (Tabla: platform_earnings, Columna: total_amount)
+        -- 1. Ganancias de la plataforma filtradas por moneda
         (SELECT COALESCE(SUM(total_amount), 0) 
          FROM "${schema}".platform_earnings 
-         WHERE status = 'active') as platform_net_earnings,
+         WHERE status = 'active' AND currency = $1) as platform_net_earnings,
         
         (SELECT COALESCE(SUM(total_amount), 0) 
          FROM "${schema}".platform_earnings 
-         WHERE status = 'refunded') as platform_refunded_total,
+         WHERE status = 'refunded' AND currency = $1) as platform_refunded_total,
         
-        -- 2. Balances de usuarios (Tabla: user_balances)
+        -- 2. Balances de usuarios filtrados por moneda
         (SELECT COALESCE(SUM(pending_balance), 0) 
-         FROM "${schema}".user_balances) as total_users_pending,
+         FROM "${schema}".user_balances WHERE currency = $1) as total_users_pending,
         
         (SELECT COALESCE(SUM(available_balance), 0) 
-         FROM "${schema}".user_balances) as total_users_available,
+         FROM "${schema}".user_balances WHERE currency = $1) as total_users_available,
         
-        -- 3. Métricas de órdenes (Tabla: orders, Columna: amount)
+        -- 3. Métricas de órdenes filtradas por moneda
         (SELECT COUNT(*) 
          FROM "${schema}".orders 
-         WHERE status = 'paid') as successful_orders_count,
+         WHERE status = 'paid' AND currency = $1) as successful_orders_count,
         
         (SELECT COALESCE(SUM(amount), 0) 
          FROM "${schema}".orders 
-         WHERE status = 'paid') as total_volume_processed
+         WHERE status = 'paid' AND currency = $1) as total_volume_processed
     `;
 
-    const { rows } = await pool.query(query);
+    const { rows } = await pool.query(query, [currency]);
     const stats = rows[0];
 
     return {
+      currency,
       platform: {
         netEarnings: parseFloat(stats.platform_net_earnings),
         refundedTotal: parseFloat(stats.platform_refunded_total),
@@ -52,5 +53,21 @@ export const adminRepository = {
         totalProcessed: parseFloat(stats.total_volume_processed),
       },
     };
+  },
+
+  /**
+   * Obtiene lista de reembolsos para auditoría administrativa
+   */
+  async getRecentRefunds(limit: number = 50) {
+    const query = `
+      SELECT r.*, o.external_reference, u.email as buyer_email
+      FROM "${schema}".refunds r
+      JOIN "${schema}".orders o ON r.order_id = o.id
+      JOIN "${schema}".users u ON r.buyer_id = u.id
+      ORDER BY r.created_at DESC
+      LIMIT $1
+    `;
+    const { rows } = await pool.query(query, [limit]);
+    return rows;
   },
 };

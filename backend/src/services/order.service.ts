@@ -57,11 +57,7 @@ export class OrderService {
     }
 
     try {
-      // 1. Actualizar estado de la orden
-      await orderRepository.updateStatus(order.id, 'paid');
-      logger.info({ orderId: order.id }, '💳 Orden marcada como PAGADA');
-
-      // Obtenemos IDs normalizados
+      // 1. Obtenemos IDs normalizados
       const productId = order.product_id || order.productId;
       const buyerId = order.buyer_id || order.buyerId;
 

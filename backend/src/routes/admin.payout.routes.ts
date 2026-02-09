@@ -71,14 +71,12 @@ router.patch('/:id/status', async (req, res, next) => {
 
 /**
  * @route GET /api/admin/stats
- * @desc Resumen financiero global para el Dashboard
+ * @desc Resumen financiero global (opcionalmente filtrado por moneda)
  */
 router.get('/stats', async (req, res, next) => {
   try {
-    const adminId = (req as any).user.id;
-    logger.info({ adminId }, 'ADMIN: Accediendo a estadísticas globales');
-
-    const stats = await adminRepository.getGlobalFinancialStats();
+    const { currency } = req.query; // Ejemplo: ?currency=USDT
+    const stats = await adminRepository.getGlobalFinancialStats((currency as string) || 'ARS');
 
     res.status(200).json({
       success: true,
@@ -86,10 +84,24 @@ router.get('/stats', async (req, res, next) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
-    logger.error(
-      { error: error.message, stack: error.stack },
-      'ADMIN: Error al obtener estadísticas'
-    );
+    next(error);
+  }
+});
+
+/**
+ * @route GET /api/admin/refunds
+ * @desc Lista de reembolsos recientes para control administrativo
+ */
+router.get('/refunds', async (req, res, next) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    const refunds = await adminRepository.getRecentRefunds(limit);
+
+    res.status(200).json({
+      success: true,
+      data: refunds,
+    });
+  } catch (error) {
     next(error);
   }
 });

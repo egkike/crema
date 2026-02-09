@@ -9,6 +9,14 @@ import logger from '../utils/logger';
 
 const schema = config.db.schema;
 
+/**
+ * Utilidad para redondeo financiero a 2 decimales.
+ * El uso de Number.EPSILON asegura que 1.005 redondee a 1.01 y no a 1.00
+ */
+const roundToTwo = (num: number): number => {
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 export class CommissionService {
   static async processOrderCommissions(order: any, product: any) {
     if (order.commissions_calculated) return;
@@ -27,10 +35,15 @@ export class CommissionService {
         return;
       }
 
+      // 2. Actualizar estado de la orden (Atomicidad)
+      await client.query(
+        `UPDATE "${schema}".orders SET status = 'paid', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [order.id]
+      );
+
       const orderCurrency = order.currency;
       const configs = await configRepository.getConfigsByCurrency(orderCurrency);
 
-      // Validamos que existan las configuraciones para esta moneda en la tabla platform_configs
       if (!configs || Object.keys(configs).length === 0) {
         throw new AppError(
           `No se encontró configuración de comisiones para la moneda: ${orderCurrency}`,
@@ -40,26 +53,23 @@ export class CommissionService {
 
       const totalAmount = Number(order.amount);
 
-      // 2. Parámetros de la plataforma (Fees) obtenidos dinámicamente
+      // Parámetros de la plataforma obtenidos de platform_configs
       const percentValue = Number(configs['fee_percent']);
       const threshold = Number(configs['price_threshold']);
       const lowFee = Number(configs['fixed_fee_low']);
       const highFee = Number(configs['fixed_fee_high']);
 
-      // Validación de seguridad: si falta algún parámetro clave, abortamos
       if (isNaN(percentValue) || isNaN(threshold)) {
-        throw new AppError(
-          `Parámetros de comisión incompletos para ${orderCurrency} en platform_configs`,
-          500
-        );
+        throw new AppError(`Parámetros de comisión incompletos para ${orderCurrency}`, 500);
       }
 
-      // 3. Cálculo de la comisión de la plataforma
-      const variableFee = totalAmount * percentValue;
+      // 3. CÁLCULO DE COMISIÓN DE PLATAFORMA (REDONDEADO)
+      const variableFee = roundToTwo(totalAmount * percentValue);
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
-      const totalPlatformFee = variableFee + fixedFee;
+      const totalPlatformFee = roundToTwo(variableFee + fixedFee);
 
-      let remainingNet = totalAmount - totalPlatformFee;
+      // Calculamos el sobrante neto inicial
+      let remainingNet = roundToTwo(totalAmount - totalPlatformFee);
 
       // 4. Registro de Ganancias de Plataforma
       await client.query(
@@ -72,7 +82,10 @@ export class CommissionService {
       // 5. Lógica de Afiliado (Si aplica)
       let affiliateAmount = 0;
       if (order.affiliate_id && Number(product.affiliate_commission_percent) > 0) {
-        affiliateAmount = remainingNet * (Number(product.affiliate_commission_percent) / 100);
+        // Redondeamos la comisión del afiliado
+        affiliateAmount = roundToTwo(
+          remainingNet * (Number(product.affiliate_commission_percent) / 100)
+        );
 
         await commissionRepository.create(
           {
@@ -104,10 +117,11 @@ export class CommissionService {
           description: `Comisión afiliado: ${product.title}`,
         });
 
-        remainingNet -= affiliateAmount;
+        // Actualizamos el remanente después de pagar al afiliado (Redondeado)
+        remainingNet = roundToTwo(remainingNet - affiliateAmount);
       }
 
-      // 6. Registro de Ganancia del Creador
+      // 6. Registro de Ganancia del Creador (Lo que queda finalmente)
       await commissionRepository.create(
         {
           userId: product.creator_id,
@@ -138,7 +152,7 @@ export class CommissionService {
         description: `Venta directa: ${product.title}`,
       });
 
-      // 7. Cierre de la orden
+      // 7. Cierre definitivo de la orden
       await client.query(
         `UPDATE "${schema}".orders 
          SET commissions_calculated = TRUE, commission_amount = $1 
@@ -149,7 +163,7 @@ export class CommissionService {
       await client.query('COMMIT');
       logger.info(
         { orderId: order.id, platformFee: totalPlatformFee, creatorNet: remainingNet },
-        'Distribución completada y registrada'
+        'Distribución completada exitosamente con redondeo financiero'
       );
 
       return { platformFee: totalPlatformFee, creatorNet: remainingNet };

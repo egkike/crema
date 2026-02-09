@@ -10,7 +10,8 @@ export type HistoryType =
   | 'sale_affiliate'
   | 'refund'
   | 'payout_request'
-  | 'payout_refund';
+  | 'payout_refund'
+  | 'balance_release'; // <--- Ajuste: Añadido para trazabilidad de garantías cumplidas
 
 export interface BalanceHistoryRecord {
   id: string;
