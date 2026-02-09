@@ -134,16 +134,23 @@ router.get('/export/refunds', async (req, res, next) => {
 
 /**
  * @route GET /api/admin/export/payouts
- * @desc Descarga un archivo CSV con los retiros (opcionalmente filtrado por estado)
+ * @desc Descarga un archivo CSV con los retiros (opcionalmente filtrado por estado y rango de fechas)
  */
 router.get('/export/payouts', async (req, res, next) => {
   try {
-    const { status } = req.query;
-    const csv = await ExportService.exportPayoutsToCSV(status as string);
+    const { status, from, to } = req.query;
+
+    const csv = await ExportService.exportPayoutsToCSV(
+      status as string,
+      from as string,
+      to as string
+    );
 
     const date = new Date().toISOString().split('T')[0];
+    const fileName = `reporte_retiros_${status || 'todos'}_${from || ''}_al_${to || date}.csv`;
+
     res.header('Content-Type', 'text/csv');
-    res.attachment(`reporte_retiros_${status || 'todos'}_${date}.csv`);
+    res.attachment(fileName);
     return res.send(csv);
   } catch (error) {
     next(error);

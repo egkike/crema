@@ -28,21 +28,24 @@ export class ExportService {
   /**
    * Genera un CSV con los retiros (payouts) para contabilidad
    */
-  static async exportPayoutsToCSV(status?: string): Promise<string> {
-    // Si hay status usamos el existente, si no, el nuevo getAll
-    const payouts = status
-      ? await payoutRepository.getByStatus(status)
-      : await payoutRepository.getAll();
+  static async exportPayoutsToCSV(
+    status?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<string> {
+    // Usamos el nuevo método con filtros
+    const payouts = await payoutRepository.getForExport(status, startDate, endDate);
 
     const fields = [
-      { label: 'Fecha', value: 'created_at' },
+      { label: 'Fecha Solicitud', value: 'created_at' },
+      { label: 'Fecha Procesado', value: 'processed_at' },
       { label: 'Usuario', value: 'fullname' },
       { label: 'Email', value: 'email' },
       { label: 'Monto', value: 'amount' },
       { label: 'Moneda', value: 'currency' },
       { label: 'Estado', value: 'status' },
       { label: 'Cuenta Destino', value: 'destination_account' },
-      { label: 'Banco/Alias', value: 'alias' },
+      { label: 'ID Transacción Bancaria', value: 'transaction_receipt' },
       { label: 'Notas Admin', value: 'admin_notes' },
     ];
 

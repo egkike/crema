@@ -183,4 +183,37 @@ export const payoutRepository = {
       throw error;
     }
   },
+
+  /**
+   * Obtiene retiros con filtros de estado y rango de fechas
+   */
+  async getForExport(status?: string, startDate?: string, endDate?: string) {
+    let query = `
+      SELECT p.*, u.email, u.fullname 
+      FROM "${schema}".payouts p
+      JOIN "${schema}".users u ON p.user_id = u.id
+      WHERE 1=1
+    `;
+    const values: any[] = [];
+
+    if (status) {
+      values.push(status);
+      query += ` AND p.status = $${values.length}`;
+    }
+
+    if (startDate && endDate) {
+      values.push(startDate, endDate);
+      query += ` AND p.created_at BETWEEN $${values.length - 1} AND $${values.length}`;
+    }
+
+    query += ` ORDER BY p.created_at DESC`;
+
+    try {
+      const { rows } = await pool.query(query, values);
+      return rows.map(row => this.mapRow(row));
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'DB Error: getForExport failed');
+      throw error;
+    }
+  },
 };
