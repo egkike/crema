@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { PayoutService } from '../services/payout.service';
+import { ExportService } from '../services/export.service';
 import { payoutRepository } from '../repositories/payout.repository';
 import { adminRepository } from '../repositories/admin.repository';
 import { AppError } from '../errors/AppError';
@@ -101,6 +102,41 @@ router.get('/refunds', async (req, res, next) => {
       success: true,
       data: refunds,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @route GET /api/admin/export/refunds
+ * @desc Descarga un archivo CSV con los reembolsos
+ */
+router.get('/export/refunds', async (req, res, next) => {
+  try {
+    const csv = await ExportService.exportRefundsToCSV();
+
+    const date = new Date().toISOString().split('T')[0];
+    res.header('Content-Type', 'text/csv');
+    res.attachment(`reporte_reembolsos_${date}.csv`);
+    return res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @route GET /api/admin/export/payouts
+ * @desc Descarga un archivo CSV con los retiros (opcionalmente filtrado por estado)
+ */
+router.get('/export/payouts', async (req, res, next) => {
+  try {
+    const { status } = req.query; // Puede ser 'completed', 'pending', etc.
+    const csv = await ExportService.exportPayoutsToCSV(status as string);
+
+    const date = new Date().toISOString().split('T')[0];
+    res.header('Content-Type', 'text/csv');
+    res.attachment(`reporte_retiros_${status || 'todos'}_${date}.csv`);
+    return res.send(csv);
   } catch (error) {
     next(error);
   }

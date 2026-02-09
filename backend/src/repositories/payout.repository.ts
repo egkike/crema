@@ -157,4 +157,23 @@ export const payoutRepository = {
     const { rows } = await pool.query(query, [userId]);
     return rows.length > 0;
   },
+
+  /**
+   * Obtiene todos los retiros con info de usuario para reportes globales
+   */
+  async getAll() {
+    const query = `
+      SELECT p.*, u.email, u.fullname 
+      FROM "${schema}".payouts p
+      JOIN "${schema}".users u ON p.user_id = u.id
+      ORDER BY p.created_at DESC;
+    `;
+    try {
+      const { rows } = await pool.query(query);
+      return rows.map(row => this.mapRow(row));
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'DB Error: getAll payouts failed');
+      throw error;
+    }
+  },
 };
