@@ -76,4 +76,63 @@ export class EmailService {
     `;
     return this.send(email, `Tu acceso a ${productTitle}`, html);
   }
+
+  static async sendPayoutMethodChangeEmail(
+    email: string,
+    fullname: string,
+    currency: string,
+    confirmLink: string
+  ) {
+    const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+      <h2 style="color: #2f3542;">Confirmar datos de cobro</h2>
+      <p>Hola <strong>${fullname}</strong>,</p>
+      <p>Recibimos una solicitud para actualizar tu cuenta de retiro para <strong>${currency}</strong>.</p>
+      <p style="background: #fff3cd; padding: 15px; border-left: 5px solid #ffcc00; font-size: 14px;">
+        ⚠️ <strong>Si no solicitaste este cambio, ignora este mensaje y cambia tu contraseña de inmediato.</strong>
+      </p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${confirmLink}" style="background: #2ed573; color: white; padding: 14px 28px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirmar Cambio</a>
+      </div>
+      <p style="font-size: 12px; color: #777;">Este link expirará en 15 minutos.</p>
+    </div>
+  `;
+    return this.send(email, `Confirmar cuenta de retiro ${currency} - Crema`, html);
+  }
+
+  static async sendPayoutCompletedEmail(
+    email: string,
+    fullname: string,
+    amount: number,
+    currency: string,
+    destination: string
+  ) {
+    const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+      <h2 style="color: #2ed573;">¡Retiro Completado! 💸</h2>
+      <p>Hola <strong>${fullname}</strong>,</p>
+      <p>Te informamos que tu solicitud de retiro ha sido procesada exitosamente.</p>
+      <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>Monto:</strong> ${amount} ${currency}</p>
+        <p><strong>Destino:</strong> ${destination}</p>
+      </div>
+      <p>El dinero debería verse reflejado en tu cuenta en breve, dependiendo de los tiempos de procesamiento de tu banco o red.</p>
+      <p>¡Gracias por confiar en Crema!</p>
+    </div>
+  `;
+    return this.send(email, `Tu retiro de ${amount} ${currency} ha sido enviado`, html);
+  }
+
+  static async sendSecurityAlert(to: string, subject: string, message: string) {
+    const html = `
+      <div style="font-family: sans-serif; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+        <h2 style="color: #d9534f;">Aviso de Crema</h2>
+        <p>${message}</p>
+        <p style="font-size: 12px; color: #777; margin-top: 20px;">
+          Si no reconoces esta actividad, por favor contacta a soporte técnico de inmediato.
+        </p>
+      </div>
+    `;
+    return this.send(to, subject, html);
+  }
 }

@@ -2,9 +2,36 @@ import { Request, Response, NextFunction } from 'express';
 
 import { balanceRepository } from '../repositories/balance.repository';
 import { historyRepository } from '../repositories/history.repository';
+import { StatsService } from '../services/stats.service';
 import { AppError } from '../errors/AppError';
 
 export class BalanceController {
+  /**
+   * Dashboard: Obtiene las métricas principales (Totales, Disponible, Pendiente)
+   */
+  async getDashboardStats(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = (req as any).user?.id;
+      const currency = (req.query.currency as string) || 'ARS';
+
+      // Ejecutamos ambas en paralelo para que el dashboard cargue rápido
+      const [mainStats, chartData] = await Promise.all([
+        StatsService.getCreatorStats(userId, currency),
+        StatsService.getLastSevenDaysSales(userId, currency),
+      ]);
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...mainStats,
+          chart: chartData,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /**
    * Obtiene todos los balances del usuario (una fila por moneda)
    */
@@ -16,7 +43,6 @@ export class BalanceController {
         throw new AppError('Usuario no autenticado', 401);
       }
 
-      // Cambiamos 'getByUserId' por 'getAllBalancesByUserId' que devuelve un array [ARS, USDT, etc]
       const balances = await balanceRepository.getAllBalancesByUserId(userId);
 
       return res.status(200).json({
@@ -29,7 +55,7 @@ export class BalanceController {
   }
 
   /**
-   * Obtiene la lista de movimientos financieros del usuario
+   * Obtiene la lista de movimientos financieros con paginación y filtros
    */
   async getMyHistory(req: Request, res: Response, next: NextFunction) {
     try {
@@ -39,16 +65,26 @@ export class BalanceController {
         throw new AppError('Usuario no autenticado', 401);
       }
 
-      // Extraemos query params para paginación opcional
       const limit = Number(req.query.limit) || 20;
       const offset = Number(req.query.offset) || 0;
+      const currency = req.query.currency as string | undefined;
 
-      // Usamos el método correcto del historyRepository
-      const history = await historyRepository.getByUserId(userId, limit, offset);
+      const { data, total } = await historyRepository.getByUserIdWithCount(
+        userId,
+        limit,
+        offset,
+        currency
+      );
 
       return res.status(200).json({
         success: true,
-        data: history,
+        data,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + data.length < total,
+        },
       });
     } catch (error) {
       next(error);

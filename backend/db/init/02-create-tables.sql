@@ -216,6 +216,24 @@ CREATE TABLE IF NOT EXISTS refunds (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabla para que el usuario guarde sus métodos de cobro predefinidos
+CREATE TABLE IF NOT EXISTS user_payout_methods (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    currency VARCHAR(10) NOT NULL REFERENCES enabled_currencies(code),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('bank_account', 'crypto_wallet')),   
+    -- JSONB para flexibilidad:
+    -- ARS: { "bank_name": "...", "cbu": "...", "alias": "...", "tax_id": "...", "holder": "..." }
+    -- USDT: { "address": "...", "network": "..." }
+    data JSONB NOT NULL,
+    is_default BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Un usuario solo puede tener un método por defecto por cada moneda
+    UNIQUE(user_id, currency, is_default) 
+);
+
 -- Función para los triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -225,7 +243,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Triggers de actualización automática
+-- Triggers para mantener actualizados los updated_at
 CREATE TRIGGER trg_upd_user_balances BEFORE UPDATE ON user_balances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_system_settings BEFORE UPDATE ON system_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_platform_configs BEFORE UPDATE ON platform_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -234,3 +252,4 @@ CREATE TRIGGER trg_upd_orders BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCT
 CREATE TRIGGER trg_upd_payouts BEFORE UPDATE ON payouts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_refunds BEFORE UPDATE ON refunds FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_platform_earnings BEFORE UPDATE ON platform_earnings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_user_payout_methods BEFORE UPDATE ON user_payout_methods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

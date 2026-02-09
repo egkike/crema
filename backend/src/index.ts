@@ -23,6 +23,7 @@ import balanceRoutes from './routes/balance.routes';
 import refundRoutes from './routes/refund.routes';
 import payoutRoutes from './routes/payout.routes';
 import adminPayoutRoutes from './routes/admin.payout.routes';
+import payoutMethodRoutes from './routes/payout_method.routes';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -127,6 +128,7 @@ app.use('/api/balances', balanceRoutes);
 app.use('/api/refunds', refundRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/admin/payouts', adminPayoutRoutes);
+app.use('/api/payout-methods', payoutMethodRoutes);
 
 // --- SWAGGER DOCS ---
 if (config.nodeEnv !== 'production') {

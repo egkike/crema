@@ -1,6 +1,7 @@
 import pool from '../db/postgres';
 import { balanceRepository } from '../repositories/balance.repository';
 import { commissionRepository } from '../repositories/commission.repository';
+import { historyRepository } from '../repositories/history.repository'; // <-- IMPORTANTE: Añadido para trazabilidad
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
@@ -16,13 +17,13 @@ export const ReleaseService = {
 
     const stats = {
       count: 0,
-      releasedToUsers: {} as Record<string, number>, // Dinero real entregado a creadores/afiliados
+      releasedToUsers: {} as Record<string, number>,
     };
 
     try {
-      // Definimos la condición de tiempo (si force es true, el intervalo es de 0 segundos)
       const timeCondition = force ? '0 seconds' : `${config.daysOfGuarantee} days`;
 
+      // Seleccionamos órdenes que ya cumplieron el plazo de garantía
       const query = `
         SELECT o.id, o.amount, o.currency 
         FROM "${schema}".orders o
@@ -40,38 +41,45 @@ export const ReleaseService = {
         return stats;
       }
 
-      logger.info(
-        `Iniciando liberación de ${ordersToRelease.length} órdenes. (Force mode: ${force})`
-      );
+      logger.info(`Iniciando liberación de ${ordersToRelease.length} órdenes.`);
 
       for (const order of ordersToRelease) {
         try {
           await client.query('BEGIN');
 
-          // 1. OBTENER TODAS LAS COMISIONES DE LA ORDEN
-          // El repositorio ya nos da netAmount (lo que el usuario debe recibir)
+          // 1. Obtener comisiones asociadas a la orden
           const commissions = await commissionRepository.getByOrderId(order.id);
 
           for (const comm of commissions) {
             if (comm.status === 'pending') {
-              // LIBERACIÓN: Mueve de pending_balance a available_balance en user_balances
+              // 2. Mover de pending_balance a available_balance (Atómico en balanceRepository)
               await balanceRepository.releaseBalance(
                 comm.userId,
-                Number(comm.netAmount), // <-- CORREGIDO: Usamos el monto neto, no el bruto de la orden
+                Number(comm.netAmount),
                 order.currency,
                 client
               );
 
-              // Acumulamos en las estadísticas de la ejecución
+              // 3. REGISTRAR EN EL HISTORIAL DE BALANCES
+              // Esto permite que el usuario vea la entrada en su panel de movimientos
+              await historyRepository.createRecordWithClient(client, {
+                userId: comm.userId,
+                order_id: order.id,
+                amount: Number(comm.netAmount),
+                currency: order.currency,
+                type: 'sale_creator', // Usamos este tipo para que impacte como una ganancia real
+                description: `Garantía cumplida: Saldo liberado de la orden #${order.id.substring(0, 8)}`,
+              });
+
               stats.releasedToUsers[order.currency] =
                 (stats.releasedToUsers[order.currency] || 0) + Number(comm.netAmount);
             }
           }
 
-          // 2. ACTUALIZAR ESTADO DE COMISIONES A 'paid'
+          // 4. Actualizar estado de comisiones a 'paid'
           await commissionRepository.updateStatusByOrder(order.id, 'paid', client);
 
-          // 3. MARCAR ORDEN COMO LIBERADA
+          // 5. Marcar orden como liberada para no procesarla dos veces
           await client.query(
             `UPDATE "${schema}".orders SET balance_released = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
             [order.id]

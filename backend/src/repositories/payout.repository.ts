@@ -145,4 +145,16 @@ export const payoutRepository = {
       throw error;
     }
   },
+
+  async hasRecentPayout(userId: string): Promise<boolean> {
+    const query = `
+    SELECT id FROM "${schema}".payouts 
+    WHERE user_id = $1 
+    AND created_at >= CURRENT_DATE 
+    AND status != 'rejected'
+    LIMIT 1;
+  `;
+    const { rows } = await pool.query(query, [userId]);
+    return rows.length > 0;
+  },
 };
