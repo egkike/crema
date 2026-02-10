@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 
-import pool from '../db/postgres';
-import { orderRepository } from '../repositories/order.repository';
-import { productRepository } from '../repositories/product.repository';
-import { CommissionService } from '../services/commission.service';
-import { ReleaseService } from '../services/release.service';
-import { AppError } from '../errors/AppError';
-import logger from '../utils/logger'; // <--- Ahora sí lo usaremos
+import pool from '../../db/postgres';
+import { orderRepository } from '../../repositories/order.repository';
+import { productRepository } from '../../repositories/product.repository';
+import { CommissionService } from '../../services/commission.service';
+import { ReleaseService } from '../../services/release.service';
+import { AppError } from '../../errors/AppError';
+import logger from '../logger'; // <--- Ahora sí lo usaremos
 
 export const testController = {
   /**

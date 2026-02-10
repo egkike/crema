@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { productRepository, ProductInput } from '../repositories/product.repository';
 import { AppError } from '../errors/AppError';
-import { createProductSchema } from '../schemas/products';
+import { createProductSchema } from '../schemas/products.schema';
 import logger from '../utils/logger';
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
@@ -55,13 +55,16 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
     const isOwner = user && product.creator_id === user.id;
     const isAdmin = user && user.level >= 10; // Usamos el nivel de admin que definimos
 
-    const productData = { ...product };
-
-    // Si no es el dueño ni admin, protegemos el contenido digital
-    if (!isOwner && !isAdmin) {
-      delete (productData as any).contentUrl;
-      // También podrías ocultar el porcentaje de comisión si es privado
-    }
+    const productData = {
+      id: product.id,
+      title: product.title,
+      description: product.description,
+      prices: product.prices,
+      type: product.type,
+      status: product.status,
+      // Solo incluimos la URL si tiene permiso
+      ...((isOwner || isAdmin) && { contentUrl: product.content_url }),
+    };
 
     res.status(200).json({ success: true, data: productData });
   } catch (error) {

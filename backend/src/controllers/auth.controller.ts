@@ -1,25 +1,51 @@
-import { Request, Response } from 'express';
+import crypto from 'crypto';
+
+import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
-import { validatePartialUser, validatePasswordDetailed } from '../schemas/users';
+import { validatePasswordDetailed } from '../schemas/users.schema';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 import { userRepository, type UserWithPassword } from '../repositories/user.repository';
+import { EmailService } from '../services/email.service';
 import { AppError } from '../errors/AppError';
+import { AuthService } from '../services/auth.service';
 
 export class AuthController {
+  /**
+   * Registro manual exclusivo para Socios
+   */
+  async register(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Eliminamos username de la desestructuración
+      const { email, password, fullname, level, captchaToken } = req.body;
+
+      const result = await AuthService.registerPartner(
+        { email, password, fullname, level }, // Pasamos solo lo necesario
+        captchaToken
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Registro exitoso. Revisa tu email para activar tu cuenta.',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async login(req: Request, res: Response) {
     const { username, email, password } = req.body;
 
-    const input = username ? { username, password } : { email, password };
-    const validation = validatePartialUser(input);
-    if (!validation.success) {
-      const errorMsg = JSON.parse(validation.error.message)[0]?.message;
-      throw new AppError(errorMsg || 'Datos inválidos', 400);
+    // Si el frontend ya no envía username, el identifier será el email
+    const identifier = email || username;
+
+    if (!identifier || !password) {
+      throw new AppError('Email y contraseña son requeridos', 400);
     }
 
-    const identifier = username || email;
     const user = await userRepository.findByCredentials(identifier);
 
     if (!user) {
@@ -27,7 +53,6 @@ export class AuthController {
       throw new AppError('Credenciales inválidas', 401);
     }
 
-    // AJUSTE: Aplicar Pepper antes de comparar
     const isValidPassword = await bcrypt.compare(password + config.passwordPepper, user.password);
 
     if (!isValidPassword) {
@@ -35,7 +60,6 @@ export class AuthController {
       throw new AppError('Credenciales inválidas', 401);
     }
 
-    // AJUSTE: Verificación de estado de cuenta (Pilar 1)
     if (user.active === 0) {
       throw new AppError('Cuenta no verificada o inactiva. Revisa tu email.', 403);
     }
@@ -159,7 +183,6 @@ export class AuthController {
       throw new AppError(pwdCheck.errors.join('; '), 400);
     }
 
-    // AJUSTE: Aplicar Pepper y Salt 12 para consistencia de seguridad
     const passwordWithPepper = password + config.passwordPepper;
     const passwordHash = await bcrypt.hash(passwordWithPepper, 12);
 
@@ -180,5 +203,82 @@ export class AuthController {
       success: true,
       message: 'Contraseña actualizada. Ahora puedes iniciar sesión normalmente.',
     });
+  }
+
+  async verifyEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token } = req.query;
+      if (!token) throw new AppError('Token de verificación requerido', 400);
+
+      const success = await userRepository.verifyAccount(token as string);
+      if (!success) {
+        throw new AppError('Token inválido o expirado. Solicita uno nuevo.', 400);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Cuenta activada correctamente. Ya puedes iniciar sesión.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async forgotPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email } = req.body;
+      if (!email) throw new AppError('Email requerido', 400);
+
+      const user = await userRepository.findByCredentials(email);
+
+      // Estrategia de seguridad: No confirmamos si el email existe o no
+      if (user) {
+        const token = crypto.randomBytes(32).toString('hex');
+        const expires = new Date(Date.now() + 3600000); // 1 hora de validez
+
+        await userRepository.saveResetToken(email, token, expires);
+
+        // No bloqueamos la respuesta esperando al email
+        EmailService.sendResetPasswordEmail(email, user.fullname, token).catch(err =>
+          logger.error({ err: err.message, email }, 'Error enviando reset password email')
+        );
+      }
+
+      res.json({
+        success: true,
+        message: 'Si el email está registrado, recibirás un enlace para restablecer tu contraseña.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password) throw new AppError('Token y nueva contraseña requeridos', 400);
+
+      const pwdCheck = validatePasswordDetailed(password);
+      if (!pwdCheck.valid) {
+        throw new AppError(pwdCheck.errors.join('; '), 400);
+      }
+
+      // Aplicamos Pepper + Hash
+      const passwordWithPepper = password + config.passwordPepper;
+      const hash = await bcrypt.hash(passwordWithPepper, 12);
+
+      const success = await userRepository.resetPasswordByToken(token, hash);
+
+      if (!success) {
+        throw new AppError('El enlace es inválido o ha expirado.', 400);
+      }
+
+      res.json({
+        success: true,
+        message: 'Tu contraseña ha sido actualizada. Ya puedes iniciar sesión.',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 }

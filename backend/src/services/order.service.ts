@@ -10,8 +10,7 @@ import { RefundService } from './refund.service';
 
 export class OrderService {
   /**
-   * Este método es el PUNTO DE ENTRADA ÚNICO desde cualquier pasarela.
-   * Ya no recibe un ID de MP, sino los datos ya normalizados.
+   * Procesa la notificación de la pasarela y decide si completar o reembolsar.
    */
   static async processPaymentNotification(data: {
     externalReference: string;
@@ -21,88 +20,82 @@ export class OrderService {
   }) {
     const { externalReference, status, transactionId, tempPassword } = data;
 
-    logger.info({ externalReference, status }, '📦 Procesando notificación de pago');
-
+    // Usamos el método de tu repositorio actual
     const order = await orderRepository.getByExternalRef(externalReference);
 
     if (!order) {
-      logger.error({ externalReference }, '❌ Orden no encontrada en la base de datos');
+      logger.error({ externalReference }, '❌ Orden no encontrada en el webhook');
       return;
     }
 
-    // Guardamos el ID de transacción real de la pasarela para auditoría
+    // Actualizamos el ID de transacción de Mercado Pago si no lo tiene
     if (transactionId && order.transaction_id !== transactionId) {
       await orderRepository.updateByExternalRef(externalReference, {
         transaction_id: transactionId,
       });
     }
 
-    // Lógica de estados según tu DB
+    // Lógica de estados: Mercado Pago usa 'approved', tu DB usará 'paid'
     if (status === 'approved' || status === 'paid') {
       await this.completeOrder(order, tempPassword);
     } else if (status === 'refunded' || status === 'cancelled') {
-      await RefundService.processRefund(order.id, `Gateway Status: ${status}`);
-    } else {
-      logger.info({ status, orderId: order.id }, 'ℹ️ Pago en estado no final (pending/processing)');
+      await RefundService.processRefund(order.id, `Status: ${status}`);
     }
   }
 
   /**
-   * Finaliza la orden y dispara el reparto de comisiones (Core Business)
+   * Finaliza la venta: Reparte dinero, activa usuario y envía email.
    */
   private static async completeOrder(order: any, tempPassword?: string) {
-    if (order.status === 'paid') {
-      logger.info({ orderId: order.id }, 'La orden ya está pagada.');
+    // Si ya está pagada o ya tiene comisiones, evitamos duplicidad
+    if (order.status === 'paid' || order.commissions_calculated) {
       return;
     }
 
     try {
-      // 1. Obtenemos IDs normalizados
-      const productId = order.product_id || order.productId;
-      const buyerId = order.buyer_id || order.buyerId;
-
-      const product = await productRepository.getProductById(productId);
-      const buyer = await userRepository.getById(buyerId);
+      // Obtenemos los datos necesarios usando tus repositorios
+      const product = await productRepository.getProductById(order.product_id);
+      const buyer = await userRepository.getById(order.buyer_id);
 
       if (!product || !buyer) {
-        throw new AppError('Faltan datos de producto o comprador para completar el flujo', 500);
+        throw new AppError('Datos de producto o comprador no encontrados', 500);
       }
 
-      // 2. Activar usuario si es nuevo/inactivo
-      if (buyer.active === 0) {
-        await userRepository.updUser({ id: buyer.id, input: { active: 1 } });
-        logger.info({ buyerId }, '👤 Usuario activado');
-      }
-
-      // 3. REPARTO DE COMISIONES (Aquí es donde entra la magia multimoneda)
-      // El service usará order.currency para buscar configs en la DB
+      // 1. REPARTO DE COMISIONES (Usando tu CommissionService transaccional)
+      // Este método internamente pone la orden en status 'paid'
       await CommissionService.processOrderCommissions(order, product);
-      logger.info('💰 Comisiones distribuidas exitosamente');
 
-      // 4. Notificaciones
-      try {
-        if (tempPassword) {
-          await EmailService.sendWelcomePurchaseEmail(
-            buyer.email,
-            buyer.fullname,
-            tempPassword,
-            product.title
-          );
-        } else {
-          await EmailService.sendPurchaseConfirmationEmail(
-            buyer.email,
-            buyer.fullname,
-            product.title
-          );
-        }
-        logger.info('📧 Email de confirmación enviado');
-      } catch (e: any) {
-        logger.error({ err: e.message }, '⚠️ Error al enviar email (el flujo sigue)');
+      // 2. ACTIVACIÓN DEL USUARIO
+      // Si el usuario se creó durante el checkout, estará inactivo (active: 0)
+      if (buyer.active === 0) {
+        await userRepository.updUser({
+          id: buyer.id,
+          input: { active: 1 },
+        });
+        logger.info({ userId: buyer.id }, '👤 Usuario activado tras pago');
       }
 
-      logger.info({ orderId: order.id }, '✅ FLUJO FINALIZADO CON ÉXITO');
+      // 3. ENVÍO DE EMAIL ÚNICO
+      if (tempPassword) {
+        // Usuario nuevo: recibe bienvenida + contraseña temporal
+        await EmailService.sendWelcomePurchaseEmail(
+          buyer.email,
+          buyer.fullname,
+          tempPassword,
+          product.title
+        );
+      } else {
+        // Usuario existente: solo confirmación de compra
+        await EmailService.sendPurchaseConfirmationEmail(
+          buyer.email,
+          buyer.fullname,
+          product.title
+        );
+      }
+
+      logger.info({ orderId: order.id }, '✅ Flujo de venta finalizado con éxito');
     } catch (error: any) {
-      logger.error({ orderId: order.id, error: error.message }, '💥 Error en completeOrder');
+      logger.error({ orderId: order.id, error: error.message }, '💥 Error al completar la orden');
     }
   }
 }

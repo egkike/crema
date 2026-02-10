@@ -12,9 +12,11 @@ CREATE TABLE IF NOT EXISTS users (
     password TEXT NOT NULL,
     level INT DEFAULT 1 NOT NULL,
     active INT DEFAULT 0 NOT NULL,
-    must_change_password BOOLEAN DEFAULT TRUE NOT NULL,
+    must_change_password BOOLEAN DEFAULT FALSE NOT NULL,
     verification_token TEXT,
-    verification_token_expires TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    verification_token_expires TIMESTAMP WITH TIME ZONE,
+    reset_password_token TEXT,
+    reset_password_expires TIMESTAMP WITH TIME ZONE,
     createdate TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

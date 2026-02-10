@@ -16,7 +16,7 @@ export class EmailService {
   private static async send(to: string, subject: string, html: string) {
     try {
       const info = await transporter.sendMail({
-        from: config.smtp.from,
+        from: `"Crema" <${config.smtp.from}>`, // Nombre personalizado en la bandeja
         to,
         subject,
         html,
@@ -25,13 +25,13 @@ export class EmailService {
       return true;
     } catch (error: any) {
       logger.error({ error: error.message }, '❌ Error en el transporte de email');
-      return false; // Retornamos false pero no lanzamos error para no bloquear la compra
+      return false;
     }
   }
 
   static async sendVerificationEmail(email: string, fullname: string, token: string) {
     // CORRECCIÓN: Usamos config.frontendUrl que acabamos de ver en tu index.ts
-    const verificationLink = `${config.frontendUrl}/verify-email?token=${token}`;
+    const verificationLink = `${config.frontendUrl}/verify-account?token=${token}`;
 
     const html = `
       <h1>Bienvenido a Crema</h1>
@@ -41,6 +41,9 @@ export class EmailService {
     return this.send(email, 'Verifica tu cuenta', html);
   }
 
+  /**
+   * Envío de bienvenida para COMPRADORES (creados durante el checkout)
+   */
   static async sendWelcomePurchaseEmail(
     email: string,
     fullname: string,
@@ -50,18 +53,33 @@ export class EmailService {
     const loginLink = `${config.frontendUrl}/login`;
 
     const html = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
-        <h1>¡Gracias por tu compra en Crema!</h1>
-        <p>Hola <strong>${fullname}</strong>,</p>
-        <p>Tu pago por el producto <strong>${productTitle}</strong> ha sido procesado con éxito.</p>
-        <div style="background: #f4f4f4; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Usuario:</strong> ${email}</p>
-          <p><strong>Contraseña temporal:</strong> <code>${tempPassword}</code></p>
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e1e8ed; border-radius: 12px; overflow: hidden;">
+        <div style="background: #ff4757; padding: 30px; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 24px;">¡Excelente elección!</h1>
+          <p style="margin: 5px 0 0;">Tu acceso a ${productTitle} está listo</p>
         </div>
-        <a href="${loginLink}" style="display: inline-block; background: #ff4757; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px;">Acceder a mi contenido</a>
+        <div style="padding: 30px; color: #2f3542; line-height: 1.6;">
+          <p>Hola <strong>${fullname}</strong>,</p>
+          <p>Gracias por tu compra. Hemos creado una cuenta para ti para que puedas acceder a tu contenido de inmediato.</p>
+          
+          <div style="background: #f1f2f6; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px dashed #ced6e0;">
+            <p style="margin: 0 0 10px;"><strong>Tus credenciales de acceso:</strong></p>
+            <p style="margin: 5px 0;">📧 <strong>Email:</strong> ${email}</p>
+            <p style="margin: 5px 0;">🔑 <strong>Contraseña temporal:</strong> <span style="background: #ffffff; padding: 2px 6px; border-radius: 4px; border: 1px solid #dfe4ea;">${tempPassword}</span></p>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${loginLink}" style="background: #ff4757; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(255, 71, 87, 0.2);">
+              Entrar a mi panel de estudios
+            </a>
+          </div>
+          <p style="font-size: 13px; color: #747d8c; margin-top: 30px; text-align: center;">
+            Por seguridad, te recomendamos cambiar tu contraseña al ingresar por primera vez.
+          </p>
+        </div>
       </div>
     `;
-    return this.send(email, `¡Bienvenido! Tus accesos a ${productTitle}`, html);
+    return this.send(email, `🎉 Acceso confirmado: ${productTitle}`, html);
   }
 
   static async sendPurchaseConfirmationEmail(
@@ -136,5 +154,58 @@ export class EmailService {
       </div>
     `;
     return this.send(to, subject, html);
+  }
+
+  /**
+   * Envío de bienvenida para SOCIOS (Afiliados/Creadores registrados manualmente)
+   */
+  static async sendPartnerWelcomeEmail(
+    email: string,
+    fullname: string,
+    level: number,
+    token: string
+  ) {
+    const roleName = level === 3 ? 'Creador' : 'Afiliado';
+    const activationLink = `${config.frontendUrl}/verify-account?token=${token}`;
+
+    const html = `
+    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e1e8ed; border-radius: 12px;">
+      <div style="padding: 40px 30px; text-align: center;">
+        <h1 style="color: #2f3542; margin: 0;">¡Hola ${fullname}!</h1>
+        <p style="color: #57606f; font-size: 18px;">Bienvenido al ecosistema de <strong>Crema</strong>.</p>
+        
+        <div style="margin: 30px 0; padding: 25px; border: 2px solid #ffcc00; border-radius: 12px; background-color: #fffaf0;">
+          <h3 style="color: #a38100; margin-top: 0;">🚀 Estás a un paso de comenzar</h3>
+          <p style="color: #4b4b4b;">Te has registrado como <strong>${roleName}</strong>. Para empezar a generar ingresos, necesitamos que confirmes tu correo.</p>
+          <a href="${activationLink}" style="background: #ffcc00; color: #212529; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; margin-top: 10px;">
+            Confirmar y Activar Cuenta
+          </a>
+        </div>
+        
+        <p style="font-size: 14px; color: #a4b0be;">
+          Si no puedes hacer clic en el botón, copia y pega este link: <br>
+          <small>${activationLink}</small>
+        </p>
+      </div>
+    </div>
+  `;
+    return this.send(email, `👉 Activa tu cuenta de ${roleName} en Crema`, html);
+  }
+
+  static async sendResetPasswordEmail(email: string, fullname: string, token: string) {
+    const resetLink = `${config.frontendUrl}/reset-password?token=${token}`;
+
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+        <h2 style="color: #2f3542;">Recuperar contraseña</h2>
+        <p>Hola <strong>${fullname}</strong>,</p>
+        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en Crema.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="background: #ff4757; color: white; padding: 14px 28px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Restablecer Contraseña</a>
+        </div>
+        <p style="font-size: 12px; color: #777;">Este enlace expirará en 1 hora. Si no solicitaste este cambio, puedes ignorar este correo.</p>
+      </div>
+    `;
+    return this.send(email, 'Restablecer tu contraseña - Crema', html);
   }
 }

@@ -13,23 +13,20 @@ class PayoutController {
       const userId = (req as any).user?.id;
       if (!userId) throw new AppError('Usuario no autenticado', 401);
 
-      // 1. Validar cuerpo de la petición con el nuevo esquema detallado
+      // 1. Validar cuerpo con el nuevo esquema (ahora solo trae amount, currency y payoutMethodId)
       const validatedData = requestPayoutSchema.parse(req.body);
 
       logger.info(
-        { userId, amount: validatedData.amount, currency: validatedData.currency },
+        { userId, amount: validatedData.amount, methodId: validatedData.payoutMethodId },
         '💰 Procesando solicitud de retiro'
       );
 
-      // 2. Llamar al servicio con el nuevo objeto de datos
-      // Separamos el amount y currency del resto de los datos bancarios
-      const { amount, currency, ...bankData } = validatedData;
-
+      // 2. Llamar al servicio pasando el ID del método pre-configurado
       const payout = await PayoutService.requestPayout(
         userId,
-        amount,
-        currency,
-        bankData // Esto contiene destination_account, tax_id, alias, etc.
+        validatedData.amount,
+        validatedData.currency,
+        validatedData.payoutMethodId
       );
 
       res.status(201).json({

@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 
-import { orderRepository } from '../repositories/order.repository';
-import { productRepository } from '../repositories/product.repository';
-import { AppError } from '../errors/AppError';
+import { orderRepository } from '../../repositories/order.repository';
+import { productRepository } from '../../repositories/product.repository';
+import { AppError } from '../../errors/AppError';
 
 // src/middlewares/checkAccess.middleware.ts
 export const checkContentAccess = async (req: Request, res: Response, next: NextFunction) => {

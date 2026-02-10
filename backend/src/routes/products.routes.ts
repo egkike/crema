@@ -4,7 +4,7 @@ import { productController } from '../controllers/product.controller';
 import { contentController } from '../controllers/content.controller';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
-import { checkContentAccess } from '../middlewares/checkAccess.middleware';
+import { checkContentAccess } from '../middlewares/checkAccess/checkAccess.middleware';
 
 const router = Router();
 

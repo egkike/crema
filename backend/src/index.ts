@@ -3,12 +3,11 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
-import swaggerJsdoc from 'swagger-jsdoc';
 import cron from 'node-cron';
 
-import { testController } from './controllers/test.controller';
+import swaggerSpecs from './swagger';
 // Nota: Eliminamos la importación directa de handleWebhook porque ahora vive en payments.routes
-import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit';
+import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit/rateLimit';
 import { AppError } from './errors/AppError';
 import { config } from './config/index';
 import logger from './utils/logger';
@@ -105,23 +104,16 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 // --- RATE LIMITING ---
-app.use('/api/login', loginLimiter);
-app.use('/api/refresh', refreshLimiter);
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/refresh', refreshLimiter);
 app.use('/api', apiLimiter);
-
-// --- 1. RUTAS ESPECIALES DE TEST (Solo Dev) ---
-if (config.nodeEnv === 'development') {
-  app.post('/test/process-commissions', testController.processCommissions);
-  app.post('/test/force-release', testController.forceRelease);
-  app.post('/test/reset-balance', testController.resetBalance);
-}
 
 // --- 2. RUTAS PÚBLICAS Y DE PAGOS ---
 // Centralizamos aquí Mercado Pago y futuras pasarelas
 app.use('/api/payments', paymentsRouter);
 
 // --- 3. OTRAS RUTAS ---
-app.use('/api', authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/balances', balanceRoutes);
@@ -132,22 +124,6 @@ app.use('/api/payout-methods', payoutMethodRoutes);
 
 // --- SWAGGER DOCS ---
 if (config.nodeEnv !== 'production') {
-  const swaggerOptions = {
-    definition: {
-      openapi: '3.0.0',
-      info: {
-        title: 'Fintech API',
-        version: '1.0.0',
-        description: 'API para gestión de productos digitales y comisiones',
-      },
-      servers: [{ url: `http://localhost:${config.port}`, description: 'Local Dev' }],
-      components: {
-        securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
-      },
-    },
-    apis: ['./src/routes/*.ts', './src/controllers/*.ts'],
-  };
-  const swaggerSpecs = swaggerJsdoc(swaggerOptions);
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 }
 

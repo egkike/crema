@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 
-import { validatePartialUser, validatePasswordDetailed } from '../schemas/users';
+import { validatePartialUser, validatePasswordDetailed } from '../schemas/users.schema';
 import { CaptchaService } from '../services/captcha.service';
 import { userRepository } from '../repositories/user.repository';
 import { EmailService } from '../services/email.service';
@@ -115,33 +115,34 @@ export class UserController {
     return res.status(200).json({ success: true, user: updated });
   }
 
+  /**
+   * EL ADMIN resetea la contraseña de un tercero (NO requiere clave anterior)
+   * RUTA: PATCH /api/user/chgpass-admin
+   */
   async chgPassUser(req: Request, res: Response) {
-    const { id, oldPassword, password } = req.body;
-    const reqUser = (req as any).user;
+    const { id, password } = req.body; // Solo recibimos el ID del objetivo y la nueva pass
 
-    if (!id || !password || !oldPassword) {
-      throw new AppError('Faltan datos requeridos', 400);
+    if (!id || !password) {
+      throw new AppError('ID de usuario y nueva contraseña son requeridos', 400);
     }
 
-    const identifier = reqUser?.username || id;
-    const user = await userRepository.findByCredentials(identifier);
-    if (!user) throw new AppError('Usuario no encontrado', 404);
-
-    // Comparar usando Pepper para mantener consistencia
-    const isOldValid = await bcrypt.compare(oldPassword + config.passwordPepper, user.password);
-    if (!isOldValid) throw new AppError('Contraseña actual incorrecta', 401);
+    const user = await userRepository.getById(id);
+    if (!user) throw new AppError('El usuario que intentas modificar no existe', 404);
 
     const pwdCheck = validatePasswordDetailed(password);
-    if (!pwdCheck.valid) throw new AppError('Nueva contraseña débil', 400);
+    if (!pwdCheck.valid) throw new AppError('La nueva contraseña no cumple los requisitos', 400);
 
+    // Actualizamos
     await userRepository.chgPassUser({ id, input: { password } });
 
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
+    logger.info(
+      { adminId: (req as any).user.id, targetUserId: id },
+      'Admin reseteó contraseña de usuario'
+    );
 
     return res.status(200).json({
       success: true,
-      message: 'Contraseña actualizada correctamente.',
+      message: 'Contraseña reseteada exitosamente por el administrador.',
     });
   }
 
@@ -153,5 +154,37 @@ export class UserController {
     if (!success) throw new AppError('Usuario no encontrado', 404);
 
     return res.status(200).json({ success: true, message: 'Usuario eliminado' });
+  }
+
+  /**
+   * EL USUARIO cambia su propia contraseña (requiere validar la anterior)
+   * RUTA: PATCH /api/profile/change-password
+   */
+  async changeMyPassword(req: Request, res: Response) {
+    const { oldPassword, password } = req.body;
+    const reqUser = (req as any).user;
+
+    if (!password || !oldPassword) {
+      throw new AppError('Contraseña actual y nueva son requeridas', 400);
+    }
+
+    const user = await userRepository.findByCredentials(reqUser.email);
+    if (!user) throw new AppError('Usuario no encontrado', 404);
+
+    const isOldValid = await bcrypt.compare(oldPassword + config.passwordPepper, user.password);
+    if (!isOldValid) throw new AppError('La contraseña actual es incorrecta', 401);
+
+    const pwdCheck = validatePasswordDetailed(password);
+    if (!pwdCheck.valid) throw new AppError(pwdCheck.errors.join('; '), 400);
+
+    await userRepository.chgPassUser({ id: user.id, input: { password } });
+
+    res.clearCookie('access_token');
+    res.clearCookie('refresh_token');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Contraseña actualizada. Inicia sesión con tus nuevas credenciales.',
+    });
   }
 }

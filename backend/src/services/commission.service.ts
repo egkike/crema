@@ -11,7 +11,6 @@ const schema = config.db.schema;
 
 /**
  * Utilidad para redondeo financiero a 2 decimales.
- * El uso de Number.EPSILON asegura que 1.005 redondee a 1.01 y no a 1.00
  */
 const roundToTwo = (num: number): number => {
   return Math.round((num + Number.EPSILON) * 100) / 100;
@@ -19,6 +18,7 @@ const roundToTwo = (num: number): number => {
 
 export class CommissionService {
   static async processOrderCommissions(order: any, product: any) {
+    // Si ya se calcularon, salimos para evitar duplicar dinero
     if (order.commissions_calculated) return;
 
     const client = await pool.connect();
@@ -26,7 +26,7 @@ export class CommissionService {
     try {
       await client.query('BEGIN');
 
-      // 1. Bloqueo de fila para evitar condiciones de carrera
+      // 1. Bloqueo de fila para evitar condiciones de carrera (Double Spending)
       const checkQuery = `SELECT commissions_calculated FROM "${schema}".orders WHERE id = $1 FOR UPDATE`;
       const { rows } = await client.query(checkQuery, [order.id]);
 
@@ -35,7 +35,7 @@ export class CommissionService {
         return;
       }
 
-      // 2. Actualizar estado de la orden (Atomicidad)
+      // 2. Actualizar estado de la orden a 'paid' dentro de la transacción
       await client.query(
         `UPDATE "${schema}".orders SET status = 'paid', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
         [order.id]
@@ -53,7 +53,7 @@ export class CommissionService {
 
       const totalAmount = Number(order.amount);
 
-      // Parámetros de la plataforma obtenidos de platform_configs
+      // Parámetros de la plataforma
       const percentValue = Number(configs['fee_percent']);
       const threshold = Number(configs['price_threshold']);
       const lowFee = Number(configs['fixed_fee_low']);
@@ -63,7 +63,7 @@ export class CommissionService {
         throw new AppError(`Parámetros de comisión incompletos para ${orderCurrency}`, 500);
       }
 
-      // 3. CÁLCULO DE COMISIÓN DE PLATAFORMA (REDONDEADO)
+      // 3. CÁLCULO DE COMISIÓN DE PLATAFORMA
       const variableFee = roundToTwo(totalAmount * percentValue);
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
       const totalPlatformFee = roundToTwo(variableFee + fixedFee);
@@ -82,7 +82,6 @@ export class CommissionService {
       // 5. Lógica de Afiliado (Si aplica)
       let affiliateAmount = 0;
       if (order.affiliate_id && Number(product.affiliate_commission_percent) > 0) {
-        // Redondeamos la comisión del afiliado
         affiliateAmount = roundToTwo(
           remainingNet * (Number(product.affiliate_commission_percent) / 100)
         );
@@ -117,11 +116,17 @@ export class CommissionService {
           description: `Comisión afiliado: ${product.title}`,
         });
 
-        // Actualizamos el remanente después de pagar al afiliado (Redondeado)
         remainingNet = roundToTwo(remainingNet - affiliateAmount);
       }
 
-      // 6. Registro de Ganancia del Creador (Lo que queda finalmente)
+      // 6. Registro de Ganancia del Creador (Validación de seguridad añadida)
+      if (remainingNet < 0) {
+        throw new AppError(
+          'Error crítico: El cálculo de comisiones resultó en un valor negativo.',
+          500
+        );
+      }
+
       await commissionRepository.create(
         {
           userId: product.creator_id,
@@ -161,9 +166,10 @@ export class CommissionService {
       );
 
       await client.query('COMMIT');
+
       logger.info(
         { orderId: order.id, platformFee: totalPlatformFee, creatorNet: remainingNet },
-        'Distribución completada exitosamente con redondeo financiero'
+        'Distribución de comisiones finalizada con éxito'
       );
 
       return { platformFee: totalPlatformFee, creatorNet: remainingNet };
