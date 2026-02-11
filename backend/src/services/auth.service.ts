@@ -1,4 +1,6 @@
 import { userRepository } from '../repositories/user.repository';
+import { subscriptionRepository } from '../repositories/subscription.repository';
+import { configRepository } from '../repositories/config.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
@@ -31,6 +33,22 @@ export class AuthService {
         level: requestedLevel,
         active: 0, // Los socios manuales nacen inactivos hasta que verifican email
       });
+
+      // ✅ LÓGICA DE SUSCRIPCIÓN: Solo para Creadores
+      if (requestedLevel === 3) {
+        const defaultPlanId = await configRepository.getSetting('default_creator_plan_id');
+
+        // Verificamos que el setting exista y no esté vacío
+        if (defaultPlanId && defaultPlanId.trim() !== '') {
+          await subscriptionRepository.createInitialSubscription(newUser.id, defaultPlanId);
+          logger.info(
+            { userId: newUser.id, planId: defaultPlanId },
+            'Suscripción gratuita de creador asignada'
+          );
+        } else {
+          logger.warn({ userId: newUser.id }, 'No se encontró default_creator_plan_id en settings');
+        }
+      }
 
       // 5. Email de bienvenida con token de verificación
       await EmailService.sendPartnerWelcomeEmail(

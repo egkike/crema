@@ -63,13 +63,10 @@ export class CommissionService {
         throw new AppError(`Parámetros de comisión incompletos para ${orderCurrency}`, 500);
       }
 
-      // 3. CÁLCULO DE COMISIÓN DE PLATAFORMA
+      // 3. CÁLCULO DE COMISIÓN DE PLATAFORMA (Sobre el total bruto)
       const variableFee = roundToTwo(totalAmount * percentValue);
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
       const totalPlatformFee = roundToTwo(variableFee + fixedFee);
-
-      // Calculamos el sobrante neto inicial
-      let remainingNet = roundToTwo(totalAmount - totalPlatformFee);
 
       // 4. Registro de Ganancias de Plataforma
       await client.query(
@@ -79,50 +76,73 @@ export class CommissionService {
         [order.id, variableFee, fixedFee, totalPlatformFee, orderCurrency]
       );
 
-      // 5. Lógica de Afiliado (Si aplica)
+      // 5. LÓGICA DE AFILIADO (Basada en el total bruto y validando mínimos)
       let affiliateAmount = 0;
-      if (order.affiliate_id && Number(product.affiliate_commission_percent) > 0) {
-        affiliateAmount = roundToTwo(
-          remainingNet * (Number(product.affiliate_commission_percent) / 100)
+      if (order.affiliate_id) {
+        // Obtenemos el mínimo global de system_settings
+        const rawMinComm = await configRepository.getSetting(
+          'min_global_affiliate_commission',
+          '10'
         );
 
-        await commissionRepository.create(
-          {
+        // Validamos que el valor de la configuración sea un número válido
+        const minGlobalComm = Number(rawMinComm);
+        if (isNaN(minGlobalComm)) {
+          logger.error(
+            { rawMinComm },
+            'Configuración crítica inválida: min_global_affiliate_commission no es un número'
+          );
+          throw new AppError(
+            'Error de configuración en el sistema. Por favor, contacte al soporte.',
+            500
+          );
+        }
+
+        // El porcentaje efectivo es el mayor entre el definido en el producto y el mínimo global
+        const productCommPercent = Number(product.affiliate_commission_percent);
+        const effectiveCommPercent = Math.max(productCommPercent, Number(minGlobalComm));
+
+        affiliateAmount = roundToTwo(totalAmount * (effectiveCommPercent / 100));
+
+        if (affiliateAmount > 0) {
+          await commissionRepository.create(
+            {
+              userId: order.affiliate_id,
+              orderId: order.id,
+              amount: totalAmount,
+              feeApplied: 0,
+              netAmount: affiliateAmount,
+              currency: orderCurrency,
+              type: 'affiliate',
+              status: 'pending',
+            },
+            client
+          );
+
+          await balanceRepository.addPendingBalance(
+            order.affiliate_id,
+            affiliateAmount,
+            orderCurrency,
+            client
+          );
+
+          await historyRepository.createRecordWithClient(client, {
             userId: order.affiliate_id,
-            orderId: order.id,
-            amount: totalAmount,
-            feeApplied: 0,
-            netAmount: affiliateAmount,
+            order_id: order.id,
+            amount: affiliateAmount,
             currency: orderCurrency,
-            type: 'affiliate',
-            status: 'pending',
-          },
-          client
-        );
-
-        await balanceRepository.addPendingBalance(
-          order.affiliate_id,
-          affiliateAmount,
-          orderCurrency,
-          client
-        );
-
-        await historyRepository.createRecordWithClient(client, {
-          userId: order.affiliate_id,
-          order_id: order.id,
-          amount: affiliateAmount,
-          currency: orderCurrency,
-          type: 'sale_affiliate',
-          description: `Comisión afiliado: ${product.title}`,
-        });
-
-        remainingNet = roundToTwo(remainingNet - affiliateAmount);
+            type: 'sale_affiliate',
+            description: `Comisión afiliado: ${product.title}`,
+          });
+        }
       }
 
-      // 6. Registro de Ganancia del Creador (Validación de seguridad añadida)
-      if (remainingNet < 0) {
+      // 6. Registro de Ganancia del Creador (El neto sobrante tras deducir plataforma y afiliado)
+      const creatorNetAmount = roundToTwo(totalAmount - totalPlatformFee - affiliateAmount);
+
+      if (creatorNetAmount < 0) {
         throw new AppError(
-          'Error crítico: El cálculo de comisiones resultó en un valor negativo.',
+          'Error crítico: La suma de comisiones (Plataforma + Afiliado) supera el monto total de la venta.',
           500
         );
       }
@@ -133,7 +153,7 @@ export class CommissionService {
           orderId: order.id,
           amount: totalAmount,
           feeApplied: totalPlatformFee,
-          netAmount: remainingNet,
+          netAmount: creatorNetAmount,
           currency: orderCurrency,
           type: 'creator',
           status: 'pending',
@@ -143,7 +163,7 @@ export class CommissionService {
 
       await balanceRepository.addPendingBalance(
         product.creator_id,
-        remainingNet,
+        creatorNetAmount,
         orderCurrency,
         client
       );
@@ -151,7 +171,7 @@ export class CommissionService {
       await historyRepository.createRecordWithClient(client, {
         userId: product.creator_id,
         order_id: order.id,
-        amount: remainingNet,
+        amount: creatorNetAmount,
         currency: orderCurrency,
         type: 'sale_creator',
         description: `Venta directa: ${product.title}`,
@@ -168,11 +188,16 @@ export class CommissionService {
       await client.query('COMMIT');
 
       logger.info(
-        { orderId: order.id, platformFee: totalPlatformFee, creatorNet: remainingNet },
+        {
+          orderId: order.id,
+          platformFee: totalPlatformFee,
+          affiliateAmount,
+          creatorNet: creatorNetAmount,
+        },
         'Distribución de comisiones finalizada con éxito'
       );
 
-      return { platformFee: totalPlatformFee, creatorNet: remainingNet };
+      return { platformFee: totalPlatformFee, creatorNet: creatorNetAmount };
     } catch (error: any) {
       await client.query('ROLLBACK');
       logger.error({ error: error.message, orderId: order.id }, 'Error en CommissionService');

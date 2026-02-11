@@ -45,3 +45,43 @@ INSERT INTO platform_configs (key, currency, value, description) VALUES
 ('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en USDT Crypto'),
 ('payout_frequency_limit', 'USDT', 1, 'Cantidad de retiros permitidos por día'),
 ('payout_processing_days', 'USDT', 2, 'Días hábiles estimados para procesar el retiro');
+
+-- Semillas de Tipos de Productos
+INSERT INTO product_types (id, name) VALUES 
+('course', 'Curso Online'),
+('ebook', 'Libro Digital'),
+('membership', 'Membresía'),
+('software', 'Software / Acceso'),
+('podcast', 'Podcast Premium'),
+('audiobook', 'Audiolibro')
+ON CONFLICT (id) DO NOTHING;
+
+-- Insertar Planes solo para Creadores (Nivel 3)
+DO $$
+DECLARE
+    plan_free_id UUID;
+    plan_pro_id UUID;
+BEGIN
+    -- Plan Inicial (Para que todos los nuevos creadores empiecen aquí)
+    INSERT INTO platform_plans (name, level_required, is_free, features)
+    VALUES ('Creador Initial', 3, true, '{
+        "max_products": 3, 
+        "storage_mb": 500, 
+        "advanced_stats": false
+    }') RETURNING id INTO plan_free_id;
+
+    -- Plan Pro (Pago)
+    INSERT INTO platform_plans (name, level_required, is_free, features)
+    VALUES ('Creador Pro', 3, false, '{
+        "max_products": 100, 
+        "storage_mb": 10240, 
+        "advanced_stats": true
+    }') RETURNING id INTO plan_pro_id;
+
+    -- Seteamos solo el plan por defecto para creadores
+    INSERT INTO system_settings (key, value, description) 
+    VALUES 
+    ('default_creator_plan_id', plan_free_id, 'Plan asignado automáticamente al subir a Nivel 3'),
+    ('min_global_affiliate_commission', '10', 'Porcentaje mínimo de comisión que un creador debe ofrecer (0-100)')
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+END $$;

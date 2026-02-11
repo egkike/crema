@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 
 import { productRepository, ProductInput } from '../repositories/product.repository';
+import { ProductService } from '../services/product.service';
 import { AppError } from '../errors/AppError';
 import { createProductSchema } from '../schemas/products.schema';
 import logger from '../utils/logger';
@@ -13,6 +14,13 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     const validatedData = createProductSchema.parse(req.body);
 
+    // --- VALIDACIONES FINANCIERAS PREVENTIVAS ---
+    // Extraer y definir 'requestedComm' para que esté disponible en este bloque
+    const requestedComm = validatedData.commissionPercent ?? 0;
+
+    // Llamada al servicio refactorizado usando la variable recién definida
+    await ProductService.validateCommissionLimits(requestedComm);
+
     // Spread condicional para evitar el error de 'undefined' con exactOptionalPropertyTypes
     const productInput: ProductInput = {
       creatorId: user.id,
@@ -21,6 +29,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       prices: validatedData.prices,
       commissionPercent: validatedData.commissionPercent ?? 0,
       status: validatedData.status ?? 'published',
+      sizeBytes: validatedData.sizeBytes ?? 0,
       ...(validatedData.description && { description: validatedData.description }),
       ...(validatedData.contentUrl && { contentUrl: validatedData.contentUrl }),
     };

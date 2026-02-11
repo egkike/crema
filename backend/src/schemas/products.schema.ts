@@ -1,14 +1,5 @@
 import { z } from 'zod';
 
-const productTypeEnum = z.enum([
-  'course',
-  'ebook',
-  'membership',
-  'software',
-  'podcast',
-  'audiobook',
-]);
-
 // Definimos el schema para un precio individual
 const priceSchema = z.object({
   currency: z
@@ -26,9 +17,9 @@ export const createProductSchema = z.object({
 
   description: z.string().optional(),
 
-  type: productTypeEnum,
+  // ✅ AJUSTE: Ahora es un string simple porque los IDs son dinámicos (product_types)
+  type: z.string().min(1, { message: 'El tipo de producto es obligatorio' }),
 
-  // ✅ CAMBIO CLAVE: Ahora validamos un array de precios
   prices: z
     .array(priceSchema)
     .min(1, { message: 'Debes asignar al menos un precio en una moneda habilitada' }),
@@ -42,6 +33,9 @@ export const createProductSchema = z.object({
     .optional(),
 
   status: z.enum(['draft', 'published', 'archived']).optional(),
+
+  // ✅ NUEVO: Permitimos recibir el tamaño opcionalmente (útil para la integración cloud)
+  sizeBytes: z.number().nonnegative().optional(),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

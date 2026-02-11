@@ -19,6 +19,7 @@ export interface Product {
   type: string;
   content_url?: string | null;
   affiliate_commission_percent: number;
+  size_bytes: number;
   status: string;
   created_at: Date;
   updated_at: Date;
@@ -34,6 +35,7 @@ export interface ProductInput {
   contentUrl?: string;
   commissionPercent?: number;
   status?: string;
+  sizeBytes?: number;
 }
 
 // --- REPOSITORIO ---
@@ -51,6 +53,7 @@ export const productRepository = {
       type: row.type,
       content_url: row.content_url || row.contentUrl,
       affiliate_commission_percent: Number(row.affiliate_commission_percent),
+      size_bytes: Number(row.size_bytes || 0),
       status: row.status,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -73,8 +76,8 @@ export const productRepository = {
       const productQuery = `
         INSERT INTO "${schema}".products (
           creator_id, title, description, type, content_url, 
-          affiliate_commission_percent, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          affiliate_commission_percent, size_bytes, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *;
       `;
 
@@ -85,6 +88,7 @@ export const productRepository = {
         input.type,
         input.contentUrl || null,
         input.commissionPercent ?? 50.0,
+        input.sizeBytes || 0,
         input.status || 'published',
       ]);
 

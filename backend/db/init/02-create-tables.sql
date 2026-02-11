@@ -44,6 +44,26 @@ CREATE TABLE IF NOT EXISTS payment_gateways (
     is_active BOOLEAN DEFAULT TRUE
 );
 
+CREATE TABLE IF NOT EXISTS product_types (
+    id VARCHAR(50) PRIMARY KEY, -- 'course', 'ebook', 'podcast', etc.
+    name VARCHAR(100) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Tabla de Catálogo de Planes (Solo beneficios)
+CREATE TABLE IF NOT EXISTS platform_plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) NOT NULL,
+    level_required INT NOT NULL,
+    is_free BOOLEAN DEFAULT FALSE,
+    -- JSONB para límites y beneficios: 
+    -- { "max_products": 5, "storage_mb": 500, "min_commission": 15, "advanced_stats": true }
+    features JSONB NOT NULL DEFAULT '{}',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 2. Tablas con Dependencias (Foreign Keys)
 
 -- Tabla refresh_tokens (almacenamiento de tokens de refresco)
@@ -82,9 +102,10 @@ CREATE TABLE IF NOT EXISTS products (
     creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     description TEXT,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('course', 'ebook', 'membership', 'software', 'podcast', 'audiobook')),
+    type VARCHAR(50) NOT NULL REFERENCES product_types(id) ON DELETE CASCADE,
     content_url TEXT,
     affiliate_commission_percent DECIMAL(18,8) DEFAULT 10.00,
+    size_bytes BIGINT DEFAULT 0,
     status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -99,6 +120,7 @@ CREATE TABLE IF NOT EXISTS product_prices (
     UNIQUE(product_id, currency) -- Un producto no puede tener dos precios en la misma moneda
 );
 
+-- Tabla de Ordenes de compras generadas
 CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     buyer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -120,6 +142,7 @@ CREATE TABLE IF NOT EXISTS orders (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabla de Comisiones generadas
 CREATE TABLE IF NOT EXISTS commissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -152,7 +175,7 @@ CREATE TABLE IF NOT EXISTS user_balances (
     PRIMARY KEY (user_id, currency)
 );
 
--- Tabla donde registremos cada "mordida" que toma la plataforma.
+-- Tabla donde registramos cada "mordida" que toma la plataforma.
 CREATE TABLE IF NOT EXISTS platform_earnings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID REFERENCES orders(id),   
@@ -238,6 +261,37 @@ CREATE TABLE IF NOT EXISTS user_payout_methods (
     UNIQUE(user_id, currency, is_default) 
 );
 
+-- Tabla de Precios del Plan por Moneda
+CREATE TABLE IF NOT EXISTS plan_prices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plan_id UUID NOT NULL REFERENCES platform_plans(id) ON DELETE CASCADE,
+    currency VARCHAR(10) NOT NULL REFERENCES enabled_currencies(code),
+    amount DECIMAL(18,8) NOT NULL CHECK (amount >= 0),
+    UNIQUE(plan_id, currency)
+);
+
+-- Tabla de relacion Plan <-> Tipos de Productos
+CREATE TABLE IF NOT EXISTS plan_allowed_types (
+    plan_id UUID REFERENCES platform_plans(id) ON DELETE CASCADE,
+    product_type_id VARCHAR(50) REFERENCES product_types(id) ON DELETE CASCADE,
+    PRIMARY KEY (plan_id, product_type_id)
+);
+
+-- Tabla de Suscripciones Activas (Con registro de moneda y precio)
+CREATE TABLE IF NOT EXISTS user_subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan_id UUID NOT NULL REFERENCES platform_plans(id),
+    currency VARCHAR(10) REFERENCES enabled_currencies(code), -- Moneda de cobro
+    price_at_subscription DECIMAL(18,8),                      -- Precio pactado
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+    mp_preapproval_id TEXT UNIQUE, 
+    current_period_end TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id)
+);
+
 -- Función para los triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -257,3 +311,5 @@ CREATE TRIGGER trg_upd_payouts BEFORE UPDATE ON payouts FOR EACH ROW EXECUTE FUN
 CREATE TRIGGER trg_upd_refunds BEFORE UPDATE ON refunds FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_platform_earnings BEFORE UPDATE ON platform_earnings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_user_payout_methods BEFORE UPDATE ON user_payout_methods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_platform_plans BEFORE UPDATE ON platform_plans FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_user_subscriptions BEFORE UPDATE ON user_subscriptions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
