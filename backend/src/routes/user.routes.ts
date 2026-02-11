@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import { UserController } from '../controllers/user.controller';
 import { AuthController } from '../controllers/auth.controller';
+import { subscriptionController } from '../controllers/subscription.controller';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
 import { enforceFullAuth } from '../middlewares/auth/password.middleware';
@@ -19,6 +20,11 @@ router.use(enforceFullAuth);
  */
 router.get('/session', userController.getSession.bind(userController));
 router.patch('/profile/change-password', userController.changeMyPassword.bind(userController));
+
+/**
+ * Suscripciones y Límites (Específico para Creadores/Partners)
+ */
+router.get('/subscription/status', subscriptionController.getMySubscriptionStatus);
 
 /**
  * Rutas Administrativas (Solo Level >= 5)
