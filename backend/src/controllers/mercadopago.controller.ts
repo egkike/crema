@@ -11,9 +11,14 @@ import { userRepository } from '../repositories/user.repository';
 import { OrderService } from '../services/order.service';
 import logger from '../utils/logger';
 
-const mpClient = new MercadoPagoConfig({
-  accessToken: config.mercadoPago.accessToken,
-});
+/**
+ * Helper para obtener el cliente de Mercado Pago dinámicamente
+ */
+const getMPClient = () => {
+  return new MercadoPagoConfig({
+    accessToken: config.mercadoPago?.accessToken || 'dummy_token',
+  });
+};
 
 export const createPaymentPreference = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -34,7 +39,6 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
         buyerId = user.id;
       } else {
         tempPassword = crypto.randomBytes(10).toString('hex');
-        // CREACIÓN SILENCIOSA: active 0 y sin disparar emails
         const newUser = await userRepository.createUser({
           email,
           fullname: fullname || 'Cliente',
@@ -58,6 +62,8 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
       status: 'pending',
     });
 
+    // Instanciación bajo demanda
+    const mpClient = getMPClient();
     const preferenceClient = new Preference(mpClient);
     const mpResponse = await preferenceClient.create({
       body: {
@@ -100,6 +106,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
     if (type !== 'payment' || !rawId) return;
 
+    // Instanciación bajo demanda
+    const mpClient = getMPClient();
     const paymentInstance = new Payment(mpClient);
     const payment = await paymentInstance.get({ id: String(rawId) });
 

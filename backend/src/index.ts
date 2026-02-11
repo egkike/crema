@@ -6,18 +6,17 @@ import swaggerUi from 'swagger-ui-express';
 import cron from 'node-cron';
 
 import swaggerSpecs from './swagger';
-// Nota: Eliminamos la importación directa de handleWebhook porque ahora vive en payments.routes
 import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit/rateLimit';
 import { AppError } from './errors/AppError';
 import { config } from './config/index';
 import logger from './utils/logger';
 import { ReleaseService } from './services/release.service';
 import { AuthCleanupService } from './services/auth.cleanup.service';
-// Importamos las rutas
+// Importación de rutas
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import productsRoutes from './routes/products.routes';
-import paymentsRouter from './routes/payments.routes'; // Aquí residen las rutas de MP
+import paymentsRouter from './routes/payments.routes';
 import balanceRoutes from './routes/balance.routes';
 import refundRoutes from './routes/refund.routes';
 import payoutRoutes from './routes/payout.routes';
@@ -25,11 +24,14 @@ import adminPayoutRoutes from './routes/admin.payout.routes';
 import payoutMethodRoutes from './routes/payout_method.routes';
 
 const app = express();
+
+// --- CONFIGURACIÓN DE PROXY Y PARSERS ---
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-// --- HELMET & SECURITY ---
+// --- HELMET & SECURITY (Completo como lo tenías) ---
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -45,12 +47,7 @@ app.use(
         ],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'https://images.unsplash.com', 'https://via.placeholder.com'],
-        connectSrc: [
-          "'self'",
-          'https://api.tu-dominio.com',
-          'wss://tu-dominio.com',
-          'https://*.mercadopago.com',
-        ],
+        connectSrc: ["'self'", 'https://*.mercadopago.com'],
         fontSrc: [
           "'self'",
           'data:',
@@ -77,18 +74,17 @@ app.use(
   })
 );
 
-// --- MIDDLEWARES GLOBALES ---
-app.use(cookieParser());
+// --- CORS ---
 app.use(
   cors({
-    origin: config.cors.origins,
+    origin: config.cors?.origins || true,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
-// --- HEALTH & STATUS (Público total) ---
+// --- RUTAS DE SALUD ---
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
@@ -103,16 +99,15 @@ app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'Crema Backend - Online 🚀' });
 });
 
-// --- RATE LIMITING ---
-app.use('/api/auth/login', loginLimiter);
-app.use('/api/auth/refresh', refreshLimiter);
-app.use('/api', apiLimiter);
+// --- RATE LIMITING (Solo fuera de tests para evitar 429 inesperados) ---
+if (config.nodeEnv !== 'test') {
+  app.use('/api/auth/login', loginLimiter);
+  app.use('/api/auth/refresh', refreshLimiter);
+  app.use('/api', apiLimiter);
+}
 
-// --- 2. RUTAS PÚBLICAS Y DE PAGOS ---
-// Centralizamos aquí Mercado Pago y futuras pasarelas
+// --- DEFINICIÓN DE RUTAS ---
 app.use('/api/payments', paymentsRouter);
-
-// --- 3. OTRAS RUTAS ---
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api/products', productsRoutes);
@@ -151,48 +146,51 @@ app.use((err: any, req: Request, res: Response, _: NextFunction) => {
   });
 });
 
-// --- EJECUCIÓN INMEDIATA AL ARRANCAR ---
-(async () => {
-  try {
-    logger.info('SISTEMA: Ejecutando liberación de saldos inicial (Startup)...');
+// --- PROCESOS DE ARRANQUE Y CRONS (Excluidos en Test) ---
+if (config.nodeEnv !== 'test') {
+  // Ejecución inmediata al arrancar
+  (async () => {
+    try {
+      logger.info('SISTEMA: Ejecutando liberación de saldos inicial (Startup)...');
+      const isDev = config.nodeEnv === 'development';
+      const result = await ReleaseService.processPendingBalances(isDev);
+      logger.info({ ordersProcessed: result.count }, 'SISTEMA: Proceso inicial completado');
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'SISTEMA: Error en ejecución inicial');
+    }
+  })();
 
-    // En desarrollo pasamos 'true' para forzar la liberación sin esperar los 7 días
-    const isDev = config.nodeEnv === 'development';
-    const result = await ReleaseService.processPendingBalances(isDev);
+  // Programación de tareas (Cron)
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      await ReleaseService.processPendingBalances();
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'SISTEMA: Error en Cron Release');
+    }
+  });
 
-    logger.info(
-      { ordersProcessed: result.count, released: result.releasedToUsers },
-      'SISTEMA: Proceso inicial de arranque completado'
-    );
-  } catch (error: any) {
-    logger.error({ error: error.message }, 'SISTEMA: Error en la ejecución inicial de saldos');
-  }
-})();
-
-// --- CRON JOBS ---
-cron.schedule('0 0 * * *', async () => {
-  try {
-    const result = await ReleaseService.processPendingBalances();
-    logger.info({ ordersProcessed: result.count }, 'SISTEMA: Liberación de saldos completada');
-  } catch (error: any) {
-    logger.error({ error: error.message }, 'SISTEMA: Error en Cron Job');
-  }
-});
-
-cron.schedule('0 3 * * *', async () => {
-  await AuthCleanupService.cleanExpiredTokens();
-});
+  cron.schedule('0 3 * * *', async () => {
+    await AuthCleanupService.cleanExpiredTokens();
+  });
+}
 
 // --- START SERVER ---
-const server = app.listen(config.port, () => {
-  logger.info(`🚀 Servidor en puerto ${config.port} (${config.nodeEnv})`);
-});
+let server: any;
+if (config.nodeEnv !== 'test') {
+  server = app.listen(config.port, () => {
+    logger.info(`🚀 Servidor en puerto ${config.port} (${config.nodeEnv})`);
+  });
+}
 
 process.on('SIGTERM', () => {
-  server.close(() => {
-    logger.info('Servidor HTTP cerrado.');
+  if (server) {
+    server.close(() => {
+      logger.info('Servidor HTTP cerrado.');
+      process.exit(0);
+    });
+  } else {
     process.exit(0);
-  });
+  }
 });
 
 export { app };

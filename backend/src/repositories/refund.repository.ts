@@ -2,8 +2,6 @@ import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
 
-const schema = config.db.schema;
-
 export interface RefundData {
   orderId: string;
   sellerId: string;
@@ -29,6 +27,7 @@ export const refundRepository = {
    * Crea un nuevo registro de reembolso.
    */
   async create(data: RefundData, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".refunds (
         order_id, 
@@ -68,6 +67,7 @@ export const refundRepository = {
    * Obtiene todos los reembolsos de una orden específica.
    */
   async getByOrderId(orderId: string) {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT * FROM "${schema}".refunds 
       WHERE order_id = $1

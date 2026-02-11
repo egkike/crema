@@ -1,11 +1,9 @@
 import pool from '../db/postgres';
 import { balanceRepository } from '../repositories/balance.repository';
 import { commissionRepository } from '../repositories/commission.repository';
-import { historyRepository } from '../repositories/history.repository'; // <-- IMPORTANTE: Añadido para trazabilidad
+import { historyRepository } from '../repositories/history.repository';
 import logger from '../utils/logger';
 import { config } from '../config/index';
-
-const schema = config.db.schema;
 
 export const ReleaseService = {
   /**
@@ -13,6 +11,9 @@ export const ReleaseService = {
    * @param force - Si es true, ignora la garantía de 7 días (útil para tests).
    */
   async processPendingBalances(force: boolean = false) {
+    const schema = config.db?.schema || 'public';
+    const daysOfGuarantee = config.daysOfGuarantee || 7;
+
     const client = await pool.connect();
 
     const stats = {
@@ -21,7 +22,7 @@ export const ReleaseService = {
     };
 
     try {
-      const timeCondition = force ? '0 seconds' : `${config.daysOfGuarantee} days`;
+      const timeCondition = force ? '0 seconds' : `${daysOfGuarantee} days`;
 
       // Seleccionamos órdenes que ya cumplieron el plazo de garantía
       const query = `
@@ -52,7 +53,7 @@ export const ReleaseService = {
 
           for (const comm of commissions) {
             if (comm.status === 'pending') {
-              // 2. Mover de pending_balance a available_balance (Atómico en balanceRepository)
+              // 2. Mover de pending_balance a available_balance
               await balanceRepository.releaseBalance(
                 comm.userId,
                 Number(comm.netAmount),
@@ -61,13 +62,12 @@ export const ReleaseService = {
               );
 
               // 3. REGISTRAR EN EL HISTORIAL DE BALANCES
-              // Esto permite que el usuario vea la entrada en su panel de movimientos
               await historyRepository.createRecordWithClient(client, {
                 userId: comm.userId,
                 order_id: order.id,
                 amount: Number(comm.netAmount),
                 currency: order.currency,
-                type: 'sale_creator', // Usamos este tipo para que impacte como una ganancia real
+                type: 'sale_creator',
                 description: `Garantía cumplida: Saldo liberado de la orden #${order.id.substring(0, 8)}`,
               });
 
@@ -79,7 +79,7 @@ export const ReleaseService = {
           // 4. Actualizar estado de comisiones a 'paid'
           await commissionRepository.updateStatusByOrder(order.id, 'paid', client);
 
-          // 5. Marcar orden como liberada para no procesarla dos veces
+          // 5. Marcar orden como liberada
           await client.query(
             `UPDATE "${schema}".orders SET balance_released = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
             [order.id]

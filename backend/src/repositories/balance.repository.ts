@@ -2,8 +2,6 @@ import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
 
-const schema = config.db.schema;
-
 export interface UserBalance {
   total_earned: number;
   available_balance: number;
@@ -18,6 +16,7 @@ export const balanceRepository = {
    * Si no existe la fila para ese usuario/moneda, la crea (Upsert).
    */
   async addPendingBalance(userId: string, amount: number, currency: string, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".user_balances (user_id, total_earned, pending_balance, currency)
       VALUES ($1, $2, $2, $3)
@@ -46,6 +45,7 @@ export const balanceRepository = {
    * Pasa dinero de pendiente a disponible (Fin de periodo de garantía).
    */
   async releaseBalance(userId: string, amount: number, currency: string, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".user_balances 
       SET pending_balance = (pending_balance - $1)::numeric,
@@ -70,6 +70,7 @@ export const balanceRepository = {
    * Deduce saldo del disponible (Payouts/Retiros).
    */
   async subtractAvailableBalance(userId: string, amount: number, currency: string, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".user_balances 
       SET available_balance = (available_balance - $1)::numeric, 
@@ -96,6 +97,7 @@ export const balanceRepository = {
    * Deduce del pendiente (Refunds/Devoluciones).
    */
   async deductPendingEarnings(userId: string, amount: number, currency: string, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".user_balances 
       SET total_earned = (total_earned - $1)::numeric,
@@ -122,6 +124,7 @@ export const balanceRepository = {
    * Suma directamente al disponible (Ajustes manuales o devoluciones de payouts).
    */
   async addAvailableBalance(userId: string, amount: number, currency: string, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".user_balances 
       SET available_balance = (available_balance + $1)::numeric,
@@ -143,6 +146,7 @@ export const balanceRepository = {
   },
 
   async getByUserIdAndCurrency(userId: string, currency: string = 'ARS'): Promise<UserBalance> {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT total_earned, available_balance, pending_balance, currency, updated_at
       FROM "${schema}".user_balances 
@@ -177,6 +181,7 @@ export const balanceRepository = {
   },
 
   async getAllBalancesByUserId(userId: string): Promise<UserBalance[]> {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT total_earned, available_balance, pending_balance, currency, updated_at
       FROM "${schema}".user_balances 

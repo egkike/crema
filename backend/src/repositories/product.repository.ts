@@ -2,8 +2,6 @@ import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
-const schema = config.db.schema;
-
 // --- INTERFACES ---
 
 export interface ProductPrice {
@@ -64,9 +62,9 @@ export const productRepository = {
 
   /**
    * Crea un producto y sus múltiples precios en una sola transacción atómica.
-   * Optimizado con inserción masiva para los precios.
    */
   async createProduct(input: ProductInput): Promise<Product> {
+    const schema = config.db?.schema || 'public';
     const client = await pool.connect();
 
     try {
@@ -94,7 +92,7 @@ export const productRepository = {
 
       const productRow = productRes.rows[0];
 
-      // 2. Insertar los precios en bulk (más eficiente que un loop)
+      // 2. Insertar los precios en bulk
       if (input.prices && input.prices.length > 0) {
         const values: any[] = [];
         const valueRows: string[] = [];
@@ -132,6 +130,7 @@ export const productRepository = {
    * Obtiene un producto por ID incluyendo su lista de precios mediante JSON_AGG.
    */
   async getProductById(id: string): Promise<Product | null> {
+    const schema = config.db?.schema || 'public';
     try {
       const query = `
         SELECT p.*, 
@@ -158,6 +157,7 @@ export const productRepository = {
    * Lista los productos de un creador específico.
    */
   async getProductsByCreator(creatorId: string): Promise<Product[]> {
+    const schema = config.db?.schema || 'public';
     try {
       const query = `
         SELECT p.*, 
@@ -182,6 +182,7 @@ export const productRepository = {
    * Recupera el precio oficial para una moneda específica.
    */
   async getPriceByCurrency(productId: string, currency: string): Promise<number | null> {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT amount 
       FROM "${schema}".product_prices 

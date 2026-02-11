@@ -10,18 +10,22 @@ import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
-const mpClient = new MercadoPagoConfig({
-  accessToken: config.mercadoPago.accessToken,
-});
-
-const schema = config.db.schema;
-
 export class RefundService {
+  /**
+   * Helper privado para inicializar el cliente de Mercado Pago solo cuando se necesita.
+   */
+  private static getMPClient() {
+    return new MercadoPagoConfig({
+      accessToken: config.mercadoPago?.accessToken || 'dummy_token',
+    });
+  }
+
   /**
    * Procesa el reembolso de una orden.
    * Revierte los saldos pendientes de todos los involucrados (creador y afiliados).
    */
   static async processRefund(orderId: string, reason: string = 'Reembolso solicitado') {
+    const schema = config.db?.schema || 'public';
     const client = await pool.connect();
 
     try {
@@ -47,6 +51,9 @@ export class RefundService {
             { transactionId: order.transaction_id },
             '🔄 Iniciando reembolso en Mercado Pago...'
           );
+
+          // Inicialización bajo demanda
+          const mpClient = this.getMPClient();
           const refundInstance = new PaymentRefund(mpClient);
 
           await refundInstance.create({
@@ -63,7 +70,6 @@ export class RefundService {
       const orderCurrency = order.currency;
 
       // 2. OBTENER TODAS LAS COMISIONES (Creador y Afiliados)
-      // Usamos el repositorio que ya mapea correctamente a userId y netAmount
       const commissions = await commissionRepository.getByOrderId(orderId);
 
       if (commissions.length === 0) {
@@ -72,11 +78,9 @@ export class RefundService {
 
       // 3. REVERTIR SALDOS PARA CADA INVOLUCRADO
       for (const comm of commissions) {
-        // Solo revertimos si la comisión aún está pendiente de pago
         if (comm.status === 'pending') {
           const amountToDeduct = Number(comm.netAmount);
 
-          // Restamos del saldo pendiente (pending_balance)
           await balanceRepository.deductPendingEarnings(
             comm.userId,
             amountToDeduct,
@@ -84,7 +88,6 @@ export class RefundService {
             client
           );
 
-          // Registramos el movimiento negativo en el historial para transparencia
           await historyRepository.createRecordWithClient(client, {
             userId: comm.userId,
             order_id: orderId,
@@ -102,14 +105,10 @@ export class RefundService {
       }
 
       // 4. ACTUALIZAR ESTADOS EN CASCADA
-      // Marcamos la orden como reembolsada
       await orderRepository.updateStatus(orderId, 'refunded', client);
-
-      // Marcamos todas las comisiones de esa orden como reembolsadas
       await commissionRepository.updateStatusByOrder(orderId, 'refunded', client);
 
       // 4.5 REVERTIR GANANCIAS DE LA PLATAFORMA
-      // Marcamos como 'refunded' para que no sume en tus reportes de utilidades
       await client.query(
         `UPDATE "${schema}".platform_earnings 
          SET status = 'refunded', updated_at = CURRENT_TIMESTAMP 
@@ -118,7 +117,6 @@ export class RefundService {
       );
 
       // 5. REGISTRO DE AUDITORÍA EN TABLA DE REEMBOLSOS
-      // Nota: Asegúrate que order.seller_id u order.creator_id existan en tu objeto Order
       await refundRepository.create(
         {
           orderId,

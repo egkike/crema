@@ -1,14 +1,13 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 
-const schema = config.db.schema;
-
 export class StatsService {
   /**
    * Obtiene las métricas principales del dashboard para un usuario.
    * Centraliza: Ganancia Total, Disponible, Pendiente y Retirado.
    */
   static async getCreatorStats(userId: string, currency: string = 'ARS') {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT 
         -- 1. Ganancia Histórica Total (todo lo que entró a su cuenta)
@@ -60,6 +59,7 @@ export class StatsService {
    * OPCIONAL: Obtiene ingresos diarios de los últimos 7 días para un gráfico
    */
   static async getLastSevenDaysSales(userId: string, currency: string = 'ARS') {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT 
         d.date::date as day,

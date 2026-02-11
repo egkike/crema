@@ -2,14 +2,12 @@ import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
 
-const schema = config.db.schema;
-
 export const subscriptionRepository = {
   /**
    * Crea la suscripción inicial para un Creador (Nivel 3).
-   * Por defecto el status es 'active' y el precio 0 si es el plan inicial.
    */
   async createInitialSubscription(userId: string, planId: string, currency: string = 'ARS') {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".user_subscriptions (
         user_id, plan_id, currency, price_at_subscription, status
@@ -29,6 +27,7 @@ export const subscriptionRepository = {
    * Obtiene la suscripción activa del usuario con los beneficios del plan.
    */
   async getActiveSubscription(userId: string) {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT 
         us.*, 
@@ -54,6 +53,7 @@ export const subscriptionRepository = {
    * Suma el peso total de los productos de un creador (en bytes).
    */
   async getUserStorageUsage(userId: string): Promise<number> {
+    const schema = config.db?.schema || 'public';
     const query = `SELECT SUM(size_bytes) as total FROM "${schema}".products WHERE creator_id = $1`;
     try {
       const { rows } = await pool.query(query, [userId]);

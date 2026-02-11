@@ -20,7 +20,7 @@ export class OrderService {
   }) {
     const { externalReference, status, transactionId, tempPassword } = data;
 
-    // Usamos el método de tu repositorio actual
+    // Los repositorios ya fueron corregidos para manejar el schema dinámicamente
     const order = await orderRepository.getByExternalRef(externalReference);
 
     if (!order) {
@@ -53,7 +53,7 @@ export class OrderService {
     }
 
     try {
-      // Obtenemos los datos necesarios usando tus repositorios
+      // Obtenemos los datos necesarios usando los repositorios
       const product = await productRepository.getProductById(order.product_id);
       const buyer = await userRepository.getById(order.buyer_id);
 
@@ -61,12 +61,11 @@ export class OrderService {
         throw new AppError('Datos de producto o comprador no encontrados', 500);
       }
 
-      // 1. REPARTO DE COMISIONES (Usando tu CommissionService transaccional)
-      // Este método internamente pone la orden en status 'paid'
+      // 1. REPARTO DE COMISIONES
+      // Importante: CommissionService ya está corregido, por lo que no lanzará error al importar
       await CommissionService.processOrderCommissions(order, product);
 
       // 2. ACTIVACIÓN DEL USUARIO
-      // Si el usuario se creó durante el checkout, estará inactivo (active: 0)
       if (buyer.active === 0) {
         await userRepository.updUser({
           id: buyer.id,
@@ -77,7 +76,6 @@ export class OrderService {
 
       // 3. ENVÍO DE EMAIL ÚNICO
       if (tempPassword) {
-        // Usuario nuevo: recibe bienvenida + contraseña temporal
         await EmailService.sendWelcomePurchaseEmail(
           buyer.email,
           buyer.fullname,
@@ -85,7 +83,6 @@ export class OrderService {
           product.title
         );
       } else {
-        // Usuario existente: solo confirmación de compra
         await EmailService.sendPurchaseConfirmationEmail(
           buyer.email,
           buyer.fullname,

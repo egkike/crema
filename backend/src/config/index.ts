@@ -9,7 +9,6 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   SECRET_JWT_KEY: z.string().min(32),
-  // Nota: Usamos nombres que coincidan con tu .env
   JWT_ACCESS_EXPIRY: z.string().default('10m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
   DAYSOFGUARANTEE: z.coerce.number().default(7),
@@ -24,7 +23,7 @@ const envSchema = z.object({
   MERCADO_PAGO_PUBLIC_KEY: z.string().min(30),
   MERCADO_PAGO_WEBHOOK_SECRET: z.string().optional(),
   API_BASE_URL: z.string().optional(),
-  APP_URL: z.string().default('http://localhost:5173'), // Coincide con tu .env
+  APP_URL: z.string().default('http://localhost:5173'),
   RECAPTCHA_SECRET_KEY: z.string().optional().default(''),
   SMTP_HOST: z.string().default('sandbox.smtp.mailtrap.io'),
   SMTP_PORT: z.coerce.number().default(2525),
@@ -33,9 +32,28 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().default('"Crema" <noreply@crema.com>'),
 });
 
-const parsedEnv = envSchema.safeParse(process.env);
+const isTest = process.env.NODE_ENV === 'test';
 
-if (!parsedEnv.success) {
+// --- TRUCO PARA TESTS ---
+// Si estamos en test, creamos un objeto con valores mínimos para que Zod no explote.
+// Si no, usamos el process.env real.
+const rawData = isTest
+  ? {
+      ...process.env,
+      SECRET_JWT_KEY: process.env.SECRET_JWT_KEY || 'a-dummy-secret-at-least-32-chars-long!!',
+      DB_USER: process.env.DB_USER || 'test_user',
+      DB_PASSWORD: process.env.DB_PASSWORD || 'test_pass',
+      DB_NAME: process.env.DB_NAME || 'test_db',
+      MERCADO_PAGO_ACCESS_TOKEN:
+        process.env.MERCADO_PAGO_ACCESS_TOKEN || 'test_access_token_min_30_chars_long',
+      MERCADO_PAGO_PUBLIC_KEY:
+        process.env.MERCADO_PAGO_PUBLIC_KEY || 'test_public_key_min_30_chars_long',
+    }
+  : process.env;
+
+const parsedEnv = envSchema.safeParse(rawData);
+
+if (!parsedEnv.success && !isTest) {
   console.error(
     '❌ Error en las variables de entorno:',
     JSON.stringify(parsedEnv.error.format(), null, 2)
@@ -43,7 +61,8 @@ if (!parsedEnv.success) {
   process.exit(1);
 }
 
-const env = parsedEnv.data;
+// Usamos los datos validados o el rawData si falló en test
+const env = parsedEnv.success ? parsedEnv.data : (rawData as any);
 
 export const config = {
   port: env.PORT,
@@ -60,10 +79,12 @@ export const config = {
     user: env.DB_USER,
     password: env.DB_PASSWORD,
     database: env.DB_NAME,
-    schema: env.DB_SCHEMA,
+    schema: env.DB_SCHEMA || 'public', // Valor seguro para evitar errores en repositorios
   },
   cors: {
-    origins: env.CORS_ORIGINS.split(',').map(o => o.trim().replace(/\/$/, '')),
+    origins: String(env.CORS_ORIGINS || '')
+      .split(',')
+      .map((o: string) => o.trim().replace(/\/$/, '')),
   },
   mercadoPago: {
     accessToken: env.MERCADO_PAGO_ACCESS_TOKEN,
@@ -77,12 +98,11 @@ export const config = {
     pass: env.SMTP_PASS,
     from: env.EMAIL_FROM,
   },
-  // Limpieza estricta de barras para evitar la "doble barra" en los controladores
   apiBaseUrl: (env.API_BASE_URL || `http://localhost:${env.PORT}`).trim().replace(/\/$/, ''),
-  frontendUrl: env.APP_URL.trim().replace(/\/$/, ''),
+  frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),
   recaptchaSecretKey: env.RECAPTCHA_SECRET_KEY,
   passwordPepper: process.env.PASSWORD_PEPPER || 'dev_pepper_fallback_local',
-  daysOfGuarantee: env.DAYSOFGUARANTEE
+  daysOfGuarantee: env.DAYSOFGUARANTEE,
 } as const;
 
 if (config.nodeEnv === 'development') {

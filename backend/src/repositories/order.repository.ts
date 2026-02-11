@@ -1,8 +1,6 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 
-const schema = config.db.schema;
-
 export interface CreateOrderDTO {
   buyerId: string;
   productId: string;
@@ -30,6 +28,7 @@ export const orderRepository = {
   },
 
   async create(data: CreateOrderDTO) {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".orders (
         buyer_id, product_id, affiliate_id, amount, currency,
@@ -59,6 +58,7 @@ export const orderRepository = {
    * Actualiza campos dinámicamente usando la referencia externa.
    */
   async updateByExternalRef(externalReference: string, data: Partial<any>, client?: any) {
+    const schema = config.db?.schema || 'public';
     const fields = Object.keys(data)
       .map((key, i) => `"${key}" = $${i + 1}`)
       .join(', ');
@@ -77,12 +77,14 @@ export const orderRepository = {
   },
 
   async getByExternalRef(externalRef: string) {
+    const schema = config.db?.schema || 'public';
     const query = `SELECT * FROM "${schema}".orders WHERE external_reference = $1`;
     const { rows } = await pool.query(query, [externalRef]);
     return this.mapRowToOrder(rows[0]);
   },
 
   async updateStatus(orderId: string, status: string, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".orders 
       SET status = $1, updated_at = CURRENT_TIMESTAMP 
@@ -95,6 +97,7 @@ export const orderRepository = {
   },
 
   async checkAccess(userId: string, productId: string): Promise<boolean> {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT id FROM "${schema}".orders 
       WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
@@ -108,6 +111,7 @@ export const orderRepository = {
   },
 
   async getById(orderId: string, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `SELECT * FROM "${schema}".orders WHERE id = $1`;
     const db = client || pool;
     const { rows } = await db.query(query, [orderId]);

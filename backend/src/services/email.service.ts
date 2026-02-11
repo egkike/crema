@@ -3,14 +3,21 @@ import nodemailer from 'nodemailer';
 import { config } from '../config/index';
 import logger from '../utils/logger';
 
-const transporter = nodemailer.createTransport({
-  host: config.smtp.host,
-  port: config.smtp.port,
-  auth: {
-    user: config.smtp.user,
-    pass: config.smtp.pass,
-  },
-});
+let transporter: any;
+
+if (process.env.NODE_ENV !== 'test') {
+  transporter = nodemailer.createTransport({
+    host: config.smtp.host,
+    port: config.smtp.port,
+    auth: {
+      user: config.smtp.user,
+      pass: config.smtp.pass,
+    },
+  });
+} else {
+  // Mock básico para que TS no falle al importar el servicio en tests
+  transporter = { sendMail: async () => ({}) };
+}
 
 export class EmailService {
   private static async send(to: string, subject: string, html: string) {

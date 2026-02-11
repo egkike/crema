@@ -1,16 +1,16 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 
-const schema = config.db.schema;
-
 export const payoutMethodRepository = {
   async getByUserId(userId: string) {
+    const schema = config.db?.schema || 'public';
     const query = `SELECT * FROM "${schema}".user_payout_methods WHERE user_id = $1 ORDER BY currency ASC`;
     const { rows } = await pool.query(query, [userId]);
     return rows;
   },
 
   async getById(id: string) {
+    const schema = config.db?.schema || 'public';
     const query = `SELECT * FROM "${schema}".user_payout_methods WHERE id = $1`;
     const { rows } = await pool.query(query, [id]);
     return rows[0] || null;
@@ -25,6 +25,7 @@ export const payoutMethodRepository = {
     type: 'bank_account' | 'crypto_wallet',
     data: any
   ) {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".user_payout_methods (user_id, currency, type, data, is_default)
       VALUES ($1, $2, $3, $4, true)

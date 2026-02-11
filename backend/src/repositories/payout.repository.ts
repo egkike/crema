@@ -2,9 +2,6 @@ import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
-const schema = config.db.schema;
-
-// Definimos la interfaz para que el Service no tenga errores de tipado
 export interface CreatePayoutDTO {
   userId: string;
   amount: number;
@@ -29,6 +26,7 @@ export const payoutRepository = {
    * Obtiene un payout bloqueando la fila para actualización.
    */
   async getByIdForUpdate(id: string, client: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT * FROM "${schema}".payouts 
       WHERE id = $1 
@@ -47,6 +45,7 @@ export const payoutRepository = {
    * Crea el registro con todos los campos de transferencia argentinos.
    */
   async create(data: CreatePayoutDTO, client: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".payouts (
         user_id, amount, currency, destination_account, 
@@ -86,6 +85,7 @@ export const payoutRepository = {
     adminId: string | null = null,
     client?: any
   ) {
+    const schema = config.db?.schema || 'public';
     const db = client || pool;
 
     const query = `
@@ -119,6 +119,7 @@ export const payoutRepository = {
    * Obtiene payouts por estado con info del usuario.
    */
   async getByStatus(status: string) {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT p.*, u.email, u.fullname 
       FROM "${schema}".payouts p
@@ -139,6 +140,7 @@ export const payoutRepository = {
    * Historial de retiros de un usuario específico.
    */
   async getByUserId(userId: string) {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT * FROM "${schema}".payouts 
       WHERE user_id = $1 
@@ -154,6 +156,7 @@ export const payoutRepository = {
   },
 
   async hasRecentPayout(userId: string): Promise<boolean> {
+    const schema = config.db?.schema || 'public';
     const query = `
     SELECT id FROM "${schema}".payouts 
     WHERE user_id = $1 
@@ -169,6 +172,7 @@ export const payoutRepository = {
    * Obtiene todos los retiros con info de usuario para reportes globales
    */
   async getAll() {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT p.*, u.email, u.fullname 
       FROM "${schema}".payouts p
@@ -188,6 +192,7 @@ export const payoutRepository = {
    * Obtiene retiros con filtros de estado y rango de fechas
    */
   async getForExport(status?: string, startDate?: string, endDate?: string) {
+    const schema = config.db?.schema || 'public';
     let query = `
       SELECT p.*, u.email, u.fullname 
       FROM "${schema}".payouts p

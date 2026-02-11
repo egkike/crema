@@ -2,8 +2,6 @@ import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
-const schema = config.db.schema;
-
 // --- INTERFACES ---
 
 export interface CreateCommissionDTO {
@@ -51,6 +49,7 @@ export const commissionRepository = {
    * Soporta transacciones externas pasando el 'client'.
    */
   async create(data: CreateCommissionDTO, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".commissions (
         user_id, order_id, amount, fee_applied, net_amount, currency, type, status
@@ -87,6 +86,7 @@ export const commissionRepository = {
    * Actualiza el estado de las comisiones (ej: de 'pending' a 'paid' o 'refunded')
    */
   async updateStatusByOrder(orderId: string, newStatus: string, client?: any) {
+    const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".commissions 
       SET status = $1::text, 
@@ -96,7 +96,6 @@ export const commissionRepository = {
     `;
     try {
       const db = client || pool;
-      // Forzamos el envío de parámetros limpios
       const { rows } = await db.query(query, [newStatus, orderId]);
       return rows.map(row => this.mapRowToCommission(row));
     } catch (error: any) {
@@ -109,6 +108,7 @@ export const commissionRepository = {
    * Obtiene todas las comisiones desglosadas de una orden específica
    */
   async getByOrderId(orderId: string): Promise<Commission[]> {
+    const schema = config.db?.schema || 'public';
     try {
       const { rows } = await pool.query(
         `SELECT * FROM "${schema}".commissions WHERE order_id = $1`,
@@ -125,6 +125,7 @@ export const commissionRepository = {
    * Obtiene el historial de ganancias de un usuario (para su panel)
    */
   async getByUserId(userId: string): Promise<Commission[]> {
+    const schema = config.db?.schema || 'public';
     try {
       const query = `
         SELECT c.*, o.external_reference 

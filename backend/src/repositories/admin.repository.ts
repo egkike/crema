@@ -1,10 +1,9 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 
-const schema = config.db.schema || 'public';
-
 export const adminRepository = {
   async getGlobalFinancialStats(currency: string = 'ARS') {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT 
         -- 1. Ganancias de la plataforma filtradas por moneda
@@ -59,6 +58,7 @@ export const adminRepository = {
    * Obtiene lista de reembolsos para auditoría administrativa
    */
   async getRecentRefunds(limit: number = 50) {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT r.*, o.external_reference, u.email as buyer_email
       FROM "${schema}".refunds r

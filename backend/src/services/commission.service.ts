@@ -7,8 +7,6 @@ import { commissionRepository } from '../repositories/commission.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
-const schema = config.db.schema;
-
 /**
  * Utilidad para redondeo financiero a 2 decimales.
  */
@@ -18,6 +16,8 @@ const roundToTwo = (num: number): number => {
 
 export class CommissionService {
   static async processOrderCommissions(order: any, product: any) {
+    const schema = config.db?.schema || 'public';
+
     // Si ya se calcularon, salimos para evitar duplicar dinero
     if (order.commissions_calculated) return;
 

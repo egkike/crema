@@ -2,8 +2,6 @@ import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
 
-const schema = config.db.schema;
-
 // 1. Añadimos 'payout_refund' para soportar devoluciones de retiros fallidos
 export type HistoryType =
   | 'sale_creator'
@@ -11,7 +9,7 @@ export type HistoryType =
   | 'refund'
   | 'payout_request'
   | 'payout_refund'
-  | 'balance_release'; // <--- Ajuste: Añadido para trazabilidad de garantías cumplidas
+  | 'balance_release';
 
 export interface BalanceHistoryRecord {
   id: string;
@@ -43,6 +41,7 @@ export const historyRepository = {
       description: string;
     }
   ): Promise<BalanceHistoryRecord> {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".balance_history (user_id, order_id, amount, currency, type, description)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -77,6 +76,7 @@ export const historyRepository = {
     offset: number = 0,
     currency?: string
   ) {
+    const schema = config.db?.schema || 'public';
     let whereClause = `WHERE user_id = $1`;
     const params: any[] = [userId];
 

@@ -2,14 +2,12 @@ import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
-const schema = config.db.schema;
-
 export const configRepository = {
   /**
    * Obtiene configuraciones numéricas filtradas por moneda.
-   * Eliminamos el fallback a ARS para garantizar que cada moneda use sus propias reglas.
    */
   async getConfigsByCurrency(currency: string): Promise<Record<string, number>> {
+    const schema = config.db?.schema || 'public';
     const query = `
       SELECT key, value 
       FROM "${schema}".platform_configs 
@@ -20,7 +18,6 @@ export const configRepository = {
       const { rows } = await pool.query(query, [currency]);
 
       if (rows.length === 0) {
-        // Error explícito si no hay configuración para la moneda de la orden.
         throw new Error(
           `Configuración crítica no encontrada en platform_configs para la moneda: ${currency}`
         );
@@ -43,6 +40,7 @@ export const configRepository = {
    * Actualiza o inserta una configuración de plataforma (Upsert)
    */
   async upsertPlatformConfig(key: string, currency: string, value: number, description?: string) {
+    const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".platform_configs (key, currency, value, description, updated_at)
       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
@@ -58,6 +56,7 @@ export const configRepository = {
    * Obtiene todas las configuraciones de texto (Globales)
    */
   async getSystemSettings(): Promise<Record<string, string>> {
+    const schema = config.db?.schema || 'public';
     const query = `SELECT key, value FROM "${schema}".system_settings`;
     try {
       const { rows } = await pool.query(query);
@@ -75,9 +74,10 @@ export const configRepository = {
   },
 
   /**
-   * Obtiene un setting específico con fallback (Restaurado de tu original)
+   * Obtiene un setting específico con fallback
    */
   async getSetting(key: string, defaultValue: string = ''): Promise<string> {
+    const schema = config.db?.schema || 'public';
     const query = `SELECT value FROM "${schema}".system_settings WHERE key = $1`;
     try {
       const { rows } = await pool.query(query, [key]);
