@@ -138,7 +138,9 @@ export class CommissionService {
       }
 
       // 6. Registro de Ganancia del Creador (El neto sobrante tras deducir plataforma y afiliado)
-      const creatorNetAmount = roundToTwo(totalAmount - totalPlatformFee - affiliateAmount);
+      // >>> Truncado directo in-line para evitar remanentes <<<
+      const creatorNetAmount =
+        Math.floor((totalAmount - totalPlatformFee - affiliateAmount) * 100) / 100;
 
       if (creatorNetAmount < 0) {
         throw new AppError(

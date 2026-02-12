@@ -5,18 +5,24 @@ import logger from '../utils/logger';
 
 let transporter: any;
 
-if (process.env.NODE_ENV !== 'test') {
-  transporter = nodemailer.createTransport({
-    host: config.smtp.host,
-    port: config.smtp.port,
-    auth: {
-      user: config.smtp.user,
-      pass: config.smtp.pass,
-    },
-  });
-} else {
-  // Mock básico para que TS no falle al importar el servicio en tests
-  transporter = { sendMail: async () => ({}) };
+// >>> Inicialización segura del transporte <<<
+try {
+  if (process.env.NODE_ENV !== 'test') {
+    transporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: Number(config.smtp.port),
+      auth: {
+        user: config.smtp.user,
+        pass: config.smtp.pass,
+      },
+      // Optimización para evitar timeouts en conexiones lentas
+      connectionTimeout: 10000,
+    });
+  } else {
+    transporter = { sendMail: async () => ({ messageId: 'test-id' }) };
+  }
+} catch {
+  logger.error('❌ Error crítico inicializando el transporte de Email');
 }
 
 export class EmailService {
@@ -34,6 +40,33 @@ export class EmailService {
       logger.error({ error: error.message }, '❌ Error en el transporte de email');
       return false;
     }
+  }
+
+  // >>> Notificación de Dinero Disponible (Release) <<<
+  static async sendBalanceReleasedEmail(
+    email: string,
+    fullname: string,
+    amount: number,
+    currency: string
+  ) {
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <span style="font-size: 40px;">💰</span>
+        </div>
+        <h2 style="color: #2ed573; text-align: center;">¡Saldo disponible!</h2>
+        <p>Hola <strong>${fullname}</strong>,</p>
+        <p>Te informamos que el periodo de garantía ha finalizado y hemos liberado fondos en tu cuenta.</p>
+        <div style="background: #f1f2f6; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+          <span style="font-size: 24px; font-weight: bold; color: #2f3542;">${amount} ${currency}</span>
+        </div>
+        <p>Ya puedes solicitar el retiro de este saldo desde tu panel de control.</p>
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${config.frontendUrl}/dashboard/withdraw" style="background: #2f3542; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold;">Retirar mi saldo</a>
+        </div>
+      </div>
+    `;
+    return this.send(email, `¡Saldo liberado! ${amount} ${currency} disponibles`, html);
   }
 
   static async sendVerificationEmail(email: string, fullname: string, token: string) {

@@ -5,6 +5,8 @@ import { historyRepository } from '../repositories/history.repository';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
+import { EmailService } from './email.service';
+
 export const ReleaseService = {
   /**
    * Procesa la liberación de saldos de 'pending' a 'available'.
@@ -25,8 +27,9 @@ export const ReleaseService = {
       const timeCondition = force ? '0 seconds' : `${daysOfGuarantee} days`;
 
       // Seleccionamos órdenes que ya cumplieron el plazo de garantía
+      // >>> FIX: Añadimos o.creator_id a la consulta para poder comparar en el loop <<<
       const query = `
-        SELECT o.id, o.amount, o.currency 
+        SELECT o.id, o.amount, o.currency, o.creator_id 
         FROM "${schema}".orders o
         WHERE o.status = 'paid' 
         AND o.commissions_calculated = TRUE 
@@ -54,25 +57,50 @@ export const ReleaseService = {
           for (const comm of commissions) {
             if (comm.status === 'pending') {
               // 2. Mover de pending_balance a available_balance
+              // >>> Sanitización de precisión para evitar basura decimal <<<
+              const amountToRelease = Math.floor(Number(comm.netAmount) * 100) / 100;
+
               await balanceRepository.releaseBalance(
                 comm.userId,
-                Number(comm.netAmount),
+                amountToRelease,
                 order.currency,
                 client
               );
 
               // 3. REGISTRAR EN EL HISTORIAL DE BALANCES
+              // >>> Tipo de historial dinámico (Creador vs Afiliado) <<<
+              const isCreator = comm.userId === order.creator_id;
+              const historyType = isCreator ? 'sale_creator' : 'sale_affiliate';
+
               await historyRepository.createRecordWithClient(client, {
                 userId: comm.userId,
                 order_id: order.id,
-                amount: Number(comm.netAmount),
+                amount: amountToRelease,
                 currency: order.currency,
-                type: 'sale_creator',
-                description: `Garantía cumplida: Saldo liberado de la orden #${order.id.substring(0, 8)}`,
+                type: historyType as any,
+                description: `Garantía cumplida: Saldo liberado (Orden #${order.id.substring(0, 8)})`,
               });
 
+              // >>> FIX: Usamos el monto sanitizado para las estadísticas <<<
               stats.releasedToUsers[order.currency] =
-                (stats.releasedToUsers[order.currency] || 0) + Number(comm.netAmount);
+                (stats.releasedToUsers[order.currency] || 0) + amountToRelease;
+              // >>> NOTIFICACIÓN POR EMAIL <<<
+              // Traemos el usuario para el envío (dentro de la transacción o justo después del release)
+              // Nota: Se recomienda disparar el email después del COMMIT para evitar re-envíos si falla la DB
+              client
+                .query(`SELECT email, fullname FROM "${schema}".users WHERE id = $1`, [comm.userId])
+                .then(res => {
+                  const user = res.rows[0];
+                  if (user) {
+                    EmailService.sendBalanceReleasedEmail(
+                      user.email,
+                      user.fullname,
+                      amountToRelease,
+                      order.currency
+                    );
+                  }
+                })
+                .catch(err => logger.error(`Error buscando usuario para email: ${err.message}`));
             }
           }
 

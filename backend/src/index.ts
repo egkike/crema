@@ -152,8 +152,7 @@ if (config.nodeEnv !== 'test') {
   (async () => {
     try {
       logger.info('SISTEMA: Ejecutando liberación de saldos inicial (Startup)...');
-      const isDev = config.nodeEnv === 'development';
-      const result = await ReleaseService.processPendingBalances(isDev);
+      const result = await ReleaseService.processPendingBalances(config.forceReleaseOnStartup);
       logger.info({ ordersProcessed: result.count }, 'SISTEMA: Proceso inicial completado');
     } catch (error: any) {
       logger.error({ error: error.message }, 'SISTEMA: Error en ejecución inicial');
