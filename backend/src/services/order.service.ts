@@ -1,12 +1,14 @@
 import { orderRepository } from '../repositories/order.repository';
 import { productRepository } from '../repositories/product.repository';
 import { userRepository } from '../repositories/user.repository';
+import { systemRepository } from '../repositories/system.repository';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 
 import { EmailService } from './email.service';
 import { CommissionService } from './commission.service';
 import { RefundService } from './refund.service';
+import { ReleaseService } from './release.service';
 
 export class OrderService {
   /**
@@ -67,12 +69,26 @@ export class OrderService {
         throw new AppError('Datos de producto o comprador no encontrados', 500);
       }
 
+      // >>> RESOLUCIÓN DE GARANTÍA ANTES DEL BLOQUEO <<<
+      const guaranteeDays = await systemRepository.resolveGuaranteeDays(product.id);
+
+      // >>> PERSISTIMOS LA GARANTÍA CAPTURADA EN LA ORDEN <<<
+      await orderRepository.updateByExternalRef(order.external_reference, {
+        days_of_guarantee_applied: guaranteeDays,
+      });
+
       // Ajuste crítico: Actualizamos estado a 'paid' ANTES de las comisiones para bloquear otros hilos
       await orderRepository.updateStatus(order.id, 'paid');
 
       // 1. REPARTO DE COMISIONES
       // Importante: CommissionService ya está corregido, por lo que no lanzará error al importar
       await CommissionService.processOrderCommissions(order, product);
+
+      // >>> LIBERACIÓN INMEDIATA SI LA GARANTÍA ES 0 <<<
+      if (guaranteeDays === 0) {
+        // Lo ejecutamos de forma asíncrona (sin await) para no bloquear la respuesta al webhook
+        this.triggerImmediateRelease(order.id);
+      }
 
       // 2. ACTIVACIÓN DEL USUARIO
       if (buyer.active === 0) {
@@ -102,6 +118,22 @@ export class OrderService {
       logger.info({ orderId: order.id }, '✅ Flujo de venta finalizado con éxito');
     } catch (error: any) {
       logger.error({ orderId: order.id, error: error.message }, '💥 Error al completar la orden');
+    }
+  }
+
+  /**
+   * Intenta liberar el saldo inmediatamente si la garantía es 0.
+   * Se ejecuta de forma asíncrona para no afectar el flujo del pago.
+   */
+  private static async triggerImmediateRelease(orderId: string) {
+    try {
+      logger.info({ orderId }, '⚡ Iniciando liberación inmediata (Garantía 0)');
+
+      // Llamamos al ReleaseService, pero solo para esta orden.
+      // Necesitaremos un pequeño ajuste en el ReleaseService para aceptar un orderId opcional.
+      await ReleaseService.processPendingBalances(false, orderId);
+    } catch (error: any) {
+      logger.error({ orderId, error: error.message }, '💥 Fallo en liberación inmediata');
     }
   }
 }

@@ -148,6 +148,9 @@ app.use((err: any, req: Request, res: Response, _: NextFunction) => {
 
 // --- PROCESOS DE ARRANQUE Y CRONS (Excluidos en Test) ---
 if (config.nodeEnv !== 'test') {
+  // La variable debe estar aquí para que los crons puedan leerla y modificarla
+  let isReleaseTaskRunning = false;
+
   // Ejecución inmediata al arrancar
   (async () => {
     try {
@@ -159,12 +162,32 @@ if (config.nodeEnv !== 'test') {
     }
   })();
 
-  // Programación de tareas (Cron)
-  cron.schedule('0 0 * * *', async () => {
+  // Programación de tareas (Cron) cada 30 minutos
+  cron.schedule('*/30 * * * *', async () => {
+    if (isReleaseTaskRunning) {
+      logger.warn(
+        'SISTEMA: El cron de liberación se saltó porque el anterior aún está en ejecución.'
+      );
+      return;
+    }
+
     try {
-      await ReleaseService.processPendingBalances();
+      isReleaseTaskRunning = true;
+      // Usamos debug para el inicio, así solo se ve si activas logs detallados
+      logger.debug('SISTEMA: Revisando órdenes para liberar...');
+
+      const result = await ReleaseService.processPendingBalances();
+
+      if (result.count > 0) {
+        logger.info({ count: result.count }, 'SISTEMA: Dinero liberado exitosamente');
+      } else {
+        // Esto confirma que el cron funciona pero no hubo nada que hacer
+        logger.debug('SISTEMA: Sin órdenes pendientes para liberar en este ciclo.');
+      }
     } catch (error: any) {
-      logger.error({ error: error.message }, 'SISTEMA: Error en Cron Release');
+      logger.error({ error: error.message }, 'SISTEMA: Error crítico en Cron Release');
+    } finally {
+      isReleaseTaskRunning = false;
     }
   });
 

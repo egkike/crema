@@ -6,9 +6,11 @@ INSERT INTO users (username, password, email, fullname, level, active, must_chan
 ('admin_crema', '$2b$12$7OR1Xy6A2.hqaskZjOizle13AcMRLUVBH//NKR40MyeQJx4//CeSq', 'admin@crema.com', 'Super Administrador Crema', 99, 1, false)
 ON CONFLICT (username) DO NOTHING;
 
--- Configuración de Moneda del sistema
-INSERT INTO system_settings (key, value, description) 
-VALUES ('platform_currency', 'ARS', 'Moneda principal de operación');
+-- Configuración de Moneda y Días de garantia del sistema
+INSERT INTO system_settings (key, value, description) VALUES 
+('platform_currency', 'ARS', 'Moneda principal de operación'),
+('days_of_guarantee', '7', 'Días de espera para liberar el saldo tras una compra')
+ON CONFLICT (key) DO NOTHING;
 
 -- Configuración de Moneda habilitada para Argentina y Cripto
 INSERT INTO enabled_currencies (code, name, symbol) VALUES 

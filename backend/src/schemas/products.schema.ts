@@ -34,8 +34,16 @@ export const createProductSchema = z.object({
 
   status: z.enum(['draft', 'published', 'archived']).optional(),
 
-  // ✅ NUEVO: Permitimos recibir el tamaño opcionalmente (útil para la integración cloud)
+  // Permitimos recibir el tamaño opcionalmente (útil para la integración cloud)
   sizeBytes: z.number().nonnegative().optional(),
+  
+  // Validación de días de garantía (Ej: entre 0 y 90 días)
+  guaranteeDays: z
+    .number()
+    .int()
+    .min(0, { message: 'La garantía no puede ser negativa' })
+    .max(90, { message: 'La garantía máxima permitida es de 90 días' })
+    .optional(),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

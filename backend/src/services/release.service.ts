@@ -12,9 +12,8 @@ export const ReleaseService = {
    * Procesa la liberación de saldos de 'pending' a 'available'.
    * @param force - Si es true, ignora la garantía de 7 días (útil para tests).
    */
-  async processPendingBalances(force: boolean = false) {
+  async processPendingBalances(force: boolean = false, targetOrderId?: string) {
     const schema = config.db?.schema || 'public';
-    const daysOfGuarantee = config.daysOfGuarantee || 7;
 
     const client = await pool.connect();
 
@@ -24,17 +23,22 @@ export const ReleaseService = {
     };
 
     try {
-      const timeCondition = force ? '0 seconds' : `${daysOfGuarantee} days`;
+      // >>> Lógica de tiempo dinámica <<<
+      // Si force es true, usamos 0. Si no, usamos la columna de la tabla.
+      const intervalSql = force
+        ? "INTERVAL '0 seconds'"
+        : "(o.days_of_guarantee_applied || ' days')::INTERVAL";
 
-      // Seleccionamos órdenes que ya cumplieron el plazo de garantía
-      // >>> FIX: Añadimos o.creator_id a la consulta para poder comparar en el loop <<<
+      // Seleccionamos órdenes que ya cumplieron el plazo de garantía guardado en su propia fila
+      // >>> Añadimos o.days_of_guarantee_applied a la consulta <<<
       const query = `
-        SELECT o.id, o.amount, o.currency, o.creator_id 
+        SELECT o.id, o.amount, o.currency, o.creator_id, o.days_of_guarantee_applied
         FROM "${schema}".orders o
         WHERE o.status = 'paid' 
         AND o.commissions_calculated = TRUE 
         AND o.balance_released = FALSE
-        AND o.updated_at <= NOW() - INTERVAL '${timeCondition}'
+        AND o.updated_at <= NOW() - ${intervalSql}
+        ${targetOrderId ? `AND o.id = '${targetOrderId}'` : ''}
         FOR UPDATE OF o SKIP LOCKED;
       `;
 
@@ -81,7 +85,7 @@ export const ReleaseService = {
                 description: `Garantía cumplida: Saldo liberado (Orden #${order.id.substring(0, 8)})`,
               });
 
-              // >>> FIX: Usamos el monto sanitizado para las estadísticas <<<
+              // >>> Usamos el monto sanitizado para las estadísticas <<<
               stats.releasedToUsers[order.currency] =
                 (stats.releasedToUsers[order.currency] || 0) + amountToRelease;
               // >>> NOTIFICACIÓN POR EMAIL <<<

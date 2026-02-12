@@ -30,6 +30,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       commissionPercent: validatedData.commissionPercent ?? 0,
       status: validatedData.status ?? 'published',
       sizeBytes: validatedData.sizeBytes ?? 0,
+      guaranteeDays: validatedData.guaranteeDays,
       ...(validatedData.description && { description: validatedData.description }),
       ...(validatedData.contentUrl && { contentUrl: validatedData.contentUrl }),
     };

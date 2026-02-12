@@ -16,6 +16,18 @@ export interface CreateOrderDTO {
 export const orderRepository = {
   mapRowToOrder(row: any) {
     if (!row) return null;
+
+    // >>> Cálculo de fecha de liberación estimada <<<
+    // Usamos la fecha de creación + los días de garantía aplicados en esa orden
+    let releaseDate: Date | null = null;
+    if (row.created_at && row.days_of_guarantee_applied !== undefined) {
+      const date = new Date(row.created_at);
+      // Fallback a 7 días si por alguna razón el snapshot es nulo
+      const days = row.days_of_guarantee_applied !== null ? row.days_of_guarantee_applied : 7;
+      date.setDate(date.getDate() + Number(days));
+      releaseDate = date;
+    }
+
     return {
       ...row,
       amount: Number(row.amount),
@@ -24,6 +36,7 @@ export const orderRepository = {
       buyerId: row.buyer_id,
       productId: row.product_id,
       affiliateId: row.affiliate_id,
+      release_date: releaseDate, // ✅ Expuesto para el Dashboard/Frontend
     };
   },
 

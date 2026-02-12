@@ -107,9 +107,11 @@ CREATE TABLE IF NOT EXISTS products (
     affiliate_commission_percent DECIMAL(18,8) DEFAULT 10.00,
     size_bytes BIGINT DEFAULT 0,
     status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+    guarantee_days INT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON COLUMN products.guarantee_days IS 'Días de garantía específicos para este producto. Si es NULL, usa el global.';
 
 -- Tabla de Precios x monedas
 CREATE TABLE IF NOT EXISTS product_prices (
@@ -138,6 +140,7 @@ CREATE TABLE IF NOT EXISTS orders (
     gateway_status VARCHAR(50),             -- Para guardar el estado "crudo" que devuelve la pasarela
     commissions_calculated BOOLEAN DEFAULT FALSE,
     balance_released BOOLEAN DEFAULT FALSE,
+    days_of_guarantee_applied INT DEFAULT 7,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

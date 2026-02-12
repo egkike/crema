@@ -36,6 +36,20 @@ export class RefundService {
       if (!order) throw new AppError('La orden no existe', 404);
       if (order.status === 'refunded') throw new AppError('La orden ya fue reembolsada', 400);
 
+      // >>> VALIDACIÓN DE PERIODO DE GARANTÍA DINÁMICO <<<
+      // Calculamos si la orden aún está en periodo de garantía basándonos en su propia configuración
+      const orderCreatedAt = new Date(order.created_at).getTime();
+      const guaranteeDays = order.days_of_guarantee_applied || 7;
+      const guaranteeMillis = guaranteeDays * 24 * 60 * 60 * 1000;
+      const expirationDate = orderCreatedAt + guaranteeMillis;
+
+      if (Date.now() > expirationDate) {
+        throw new AppError(
+          `El periodo de garantía de ${guaranteeDays} días ha expirado. El reembolso no es posible de forma automática.`,
+          400
+        );
+      }
+
       // REGLA DE SEGURIDAD: Solo se reembolsa si el dinero no ha sido liberado al disponible
       if (order.balance_released) {
         throw new AppError(

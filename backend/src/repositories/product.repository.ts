@@ -19,6 +19,7 @@ export interface Product {
   affiliate_commission_percent: number;
   size_bytes: number;
   status: string;
+  guarantee_days: number | null;
   created_at: Date;
   updated_at: Date;
   prices: ProductPrice[];
@@ -34,6 +35,7 @@ export interface ProductInput {
   commissionPercent?: number;
   status?: string;
   sizeBytes?: number;
+  guaranteeDays?: number | undefined;
 }
 
 // --- REPOSITORIO ---
@@ -55,6 +57,7 @@ export const productRepository = {
       status: row.status,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      guarantee_days: row.guarantee_days !== undefined ? row.guarantee_days : null,
       // Maneja tanto el array de la subconsulta como el pasado manualmente
       prices: row.prices || [],
     };
@@ -74,8 +77,8 @@ export const productRepository = {
       const productQuery = `
         INSERT INTO "${schema}".products (
           creator_id, title, description, type, content_url, 
-          affiliate_commission_percent, size_bytes, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          affiliate_commission_percent, size_bytes, status, guarantee_days
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *;
       `;
 
@@ -88,6 +91,7 @@ export const productRepository = {
         input.commissionPercent ?? 50.0,
         input.sizeBytes || 0,
         input.status || 'published',
+        input.guaranteeDays ?? null,
       ]);
 
       const productRow = productRes.rows[0];
