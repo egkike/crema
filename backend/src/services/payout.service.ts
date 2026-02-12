@@ -21,7 +21,10 @@ export class PayoutService {
     payoutMethodId: string // <--- Ahora recibimos el ID del método guardado
   ) {
     // 1. Validaciones básicas de monto
-    if (amount <= 0) {
+    // >>> Sanitización de decimales para evitar errores de precisión financiera <<<
+    const sanitizedAmount = Math.floor(amount * 100) / 100;
+
+    if (sanitizedAmount <= 0) {
       throw new AppError('El monto del retiro debe ser mayor a cero', 400);
     }
 
@@ -53,7 +56,8 @@ export class PayoutService {
 
     // 3.1 Validación de Monto Mínimo
     const minAmount = Number(configs['min_payout_amount'] ?? 1000);
-    if (amount < minAmount) {
+    // >>> Usamos sanitizedAmount para la comparación <<<
+    if (sanitizedAmount < minAmount) {
       throw new AppError(`El monto mínimo de retiro para ${currency} es ${minAmount}`, 400);
     }
 
@@ -74,13 +78,14 @@ export class PayoutService {
       await client.query('BEGIN');
 
       // 4. Restar saldo disponible
-      await balanceRepository.subtractAvailableBalance(userId, amount, currency, client);
+      // >>> Restamos el monto sanitizado <<<
+      await balanceRepository.subtractAvailableBalance(userId, sanitizedAmount, currency, client);
 
       // 5. Crear registro de retiro (Copiamos los datos del método actual)
       const payout = await payoutRepository.create(
         {
           userId,
-          amount,
+          amount: sanitizedAmount,
           currency,
           ...payoutData,
         },
@@ -91,7 +96,7 @@ export class PayoutService {
       await historyRepository.createRecordWithClient(client, {
         userId,
         order_id: null,
-        amount: -Math.abs(amount),
+        amount: -Math.abs(sanitizedAmount),
         currency,
         type: 'payout_request' as any,
         description: `Retiro pendiente (${currency}) a: ${payoutData.alias || payoutData.destination_account}`,
@@ -102,14 +107,20 @@ export class PayoutService {
       // 7. Calcular mensaje de fecha estimada
       const processingDays = Number(configs['payout_processing_days'] ?? 3);
       const estimatedDate = new Date();
-      estimatedDate.setDate(estimatedDate.getDate() + processingDays);
+      let addedDays = 0;
+      while (addedDays < processingDays) {
+        estimatedDate.setDate(estimatedDate.getDate() + 1);
+        if (estimatedDate.getDay() !== 0 && estimatedDate.getDay() !== 6) {
+          addedDays++;
+        }
+      }
       const dateStr = estimatedDate.toLocaleDateString('es-AR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
       });
 
-      logger.info({ userId, amount, payoutId: payout.id }, '💰 Retiro solicitado exitosamente');
+      logger.info({ userId, amount: sanitizedAmount, payoutId: payout.id }, '💰 Retiro solicitado exitosamente');
 
       return {
         ...payout,

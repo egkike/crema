@@ -28,6 +28,12 @@ export class OrderService {
       return;
     }
 
+    // Ajuste de Idempotencia: Si ya está pagada en nuestra DB, ignoramos webhooks duplicados
+    if ((order.status === 'paid' || order.status === 'approved') && status === 'approved') {
+      logger.info({ externalReference }, 'ℹ️ Orden ya procesada previamente, ignorando duplicado.');
+      return;
+    }
+
     // Actualizamos el ID de transacción de Mercado Pago si no lo tiene
     if (transactionId && order.transaction_id !== transactionId) {
       await orderRepository.updateByExternalRef(externalReference, {
@@ -60,6 +66,9 @@ export class OrderService {
       if (!product || !buyer) {
         throw new AppError('Datos de producto o comprador no encontrados', 500);
       }
+
+      // Ajuste crítico: Actualizamos estado a 'paid' ANTES de las comisiones para bloquear otros hilos
+      await orderRepository.updateStatus(order.id, 'paid');
 
       // 1. REPARTO DE COMISIONES
       // Importante: CommissionService ya está corregido, por lo que no lanzará error al importar

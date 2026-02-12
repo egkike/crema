@@ -109,6 +109,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
     // Instanciación bajo demanda
     const mpClient = getMPClient();
     const paymentInstance = new Payment(mpClient);
+
+    // Forzado de String preventivo antes de la llamada a la SDK
     const payment = await paymentInstance.get({ id: String(rawId) });
 
     if (payment.external_reference) {

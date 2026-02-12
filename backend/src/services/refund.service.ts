@@ -44,29 +44,6 @@ export class RefundService {
         );
       }
 
-      // --- PASO DE: REEMBOLSO AUTOMÁTICO EN MERCADO PAGO ---
-      if (order.payment_method === 'mercadopago' && order.transaction_id) {
-        try {
-          logger.info(
-            { transactionId: order.transaction_id },
-            '🔄 Iniciando reembolso en Mercado Pago...'
-          );
-
-          // Inicialización bajo demanda
-          const mpClient = this.getMPClient();
-          const refundInstance = new PaymentRefund(mpClient);
-
-          await refundInstance.create({
-            payment_id: Number(order.transaction_id),
-          });
-
-          logger.info('✅ Mercado Pago procesó el reembolso correctamente');
-        } catch (mpError: any) {
-          logger.error({ mpError: mpError.message }, '❌ Error en API de Mercado Pago');
-          throw new AppError(`Mercado Pago no pudo procesar el reembolso: ${mpError.message}`, 400);
-        }
-      }
-
       const orderCurrency = order.currency;
 
       // 2. OBTENER TODAS LAS COMISIONES (Creador y Afiliados)
@@ -128,6 +105,29 @@ export class RefundService {
         },
         client
       );
+
+      // --- PASO DE: REEMBOLSO AUTOMÁTICO EN MERCADO PAGO ---
+      if (order.payment_method === 'mercadopago' && order.transaction_id) {
+        try {
+          logger.info(
+            { transactionId: order.transaction_id },
+            '🔄 Iniciando reembolso en Mercado Pago...'
+          );
+
+          // Inicialización bajo demanda
+          const mpClient = this.getMPClient();
+          const refundInstance = new PaymentRefund(mpClient);
+
+          await refundInstance.create({
+            payment_id: String(order.transaction_id) as any,
+          });
+
+          logger.info('✅ Mercado Pago procesó el reembolso correctamente');
+        } catch (mpError: any) {
+          logger.error({ mpError: mpError.message }, '❌ Error en API de Mercado Pago');
+          throw new AppError(`Mercado Pago no pudo procesar el reembolso: ${mpError.message}`, 400);
+        }
+      }
 
       await client.query('COMMIT');
       logger.info({ orderId }, '✅ Proceso de reembolso completado exitosamente');

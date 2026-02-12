@@ -21,7 +21,7 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:3000'),
   MERCADO_PAGO_ACCESS_TOKEN: z.string().min(30),
   MERCADO_PAGO_PUBLIC_KEY: z.string().min(30),
-  MERCADO_PAGO_WEBHOOK_SECRET: z.string().optional(),
+  MERCADO_PAGO_WEBHOOK_SECRET: z.string().optional().default(''),
   API_BASE_URL: z.string().optional(),
   APP_URL: z.string().default('http://localhost:5173'),
   RECAPTCHA_SECRET_KEY: z.string().optional().default(''),
