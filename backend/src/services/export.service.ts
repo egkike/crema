@@ -52,4 +52,20 @@ export class ExportService {
     const parser = new Parser({ fields });
     return parser.parse(payouts);
   }
+
+  static async exportFinancialAuditCSV(currency: string = 'ARS'): Promise<string> {
+    const data = await adminRepository.getReconciliationDetail(currency);
+
+    const fields = [
+      { label: 'Orden ID', value: 'id' },
+      { label: 'Monto Total', value: 'amount' },
+      { label: 'Estado Liberación', value: 'balance_released' },
+      { label: 'Fecha Compra', value: 'created_at' },
+      { label: 'Fecha Liberación Est.', value: 'release_date' },
+      { label: 'Garantía Expirada', value: 'guarantee_expired' },
+    ];
+
+    const parser = new Parser({ fields });
+    return parser.parse(data);
+  }
 }

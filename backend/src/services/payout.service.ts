@@ -5,6 +5,7 @@ import { historyRepository } from '../repositories/history.repository';
 import { configRepository } from '../repositories/config.repository';
 import { payoutMethodRepository } from '../repositories/payout_method.repository';
 import { userRepository } from '../repositories/user.repository';
+import { platformBalanceRepository } from '../repositories/platform_balance.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
@@ -120,7 +121,10 @@ export class PayoutService {
         year: 'numeric',
       });
 
-      logger.info({ userId, amount: sanitizedAmount, payoutId: payout.id }, '💰 Retiro solicitado exitosamente');
+      logger.info(
+        { userId, amount: sanitizedAmount, payoutId: payout.id },
+        '💰 Retiro solicitado exitosamente'
+      );
 
       return {
         ...payout,
@@ -244,6 +248,48 @@ export class PayoutService {
         'Error al procesar el cambio de estado del payout'
       );
       throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Retiro de fondos de la PLATAFORMA (Empresa).
+   * Mueve el dinero fuera del sistema (ej. a cuenta bancaria de la empresa).
+   */
+  static async requestPlatformPayout(
+    amount: number,
+    currency: string,
+    description: string,
+    adminId: string
+  ) {
+    const client = await pool.connect();
+    const sanitizedAmount = Math.floor(amount * 100) / 100;
+
+    try {
+      await client.query('BEGIN');
+
+      // 1. Descontar del balance disponible de la plataforma
+      await platformBalanceRepository.deductFromAvailable(sanitizedAmount, currency, client);
+
+      // 2. Registrar en historial global para auditoría
+      await historyRepository.createRecordWithClient(client, {
+        userId: 'PLATFORM_SYSTEM', // ID identificador para la empresa
+        order_id: null,
+        amount: -sanitizedAmount,
+        currency,
+        type: 'payout_request' as any,
+        description: `Retiro de Empresa: ${description} (Admin: ${adminId})`,
+      });
+
+      await client.query('COMMIT');
+      logger.info({ adminId, amount: sanitizedAmount }, '🏦 Retiro de plataforma procesado');
+
+      return { success: true };
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      logger.error({ error: error.message }, 'Fallo en retiro de plataforma');
+      throw new AppError(error.message || 'Error al procesar retiro de plataforma', 400);
     } finally {
       client.release();
     }

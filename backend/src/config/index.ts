@@ -11,7 +11,6 @@ const envSchema = z.object({
   SECRET_JWT_KEY: z.string().min(32),
   JWT_ACCESS_EXPIRY: z.string().default('10m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
-  DAYSOFGUARANTEE: z.coerce.number().default(7),
   FORCE_RELEASE_ON_STARTUP: z.preprocess((val) => val === 'true', z.boolean()).default(false),
   DB_HOST: z.string().default('localhost'),
   DB_PORT: z.coerce.number().default(5432),
@@ -104,7 +103,6 @@ export const config = {
   frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),
   recaptchaSecretKey: env.RECAPTCHA_SECRET_KEY,
   passwordPepper: process.env.PASSWORD_PEPPER || 'dev_pepper_fallback_local',
-  daysOfGuarantee: env.DAYSOFGUARANTEE,
 } as const;
 
 if (config.nodeEnv === 'development') {

@@ -6,6 +6,7 @@ import { historyRepository } from '../repositories/history.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { refundRepository } from '../repositories/refund.repository';
+import { platformBalanceRepository } from '../repositories/platform_balance.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { config } from '../config/index';
@@ -31,7 +32,7 @@ export class RefundService {
     try {
       await client.query('BEGIN');
 
-      // 1. Obtener la orden con bloqueo para evitar condiciones de carrera
+      // 1. Obtener la orden con bloqueo para evitar condiciones de carrera (Double Spending)
       const order = await orderRepository.getById(orderId, client);
       if (!order) throw new AppError('La orden no existe', 404);
       if (order.status === 'refunded') throw new AppError('La orden ya fue reembolsada', 400);
@@ -99,13 +100,39 @@ export class RefundService {
       await orderRepository.updateStatus(orderId, 'refunded', client);
       await commissionRepository.updateStatusByOrder(orderId, 'refunded', client);
 
-      // 4.5 REVERTIR GANANCIAS DE LA PLATAFORMA
-      await client.query(
-        `UPDATE "${schema}".platform_earnings 
-         SET status = 'refunded', updated_at = CURRENT_TIMESTAMP 
-         WHERE order_id = $1`,
-        [orderId]
-      );
+      // 4.5 REVERTIR GANANCIAS DE LA PLATAFORMA (Lógica nueva integrada)
+      // Buscamos el monto que la plataforma tiene "active" para esta orden
+      const pEarningsQuery = `
+        SELECT total_amount 
+        FROM "${schema}".platform_earnings 
+        WHERE order_id = $1 AND status = 'active'
+        FOR UPDATE;
+      `;
+      const { rows: pEarnings } = await client.query(pEarningsQuery, [orderId]);
+
+      if (pEarnings.length > 0) {
+        const platformAmountToDeduct = Number(pEarnings[0].total_amount);
+
+        // Descontamos del balance PENDIENTE global de la plataforma
+        await platformBalanceRepository.deductFromPending(
+          platformAmountToDeduct,
+          orderCurrency,
+          client
+        );
+
+        // Actualizamos el estado del registro individual a 'refunded'
+        await client.query(
+          `UPDATE "${schema}".platform_earnings 
+           SET status = 'refunded', updated_at = CURRENT_TIMESTAMP 
+           WHERE order_id = $1`,
+          [orderId]
+        );
+
+        logger.info(
+          { orderId, amount: platformAmountToDeduct },
+          'Ganancia de plataforma revertida por reembolso'
+        );
+      }
 
       // 5. REGISTRO DE AUDITORÍA EN TABLA DE REEMBOLSOS
       await refundRepository.create(

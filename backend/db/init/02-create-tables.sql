@@ -178,24 +178,6 @@ CREATE TABLE IF NOT EXISTS user_balances (
     PRIMARY KEY (user_id, currency)
 );
 
--- Tabla donde registramos cada "mordida" que toma la plataforma.
-CREATE TABLE IF NOT EXISTS platform_earnings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID REFERENCES orders(id),   
-    -- Desglose de la ganancia por transacción
-    variable_amount DECIMAL(18,8) DEFAULT 0.00, -- El 9.9%
-    fixed_amount DECIMAL(18,8) DEFAULT 0.00,    -- El $0.10 o $0.50
-    -- Otros tipos de ingresos
-    subscription_amount DECIMAL(18,8) DEFAULT 0.00,
-    service_amount DECIMAL(18,8) DEFAULT 0.00, -- Por si cobras por soporte, etc.
-
-    total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior  
-    status VARCHAR(20) DEFAULT 'active', -- active, paid, refunded
-    currency VARCHAR(10) REFERENCES enabled_currencies(code),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Tabla para que el usuario pueda ver el detalle de por qué su balance cambió
 CREATE TABLE IF NOT EXISTS balance_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -209,6 +191,34 @@ CREATE TABLE IF NOT EXISTS balance_history (
     ),
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla donde registramos cada "mordida" que toma la plataforma.
+CREATE TABLE IF NOT EXISTS platform_earnings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES orders(id),   
+    -- Desglose de la ganancia por transacción
+    variable_amount DECIMAL(18,8) DEFAULT 0.00, -- El 9.9%
+    fixed_amount DECIMAL(18,8) DEFAULT 0.00,    -- El $0.10 o $0.50
+    -- Otros tipos de ingresos
+    subscription_amount DECIMAL(18,8) DEFAULT 0.00,
+    service_amount DECIMAL(18,8) DEFAULT 0.00, -- Por si cobras por soporte, etc.
+    
+    total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior  
+    status VARCHAR(20) DEFAULT 'active', -- active, paid, refunded
+    currency VARCHAR(10) REFERENCES enabled_currencies(code),
+    balance_released BOOLEAN DEFAULT FALSE,
+    released_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de "Resumen" de la billetera de la plataforma
+CREATE TABLE IF NOT EXISTS platform_balances (
+    currency VARCHAR(10) PRIMARY KEY REFERENCES enabled_currencies(code),
+    pending_balance DECIMAL(18,8) DEFAULT 0.00 CHECK (pending_balance >= 0),
+    available_balance DECIMAL(18,8) DEFAULT 0.00 CHECK (available_balance >= 0),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Tabla para trackear solicitudes de Payouts
@@ -316,3 +326,4 @@ CREATE TRIGGER trg_upd_platform_earnings BEFORE UPDATE ON platform_earnings FOR 
 CREATE TRIGGER trg_upd_user_payout_methods BEFORE UPDATE ON user_payout_methods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_platform_plans BEFORE UPDATE ON platform_plans FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_user_subscriptions BEFORE UPDATE ON user_subscriptions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_platform_balances BEFORE UPDATE ON platform_balances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

@@ -1,5 +1,6 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
+import { adminRepository } from '../repositories/admin.repository';
 
 export class StatsService {
   /**
@@ -86,5 +87,28 @@ export class StatsService {
     } catch (error: any) {
       throw new Error(`Error al obtener gráfico de ventas: ${error.message}`);
     }
+  }
+
+  static async getAdminHealthCheck(currency: string = 'ARS') {
+    const stats = await adminRepository.getGlobalFinancialStats(currency);
+    const recentOrders = await adminRepository.getReconciliationDetail(currency);
+
+    // Clasificamos órdenes por garantía
+    const inGuarantee = recentOrders.filter(o => !o.guarantee_expired && !o.balance_released);
+    const waitingRelease = recentOrders.filter(o => o.guarantee_expired && !o.balance_released);
+
+    return {
+      summary: stats,
+      audit: {
+        inGuaranteeOrdersCount: inGuarantee.length,
+        inGuaranteeAmount: inGuarantee.reduce((sum, o) => sum + Number(o.amount), 0),
+        pendingReleaseExpiredCount: waitingRelease.length, // Órdenes que el cron debería procesar ya
+        pendingReleaseExpiredAmount: waitingRelease.reduce((sum, o) => sum + Number(o.amount), 0),
+      },
+      healthy:
+        stats.systemIntegrity.discrepanciesCount === 0 &&
+        Math.abs(stats.systemIntegrity.totalPaidVolume - stats.systemIntegrity.totalInBalances) <
+          0.1,
+    };
   }
 }

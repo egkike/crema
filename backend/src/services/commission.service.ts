@@ -4,6 +4,7 @@ import { configRepository } from '../repositories/config.repository';
 import { balanceRepository } from '../repositories/balance.repository';
 import { historyRepository } from '../repositories/history.repository';
 import { commissionRepository } from '../repositories/commission.repository';
+import { platformBalanceRepository } from '../repositories/platform_balance.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
@@ -68,13 +69,17 @@ export class CommissionService {
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
       const totalPlatformFee = roundToTwo(variableFee + fixedFee);
 
-      // 4. Registro de Ganancias de Plataforma
+      // 4. ✅ REGISTRO DE GANANCIAS DE LA PLATAFORMA Y ACTUALIZACIÓN DEL BALANCE
+      // Insertamos el detalle histórico
       await client.query(
         `INSERT INTO "${schema}".platform_earnings 
-         (order_id, variable_amount, fixed_amount, total_amount, currency, status) 
-         VALUES ($1, $2, $3, $4, $5, 'active')`,
+         (order_id, variable_amount, fixed_amount, total_amount, currency, status, balance_released) 
+         VALUES ($1, $2, $3, $4, $5, 'active', FALSE)`,
         [order.id, variableFee, fixedFee, totalPlatformFee, orderCurrency]
       );
+
+      // Actualizamos el balance PENDIENTE de la plataforma (usando la transacción actual)
+      await platformBalanceRepository.addToPending(totalPlatformFee, orderCurrency, client);
 
       // 5. LÓGICA DE AFILIADO (Basada en el total bruto y validando mínimos)
       let affiliateAmount = 0;
