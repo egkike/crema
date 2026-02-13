@@ -17,6 +17,7 @@ router.use(restrictTo(ADMIN_LEVEL));
 
 /* --- 1. SALUD FINANCIERA Y AUDITORÍA --- */
 router.get('/financial-health', AdminController.getFinancialHealth);
+router.get('/ledger', AdminController.getPlatformLedger); // 👈 Nueva ruta añadida
 router.get('/user-stats/:userId', AdminController.getUserStats);
 router.get('/export/audit', AdminController.downloadFinancialAudit);
 
@@ -34,8 +35,6 @@ router.patch('/payouts/:id/status', async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status, admin_notes, transaction_receipt } = req.body;
-
-    // Casting seguro para obtener el ID del admin desde el token
     const adminId = (req as any).user?.id;
 
     if (!['completed', 'rejected'].includes(status)) {
@@ -60,21 +59,46 @@ router.patch('/payouts/:id/status', async (req, res, next) => {
   }
 });
 
-/* --- 3. REEMBOLSOS Y EXPORTACIONES --- */
+/**
+ * Registro de retiro de fondos de la plataforma (Empresa)
+ */
+router.post('/withdraw-platform', async (req, res, next) => {
+  try {
+    const { amount, currency, description, transaction_receipt } = req.body;
+    const adminId = (req as any).user?.id;
 
-// 💡 Si necesitas ver los reembolsos en una tabla (JSON), usa un método de lista.
-// Si quieres descargar el CSV directamente, este está bien:
+    if (!amount || !transaction_receipt) {
+      throw new AppError('Monto y comprobante son obligatorios', 400);
+    }
+
+    const result = await PayoutService.requestPlatformPayout(
+      Number(amount),
+      currency || 'ARS',
+      description || 'Retiro de ganancias',
+      transaction_receipt,
+      adminId
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Retiro de plataforma registrado correctamente',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* --- 3. REEMBOLSOS Y EXPORTACIONES --- */
 router.get('/export/refunds', AdminController.downloadRefundsReport);
 
 router.get('/export/payouts', async (req, res, next) => {
   try {
-    // Validamos que los parámetros sean strings para evitar errores de tipo
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
     const from = typeof req.query.from === 'string' ? req.query.from : undefined;
     const to = typeof req.query.to === 'string' ? req.query.to : undefined;
 
     const { ExportService } = await import('../services/export.service');
-
     const csv = await ExportService.exportPayoutsToCSV(status, from, to);
 
     res.header('Content-Type', 'text/csv');

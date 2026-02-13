@@ -2,19 +2,22 @@ import { Request, Response } from 'express';
 
 import { StatsService } from '../services/stats.service';
 import { ExportService } from '../services/export.service';
+import { adminRepository } from '../repositories/admin.repository';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 
 export class AdminController {
   /**
-   * Resumen de salud financiera global
+   * Resumen de salud financiera global con soporte de fechas
    */
   static async getFinancialHealth(req: Request, res: Response) {
     try {
-      // ✅ Solución: Forzamos a string y definimos un fallback
       const currency = typeof req.query.currency === 'string' ? req.query.currency : 'ARS';
+      const from = typeof req.query.from === 'string' ? req.query.from : undefined;
+      const to = typeof req.query.to === 'string' ? req.query.to : undefined;
 
-      const healthReport = await StatsService.getAdminHealthCheck(currency);
+      // Importante: Asegúrate de que StatsService.getAdminHealthCheck reciba estos 3 parámetros
+      const healthReport = await StatsService.getAdminHealthCheck(currency, from, to);
 
       return res.json({
         status: 'success',
@@ -23,6 +26,27 @@ export class AdminController {
     } catch (error: any) {
       logger.error({ error: error.message }, 'Error en getFinancialHealth');
       return res.status(500).json({ message: 'Error al obtener el reporte de salud' });
+    }
+  }
+
+  /**
+   * Obtiene el Libro de Caja consolidado
+   */
+  static async getPlatformLedger(req: Request, res: Response) {
+    try {
+      const currency = typeof req.query.currency === 'string' ? req.query.currency : 'ARS';
+      const from = typeof req.query.from === 'string' ? req.query.from : undefined;
+      const to = typeof req.query.to === 'string' ? req.query.to : undefined;
+
+      const ledger = await adminRepository.getPlatformLedger(currency, from, to);
+
+      return res.json({
+        status: 'success',
+        data: ledger,
+      });
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'Error en getPlatformLedger');
+      return res.status(500).json({ message: 'Error al obtener el libro de caja' });
     }
   }
 
@@ -69,7 +93,6 @@ export class AdminController {
    */
   static async getUserStats(req: Request, res: Response) {
     try {
-      // ✅ Para params usamos casting simple ya que Express garantiza que sea string si la ruta existe
       const userId = req.params.userId as string;
       const currency = typeof req.query.currency === 'string' ? req.query.currency : 'ARS';
 

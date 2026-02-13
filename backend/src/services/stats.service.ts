@@ -89,8 +89,15 @@ export class StatsService {
     }
   }
 
-  static async getAdminHealthCheck(currency: string = 'ARS') {
-    const stats = await adminRepository.getGlobalFinancialStats(currency);
+  /**
+   * Obtiene el reporte de salud financiera para administración.
+   * Ahora recibe filtros de fecha opcionales.
+   */
+  static async getAdminHealthCheck(currency: string = 'ARS', from?: string, to?: string) {
+    // 1. Obtenemos las estadísticas base pasando las fechas al repositorio
+    const stats = await adminRepository.getGlobalFinancialStats(currency, from, to);
+
+    // 2. Detalle de órdenes recientes (para auditoría de garantías)
     const recentOrders = await adminRepository.getReconciliationDetail(currency);
 
     // Clasificamos órdenes por garantía
@@ -102,13 +109,11 @@ export class StatsService {
       audit: {
         inGuaranteeOrdersCount: inGuarantee.length,
         inGuaranteeAmount: inGuarantee.reduce((sum, o) => sum + Number(o.amount), 0),
-        pendingReleaseExpiredCount: waitingRelease.length, // Órdenes que el cron debería procesar ya
+        pendingReleaseExpiredCount: waitingRelease.length,
         pendingReleaseExpiredAmount: waitingRelease.reduce((sum, o) => sum + Number(o.amount), 0),
       },
-      healthy:
-        stats.systemIntegrity.discrepanciesCount === 0 &&
-        Math.abs(stats.systemIntegrity.totalPaidVolume - stats.systemIntegrity.totalInBalances) <
-          0.1,
+      // ✅ Corregido: Usamos totalAccountability que es el campo real que devuelve el repositorio
+      healthy: stats.systemIntegrity.isHealthy && stats.systemIntegrity.discrepanciesCount === 0,
     };
   }
 }
