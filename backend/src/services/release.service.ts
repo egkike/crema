@@ -9,11 +9,6 @@ import { config } from '../config/index';
 import { EmailService } from './email.service';
 
 export const ReleaseService = {
-  /**
-   * Procesa la liberación de saldos de 'pending' a 'available'.
-   * @param force - Si es true, ignora la garantía (útil para administración o tests).
-   * @param targetOrderId - Opcional, para liberar una orden específica.
-   */
   async processPendingBalances(force: boolean = false, targetOrderId?: string) {
     const schema = config.db?.schema || 'public';
     const client = await pool.connect();
@@ -25,19 +20,19 @@ export const ReleaseService = {
     };
 
     try {
-      // >>> Lógica de tiempo dinámica <<<
       const intervalSql = force
         ? "INTERVAL '0 seconds'"
         : "(o.days_of_guarantee_applied || ' days')::INTERVAL";
 
-      // Seleccionamos órdenes que ya cumplieron el plazo de garantía
+      // JOIN con la tabla products para obtener p.creator_id
       const query = `
-        SELECT o.id, o.amount, o.currency, o.creator_id, o.days_of_guarantee_applied
+        SELECT o.id, o.amount, o.currency, p.creator_id, o.days_of_guarantee_applied
         FROM "${schema}".orders o
+        JOIN "${schema}".products p ON o.product_id = p.id
         WHERE o.status = 'paid' 
         AND o.commissions_calculated = TRUE 
         AND o.balance_released = FALSE
-        AND o.updated_at <= NOW() - ${intervalSql}
+        AND o.created_at <= NOW() - ${intervalSql}
         ${targetOrderId ? `AND o.id = $1` : ''}
         FOR UPDATE OF o SKIP LOCKED;
       `;
@@ -56,12 +51,12 @@ export const ReleaseService = {
         try {
           await client.query('BEGIN');
 
-          // --- 1. LIBERACIÓN PARA USUARIOS (Creadores y Afiliados) ---
           const commissions = await commissionRepository.getByOrderId(order.id);
 
           for (const comm of commissions) {
+            // ✅ IMPORTANTE: Aquí usamos comm.userId y comm.netAmount
+            // porque tu repositorio ya hace el mapeo de snake_case a camelCase.
             if (comm.status === 'pending') {
-              // Sanitización de precisión para evitar basura decimal
               const amountToRelease = Math.floor(Number(comm.netAmount) * 100) / 100;
 
               await balanceRepository.releaseBalance(
@@ -71,7 +66,6 @@ export const ReleaseService = {
                 client
               );
 
-              // Registro en el historial de balances del usuario
               const isCreator = comm.userId === order.creator_id;
               const historyType = isCreator ? 'sale_creator' : 'sale_affiliate';
 
@@ -87,12 +81,10 @@ export const ReleaseService = {
               stats.releasedToUsers[order.currency] =
                 (stats.releasedToUsers[order.currency] || 0) + amountToRelease;
 
-              // Notificación por email
               this.notifyUser(comm.userId, amountToRelease, order.currency, schema);
             }
           }
 
-          // --- 2. LIBERACIÓN PARA LA PLATAFORMA ---
           const platformEarningsQuery = `
             SELECT total_amount, currency 
             FROM "${schema}".platform_earnings 
@@ -104,13 +96,9 @@ export const ReleaseService = {
           if (pEarnings.length > 0) {
             const pAmount = Number(pEarnings[0].total_amount);
 
-            // Aseguramos que la fila de balance de moneda exista antes de mover fondos
             await platformBalanceRepository.ensureBalanceExists(order.currency, client);
-
-            // Movemos el saldo de 'pending' a 'available' en la tabla de resumen
             await platformBalanceRepository.releaseBalance(pAmount, order.currency, client);
 
-            // Marcamos el registro detallado de ganancia como liberado
             await client.query(
               `UPDATE "${schema}".platform_earnings 
                SET balance_released = TRUE, released_at = CURRENT_TIMESTAMP 
@@ -122,11 +110,8 @@ export const ReleaseService = {
               (stats.releasedToPlatform[order.currency] || 0) + pAmount;
           }
 
-          // --- 3. ACTUALIZACIÓN FINAL DE ESTADOS ---
-          // Actualizar estado de comisiones de usuarios a 'paid'
           await commissionRepository.updateStatusByOrder(order.id, 'paid', client);
 
-          // Marcar orden como liberada globalmente
           await client.query(
             `UPDATE "${schema}".orders SET balance_released = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
             [order.id]
@@ -153,9 +138,6 @@ export const ReleaseService = {
     }
   },
 
-  /**
-   * Helper para notificaciones de usuario
-   */
   async notifyUser(userId: string, amount: number, currency: string, schema: string) {
     try {
       const res = await pool.query(`SELECT email, fullname FROM "${schema}".users WHERE id = $1`, [
