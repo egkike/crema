@@ -221,6 +221,19 @@ CREATE TABLE IF NOT EXISTS platform_balances (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabla que permite que la plataforma tenga su propio "Libro de Egresos" independiente.
+CREATE TABLE IF NOT EXISTS platform_withdrawals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID NOT NULL, -- Quién autorizó el retiro
+    amount DECIMAL(18, 8) NOT NULL,
+    currency VARCHAR(10) NOT NULL,
+    description TEXT,
+    transaction_receipt VARCHAR(255) NOT NULL, -- El comprobante bancario/MP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_admin FOREIGN KEY (admin_id) REFERENCES users(id)
+);
+
 -- Tabla para trackear solicitudes de Payouts
 CREATE TABLE IF NOT EXISTS payouts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
