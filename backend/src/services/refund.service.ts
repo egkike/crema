@@ -13,7 +13,7 @@ import { config } from '../config/index';
 
 export class RefundService {
   /**
-   * Helper privado para inicializar el cliente de Mercado Pago solo cuando se necesita.
+   * Helper privado para inicializar el cliente de Mercado Pago.
    */
   private static getMPClient() {
     return new MercadoPagoConfig({
@@ -22,8 +22,7 @@ export class RefundService {
   }
 
   /**
-   * Procesa el reembolso de una orden.
-   * Revierte los saldos pendientes de todos los involucrados (creador y afiliados).
+   * Procesa el reembolso de una orden de forma atómica.
    */
   static async processRefund(orderId: string, reason: string = 'Reembolso solicitado') {
     const schema = config.db?.schema || 'public';
@@ -32,46 +31,40 @@ export class RefundService {
     try {
       await client.query('BEGIN');
 
-      // 1. Obtener la orden con bloqueo para evitar condiciones de carrera (Double Spending)
+      // 1. Obtener la orden con bloqueo FOR UPDATE para evitar colisiones con el proceso de liberación.
+      // NOTA: Asegúrate que orderRepository.getById use FOR UPDATE cuando se le pasa el cliente.
       const order = await orderRepository.getById(orderId, client);
+
       if (!order) throw new AppError('La orden no existe', 404);
       if (order.status === 'refunded') throw new AppError('La orden ya fue reembolsada', 400);
 
-      // >>> VALIDACIÓN DE PERIODO DE GARANTÍA DINÁMICO <<<
-      // Calculamos si la orden aún está en periodo de garantía basándonos en su propia configuración
+      // VALIDACIÓN DE GARANTÍA
       const orderCreatedAt = new Date(order.created_at).getTime();
       const guaranteeDays = order.days_of_guarantee_applied || 7;
       const guaranteeMillis = guaranteeDays * 24 * 60 * 60 * 1000;
       const expirationDate = orderCreatedAt + guaranteeMillis;
 
       if (Date.now() > expirationDate) {
-        throw new AppError(
-          `El periodo de garantía de ${guaranteeDays} días ha expirado. El reembolso no es posible de forma automática.`,
-          400
-        );
+        throw new AppError(`El periodo de garantía de ${guaranteeDays} días ha expirado.`, 400);
       }
 
-      // REGLA DE SEGURIDAD: Solo se reembolsa si el dinero no ha sido liberado al disponible
+      // SEGURIDAD: Solo se reembolsa si el dinero no ha sido liberado al saldo disponible.
       if (order.balance_released) {
         throw new AppError(
-          'El saldo ya fue liberado al creador. El reembolso debe gestionarse manualmente por soporte.',
+          'El saldo ya fue liberado. El reembolso debe gestionarse manualmente.',
           400
         );
       }
 
       const orderCurrency = order.currency;
 
-      // 2. OBTENER TODAS LAS COMISIONES (Creador y Afiliados)
+      // 2. REVERTIR COMISIONES DE USUARIOS (CREADOR Y AFILIADOS)
       const commissions = await commissionRepository.getByOrderId(orderId);
 
-      if (commissions.length === 0) {
-        logger.warn({ orderId }, 'No se encontraron registros de comisiones para reembolsar');
-      }
-
-      // 3. REVERTIR SALDOS PARA CADA INVOLUCRADO
       for (const comm of commissions) {
+        // Solo revertimos si la comisión está pendiente (no pagada aún)
         if (comm.status === 'pending') {
-          const amountToDeduct = Number(comm.netAmount);
+          const amountToDeduct = Math.floor(Number(comm.netAmount) * 100) / 100;
 
           await balanceRepository.deductPendingEarnings(
             comm.userId,
@@ -86,22 +79,12 @@ export class RefundService {
             amount: -amountToDeduct,
             currency: orderCurrency,
             type: 'refund' as any,
-            description: `Deducción por reembolso: Orden #${orderId}`,
+            description: `Deducción por reembolso: Orden #${orderId.substring(0, 8)}`,
           });
-
-          logger.info(
-            { userId: comm.userId, amount: amountToDeduct },
-            'Saldo pendiente revertido por reembolso'
-          );
         }
       }
 
-      // 4. ACTUALIZAR ESTADOS EN CASCADA
-      await orderRepository.updateStatus(orderId, 'refunded', client);
-      await commissionRepository.updateStatusByOrder(orderId, 'refunded', client);
-
-      // 4.5 REVERTIR GANANCIAS DE LA PLATAFORMA (Lógica nueva integrada)
-      // Buscamos el monto que la plataforma tiene "active" para esta orden
+      // 3. REVERTIR GANANCIAS DE LA PLATAFORMA
       const pEarningsQuery = `
         SELECT total_amount 
         FROM "${schema}".platform_earnings 
@@ -111,30 +94,28 @@ export class RefundService {
       const { rows: pEarnings } = await client.query(pEarningsQuery, [orderId]);
 
       if (pEarnings.length > 0) {
-        const platformAmountToDeduct = Number(pEarnings[0].total_amount);
+        const platformAmountToDeduct = Math.floor(Number(pEarnings[0].total_amount) * 100) / 100;
 
-        // Descontamos del balance PENDIENTE global de la plataforma
         await platformBalanceRepository.deductFromPending(
           platformAmountToDeduct,
           orderCurrency,
           client
         );
 
-        // Actualizamos el estado del registro individual a 'refunded'
         await client.query(
           `UPDATE "${schema}".platform_earnings 
            SET status = 'refunded', updated_at = CURRENT_TIMESTAMP 
            WHERE order_id = $1`,
           [orderId]
         );
-
-        logger.info(
-          { orderId, amount: platformAmountToDeduct },
-          'Ganancia de plataforma revertida por reembolso'
-        );
       }
 
-      // 5. REGISTRO DE AUDITORÍA EN TABLA DE REEMBOLSOS
+      // 4. ACTUALIZAR ESTADOS DE LA ORDEN Y COMISIONES
+      await orderRepository.updateStatus(orderId, 'refunded', client);
+      await commissionRepository.updateStatusByOrder(orderId, 'refunded', client);
+
+      // 5. REGISTRO DE AUDITORÍA
+      // Ajuste: Usamos order.creator_id o el seller_id que venga del JOIN en el repositorio.
       await refundRepository.create(
         {
           orderId,
@@ -147,39 +128,30 @@ export class RefundService {
         client
       );
 
-      // --- PASO DE: REEMBOLSO AUTOMÁTICO EN MERCADO PAGO ---
+      // 6. REEMBOLSO EN PASARELA (MERCADO PAGO)
       if (order.payment_method === 'mercadopago' && order.transaction_id) {
         try {
-          logger.info(
-            { transactionId: order.transaction_id },
-            '🔄 Iniciando reembolso en Mercado Pago...'
-          );
-
-          // Inicialización bajo demanda
           const mpClient = this.getMPClient();
           const refundInstance = new PaymentRefund(mpClient);
 
           await refundInstance.create({
             payment_id: String(order.transaction_id) as any,
           });
-
-          logger.info('✅ Mercado Pago procesó el reembolso correctamente');
+          logger.info(`Mercado Pago: Reembolso exitoso para orden ${orderId}`);
         } catch (mpError: any) {
-          logger.error({ mpError: mpError.message }, '❌ Error en API de Mercado Pago');
-          throw new AppError(`Mercado Pago no pudo procesar el reembolso: ${mpError.message}`, 400);
+          logger.error({ mpError: mpError.message }, 'Error en API de Mercado Pago');
+          // Lanzamos error para hacer ROLLBACK de todo si MP falla
+          throw new AppError(`Error en Mercado Pago: ${mpError.message}`, 400);
         }
       }
 
       await client.query('COMMIT');
-      logger.info({ orderId }, '✅ Proceso de reembolso completado exitosamente');
-
       return { success: true };
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, orderId }, '❌ Fallo en el proceso de reembolso');
-
+      logger.error({ error: error.message, orderId }, 'Fallo en RefundService');
       if (error instanceof AppError) throw error;
-      throw new AppError('Error interno al procesar el reembolso', 500);
+      throw new AppError(error.message || 'Error interno al procesar el reembolso', 500);
     } finally {
       client.release();
     }

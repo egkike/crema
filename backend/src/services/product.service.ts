@@ -1,36 +1,54 @@
 import { configRepository } from '../repositories/config.repository';
 import { AppError } from '../errors/AppError';
+import logger from '../utils/logger';
 
 export class ProductService {
   /**
    * Valida que el porcentaje de comisión esté dentro de los límites legales y financieros.
-   * @param requestedComm Porcentaje solicitado por el creador.
-   * @throws AppError si la comisión es inválida.
+   * Evita que la suma de comisiones supere el 100% del valor del producto.
    */
   static async validateCommissionLimits(requestedComm: number): Promise<void> {
-    // 1. Obtener configuraciones de la moneda base
-    const platformCurrency = await configRepository.getSetting('platform_currency', 'ARS');
-    const platformConfigs = await configRepository.getConfigsByCurrency(platformCurrency);
-    const rawMinComm = await configRepository.getSetting('min_global_affiliate_commission', '10');
+    try {
+      // 1. Obtener configuraciones base
+      const platformCurrency = await configRepository.getSetting('platform_currency', 'ARS');
+      const platformConfigs = await configRepository.getConfigsByCurrency(platformCurrency);
 
-    // 2. Parámetros numéricos
-    const platformFeePercent = Number(platformConfigs['fee_percent']) * 100; // Ej: 9.9
-    const minAffiliateComm = Number(rawMinComm);
+      // 2. Obtener el mínimo global de afiliados (Default 10%)
+      const rawMinComm = await configRepository.getSetting('min_global_affiliate_commission', '10');
+      const minAffiliateComm = Number(rawMinComm);
 
-    // 3. Validar contra el mínimo global (Protección al Afiliado)
-    if (requestedComm < minAffiliateComm) {
-      throw new AppError(`La comisión mínima para afiliados es del ${minAffiliateComm}%`, 400);
-    }
+      // 3. Obtener el porcentaje de fee de la plataforma (Default 10% si no existe)
+      // Si el config devuelve 0.099, lo convertimos a 9.9
+      const platformFeePercent =
+        platformConfigs && platformConfigs['fee_percent']
+          ? Number(platformConfigs['fee_percent']) * 100
+          : 10;
 
-    // 4. Calcular el techo máximo dinámico (Protección al Creador)
-    const minimumCreatorMargin = 5;
-    const maxPossibleAffiliateComm = 100 - platformFeePercent - minimumCreatorMargin;
+      // 4. VALIDACIÓN 1: Contra el mínimo global (Protección al Afiliado)
+      if (requestedComm < minAffiliateComm) {
+        throw new AppError(
+          `La comisión mínima permitida para afiliados es del ${minAffiliateComm}%.`,
+          400
+        );
+      }
 
-    if (requestedComm > maxPossibleAffiliateComm) {
-      throw new AppError(
-        `La comisión de afiliado es demasiado alta. El máximo permitido es ${Math.floor(maxPossibleAffiliateComm)}% considerando los fees de plataforma.`,
-        400
-      );
+      // 5. VALIDACIÓN 2: Techo máximo (Protección de integridad financiera)
+      // Dejamos un margen mínimo del 5% para el creador para cubrir posibles variaciones
+      const minimumCreatorMargin = 5;
+      const maxPossibleAffiliateComm = 100 - platformFeePercent - minimumCreatorMargin;
+
+      if (requestedComm > maxPossibleAffiliateComm) {
+        throw new AppError(
+          `Comisión excesiva. El máximo permitido es ${Math.floor(maxPossibleAffiliateComm)}% ` +
+            `(deduciendo ${platformFeePercent}% de plataforma y margen de seguridad).`,
+          400
+        );
+      }
+    } catch (error: any) {
+      if (error instanceof AppError) throw error;
+
+      logger.error({ error: error.message }, 'Error al validar límites de comisión');
+      throw new AppError('No se pudieron validar los límites de comisión en este momento.', 500);
     }
   }
 }

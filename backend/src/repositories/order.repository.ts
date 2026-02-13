@@ -18,11 +18,9 @@ export const orderRepository = {
     if (!row) return null;
 
     // >>> Cálculo de fecha de liberación estimada <<<
-    // Usamos la fecha de creación + los días de garantía aplicados en esa orden
     let releaseDate: Date | null = null;
     if (row.created_at && row.days_of_guarantee_applied !== undefined) {
       const date = new Date(row.created_at);
-      // Fallback a 7 días si por alguna razón el snapshot es nulo
       const days = row.days_of_guarantee_applied !== null ? row.days_of_guarantee_applied : 7;
       date.setDate(date.getDate() + Number(days));
       releaseDate = date;
@@ -32,11 +30,13 @@ export const orderRepository = {
       ...row,
       amount: Number(row.amount),
       commission_amount: row.commission_amount ? Number(row.commission_amount) : 0,
-      total_amount: Number(row.amount), // Alias para compatibilidad con el Service
+      total_amount: Number(row.amount),
       buyerId: row.buyer_id,
       productId: row.product_id,
       affiliateId: row.affiliate_id,
-      release_date: releaseDate, // ✅ Expuesto para el Dashboard/Frontend
+      release_date: releaseDate,
+      // creator_id viene del JOIN en getById
+      creator_id: row.creator_id || null,
     };
   },
 
@@ -67,9 +67,6 @@ export const orderRepository = {
     return this.mapRowToOrder(rows[0]);
   },
 
-  /**
-   * Actualiza campos dinámicamente usando la referencia externa.
-   */
   async updateByExternalRef(externalReference: string, data: Partial<any>, client?: any) {
     const schema = config.db?.schema || 'public';
     const fields = Object.keys(data)
@@ -123,10 +120,26 @@ export const orderRepository = {
     return rows.length > 0;
   },
 
+  /**
+   * getById AJUSTADO:
+   * 1. Incluye JOIN con products para obtener creator_id.
+   * 2. Soporta FOR UPDATE para bloquear la fila durante reembolsos/liberaciones.
+   */
   async getById(orderId: string, client?: any) {
     const schema = config.db?.schema || 'public';
-    const query = `SELECT * FROM "${schema}".orders WHERE id = $1`;
     const db = client || pool;
+
+    // Si hay un cliente (transacción), bloqueamos la fila para evitar "double spending"
+    const lockClause = client ? 'FOR UPDATE' : '';
+
+    const query = `
+      SELECT o.*, p.creator_id 
+      FROM "${schema}".orders o
+      JOIN "${schema}".products p ON o.product_id = p.id
+      WHERE o.id = $1
+      ${lockClause}
+    `;
+
     const { rows } = await db.query(query, [orderId]);
     return this.mapRowToOrder(rows[0]);
   },

@@ -58,10 +58,10 @@ export const userRepository = {
 
   async saveRefreshToken(userId: string, tokenHash: string, expiresAt: Date) {
     const schema = config.db?.schema || 'public';
+    // Sin ON CONFLICT para soportar múltiples sesiones activas
     const query = `
       INSERT INTO "${schema}".refresh_tokens (user_id, token_hash, expires_at)
       VALUES ($1, $2, $3)
-      ON CONFLICT (user_id) DO UPDATE SET token_hash = $2, expires_at = $3
     `;
     await pool.query(query, [userId, tokenHash, expiresAt]);
   },
