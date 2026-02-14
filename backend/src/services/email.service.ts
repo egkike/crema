@@ -294,4 +294,40 @@ export class EmailService {
     `;
     return this.send(email, subject, html);
   }
+
+  /**
+   * Notificación de Downgrade (Vuelta al plan gratuito)
+   */
+  static async sendDowngradeNotification(email: string, fullname: string) {
+    const html = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e1e8ed; border-radius: 12px; overflow: hidden;">
+        <div style="background: #747d8c; padding: 30px; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 24px;">Tu plan ha cambiado</h1>
+          <p style="margin: 5px 0 0;">Ahora estás en el Plan Initial</p>
+        </div>
+        <div style="padding: 30px; color: #2f3542; line-height: 1.6;">
+          <p>Hola <strong>${fullname}</strong>,</p>
+          <p>Te informamos que tu suscripción ha finalizado y tu cuenta ha vuelto automáticamente al plan gratuito.</p>
+          
+          <div style="background: #f1f2f6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <p style="margin: 0;"><strong>¿Qué significa esto?</strong></p>
+            <ul style="margin: 10px 0; padding-left: 20px; font-size: 14px;">
+              <li>Tus productos existentes siguen activos y online.</li>
+              <li>Tu límite de almacenamiento ha vuelto a 500MB.</li>
+              <li>Si superas los límites del plan gratuito, no podrás subir nuevos productos hasta liberar espacio o renovar tu suscripción.</li>
+            </ul>
+          </div>
+
+          <p>Puedes volver a subir de nivel Pro en cualquier momento para recuperar tus beneficios.</p>
+
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${config.frontendUrl}/dashboard/subscription" style="background: #2f3542; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+              Ver planes Pro
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+    return this.send(email, 'Actualización de tu suscripción - Crema', html);
+  }
 }
