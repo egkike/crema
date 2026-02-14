@@ -5,6 +5,7 @@ import { balanceRepository } from '../repositories/balance.repository';
 import { historyRepository } from '../repositories/history.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
+import { subscriptionRepository } from '../repositories/subscription.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
@@ -43,10 +44,23 @@ export class CommissionService {
         throw new AppError(`Configuración inexistente para moneda: ${orderCurrency}`, 500);
       }
 
-      const totalAmount = Number(order.amount);
-
       // 2. CÁLCULO DE COMISIÓN DE PLATAFORMA
-      const percentValue = Number(configs['fee_percent']);
+      // --- Lógica de Plan ---
+      const subscription = await subscriptionRepository.getActiveSubscription(product.creator_id);
+
+      let percentValue = Number(configs['fee_percent']); // Default global (0.099)
+
+      // Si el plan del usuario define una comisión específica (ej: 0.05 para 5%)
+      if (subscription?.features?.custom_fee_percent !== undefined) {
+        percentValue = Number(subscription.features.custom_fee_percent);
+        logger.info(
+          { userId: product.creator_id, plan: subscription.plan_name },
+          'Aplicando comisión preferencial por plan'
+        );
+      }
+      // ------------------------------------
+
+      const totalAmount = Number(order.amount);
       const threshold = Number(configs['price_threshold']);
       const lowFee = Number(configs['fixed_fee_low']);
       const highFee = Number(configs['fixed_fee_high']);

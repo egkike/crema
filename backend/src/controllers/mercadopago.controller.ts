@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 import { Request, Response, NextFunction } from 'express';
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment, PreApproval } from 'mercadopago';
 
 import { config } from '../config/index';
 import { AppError } from '../errors/AppError';
@@ -9,6 +9,7 @@ import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { userRepository } from '../repositories/user.repository';
 import { OrderService } from '../services/order.service';
+import { SubscriptionService } from '../services/subscription.service';
 import logger from '../utils/logger';
 
 /**
@@ -99,29 +100,57 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
 };
 
 export const handleWebhook = async (req: Request, res: Response) => {
-  res.status(200).send('OK');
+  res.status(200).send('OK'); // Siempre responder 200 inmediatamente
+
   try {
-    const rawId = req.body.data?.id || req.query.id || req.body.id;
-    const type = req.body.type || req.query.topic || req.body.action;
+    const { action, type, data } = req.body;
+    const rawId = data?.id || req.query.id;
 
-    if (type !== 'payment' || !rawId) return;
+    if (!rawId) return;
 
-    // Instanciación bajo demanda
     const mpClient = getMPClient();
-    const paymentInstance = new Payment(mpClient);
 
-    // Forzado de String preventivo antes de la llamada a la SDK
-    const payment = await paymentInstance.get({ id: String(rawId) });
+    // CASO A: Venta de Producto Único
+    if (type === 'payment' || action === 'payment.created') {
+      const paymentInstance = new Payment(mpClient);
+      const payment = await paymentInstance.get({ id: String(rawId) });
 
-    if (payment.external_reference) {
-      await OrderService.processPaymentNotification({
-        externalReference: payment.external_reference,
-        status: payment.status!,
-        transactionId: String(payment.id),
-        tempPassword: payment.metadata?.temp_password,
-      });
+      if (payment.external_reference) {
+        await OrderService.processPaymentNotification({
+          externalReference: payment.external_reference,
+          status: payment.status!,
+          transactionId: String(payment.id),
+          tempPassword: payment.metadata?.temp_password,
+        });
+      }
+    }
+
+    // CASO B: Suscripción Mensual (PreApproval)
+    if (
+      type === 'subscription_preapproval' ||
+      action === 'subscription_preapproval.created' ||
+      action === 'subscription_preapproval.updated'
+    ) {
+      const preApprovalClient = new PreApproval(mpClient);
+      const sub = await preApprovalClient.get({ id: String(rawId) });
+
+      if (sub.external_reference && sub.external_reference.startsWith('SUB:')) {
+        // Usamos ":" como separador para no romper los UUIDs
+        const parts = sub.external_reference.split(':');
+        const userId = parts[1];
+        const planId = parts[2];
+
+        if (sub.status === 'authorized') {
+          await SubscriptionService.handleSubscriptionPayment(userId, planId, sub.id!);
+        }
+
+        if (sub.status === 'cancelled') {
+          // Si se cancela desde MP directamente, hacemos el downgrade en nuestra DB
+          await SubscriptionService.cancelSubscription(userId);
+        }
+      }
     }
   } catch (error: any) {
-    logger.error({ error: error.message }, '💥 Error Webhook MP');
+    logger.error({ error: error.message, body: req.body }, '💥 Error Webhook MP');
   }
 };

@@ -77,7 +77,8 @@ BEGIN
     VALUES ('Creador Pro', 3, false, '{
         "max_products": 100, 
         "storage_mb": 10240, 
-        "advanced_stats": true
+        "advanced_stats": true,
+        "custom_fee_percent": 0.05
     }') RETURNING id INTO plan_pro_id;
 
     -- Seteamos solo el plan por defecto para creadores

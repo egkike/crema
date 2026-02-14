@@ -1,4 +1,5 @@
 import { configRepository } from '../repositories/config.repository';
+import { subscriptionRepository } from '../repositories/subscription.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
@@ -7,7 +8,7 @@ export class ProductService {
    * Valida que el porcentaje de comisión esté dentro de los límites legales y financieros.
    * Evita que la suma de comisiones supere el 100% del valor del producto.
    */
-  static async validateCommissionLimits(requestedComm: number): Promise<void> {
+  static async validateCommissionLimits(creatorId: string, requestedComm: number): Promise<void> {
     try {
       // 1. Obtener configuraciones base
       const platformCurrency = await configRepository.getSetting('platform_currency', 'ARS');
@@ -17,12 +18,19 @@ export class ProductService {
       const rawMinComm = await configRepository.getSetting('min_global_affiliate_commission', '10');
       const minAffiliateComm = Number(rawMinComm);
 
-      // 3. Obtener el porcentaje de fee de la plataforma (Default 10% si no existe)
-      // Si el config devuelve 0.099, lo convertimos a 9.9
-      const platformFeePercent =
+      // 3. Obtener el porcentaje de fee de la plataforma
+      // --- Fee dinámico por plan ---
+      const subscription = await subscriptionRepository.getActiveSubscription(creatorId);
+
+      let platformFeePercent =
         platformConfigs && platformConfigs['fee_percent']
           ? Number(platformConfigs['fee_percent']) * 100
           : 10;
+
+      if (subscription?.features?.custom_fee_percent !== undefined) {
+        platformFeePercent = Number(subscription.features.custom_fee_percent) * 100;
+      }
+      // -------------------------------------------
 
       // 4. VALIDACIÓN 1: Contra el mínimo global (Protección al Afiliado)
       if (requestedComm < minAffiliateComm) {

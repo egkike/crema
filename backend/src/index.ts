@@ -12,6 +12,8 @@ import { config } from './config/index';
 import logger from './utils/logger';
 import { ReleaseService } from './services/release.service';
 import { AuthCleanupService } from './services/auth.cleanup.service';
+import { subscriptionRepository } from './repositories/subscription.repository';
+import { EmailService } from './services/email.service';
 // Importación de rutas
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -151,7 +153,7 @@ if (config.nodeEnv !== 'test') {
   // La variable debe estar aquí para que los crons puedan leerla y modificarla
   let isReleaseTaskRunning = false;
 
-  // Ejecución inmediata al arrancar
+  // Ejecución inmediata al arrancar para liberar órdenes pendientes
   (async () => {
     try {
       logger.info('SISTEMA: Ejecutando liberación de saldos inicial (Startup)...');
@@ -162,7 +164,7 @@ if (config.nodeEnv !== 'test') {
     }
   })();
 
-  // Programación de tareas (Cron) cada 30 minutos
+  // Programación de tareas cada 30 minutos para liberar órdenes pendientes
   cron.schedule('*/30 * * * *', async () => {
     if (isReleaseTaskRunning) {
       logger.warn(
@@ -191,6 +193,37 @@ if (config.nodeEnv !== 'test') {
     }
   });
 
+  // CRON: Verificación diaria de suscripciones (00:05 AM)
+  cron.schedule('5 0 * * *', async () => {
+    try {
+      logger.info('SISTEMA: Iniciando verificación de suscripciones vencidas...');
+
+      // 1. Avisar a los que vencen en 3 días
+      const nearExpiration = await subscriptionRepository.getExpiringSubscriptions(3);
+      for (const sub of nearExpiration) {
+        await EmailService.sendExpirationWarning(sub.email, sub.fullname, sub.plan_name, 3);
+      }
+
+      // 2. Avisar a los que vencen HOY
+      const expiresToday = await subscriptionRepository.getExpiringSubscriptions(0);
+      for (const sub of expiresToday) {
+        await EmailService.sendExpirationWarning(sub.email, sub.fullname, sub.plan_name, 0);
+      }
+
+      // 3. Desactivar suscripciones ya pasadas
+      const deactivated = await subscriptionRepository.deactivateExpiredSubscriptions();
+      if (deactivated.length > 0) {
+        logger.info(
+          { count: deactivated.length },
+          'SISTEMA: Suscripciones desactivadas por vencimiento.'
+        );
+      }
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'SISTEMA: Error en Cron de Suscripciones');
+    }
+  });
+
+  // CRON: Limpieza de Tokens expirados
   cron.schedule('0 3 * * *', async () => {
     await AuthCleanupService.cleanExpiredTokens();
   });

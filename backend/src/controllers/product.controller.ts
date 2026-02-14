@@ -19,7 +19,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     const requestedComm = validatedData.commissionPercent ?? 0;
 
     // Llamada al servicio refactorizado usando la variable recién definida
-    await ProductService.validateCommissionLimits(requestedComm);
+    await ProductService.validateCommissionLimits(user.id, requestedComm);
 
     // Spread condicional para evitar el error de 'undefined' con exactOptionalPropertyTypes
     const productInput: ProductInput = {

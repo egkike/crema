@@ -53,7 +53,7 @@ export const productRepository = {
       type: row.type,
       content_url: row.content_url || row.contentUrl,
       affiliate_commission_percent: Number(row.affiliate_commission_percent),
-      size_bytes: Number(row.size_bytes || 0),
+      size_bytes: row.size_bytes ? Number(row.size_bytes) : 0,
       status: row.status,
       created_at: row.created_at,
       updated_at: row.updated_at,

@@ -248,4 +248,50 @@ export class EmailService {
     `;
     return this.send(email, 'Restablecer tu contraseña - Crema', html);
   }
+
+  /**
+   * Envío de advertencia por vencimiento de suscripción
+   */
+  static async sendExpirationWarning(
+    email: string,
+    fullname: string,
+    planName: string,
+    daysLeft: number
+  ) {
+    const isToday = daysLeft === 0;
+    const subject = isToday
+      ? `⚠️ Tu plan ${planName} vence hoy`
+      : `Recordatorio: Tu plan ${planName} vence en ${daysLeft} días`;
+
+    const statusColor = isToday ? '#ff4757' : '#ffa502'; // Rojo para hoy, naranja para advertencia
+    const billingLink = `${config.frontendUrl}/dashboard/subscription`;
+
+    const html = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e1e8ed; border-radius: 12px; overflow: hidden;">
+        <div style="background: ${statusColor}; padding: 30px; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 24px;">${isToday ? '¡Vence hoy!' : 'Aviso de vencimiento'}</h1>
+          <p style="margin: 5px 0 0;">Tu suscripción al plan ${planName}</p>
+        </div>
+        <div style="padding: 30px; color: #2f3542; line-height: 1.6;">
+          <p>Hola <strong>${fullname}</strong>,</p>
+          <p>Te escribimos para recordarte que tu suscripción activa está llegando a su fin.</p>
+          
+          <div style="background: #f1f2f6; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+            <p style="margin: 0; font-size: 18px;">
+              Vence: <strong>${isToday ? 'Hoy mismo' : `en ${daysLeft} días`}</strong>
+            </p>
+          </div>
+
+          <p>Para seguir disfrutando de las comisiones reducidas y tus límites de almacenamiento ampliados, asegúrate de que tu método de pago en Mercado Pago esté al día.</p>
+
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${billingLink}" style="background: #2f3542; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+              Gestionar mi suscripción
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+    return this.send(email, subject, html);
+  }
 }
