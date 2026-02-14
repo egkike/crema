@@ -32,8 +32,8 @@ export const checkPlanLimits = async (req: Request, res: Response, next: NextFun
     }
 
     // 4. VALIDACIÓN B: Cantidad de Productos
-    const currentProducts = await productRepository.getProductsByCreator(user.id);
-    if (currentProducts.length >= limits.max_products) {
+    const productsCount = await productRepository.countProductsByCreator(user.id);
+    if (productsCount >= limits.max_products) {
       throw new AppError(
         `Límite de productos alcanzado (${limits.max_products}). Sube de plan para publicar más.`,
         403

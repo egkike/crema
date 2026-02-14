@@ -203,4 +203,14 @@ export const productRepository = {
       throw error;
     }
   },
+
+  /**
+   * Recupera la cantidad de productos de un usuario
+   */
+  async countProductsByCreator(userId: string): Promise<number> {
+    const schema = config.db?.schema || 'public';
+    const query = `SELECT COUNT(*) FROM "${schema}".products WHERE creator_id = $1`;
+    const { rows } = await pool.query(query, [userId]);
+    return parseInt(rows[0].count, 10);
+  },
 };
