@@ -49,14 +49,19 @@ export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunctio
 
   (req as any).user = user;
 
-  // Validación de Primer Login
-  // Si el token es parcial y NO intenta cambiar la contraseña, lo bloqueamos
-  if (user.partial && !req.path.includes('change-password')) {
-    return res.status(403).json({
-      success: false,
-      mustChangePassword: true,
-      message: 'Acceso restringido: Debes cambiar tu contraseña primero.',
-    });
+  // Validación de Primer Login (Flag Partial)
+  if (user.partial) {
+    // Solo permitimos la ruta específica de cambio de contraseña
+    const isChangePasswordPath = req.path.includes('change-password-first');
+
+    if (!isChangePasswordPath) {
+      logger.warn({ userId: user.id }, 'Intento de acceso con token parcial');
+      return res.status(403).json({
+        success: false,
+        mustChangePassword: true,
+        message: 'Acceso restringido: Debes completar el cambio de contraseña obligatorio.',
+      });
+    }
   }
 
   logger.debug(

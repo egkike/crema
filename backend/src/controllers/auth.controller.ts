@@ -3,7 +3,12 @@ import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+  cleanPayload,
+} from '../utils/jwt';
 import { validatePasswordDetailed } from '../schemas/users.schema';
 import logger from '../utils/logger';
 import { config } from '../config/index';
@@ -64,10 +69,12 @@ export class AuthController {
       throw new AppError('Cuenta no verificada o inactiva. Revisa tu email.', 403);
     }
 
+    const sameSiteValue = config.nodeEnv === 'production' ? 'strict' : 'lax';
+
     const cookieOptions = {
       httpOnly: true,
       secure: config.nodeEnv === 'production',
-      sameSite: 'strict' as const,
+      sameSite: sameSiteValue as 'strict' | 'lax',
       path: '/',
     };
 
@@ -87,28 +94,33 @@ export class AuthController {
       });
     }
 
-    const payload = {
+    const payload = cleanPayload({
       id: user.id,
       username: user.username,
       email: user.email,
       fullname: user.fullname,
       level: user.level,
       active: user.active,
-    };
+    });
 
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
+    // Usamos los tiempos centralizados en config
     await userRepository.saveRefreshToken(
       user.id,
       refreshToken,
-      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      new Date(Date.now() + config.jwt.refreshTokenMaxAge)
     );
 
-    res.cookie('access_token', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
+    res.cookie('access_token', accessToken, {
+      ...cookieOptions,
+      maxAge: config.jwt.accessTokenMaxAge,
+    });
+
     res.cookie('refresh_token', refreshToken, {
       ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: config.jwt.refreshTokenMaxAge,
     });
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -150,21 +162,16 @@ export class AuthController {
       }
 
       const decoded = verifyRefreshToken(refreshToken) as any;
+      const cleanData = cleanPayload(decoded); // <--- Limpia iat y exp
 
-      const newAccessToken = generateAccessToken({
-        id: decoded.id,
-        username: decoded.username,
-        email: decoded.email,
-        fullname: decoded.fullname,
-        level: decoded.level,
-      });
+      const newAccessToken = generateAccessToken(cleanData);
 
       res.cookie('access_token', newAccessToken, {
         httpOnly: true,
         secure: config.nodeEnv === 'production',
-        sameSite: 'strict',
+        sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax',
         path: '/',
-        maxAge: 15 * 60 * 1000,
+        maxAge: config.jwt.accessTokenMaxAge,
       });
 
       return res.status(200).json({ success: true, message: 'Token renovado' });

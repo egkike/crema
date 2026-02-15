@@ -9,6 +9,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   SECRET_JWT_KEY: z.string().min(32),
+  SECRET_REFRESH_JWT_KEY: z.string().min(32),
   JWT_ACCESS_EXPIRY: z.string().default('10m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
   FORCE_RELEASE_ON_STARTUP: z.preprocess((val) => val === 'true', z.boolean()).default(false),
@@ -71,8 +72,11 @@ export const config = {
   forceReleaseOnStartup: env.FORCE_RELEASE_ON_STARTUP,
   jwt: {
     secret: env.SECRET_JWT_KEY,
+    refreshSecret: env.SECRET_REFRESH_JWT_KEY,
     accessTokenExpiry: env.JWT_ACCESS_EXPIRY,
     refreshTokenExpiry: env.JWT_REFRESH_EXPIRY,
+    accessTokenMaxAge: 15 * 60 * 1000, // 15 min
+    refreshTokenMaxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
   },
   db: {
     host: env.DB_HOST,

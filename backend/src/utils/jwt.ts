@@ -32,7 +32,7 @@ export function generateAccessToken(payload: UserTokenPayload): string {
 export function generateRefreshToken(payload: UserTokenPayload): string {
   try {
     // CORRECCIÓN: Ahora usa refreshTokenExpiry (7d)
-    return jwt.sign(payload, config.jwt.secret, {
+    return jwt.sign(payload, config.jwt.refreshSecret, {
       expiresIn: (config.jwt.refreshTokenExpiry as StringValue) || '7d',
       algorithm: 'HS256',
     });
@@ -53,10 +53,14 @@ export function verifyToken(token: string): UserTokenPayload | null {
 
 /**
  * Verifica un token y devuelve su contenido.
- * Reutilizamos verifyToken ya que usas el mismo secret.
  */
 export function verifyRefreshToken(token: string): UserTokenPayload | null {
-  return verifyToken(token);
+  try {
+    return jwt.verify(token, config.jwt.refreshSecret) as UserTokenPayload; // 👈 Llave B
+  } catch (error: any) {
+    logger.debug({ name: error.name, message: error.message }, 'Token refresh inválido');
+    return null;
+  }
 }
 
 /**
