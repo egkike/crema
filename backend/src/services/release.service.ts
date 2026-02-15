@@ -66,8 +66,8 @@ export const ReleaseService = {
                 client
               );
 
-              const isCreator = comm.userId === order.creator_id;
-              const historyType = isCreator ? 'sale_creator' : 'sale_affiliate';
+              const historyType = 'balance_release'; // Tipo unificado para liberación
+              const role = comm.userId === order.creator_id ? 'Creador' : 'Afiliado';
 
               await historyRepository.createRecordWithClient(client, {
                 userId: comm.userId,
@@ -75,7 +75,7 @@ export const ReleaseService = {
                 amount: amountToRelease,
                 currency: order.currency,
                 type: historyType as any,
-                description: `Garantía cumplida: Saldo liberado (Orden #${order.id.substring(0, 8)})`,
+                description: `Saldo liberado (${role}) - Orden #${order.id.substring(0, 8)}`,
               });
 
               stats.releasedToUsers[order.currency] =

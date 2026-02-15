@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 
 import { StatsService } from '../services/stats.service';
 import { ExportService } from '../services/export.service';
+import { PayoutService } from '../services/payout.service';
 import { adminRepository } from '../repositories/admin.repository';
+import { payoutRepository } from '../repositories/payout.repository';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 
@@ -104,6 +106,55 @@ export class AdminController {
         status: 'success',
         data: stats,
       });
+    } catch (error: any) {
+      const status = error instanceof AppError ? error.statusCode : 500;
+      return res.status(status).json({ message: error.message });
+    }
+  }
+
+  /**
+   * Obtiene retiros según su estado (útil para el panel de aprobación)
+   */
+  static async getPayoutsByStatus(req: Request, res: Response) {
+    try {
+      const status = typeof req.query.status === 'string' ? req.query.status : 'pending';
+      const payouts = await payoutRepository.getByStatus(status);
+
+      return res.json({
+        status: 'success',
+        data: payouts,
+      });
+    } catch (error: any) {
+      logger.error(
+        { error: error.message, status: req.query.status },
+        'Error en getPayoutsByStatus'
+      );
+      return res.status(500).json({ message: 'Error al obtener las solicitudes de retiro' });
+    }
+  }
+
+  /**
+   * Procesa un retiro (Completar o Rechazar)
+   */
+  static async processPayout(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { status, adminNotes, transactionReceipt } = req.body;
+      const adminId = (req as any).user.id;
+
+      if (!['completed', 'rejected'].includes(status)) {
+        throw new AppError('Estado no válido', 400);
+      }
+
+      const result = await PayoutService.updatePayoutStatus(
+        id as string,
+        status,
+        adminId,
+        adminNotes,
+        transactionReceipt
+      );
+
+      return res.json({ status: 'success', data: result });
     } catch (error: any) {
       const status = error instanceof AppError ? error.statusCode : 500;
       return res.status(status).json({ message: error.message });
