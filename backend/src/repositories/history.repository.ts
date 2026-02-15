@@ -9,6 +9,7 @@ export type HistoryType =
   | 'refund'
   | 'payout_request'
   | 'payout_refund'
+  | 'payout_cancel'
   | 'balance_release';
 
 export interface BalanceHistoryRecord {

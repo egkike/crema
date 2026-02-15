@@ -37,6 +37,7 @@ INSERT INTO platform_configs (key, currency, value, description) VALUES
 ('fixed_fee_high', 'ARS', 750.00000000, 'Fee fijo para productos > 22500 ARS'),
 ('price_threshold', 'ARS', 22500.00000000, 'Límite de precio para cambio de fee fijo'),
 ('min_payout_amount', 'ARS', 15000.00000000, 'Monto mínimo para solicitar retiro en Pesos'),
+('max_payout_amount', 'ARS', 750000.00, 'Monto máximo por retiro (750 Mil ARS)'),
 ('payout_frequency_limit', 'ARS', 1, 'Cantidad de retiros permitidos por día'),
 ('payout_processing_days', 'ARS', 3, 'Días hábiles estimados para procesar el retiro'),
 -- Reglas para USDT
@@ -45,6 +46,7 @@ INSERT INTO platform_configs (key, currency, value, description) VALUES
 ('fixed_fee_high', 'USDT', 0.50000000, 'Fee fijo para productos > 15 USDT'),
 ('price_threshold', 'USDT', 15.00000000, 'Límite de precio para cambio de fee fijo'),
 ('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en USDT Crypto'),
+('max_payout_amount', 'USDT', 500.00, 'Monto máximo por retiro (500 USDT)'),
 ('payout_frequency_limit', 'USDT', 1, 'Cantidad de retiros permitidos por día'),
 ('payout_processing_days', 'USDT', 2, 'Días hábiles estimados para procesar el retiro');
 

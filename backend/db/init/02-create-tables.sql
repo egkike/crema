@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS balance_history (
     currency VARCHAR(10) REFERENCES enabled_currencies(code),
     -- Definimos el tipo con un CHECK inline para integridad de datos
     type VARCHAR(50) NOT NULL CHECK (
-        type IN ('sale_creator', 'sale_affiliate', 'refund', 'payout_request', 'payout_refund')
+        type IN ('sale_creator', 'sale_affiliate', 'refund', 'payout_request', 'payout_refund', 'payout_cancel', 'balance_release')
     ),
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -240,9 +240,7 @@ CREATE TABLE IF NOT EXISTS payouts (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     amount DECIMAL(18,8) NOT NULL,
     currency VARCHAR(10) REFERENCES enabled_currencies(code),
-    status VARCHAR(20) DEFAULT 'pending' CHECK (
-        status IN ('pending', 'processing', 'completed', 'rejected', 'refunded')
-    ),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'rejected', 'refunded', 'cancelled')),
     destination_account TEXT NOT NULL, -- CBU/CVU o Wallet Address
     admin_notes TEXT,
     bank_name VARCHAR(100),

@@ -8,7 +8,7 @@ const router = Router();
 
 // Aplicamos los middlewares a todas las rutas del archivo
 router.use(jwtAuthMiddleware);
-router.use(enforceFullAuth); 
+router.use(enforceFullAuth);
 
 /**
  * @route POST /api/payouts
@@ -21,5 +21,11 @@ router.post('/', payoutController.requestPayout);
  * @desc  Ver historial personal de solicitudes de retiro
  */
 router.get('/me', payoutController.getMyPayouts);
+
+/**
+ * @route DELETE /api/payouts/:id
+ * @desc  Anular una solicitud de retiro propia (Solo si está 'pending')
+ */
+router.delete('/:id', payoutController.cancelPayout);
 
 export default router;

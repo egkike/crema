@@ -56,6 +56,17 @@ export class PayoutService {
       throw new AppError(`El monto mínimo de retiro para ${currency} es ${minAmount}`, 400);
     }
 
+    // Validación de Monto Máximo
+    // Buscamos la key 'max_payout_amount' en el objeto configs
+    const maxAmount = configs['max_payout_amount'] ? Number(configs['max_payout_amount']) : null;
+
+    if (maxAmount && sanitizedAmount > maxAmount) {
+      throw new AppError(
+        `El monto máximo permitido por retiro para ${currency} es ${maxAmount}.`,
+        400
+      );
+    }
+
     const alreadyRequested = await payoutRepository.hasRecentPayout(userId);
     if (alreadyRequested) {
       throw new AppError(`Has alcanzado el límite de solicitudes de retiro por día.`, 400);
@@ -89,6 +100,18 @@ export class PayoutService {
 
       await client.query('COMMIT');
 
+      // >>> NOTIFICACIÓN POR EMAIL (Solicitud creada) <<<
+      const user = await userRepository.getById(userId);
+      if (user) {
+        EmailService.sendPayoutRequestedEmail(
+          user.email,
+          user.fullname,
+          sanitizedAmount,
+          currency,
+          payoutData.alias || payoutData.destination_account
+        );
+      }
+
       const processingDays = Number(configs['payout_processing_days'] ?? 3);
       const estimatedDate = new Date();
       let addedDays = 0;
@@ -114,6 +137,79 @@ export class PayoutService {
       if (error.code === '23514' || error.message.includes('balance')) {
         throw new AppError('Saldo insuficiente para realizar el retiro.', 400);
       }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Permite al usuario anular una solicitud propia que aún esté 'pending'.
+   */
+  static async cancelUserPayout(payoutId: string, userId: string) {
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // 1. Obtener y bloquear el registro
+      const payout = await payoutRepository.getByIdForUpdate(payoutId, client);
+
+      if (!payout) throw new AppError('Solicitud de retiro no encontrada', 404);
+
+      // 2. Validaciones de seguridad
+      if (payout.user_id !== userId) {
+        throw new AppError('No tienes permiso para anular esta solicitud', 403);
+      }
+      if (payout.status !== 'pending') {
+        throw new AppError('Solo se pueden anular solicitudes en estado pendiente', 400);
+      }
+
+      // 3. Reintegrar el dinero al balance del usuario
+      await balanceRepository.addAvailableBalance(
+        userId,
+        Number(payout.amount),
+        payout.currency,
+        client
+      );
+
+      // 4. Marcar como cancelado en la tabla de payouts
+      await payoutRepository.updateStatus(
+        payoutId,
+        'cancelled',
+        'Anulado por el usuario',
+        null,
+        userId, // En este caso el ejecutor es el usuario
+        client
+      );
+
+      // 5. Registro en el historial de movimientos
+      await historyRepository.createRecordWithClient(client, {
+        userId,
+        order_id: null,
+        amount: Number(payout.amount),
+        currency: payout.currency,
+        type: 'payout_cancel' as any,
+        description: `Retiro anulado por el usuario: +${payout.amount} ${payout.currency}`,
+      });
+
+      await client.query('COMMIT');
+
+      // 6. Notificar por Email
+      const user = await userRepository.getById(userId);
+      if (user) {
+        await EmailService.sendPayoutCancelledEmail(
+          user.email,
+          user.fullname,
+          Number(payout.amount),
+          payout.currency
+        );
+      }
+
+      return { success: true, message: 'Solicitud anulada y saldo reintegrado.' };
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      logger.error({ error: error.message, payoutId }, 'Error al cancelar retiro');
       throw error;
     } finally {
       client.release();

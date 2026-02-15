@@ -58,6 +58,30 @@ class PayoutController {
       next(error);
     }
   }
+
+  /**
+   * Permite al usuario cancelar su solicitud de retiro si aún está pendiente
+   */
+  async cancelPayout(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = (req as any).user?.id;
+      const id = req.params.id as string;
+
+      if (!userId) throw new AppError('Usuario no autenticado', 401);
+      if (!id) throw new AppError('ID de solicitud no proporcionado', 400);
+
+      logger.info({ userId, payoutId: id }, '🚫 Procesando cancelación de retiro por el usuario');
+
+      const result = await PayoutService.cancelUserPayout(id, userId);
+
+      res.status(200).json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const payoutController = new PayoutController();
