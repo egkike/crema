@@ -155,17 +155,26 @@ export const payoutRepository = {
     }
   },
 
-  async hasRecentPayout(userId: string): Promise<boolean> {
+  async hasRecentPayout(userId: string, limit: number = 1): Promise<boolean> {
     const schema = config.db?.schema || 'public';
+    // Contamos solo solicitudes activas (pending, completed, processing)
+    // Ignoramos 'rejected' y 'cancelled' porque el usuario debería poder re-intentar
     const query = `
-    SELECT id FROM "${schema}".payouts 
-    WHERE user_id = $1 
-    AND created_at >= CURRENT_DATE 
-    AND status != 'rejected'
-    LIMIT 1;
-  `;
-    const { rows } = await pool.query(query, [userId]);
-    return rows.length > 0;
+      SELECT COUNT(*) as total 
+      FROM "${schema}".payouts 
+      WHERE user_id = $1 
+      AND created_at >= CURRENT_DATE 
+      AND status NOT IN ('rejected', 'cancelled');
+    `;
+
+    try {
+      const { rows } = await pool.query(query, [userId]);
+      const total = parseInt(rows[0].total, 10);
+      return total >= limit;
+    } catch (error: any) {
+      logger.error({ error: error.message, userId }, 'DB Error: hasRecentPayout failed');
+      return true; // Bloqueamos por seguridad ante error
+    }
   },
 
   /**

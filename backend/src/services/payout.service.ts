@@ -67,9 +67,16 @@ export class PayoutService {
       );
     }
 
-    const alreadyRequested = await payoutRepository.hasRecentPayout(userId);
+    // Obtenemos el límite de frecuencia de la tabla de configs (ej: 1)
+    const freqLimit = Number(configs['payout_frequency_limit'] ?? 1);
+
+    const alreadyRequested = await payoutRepository.hasRecentPayout(userId, freqLimit);
+
     if (alreadyRequested) {
-      throw new AppError(`Has alcanzado el límite de solicitudes de retiro por día.`, 400);
+      throw new AppError(
+        `Has alcanzado el límite de ${freqLimit} solicitud(es) de retiro por día.`,
+        400
+      );
     }
 
     const client = await pool.connect();
