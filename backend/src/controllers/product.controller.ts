@@ -11,7 +11,7 @@ import { config } from '../config/index';
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = (req as any).user;
+    const { user } = req;
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
     const validatedData = createProductSchema.parse(req.body);
@@ -19,11 +19,9 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     const requestedComm = validatedData.commissionPercent ?? 0;
     await ProductService.validateCommissionLimits(user.id, requestedComm);
 
-    // Generación de slug
     const baseSlug = slugify(validatedData.title, { lower: true, strict: true });
     const uniqueSlug = `${baseSlug}-${Math.floor(100 + Math.random() * 899)}`;
 
-    // Construcción explícita para evitar errores de exactOptionalPropertyTypes
     const productInput: ProductInput = {
       creatorId: user.id,
       title: validatedData.title,
@@ -53,12 +51,15 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
 export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const identifier = req.params.productId as string;
-    if (!identifier) throw new AppError('ID de producto requerido', 400);
+    const { productId } = req.params;
 
-    const user = (req as any).user;
+    // Type Guard: Si no es string, lanzamos error
+    if (typeof productId !== 'string') {
+      throw new AppError('ID de producto no válido.', 400);
+    }
 
-    const product = await productRepository.getProductByIdOrSlug(identifier);
+    const { user } = req;
+    const product = await productRepository.getProductByIdOrSlug(productId);
     if (!product) throw new AppError('Producto no encontrado', 404);
 
     const isOwner = user && product.creator_id === user.id;
@@ -83,7 +84,7 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
 
 export const getMyProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = (req as any).user;
+    const { user } = req; // LIMPIO
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
     const products = await productRepository.getProductsByCreator(user.id);
@@ -95,10 +96,11 @@ export const getMyProducts = async (req: Request, res: Response, next: NextFunct
 
 export const getAffiliateMarketplace = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = (req as any).user;
+    const { user } = req; // LIMPIO
     const products = await productRepository.getPublicProducts();
 
-    const affIdentifier = user.affiliate_slug || user.id;
+    // Ahora TS reconoce affiliate_slug gracias al .d.ts
+    const affIdentifier = user?.affiliate_slug || user?.id || 'guest';
 
     const data = products.map(p => ({
       id: p.id,

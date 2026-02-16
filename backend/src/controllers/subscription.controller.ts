@@ -6,7 +6,7 @@ import { AppError } from '../errors/AppError';
 
 export const getMySubscriptionStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = (req as any).user;
+    const { user } = req; 
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
     // 1. Obtener la suscripción activa y beneficios del plan

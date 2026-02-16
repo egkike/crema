@@ -10,7 +10,7 @@ import logger from '../utils/logger';
 class PayoutController {
   async requestPayout(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
       if (!userId) throw new AppError('Usuario no autenticado', 401);
 
       // 1. Validar cuerpo con el nuevo esquema (ahora solo trae amount, currency y payoutMethodId)

@@ -6,7 +6,7 @@ import logger from '../utils/logger';
 
 export const getProductContent = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = (req as any).user;
+    const { user } = req;
     const { productId } = req.params;
 
     // 1. Verificación de identidad

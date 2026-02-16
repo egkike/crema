@@ -13,11 +13,11 @@ import logger from '../../utils/logger';
  */
 export const restrictTo = (requiredLevel: number) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!(req as any).user) {
+    if (!req.user) {
       return next(new AppError('No autorizado - usuario no encontrado', 401));
     }
 
-    if ((req as any).user.level < requiredLevel) {
+    if (req.user.level < requiredLevel) {
       logger.warn({
         userId: (req as any).user.id,
         userLevel: (req as any).user.level,

@@ -6,7 +6,7 @@ import logger from '../utils/logger';
 
 export const processRefund = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = (req as any).user;
+    const { user } = req;
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
     // 1. Verificación por NIVEL (Cambiamos user.role por user.level)

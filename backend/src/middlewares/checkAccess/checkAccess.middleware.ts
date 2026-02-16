@@ -7,7 +7,7 @@ import { AppError } from '../../errors/AppError';
 // src/middlewares/checkAccess.middleware.ts
 export const checkContentAccess = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = (req as any).user;
+    const { user } = req;
     const { productId } = req.params;
 
     if (!user?.id || !productId) {
