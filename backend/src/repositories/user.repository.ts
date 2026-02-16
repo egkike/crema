@@ -107,6 +107,9 @@ export const userRepository = {
     const randomSuffix = Math.floor(100 + Math.random() * 900);
     const generatedUsername = `${baseName}${randomSuffix}`;
 
+    // El slug inicial será igual al username base (más limpio)
+    const affiliateSlug = generatedUsername;
+
     const mustChangePassword = Number(level) === 1;
     const passwordWithPepper = password + config.passwordPepper;
     const hash = await bcrypt.hash(passwordWithPepper, 12);
@@ -117,14 +120,15 @@ export const userRepository = {
 
     const query = `
     INSERT INTO "${schema}".users 
-      (username, password, email, fullname, level, active, 
+      (username, affiliate_slug, password, email, fullname, level, active, 
        verification_token, verification_token_expires, must_change_password)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    RETURNING id, username, email, fullname, level, active, createdate
-  `;
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    RETURNING id, username, affiliate_slug, email, fullname;
+    `;
 
     const { rows } = await pool.query(query, [
-      generatedUsername, // <--- Usamos el generado automáticamente
+      generatedUsername,
+      affiliateSlug,
       hash,
       email,
       fullname,
@@ -134,7 +138,6 @@ export const userRepository = {
       expires,
       mustChangePassword,
     ]);
-
     return { ...rows[0], verificationToken };
   },
 
@@ -248,5 +251,21 @@ export const userRepository = {
     `;
     const { rows } = await pool.query(query, [newPasswordHash, token]);
     return rows.length > 0;
+  },
+
+  /**
+   * Busca un usuario específicamente por su slug de afiliado.
+   */
+  async findByAffiliateSlug(slug: string) {
+    const schema = config.db?.schema || 'public';
+    // Buscamos por slug, pero mantenemos compatibilidad por si pasan el ID directamente
+    const query = `
+      SELECT id, username, affiliate_slug 
+      FROM "${schema}".users 
+      WHERE affiliate_slug = $1 OR id::text = $1 
+      LIMIT 1
+    `;
+    const { rows } = await pool.query(query, [slug]);
+    return rows[0] || null;
   },
 };

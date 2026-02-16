@@ -11,6 +11,7 @@ export interface ProductPrice {
 
 export interface Product {
   id: string;
+  slug: string;
   creator_id: string;
   title: string;
   description?: string | null;
@@ -28,25 +29,24 @@ export interface Product {
 export interface ProductInput {
   creatorId: string;
   title: string;
+  slug: string;
   type: string;
   prices: ProductPrice[];
-  description?: string;
-  contentUrl?: string;
-  commissionPercent?: number;
-  status?: string;
-  sizeBytes?: number;
+  description?: string | undefined;
+  contentUrl?: string | undefined;
+  commissionPercent?: number | undefined;
+  status?: string | undefined;
+  sizeBytes?: number | undefined;
   guaranteeDays?: number | undefined;
 }
 
 // --- REPOSITORIO ---
 
 export const productRepository = {
-  /**
-   * Mapea una fila de la base de datos al objeto de dominio Product.
-   */
   mapRowToProduct(row: any): Product {
     return {
       id: row.id,
+      slug: row.slug,
       creator_id: row.creator_id,
       title: row.title,
       description: row.description,
@@ -58,14 +58,10 @@ export const productRepository = {
       created_at: row.created_at,
       updated_at: row.updated_at,
       guarantee_days: row.guarantee_days !== undefined ? row.guarantee_days : null,
-      // Maneja tanto el array de la subconsulta como el pasado manualmente
       prices: row.prices || [],
     };
   },
 
-  /**
-   * Crea un producto y sus múltiples precios en una sola transacción atómica.
-   */
   async createProduct(input: ProductInput): Promise<Product> {
     const schema = config.db?.schema || 'public';
     const client = await pool.connect();
@@ -73,30 +69,29 @@ export const productRepository = {
     try {
       await client.query('BEGIN');
 
-      // 1. Insertar en la tabla principal 'products'
       const productQuery = `
         INSERT INTO "${schema}".products (
-          creator_id, title, description, type, content_url, 
+          creator_id, title, slug, description, type, content_url, 
           affiliate_commission_percent, size_bytes, status, guarantee_days
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *;
       `;
 
       const productRes = await client.query(productQuery, [
         input.creatorId,
         input.title,
-        input.description || null,
+        input.slug,
+        input.description ?? null,
         input.type,
-        input.contentUrl || null,
+        input.contentUrl ?? null,
         input.commissionPercent ?? 50.0,
-        input.sizeBytes || 0,
-        input.status || 'published',
+        input.sizeBytes ?? 0,
+        input.status ?? 'published',
         input.guaranteeDays ?? null,
       ]);
 
       const productRow = productRes.rows[0];
 
-      // 2. Insertar los precios en bulk
       if (input.prices && input.prices.length > 0) {
         const values: any[] = [];
         const valueRows: string[] = [];
@@ -115,98 +110,77 @@ export const productRepository = {
       }
 
       await client.query('COMMIT');
-
-      // Devolvemos el producto completo mapeado
       return this.mapRowToProduct({ ...productRow, prices: input.prices });
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error(
-        { error: error.message, title: input.title },
-        'Error en transacción: Falló creación de producto'
-      );
+      logger.error({ error: error.message, title: input.title }, 'Error creando producto');
       throw error;
     } finally {
       client.release();
     }
   },
 
-  /**
-   * Obtiene un producto por ID incluyendo su lista de precios mediante JSON_AGG.
-   */
-  async getProductById(id: string): Promise<Product | null> {
-    const schema = config.db?.schema || 'public';
-    try {
-      const query = `
-        SELECT p.*, 
-               COALESCE(
-                 (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
-                  FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
-                 '[]'::json
-               ) as prices
-        FROM "${schema}".products p
-        WHERE p.id = $1;
-      `;
-      const { rows } = await pool.query(query, [id]);
-
-      if (!rows[0]) return null;
-
-      return this.mapRowToProduct(rows[0]);
-    } catch (error: any) {
-      logger.error({ id, error: error.message }, 'Error DB: getProductById falló');
-      throw error;
-    }
-  },
-
-  /**
-   * Lista los productos de un creador específico.
-   */
-  async getProductsByCreator(creatorId: string): Promise<Product[]> {
-    const schema = config.db?.schema || 'public';
-    try {
-      const query = `
-        SELECT p.*, 
-               COALESCE(
-                 (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
-                  FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
-                 '[]'::json
-               ) as prices
-        FROM "${schema}".products p
-        WHERE p.creator_id = $1
-        ORDER BY p.created_at DESC;
-      `;
-      const { rows } = await pool.query(query, [creatorId]);
-      return rows.map(row => this.mapRowToProduct(row));
-    } catch (error: any) {
-      logger.error({ creatorId, error: error.message }, 'Error DB: getProductsByCreator falló');
-      throw error;
-    }
-  },
-
-  /**
-   * Recupera el precio oficial para una moneda específica.
-   */
-  async getPriceByCurrency(productId: string, currency: string): Promise<number | null> {
+  async getPublicProducts(): Promise<Product[]> {
     const schema = config.db?.schema || 'public';
     const query = `
-      SELECT amount 
-      FROM "${schema}".product_prices 
-      WHERE product_id = $1 AND currency = $2
+      SELECT p.*, 
+             COALESCE(
+               (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+                FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+               '[]'::json
+             ) as prices
+      FROM "${schema}".products p
+      WHERE p.status = 'published'
+      ORDER BY p.created_at DESC;
     `;
-    try {
-      const { rows } = await pool.query(query, [productId, currency]);
-      return rows[0] ? Number(rows[0].amount) : null;
-    } catch (error: any) {
-      logger.error(
-        { productId, currency, error: error.message },
-        'Error obteniendo precio específico'
-      );
-      throw error;
-    }
+    const { rows } = await pool.query(query);
+    return rows.map(row => this.mapRowToProduct(row));
   },
 
-  /**
-   * Recupera la cantidad de productos de un usuario
-   */
+  async getProductByIdOrSlug(identifier: string): Promise<Product | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT p.*, 
+             COALESCE(
+               (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+                FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+               '[]'::json
+             ) as prices
+      FROM "${schema}".products p
+      WHERE p.id::text = $1 OR p.slug = $1;
+    `;
+    const { rows } = await pool.query(query, [identifier]);
+    return rows[0] ? this.mapRowToProduct(rows[0]) : null;
+  },
+
+  async getProductById(id: string): Promise<Product | null> {
+    return this.getProductByIdOrSlug(id);
+  },
+
+  async getProductsByCreator(creatorId: string): Promise<Product[]> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT p.*, 
+             COALESCE(
+               (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+                FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+               '[]'::json
+             ) as prices
+      FROM "${schema}".products p
+      WHERE p.creator_id = $1
+      ORDER BY p.created_at DESC;
+    `;
+    const { rows } = await pool.query(query, [creatorId]);
+    return rows.map(row => this.mapRowToProduct(row));
+  },
+
+  async getPriceByCurrency(productId: string, currency: string): Promise<number | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `SELECT amount FROM "${schema}".product_prices WHERE product_id = $1 AND currency = $2`;
+    const { rows } = await pool.query(query, [productId, currency]);
+    return rows[0] ? Number(rows[0].amount) : null;
+  },
+
   async countProductsByCreator(userId: string): Promise<number> {
     const schema = config.db?.schema || 'public';
     const query = `SELECT COUNT(*) FROM "${schema}".products WHERE creator_id = $1`;

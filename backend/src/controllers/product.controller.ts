@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import slugify from 'slugify';
 
 import { productRepository, ProductInput } from '../repositories/product.repository';
 import { ProductService } from '../services/product.service';
 import { AppError } from '../errors/AppError';
 import { createProductSchema } from '../schemas/products.schema';
 import logger from '../utils/logger';
+import { config } from '../config/index';
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -14,28 +16,29 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     const validatedData = createProductSchema.parse(req.body);
 
-    // --- VALIDACIONES FINANCIERAS PREVENTIVAS ---
-    // Extraer y definir 'requestedComm' para que esté disponible en este bloque
     const requestedComm = validatedData.commissionPercent ?? 0;
-
-    // Llamada al servicio refactorizado usando la variable recién definida
     await ProductService.validateCommissionLimits(user.id, requestedComm);
 
-    // Spread condicional para evitar el error de 'undefined' con exactOptionalPropertyTypes
+    // Generación de slug
+    const baseSlug = slugify(validatedData.title, { lower: true, strict: true });
+    const uniqueSlug = `${baseSlug}-${Math.floor(100 + Math.random() * 899)}`;
+
+    // Construcción explícita para evitar errores de exactOptionalPropertyTypes
     const productInput: ProductInput = {
       creatorId: user.id,
       title: validatedData.title,
+      slug: uniqueSlug,
       type: validatedData.type,
       prices: validatedData.prices,
-      commissionPercent: validatedData.commissionPercent ?? 0,
-      status: validatedData.status ?? 'published',
-      sizeBytes: validatedData.sizeBytes ?? 0,
-      guaranteeDays: validatedData.guaranteeDays,
-      ...(validatedData.description && { description: validatedData.description }),
-      ...(validatedData.contentUrl && { contentUrl: validatedData.contentUrl }),
+      description: validatedData.description ?? undefined,
+      contentUrl: validatedData.contentUrl ?? undefined,
+      commissionPercent: validatedData.commissionPercent ?? undefined,
+      status: validatedData.status ?? undefined,
+      sizeBytes: validatedData.sizeBytes ?? undefined,
+      guaranteeDays: validatedData.guaranteeDays ?? undefined,
     };
 
-    logger.info({ creatorId: user.id, title: validatedData.title }, 'Creando nuevo producto');
+    logger.info({ creatorId: user.id, slug: uniqueSlug }, 'Creando nuevo producto');
     const product = await productRepository.createProduct(productInput);
 
     res.status(201).json({ success: true, data: product });
@@ -50,29 +53,25 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
 export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // 1. Extraemos y aseguramos que sea un string simple
-    const productId = req.params.productId as string;
-
-    if (!productId || typeof productId !== 'string') {
-      throw new AppError('El ID del producto es inválido', 400);
-    }
+    const identifier = req.params.productId as string;
+    if (!identifier) throw new AppError('ID de producto requerido', 400);
 
     const user = (req as any).user;
 
-    const product = await productRepository.getProductById(productId);
+    const product = await productRepository.getProductByIdOrSlug(identifier);
     if (!product) throw new AppError('Producto no encontrado', 404);
 
     const isOwner = user && product.creator_id === user.id;
-    const isAdmin = user && user.level >= 10; // Usamos el nivel de admin que definimos
+    const isAdmin = user && user.level >= 10;
 
     const productData = {
       id: product.id,
+      slug: product.slug,
       title: product.title,
       description: product.description,
       prices: product.prices,
       type: product.type,
       status: product.status,
-      // Solo incluimos la URL si tiene permiso
       ...((isOwner || isAdmin) && { contentUrl: product.content_url }),
     };
 
@@ -94,9 +93,30 @@ export const getMyProducts = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-// Exportamos los métodos
+export const getAffiliateMarketplace = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = (req as any).user;
+    const products = await productRepository.getPublicProducts();
+
+    const affIdentifier = user.affiliate_slug || user.id;
+
+    const data = products.map(p => ({
+      id: p.id,
+      title: p.title,
+      slug: p.slug,
+      commission: p.affiliate_commission_percent,
+      link: `${config.frontendUrl}/p/${p.slug || p.id}?aff=${affIdentifier}`,
+    }));
+
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const productController = {
   createProduct,
   getMyProducts,
   getProductById,
+  getAffiliateMarketplace,
 };

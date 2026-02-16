@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
+import { userRepository } from '../../repositories/user.repository';
 import logger from '../../utils/logger';
 import { config } from '../../config/index';
 
@@ -8,32 +9,30 @@ import { config } from '../../config/index';
  * Cuando un usuario entre con un link como crema.com/p/123?aff=ID_AFILIADO, el sistema guarde quién lo recomendó.
  * Se debe aplicar en rutas públicas de productos o landing pages.
  */
-export const affiliateTracking = (req: Request, res: Response, next: NextFunction) => {
+export const affiliateTracking = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { aff } = req.query;
 
-    // Solo procesamos si el parámetro 'aff' está presente
     if (aff && typeof aff === 'string') {
-      // Opcional: Podrías validar que sea un UUID si tus IDs de usuario lo son
-      // para evitar basura en las cookies.
+      // Buscamos al usuario por su slug
+      const user = await userRepository.findByAffiliateSlug(aff);
 
-      const cookieOptions = {
-        httpOnly: true,
-        secure: config.nodeEnv === 'production',
-        sameSite: 'lax' as const, // 'lax' es necesario para capturar la cookie viniendo de un link externo
-        path: '/',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días de persistencia
-      };
+      if (user) {
+        const cookieOptions = {
+          httpOnly: true,
+          secure: config.nodeEnv === 'production',
+          sameSite: 'lax' as const,
+          path: '/',
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+        };
 
-      res.cookie('affiliate_id', aff, cookieOptions);
-
-      logger.debug({ affiliateId: aff, path: req.path }, 'Cookie de afiliado establecida');
+        // Guardamos el ID real (UUID), no el slug, para facilitar el trabajo al OrderService
+        res.cookie('affiliate_id', user.id, cookieOptions);
+        logger.debug({ affiliateSlug: aff, userId: user.id }, 'Cookie de afiliado vinculada');
+      }
     }
-
     next();
   } catch (error) {
-    // En tracking de marketing no bloqueamos la ejecución si algo falla,
-    // solo logueamos y seguimos para no arruinar la experiencia del comprador.
     logger.error({ error }, 'Error en affiliateTracking middleware');
     next();
   }
