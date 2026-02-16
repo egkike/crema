@@ -12,24 +12,27 @@ vi.mock('bcrypt', () => ({
 
 vi.mock('../repositories/user.repository', () => ({
   userRepository: {
-    // Usamos _id para indicar a TS que la variable es ignorada
     findByCredentials: vi.fn(async (_id: string) => ({
       id: 'admin-uuid',
       username: 'admin',
       email: 'admin@test.com',
       fullname: 'Admin Test',
-      level: 5,
-      active: 1,
+      level: 10,
+      active: 1, // <--- Debe ser 1 para pasar el check del controlador
       password: 'hashed_with_pepper',
-      must_change_password: 0,
+      must_change_password: false,
     })),
-    saveRefreshToken: vi.fn().mockResolvedValue({ success: true }),
-    findRefreshToken: vi.fn().mockResolvedValue({ userId: 'admin-uuid' }),
+    saveRefreshToken: vi.fn().mockResolvedValue(true),
+    // El controlador busca en la DB por el token mismo
+    findRefreshToken: vi.fn().mockResolvedValue({
+      user_id: 'admin-uuid',
+      expires_at: new Date(Date.now() + 100000),
+    }),
     deleteSpecificRefreshToken: vi.fn().mockResolvedValue(true),
     getById: vi.fn(async () => ({
       id: 'admin-uuid',
       username: 'admin',
-      level: 5,
+      level: 10,
       active: 1,
     })),
   },
@@ -69,11 +72,17 @@ describe('Autenticación y Sesión', () => {
   });
 
   it('debería refrescar tokens correctamente', async () => {
-    vi.mocked(userRepository.findRefreshToken).mockResolvedValue({ userId: 'admin-uuid' });
+    // 1. Forzamos que el mock devuelva datos válidos y con expiración futura
+    vi.mocked(userRepository.findRefreshToken).mockResolvedValue({
+      user_id: 'admin-uuid',
+      expires_at: new Date(Date.now() + 999999).toISOString(),
+    });
 
-    const res = await request.post('/api/auth/refresh').set('Cookie', cookies);
+    // 2. Enviamos las cookies obtenidas en el beforeEach
+    const res = await request.post('/api/auth/refresh').set('Cookie', cookies); // 'cookies' ya trae access_token y refresh_token del login
 
     expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
     expect(res.body.message).toBe('Token renovado');
   });
 });

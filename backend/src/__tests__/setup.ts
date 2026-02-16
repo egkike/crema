@@ -6,10 +6,20 @@ vi.mock('../config/index', () => ({
   config: {
     db: { schema: 'public' },
     jwt: {
-      secret: 'super-secret-token-for-testing-purposes-123',
+      // Secreto para Access Tokens
+      secret: 'access-secret-123',
+      // Secreto para Refresh Tokens (ESTO FALTABA)
+      refreshSecret: 'refresh-secret-456',
+
+      // Formatos para la firma (jwt.sign)
       accessTokenExpiry: '15m',
       refreshTokenExpiry: '7d',
+
+      // Formatos para las Cookies (res.cookie)
+      accessTokenMaxAge: 900000,
+      refreshTokenMaxAge: 604800000,
     },
+    passwordPepper: 'test-pepper',
     mercadoPago: { accessToken: 'test_mp_token' },
     cors: { origins: '*' },
     apiBaseUrl: 'http://localhost:3000',

@@ -9,20 +9,22 @@ vi.mock('bcrypt', () => ({
 
 vi.mock('../repositories/user.repository', () => ({
   userRepository: {
-    findByCredentials: vi.fn(async (identifier: string) => ({
-      id: identifier === 'admin' ? 'admin-id' : 'user-id',
-      username: identifier,
-      email: `${identifier}@test.com`,
-      level: identifier === 'admin' ? 5 : 1,
+    // Cambiamos el parámetro a 'username' para ser consistentes
+    findByCredentials: vi.fn(async (username: string) => ({
+      id: username === 'admin' ? 'admin-id' : 'user-id',
+      username: username,
+      email: `${username}@test.com`,
+      level: username === 'admin' ? 10 : 1,
       active: 1,
       password: 'p1',
-      must_change_password: 0,
+      must_change_password: false,
     })),
-    saveRefreshToken: vi.fn().mockResolvedValue({ success: true }),
+    // El controlador suele esperar un booleano o un objeto simple, no anidado
+    saveRefreshToken: vi.fn().mockResolvedValue(true),
     getById: vi.fn(async (requestedId: string) => ({
       id: requestedId,
-      username: 'mockuser',
-      level: requestedId === 'admin-id' ? 5 : 1,
+      username: requestedId === 'admin-id' ? 'admin' : 'testuser',
+      level: requestedId === 'admin-id' ? 10 : 1,
       active: 1,
     })),
     getUsers: vi.fn(async () => [
@@ -59,21 +61,23 @@ describe('Users API', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
+    // LOGIN ADMIN
     const resAdmin = await request
       .post('/api/auth/login')
       .send({ username: 'admin', password: 'p1' });
-    const rawAdmin = resAdmin.headers['set-cookie'];
-    adminCookies = Array.isArray(rawAdmin)
-      ? rawAdmin
-      : typeof rawAdmin === 'string'
-        ? [rawAdmin]
-        : [];
 
+    const rawAdmin = resAdmin.headers['set-cookie'];
+    // FIX DE TIPOS: Normalizamos a string[]
+    adminCookies = Array.isArray(rawAdmin) ? rawAdmin : rawAdmin ? [rawAdmin] : [];
+
+    // LOGIN USER
     const resUser = await request
       .post('/api/auth/login')
       .send({ username: 'testuser', password: 'p1' });
+
     const rawUser = resUser.headers['set-cookie'];
-    userCookies = Array.isArray(rawUser) ? rawUser : typeof rawUser === 'string' ? [rawUser] : [];
+    // FIX DE TIPOS: Normalizamos a string[]
+    userCookies = Array.isArray(rawUser) ? rawUser : rawUser ? [rawUser] : [];
   });
 
   afterEach(() => {
@@ -84,8 +88,6 @@ describe('Users API', () => {
     const res = await request.get('/api/users').set('Cookie', adminCookies);
 
     expect(res.status).toBe(200);
-
-    // Verificamos si es un array directo o está dentro de .data o .users
     const data = Array.isArray(res.body) ? res.body : res.body.data || res.body.users;
     expect(Array.isArray(data)).toBe(true);
   });
@@ -99,7 +101,6 @@ describe('Users API', () => {
     const res = await request.get('/api/subscription/status').set('Cookie', adminCookies);
 
     expect(res.status).toBe(200);
-    // Aquí tu controlador usa res.body.data.planName según vimos
     expect(res.body.data.planName).toBe('Creador Initial');
   });
 });
