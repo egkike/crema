@@ -52,6 +52,7 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
     }
 
     const externalReference = `ORD-${buyerId}-${Date.now()}`;
+    const affiliateId = req.cookies.affiliate_id || null; // 👈 Captura la cookie
 
     await orderRepository.create({
       buyerId,
@@ -61,6 +62,7 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
       paymentMethod: 'mercadopago',
       externalReference,
       status: 'pending',
+      affiliateId: affiliateId,
     });
 
     // Instanciación bajo demanda
