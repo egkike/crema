@@ -18,10 +18,12 @@ router.get('/:productId', affiliateTracking, productController.getProductById);
 router.use(jwtAuthMiddleware);
 
 /**
- * 2. Crear Producto
+ * 2. Crear Producto - Ahora usa el rol 'CREATOR' de la DB
  */
-router.post('/create', restrictTo(3), checkPlanLimits, (req, res, next) =>
-  productController.createProduct(req, res, next)
+router.post('/create', 
+  restrictTo('CREATOR'),
+  checkPlanLimits, 
+  productController.createProduct
 );
 
 // 3. Listar propios

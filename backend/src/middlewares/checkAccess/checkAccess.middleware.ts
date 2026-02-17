@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 
 import { orderRepository } from '../../repositories/order.repository';
 import { productRepository } from '../../repositories/product.repository';
+import { configRepository } from '../../repositories/config.repository';
 import { AppError } from '../../errors/AppError';
 
 // src/middlewares/checkAccess.middleware.ts
@@ -14,8 +15,9 @@ export const checkContentAccess = async (req: Request, res: Response, next: Next
       throw new AppError('Acceso denegado: Identificación incompleta', 400);
     }
 
-    // 1. Si es Administrador (Level 99), acceso total para soporte
-    if (user.level >= 99) return next();
+// 1. Admin dinámico (Nivel 99 por defecto en DB)
+    const levels = await configRepository.getUserLevels();
+    if (user.level >= levels.ADMIN) return next();
 
     // 2. Buscamos el producto para ver quién es el dueño
     const product = await productRepository.getProductById(productId as string);

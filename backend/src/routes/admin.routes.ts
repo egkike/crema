@@ -9,15 +9,14 @@ import { jwtAuthMiddleware } from './../middlewares/auth/jwt.middleware';
 import { restrictTo } from './../middlewares/auth/role.middleware';
 
 const router = Router();
-const ADMIN_LEVEL = 10;
 
 // Protección Global: Solo administradores nivel 10
 router.use(jwtAuthMiddleware);
-router.use(restrictTo(ADMIN_LEVEL));
+router.use(restrictTo('ADMIN'));
 
 /* --- 1. SALUD FINANCIERA Y AUDITORÍA --- */
 router.get('/financial-health', AdminController.getFinancialHealth);
-router.get('/ledger', AdminController.getPlatformLedger); // 👈 Nueva ruta añadida
+router.get('/ledger', AdminController.getPlatformLedger);
 router.get('/user-stats/:userId', AdminController.getUserStats);
 router.get('/export/audit', AdminController.downloadFinancialAudit);
 

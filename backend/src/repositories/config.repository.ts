@@ -2,7 +2,51 @@ import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
+// --- Lógica de Caché para Niveles de Usuario ---
+let cachedLevels: Record<string, number> | null = null;
+let lastFetch: number = 0;
+const CACHE_TTL = 1000 * 60 * 5; // 5 minutos de vida para el caché
+
 export const configRepository = {
+  /**
+   * Obtiene los niveles de usuario desde system_settings con caché en memoria.
+   */
+  async getUserLevels(): Promise<Record<string, number>> {
+    const now = Date.now();
+
+    if (cachedLevels && now - lastFetch < CACHE_TTL) {
+      return cachedLevels;
+    }
+
+    // Buscamos el setting 'user_levels' que contiene el JSON
+    const levelsJson = await this.getSetting('user_levels', '');
+
+    try {
+      if (levelsJson) {
+        cachedLevels = JSON.parse(levelsJson);
+        lastFetch = now;
+        return cachedLevels!;
+      }
+    } catch (err: any) {
+      // Logueamos el error para saber qué pasó, pero no bloqueamos el sistema
+      logger.error(
+        { msg: err.message },
+        'Error cargando user_levels desde DB, usando fallback estático'
+      );
+    }
+
+    // Fallback estático de seguridad si la DB no responde o el JSON está roto
+    return { GUEST: 0, USER: 1, AFILIADO: 2, CREATOR: 3, STAFF: 10, ADMIN: 99 };
+  },
+
+  /**
+   * Limpia el caché de niveles. Llamar después de actualizar system_settings.
+   */
+  clearLevelsCache(): void {
+    cachedLevels = null;
+    logger.info('Caché de niveles de usuario limpiado.');
+  },
+
   /**
    * Obtiene configuraciones numéricas filtradas por moneda.
    */

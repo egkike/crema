@@ -9,7 +9,8 @@ ON CONFLICT (username) DO NOTHING;
 -- Configuración de Moneda y Días de garantia del sistema
 INSERT INTO system_settings (key, value, description) VALUES 
 ('platform_currency', 'ARS', 'Moneda principal de operación'),
-('days_of_guarantee', '7', 'Días de espera para liberar el saldo tras una compra')
+('days_of_guarantee', '7', 'Días de espera para liberar el saldo tras una compra'),
+('user_levels', '{"GUEST": 0, "USER": 1, "AFFILIATE": 2, "CREATOR": 3, "STAFF": 10, "ADMIN": 99}', 'Mapeo de niveles de permisos y roles')
 ON CONFLICT (key) DO NOTHING;
 
 -- Configuración de Moneda habilitada para Argentina y Cripto

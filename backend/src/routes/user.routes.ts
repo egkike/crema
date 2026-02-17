@@ -27,13 +27,13 @@ router.patch('/profile/change-password', userController.changeMyPassword.bind(us
 router.get('/subscription/status', subscriptionController.getMySubscriptionStatus);
 
 /**
- * Rutas Administrativas (Solo Level >= 5)
+ * Rutas Administrativas (Solo Level >= STAFF)
  */
-router.get('/users', restrictTo(5), userController.getUsers.bind(userController));
-router.post('/user/getbyid', restrictTo(5), userController.getById.bind(userController));
-router.patch('/user/update', restrictTo(5), userController.updUser.bind(userController));
-router.patch('/user/chgpass-admin', restrictTo(5), userController.chgPassUser.bind(userController));
-router.delete('/user/delete', restrictTo(5), userController.deleteUser.bind(userController));
+router.get('/users', restrictTo('STAFF'), userController.getUsers.bind(userController));
+router.post('/user/getbyid', restrictTo('STAFF'), userController.getById.bind(userController));
+router.patch('/user/update', restrictTo('STAFF'), userController.updUser.bind(userController));
+router.patch('/user/chgpass-admin', restrictTo('STAFF'), userController.chgPassUser.bind(userController));
+router.delete('/user/delete', restrictTo('STAFF'), userController.deleteUser.bind(userController));
 
 /**
  * Refresh Token (Centralizado en AuthController)
