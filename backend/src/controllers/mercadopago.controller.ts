@@ -108,6 +108,46 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
   try {
     const { action, type, data } = req.body;
+    const xSignature = req.headers['x-signature'] as string;
+    const xRequestId = req.headers['x-request-id'] as string;
+
+    // 2. VALIDACIÓN DE SEGURIDAD (Solo si tenemos el secret configurado)
+    if (config.mercadoPago.webhookSecret && xSignature) {
+      const parts = xSignature.split(',');
+      let ts: string | undefined;
+      let hash: string | undefined;
+
+      parts.forEach(part => {
+        const [key, value] = part.split('=');
+        if (key === 'ts') ts = value;
+        if (key === 'v1') hash = value;
+      });
+
+      if (ts && hash) {
+        // El formato de MP para el manifiesto es: id:[data.id];request-id:[x-request-id];ts:[ts];
+        // Nota: El id depende de si es un pago o una suscripción
+        const resourceId = (data?.id || req.query.id) as string;
+        const manifest = `id:${resourceId};request-id:${xRequestId};ts:${ts};`;
+
+        const hmac = crypto
+          .createHmac('sha256', config.mercadoPago.webhookSecret)
+          .update(manifest)
+          .digest('hex');
+
+        if (hmac !== hash) {
+          logger.warn(
+            { xRequestId },
+            '⚠️ Firma de Webhook MP inválida. Posible intento de fraude.'
+          );
+          return; // Abortamos el procesamiento
+        }
+      }
+    } else if (config.isProduction) {
+      // En producción, si no hay firma y tenemos el secret, sospechamos
+      logger.error('❌ Webhook recibido sin firma en entorno de producción');
+      return;
+    }
+
     // Forzamos a string para que el SDK no se queje
     const rawId = (data?.id || req.query.id) as string;
 

@@ -36,7 +36,7 @@ export const configRepository = {
     }
 
     // Fallback estático de seguridad si la DB no responde o el JSON está roto
-    return { GUEST: 0, USER: 1, AFILIADO: 2, CREATOR: 3, STAFF: 10, ADMIN: 99 };
+    return { GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99 };
   },
 
   /**

@@ -55,7 +55,6 @@ export const ReleaseService = {
       );
 
       if (ordersToRelease.length === 0) {
-        logger.debug('No hay órdenes pendientes de liberación.');
         return stats;
       }
 
@@ -75,7 +74,6 @@ export const ReleaseService = {
 
           if (lockOrder.rows.length === 0) {
             await client.query('ROLLBACK');
-            client.release();
             continue;
           }
 

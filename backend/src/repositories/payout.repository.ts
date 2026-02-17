@@ -77,7 +77,7 @@ export const payoutRepository = {
 
   async updateStatus(
     id: string,
-    status: string,
+    status: 'completed' | 'rejected' | 'cancelled' | 'processing' | 'pending',
     adminNotes: string | null = null,
     transactionReceipt: string | null = null,
     adminId: string | null = null,
@@ -85,20 +85,42 @@ export const payoutRepository = {
   ): Promise<Payout | null> {
     const schema = config.db?.schema || 'public';
     const db = client || pool;
+
+    // --- VALIDACIÓN DE SEGURIDAD ---
+    // Forzamos que si el estado es de cierre (excepto 'cancelled' que lo hace el usuario),
+    // debe existir un responsable.
+    if (['completed', 'rejected', 'processing'].includes(status) && !adminId) {
+      throw new Error(
+        `El estado '${status}' requiere obligatoriamente un admin_id para auditoría.`
+      );
+    }
+
     const query = `
       UPDATE "${schema}".payouts 
       SET 
         status = $1, 
         admin_notes = COALESCE($2, admin_notes),
         transaction_receipt = COALESCE($3, transaction_receipt),
-        admin_id = COALESCE($4::uuid, admin_id),
-        processed_at = CASE WHEN $1 IN ('completed', 'rejected') THEN CURRENT_TIMESTAMP ELSE processed_at END,
+        admin_id = CASE 
+                     WHEN $4::uuid IS NOT NULL THEN $4::uuid 
+                     ELSE admin_id 
+                   END,
+        processed_at = CASE 
+                         WHEN $1 IN ('completed', 'rejected') THEN CURRENT_TIMESTAMP 
+                         ELSE processed_at 
+                       END,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $5::uuid
       RETURNING *;
     `;
-    const { rows } = await db.query(query, [status, adminNotes, transactionReceipt, adminId, id]);
-    return this.mapRow(rows[0]);
+
+    try {
+      const { rows } = await db.query(query, [status, adminNotes, transactionReceipt, adminId, id]);
+      return this.mapRow(rows[0]);
+    } catch (error: any) {
+      logger.error({ error: error.message, id, status }, 'DB Error: updateStatus payout failed');
+      throw error;
+    }
   },
 
   /**

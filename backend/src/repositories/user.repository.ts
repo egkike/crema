@@ -172,7 +172,10 @@ export const userRepository = {
     return rows.length > 0;
   },
 
-  async updUser({ id, input }: { id: string; input: UpdateUserInput }): Promise<UserBase | null> {
+  async updUser(
+    { id, input }: { id: string; input: UpdateUserInput },
+    client?: any
+  ): Promise<UserBase | null> {
     const schema = config.db?.schema || 'public';
     const { fullname, level, active } = input;
     const updates: string[] = [];
@@ -196,8 +199,11 @@ export const userRepository = {
 
     values.push(id);
     const query = `UPDATE "${schema}".users SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-    const { rows } = await pool.query<UserBase>(query, values);
-    return rows[0] || null;
+
+    const db = client || pool;
+    const { rows } = await db.query(query, values);
+
+    return (rows[0] as UserBase) || null;
   },
 
   async chgPassUser({ id, input }: { id: string; input: { password: string } }): Promise<void> {
