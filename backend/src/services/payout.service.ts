@@ -20,7 +20,8 @@ export class PayoutService {
     userId: string,
     amount: number,
     currency: string,
-    payoutMethodId: string
+    payoutMethodId: string,
+    userLevel: number
   ): Promise<Payout & { estimated_date: string; message: string }> {
     const sanitizedAmount = Math.floor(amount * 100) / 100;
 
@@ -50,6 +51,7 @@ export class PayoutService {
     };
 
     const configs = await configRepository.getConfigsByCurrency(currency);
+    const levels = await configRepository.getUserLevels(); // Traemos roles dinámicos
     const minAmount = Number(configs['min_payout_amount'] ?? 1000);
 
     if (sanitizedAmount < minAmount) {
@@ -62,13 +64,20 @@ export class PayoutService {
     }
 
     const freqLimit = Number(configs['payout_frequency_limit'] ?? 1);
-    const alreadyRequested = await payoutRepository.hasRecentPayout(userId, freqLimit);
-
-    if (alreadyRequested) {
-      throw new AppError(
-        `Has alcanzado el límite de ${freqLimit} solicitud(es) de retiro por día.`,
-        400
+    // Solo validamos si no es STAFF o ADMIN
+    if (userLevel < (levels.STAFF || 10)) {
+      const limitReached = await payoutRepository.hasMonthlyPayoutLimitReached(
+        userId,
+        currency,
+        freqLimit
       );
+
+      if (limitReached) {
+        throw new AppError(
+          `Has alcanzado tu límite de ${freqLimit} retiro(s) mensuales para ${currency}. Podrás solicitar otro el próximo mes.`,
+          403
+        );
+      }
     }
 
     const client = await pool.connect();

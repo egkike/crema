@@ -10,23 +10,24 @@ import logger from '../utils/logger';
 class PayoutController {
   async requestPayout(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = req.user?.id;
-      if (!userId) throw new AppError('Usuario no autenticado', 401);
+      const user = req.user;
+      if (!user?.id) throw new AppError('Usuario no autenticado', 401);
 
       // 1. Validar cuerpo con el nuevo esquema (ahora solo trae amount, currency y payoutMethodId)
       const validatedData = requestPayoutSchema.parse(req.body);
 
       logger.info(
-        { userId, amount: validatedData.amount, methodId: validatedData.payoutMethodId },
+        { userId: user.id, amount: validatedData.amount, methodId: validatedData.payoutMethodId },
         '💰 Procesando solicitud de retiro'
       );
 
       // 2. Llamar al servicio pasando el ID del método pre-configurado
       const payout = await PayoutService.requestPayout(
-        userId,
+        user.id,
         validatedData.amount,
         validatedData.currency,
-        validatedData.payoutMethodId
+        validatedData.payoutMethodId,
+        user.level
       );
 
       res.status(201).json({

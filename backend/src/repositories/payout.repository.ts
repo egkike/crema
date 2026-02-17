@@ -101,15 +101,33 @@ export const payoutRepository = {
     return this.mapRow(rows[0]);
   },
 
-  async hasRecentPayout(userId: string, limit: number = 1): Promise<boolean> {
+  /**
+   * Verifica si el usuario ya alcanzó su límite de retiros en el MES calendario actual.
+   */
+  async hasMonthlyPayoutLimitReached(
+    userId: string,
+    currency: string,
+    limit: number
+  ): Promise<boolean> {
     const schema = config.db?.schema || 'public';
+    // date_trunc('month', CURRENT_TIMESTAMP) nos da el primer día del mes actual a las 00:00:00
     const query = `
       SELECT COUNT(*) as total FROM "${schema}".payouts 
-      WHERE user_id = $1 AND created_at >= CURRENT_DATE 
+      WHERE user_id = $1 
+      AND currency = $2
+      AND created_at >= date_trunc('month', CURRENT_TIMESTAMP) 
       AND status NOT IN ('rejected', 'cancelled');
     `;
-    const { rows } = await pool.query(query, [userId]);
-    return parseInt(rows[0].total, 10) >= limit;
+    try {
+      const { rows } = await pool.query(query, [userId, currency]);
+      return parseInt(rows[0].total, 10) >= limit;
+    } catch (error: any) {
+      logger.error(
+        { error: error.message, userId },
+        'DB Error: hasMonthlyPayoutLimitReached failed'
+      );
+      return true; // Bloqueo por seguridad ante error de DB
+    }
   },
 
   async getByUserId(userId: string): Promise<Payout[]> {
