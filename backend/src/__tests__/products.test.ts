@@ -28,7 +28,7 @@ vi.mock('../repositories/user.repository', () => ({
     getById: vi.fn(async (id: string) => ({
       id,
       username: id === 'admin-id-mock' ? 'admin' : 'testuser2',
-      level: id === 'admin-id-mock' ? 10 : 1,
+      level: id === 'admin-id-mock' ? 10 : 1, // Admin es 10 (STAFF), el otro es 1
       active: 1,
     })),
   },
@@ -70,6 +70,12 @@ vi.mock('../repositories/config.repository', () => ({
       price_threshold: '1000',
       fixed_fee_low: '50',
       fixed_fee_high: '100',
+    })),
+    getUserLevels: vi.fn(async () => ({
+      USER: 1,
+      CREATOR: 3,
+      STAFF: 10,
+      ADMIN: 99,
     })),
   },
 }));

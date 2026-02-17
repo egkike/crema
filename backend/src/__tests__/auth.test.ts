@@ -24,10 +24,14 @@ vi.mock('../repositories/user.repository', () => ({
     })),
     saveRefreshToken: vi.fn().mockResolvedValue(true),
     // El controlador busca en la DB por el token mismo
-    findRefreshToken: vi.fn().mockResolvedValue({
+    findRefreshToken: vi.fn(async (_token: string) => ({
+      id: 'some-uuid', // Agregado
+      token_hash: 'some-hash', // Agregado
       user_id: 'admin-uuid',
+      revoked: false, // Agregado
       expires_at: new Date(Date.now() + 100000),
-    }),
+      created_at: new Date(), // Agregado
+    })),
     deleteSpecificRefreshToken: vi.fn().mockResolvedValue(true),
     getById: vi.fn(async () => ({
       id: 'admin-uuid',
@@ -74,8 +78,12 @@ describe('Autenticación y Sesión', () => {
   it('debería refrescar tokens correctamente', async () => {
     // 1. Forzamos que el mock devuelva datos válidos y con expiración futura
     vi.mocked(userRepository.findRefreshToken).mockResolvedValue({
+      id: 'another-uuid',
+      token_hash: 'another-hash',
       user_id: 'admin-uuid',
-      expires_at: new Date(Date.now() + 999999).toISOString(),
+      revoked: false,
+      expires_at: new Date(Date.now() + 999999),
+      created_at: new Date(),
     });
 
     // 2. Enviamos las cookies obtenidas en el beforeEach
