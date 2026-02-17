@@ -47,7 +47,8 @@ export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunctio
     });
   }
 
-  (req as any).user = user;
+  // ASIGNACIÓN LIMPIA: TS ya sabe que req.user existe por express.d.ts
+  req.user = user as typeof req.user;
 
   // Validación de Primer Login (Flag Partial)
   if (user.partial) {
@@ -84,19 +85,11 @@ export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunctio
  */
 export const optionalJwtAuth = (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.access_token;
-
   if (!token) {
-    (req as any).user = null;
+    req.user = undefined; // En lugar de null, para coincidir con el "?" de la interfaz
     return next();
   }
-
   const user = verifyToken(token);
-
-  if (!user) {
-    (req as any).user = null;
-    return next();
-  }
-
-  (req as any).user = user;
+  req.user = user ? (user as typeof req.user) : undefined;
   next();
 };

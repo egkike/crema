@@ -8,22 +8,31 @@ import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 
 /**
- * Middleware para validar nivel de usuario (roles/permisos)
- * Ej: restrictTo(5) permite solo level >= 5
+ * Middleware para validar nivel de usuario
+ * Uso: restrictTo(USER_LEVELS.ADMIN) o restrictTo(USER_LEVELS.CREATOR)
  */
 export const restrictTo = (requiredLevel: number) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user) {
+    const { user } = req;
+
+    if (!user) {
       return next(new AppError('No autorizado - usuario no encontrado', 401));
     }
 
-    if (req.user.level < requiredLevel) {
-      logger.warn({
-        userId: (req as any).user.id,
-        userLevel: (req as any).user.level,
-        requiredLevel,
-        path: req.path,
-      }, 'Acceso denegado por nivel insuficiente');
+    // Aquí es donde se "lee" el valor si lo usaras para una validación extra,
+    // pero el error de "no se lee nunca" suele ser porque el linter/TS
+    // espera que las uses en el código o en las llamadas.
+
+    if (user.level < requiredLevel) {
+      logger.warn(
+        {
+          userId: user.id,
+          userLevel: user.level,
+          requiredLevel,
+          path: req.path,
+        },
+        'Acceso denegado por nivel insuficiente'
+      );
       return next(new AppError('No tienes permisos suficientes para esta acción', 403));
     }
 

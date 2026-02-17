@@ -1,6 +1,8 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 
+// --- INTERFACES ---
+
 export interface CreateOrderDTO {
   buyerId: string;
   productId: string;
@@ -13,13 +15,34 @@ export interface CreateOrderDTO {
   commissionAmount?: number;
 }
 
+export interface Order {
+  id: string;
+  buyer_id: string;
+  product_id: string;
+  affiliate_id: string | null;
+  amount: number;
+  currency: string;
+  commission_amount: number;
+  status: string;
+  payment_method: string;
+  external_reference: string;
+  transaction_id?: string;
+  commissions_calculated: boolean;
+  balance_released: boolean;
+  days_of_guarantee_applied: number | null;
+  created_at: Date;
+  updated_at: Date;
+  // Campos agregados por el mapeador o joins
+  release_date: Date | null;
+  creator_id: string | null;
+}
+
 export const orderRepository = {
-  mapRowToOrder(row: any) {
+  mapRowToOrder(row: any): Order | null {
     if (!row) return null;
 
-    // >>> Cálculo de fecha de liberación estimada <<<
     let releaseDate: Date | null = null;
-    if (row.created_at && row.days_of_guarantee_applied !== undefined) {
+    if (row.created_at) {
       const date = new Date(row.created_at);
       const days = row.days_of_guarantee_applied !== null ? row.days_of_guarantee_applied : 7;
       date.setDate(date.getDate() + Number(days));
@@ -30,17 +53,12 @@ export const orderRepository = {
       ...row,
       amount: Number(row.amount),
       commission_amount: row.commission_amount ? Number(row.commission_amount) : 0,
-      total_amount: Number(row.amount),
-      buyerId: row.buyer_id,
-      productId: row.product_id,
-      affiliateId: row.affiliate_id,
       release_date: releaseDate,
-      // creator_id viene del JOIN en getById
       creator_id: row.creator_id || null,
-    };
+    } as Order;
   },
 
-  async create(data: CreateOrderDTO) {
+  async create(data: CreateOrderDTO): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".orders (
@@ -67,13 +85,18 @@ export const orderRepository = {
     return this.mapRowToOrder(rows[0]);
   },
 
-  async updateByExternalRef(externalReference: string, data: Partial<any>, client?: any) {
+  async updateByExternalRef(
+    externalReference: string,
+    data: Partial<Order>,
+    client?: any
+  ): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
-    const fields = Object.keys(data)
-      .map((key, i) => `"${key}" = $${i + 1}`)
-      .join(', ');
+    const entries = Object.entries(data);
+    if (entries.length === 0) return this.getByExternalRef(externalReference);
 
-    const values = Object.values(data);
+    const fields = entries.map(([key], i) => `"${key}" = $${i + 1}`).join(', ');
+    const values = entries.map(([, val]) => val);
+
     const query = `
       UPDATE "${schema}".orders 
       SET ${fields}, updated_at = CURRENT_TIMESTAMP 
@@ -86,14 +109,14 @@ export const orderRepository = {
     return this.mapRowToOrder(rows[0]);
   },
 
-  async getByExternalRef(externalRef: string) {
+  async getByExternalRef(externalRef: string): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const query = `SELECT * FROM "${schema}".orders WHERE external_reference = $1`;
     const { rows } = await pool.query(query, [externalRef]);
     return this.mapRowToOrder(rows[0]);
   },
 
-  async updateStatus(orderId: string, status: string, client?: any) {
+  async updateStatus(orderId: string, status: string, client?: any): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".orders 
@@ -120,16 +143,9 @@ export const orderRepository = {
     return rows.length > 0;
   },
 
-  /**
-   * getById AJUSTADO:
-   * 1. Incluye JOIN con products para obtener creator_id.
-   * 2. Soporta FOR UPDATE para bloquear la fila durante reembolsos/liberaciones.
-   */
-  async getById(orderId: string, client?: any) {
+  async getById(orderId: string, client?: any): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const db = client || pool;
-
-    // Si hay un cliente (transacción), bloqueamos la fila para evitar "double spending"
     const lockClause = client ? 'FOR UPDATE' : '';
 
     const query = `

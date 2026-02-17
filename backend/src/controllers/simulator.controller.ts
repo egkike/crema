@@ -35,7 +35,6 @@ export const createSimulatedPayment = async (req: Request, res: Response, next: 
       } else {
         tempPassword = crypto.randomBytes(10).toString('hex');
         const newUser = await userRepository.createUser({
-          username: email.split('@')[0] + crypto.randomInt(100, 999),
           email,
           fullname: fullname || 'Comprador Simulado',
           password: tempPassword,

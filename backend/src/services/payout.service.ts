@@ -1,6 +1,6 @@
 import pool from '../db/postgres';
 import { balanceRepository } from '../repositories/balance.repository';
-import { payoutRepository } from '../repositories/payout.repository';
+import { payoutRepository, Payout } from '../repositories/payout.repository';
 import { historyRepository } from '../repositories/history.repository';
 import { configRepository } from '../repositories/config.repository';
 import { payoutMethodRepository } from '../repositories/payout_method.repository';
@@ -14,14 +14,14 @@ import { EmailService } from './email.service';
 
 export class PayoutService {
   /**
-   * Solicita un nuevo retiro usando un método de pago pre-configurado para usuarios.
+   * Solicita un nuevo retiro usando un método de pago pre-configurado.
    */
   static async requestPayout(
     userId: string,
     amount: number,
     currency: string,
     payoutMethodId: string
-  ) {
+  ): Promise<Payout & { estimated_date: string; message: string }> {
     const sanitizedAmount = Math.floor(amount * 100) / 100;
 
     if (sanitizedAmount <= 0) {
@@ -56,20 +56,12 @@ export class PayoutService {
       throw new AppError(`El monto mínimo de retiro para ${currency} es ${minAmount}`, 400);
     }
 
-    // Validación de Monto Máximo
-    // Buscamos la key 'max_payout_amount' en el objeto configs
     const maxAmount = configs['max_payout_amount'] ? Number(configs['max_payout_amount']) : null;
-
     if (maxAmount && sanitizedAmount > maxAmount) {
-      throw new AppError(
-        `El monto máximo permitido por retiro para ${currency} es ${maxAmount}.`,
-        400
-      );
+      throw new AppError(`El monto máximo permitido para ${currency} es ${maxAmount}.`, 400);
     }
 
-    // Obtenemos el límite de frecuencia de la tabla de configs (ej: 1)
     const freqLimit = Number(configs['payout_frequency_limit'] ?? 1);
-
     const alreadyRequested = await payoutRepository.hasRecentPayout(userId, freqLimit);
 
     if (alreadyRequested) {
@@ -96,6 +88,8 @@ export class PayoutService {
         client
       );
 
+      if (!payout) throw new AppError('Error al crear la solicitud', 500);
+
       await historyRepository.createRecordWithClient(client, {
         userId,
         order_id: null,
@@ -107,18 +101,20 @@ export class PayoutService {
 
       await client.query('COMMIT');
 
-      // >>> NOTIFICACIÓN POR EMAIL (Solicitud creada) <<<
-      const user = await userRepository.getById(userId);
-      if (user) {
-        EmailService.sendPayoutRequestedEmail(
-          user.email,
-          user.fullname,
-          sanitizedAmount,
-          currency,
-          payoutData.alias || payoutData.destination_account
-        );
-      }
+      // Notificación Email
+      userRepository.getById(userId).then(user => {
+        if (user) {
+          EmailService.sendPayoutRequestedEmail(
+            user.email,
+            user.fullname,
+            sanitizedAmount,
+            currency,
+            payoutData.alias || payoutData.destination_account
+          );
+        }
+      });
 
+      // --- Lógica de Días Hábiles ---
       const processingDays = Number(configs['payout_processing_days'] ?? 3);
       const estimatedDate = new Date();
       let addedDays = 0;
@@ -141,6 +137,7 @@ export class PayoutService {
       };
     } catch (error: any) {
       await client.query('ROLLBACK');
+      logger.error({ error: error.message, userId }, 'Error en requestPayout');
       if (error.code === '23514' || error.message.includes('balance')) {
         throw new AppError('Saldo insuficiente para realizar el retiro.', 400);
       }
@@ -150,82 +147,60 @@ export class PayoutService {
     }
   }
 
-  /**
-   * Permite al usuario anular una solicitud propia que aún esté 'pending'.
-   */
   static async cancelUserPayout(payoutId: string, userId: string) {
     const client = await pool.connect();
-
     try {
       await client.query('BEGIN');
-
-      // 1. Obtener y bloquear el registro
       const payout = await payoutRepository.getByIdForUpdate(payoutId, client);
 
-      if (!payout) throw new AppError('Solicitud de retiro no encontrada', 404);
+      if (!payout) throw new AppError('No encontrado', 404);
+      if (payout.user_id !== userId) throw new AppError('No autorizado', 403);
+      if (payout.status !== 'pending') throw new AppError('No es anulable', 400);
 
-      // 2. Validaciones de seguridad
-      if (payout.user_id !== userId) {
-        throw new AppError('No tienes permiso para anular esta solicitud', 403);
-      }
-      if (payout.status !== 'pending') {
-        throw new AppError('Solo se pueden anular solicitudes en estado pendiente', 400);
-      }
-
-      // 3. Reintegrar el dinero al balance del usuario
-      await balanceRepository.addAvailableBalance(
-        userId,
-        Number(payout.amount),
-        payout.currency,
-        client
-      );
-
-      // 4. Marcar como cancelado en la tabla de payouts
+      await balanceRepository.addAvailableBalance(userId, payout.amount, payout.currency, client);
       await payoutRepository.updateStatus(
         payoutId,
         'cancelled',
-        'Anulado por el usuario',
+        'Anulado por usuario',
         null,
-        userId, // En este caso el ejecutor es el usuario
+        userId,
         client
       );
 
-      // 5. Registro en el historial de movimientos
       await historyRepository.createRecordWithClient(client, {
         userId,
         order_id: null,
-        amount: Number(payout.amount),
+        amount: payout.amount,
         currency: payout.currency,
         type: 'payout_cancel' as any,
-        description: `Retiro anulado por el usuario: +${payout.amount} ${payout.currency}`,
+        description: `Retiro anulado: +${payout.amount}`,
       });
 
       await client.query('COMMIT');
 
-      // 6. Notificar por Email
-      const user = await userRepository.getById(userId);
-      if (user) {
-        await EmailService.sendPayoutCancelledEmail(
-          user.email,
-          user.fullname,
-          Number(payout.amount),
-          payout.currency
-        );
-      }
+      userRepository.getById(userId).then(user => {
+        if (user)
+          EmailService.sendPayoutCancelledEmail(
+            user.email,
+            user.fullname,
+            payout.amount,
+            payout.currency
+          );
+      });
 
-      return { success: true, message: 'Solicitud anulada y saldo reintegrado.' };
+      return {
+        success: true,
+        message: 'Solicitud anulada y saldo reintegrado.',
+      };
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, payoutId }, 'Error al cancelar retiro');
+      logger.error({ error: error.message, payoutId }, 'Error en cancelUserPayout');
       throw error;
     } finally {
       client.release();
     }
   }
 
-  /**
-   * Actualiza el estado de un retiro (Administradores).
-   */
   static async updatePayoutStatus(
     payoutId: string,
     status: 'completed' | 'rejected',
@@ -234,21 +209,14 @@ export class PayoutService {
     transactionReceipt?: string
   ) {
     const client = await pool.connect();
-
     try {
       await client.query('BEGIN');
-
       const payout = await payoutRepository.getByIdForUpdate(payoutId, client);
-      if (!payout) throw new AppError('Registro de retiro no encontrado', 404);
-      if (payout.status !== 'pending') throw new AppError('Este retiro ya ha sido procesado', 400);
-
-      const user = await userRepository.getById(payout.user_id);
+      if (!payout) throw new AppError('No encontrado', 404);
+      if (payout.status !== 'pending') throw new AppError('Ya procesado', 400);
 
       if (status === 'completed') {
-        if (!transactionReceipt) {
-          throw new AppError('Debes proporcionar el comprobante de transacción', 400);
-        }
-
+        if (!transactionReceipt) throw new AppError('Falta comprobante', 400);
         await payoutRepository.updateStatus(
           payoutId,
           'completed',
@@ -257,23 +225,23 @@ export class PayoutService {
           adminId,
           client
         );
-
         await client.query('COMMIT');
 
-        if (user) {
-          EmailService.sendPayoutCompletedEmail(
-            user.email,
-            user.fullname,
-            Number(payout.amount),
-            payout.currency,
-            payout.alias || payout.destination_account,
-            transactionReceipt
-          );
-        }
-      } else if (status === 'rejected') {
+        userRepository.getById(payout.user_id).then(user => {
+          if (user)
+            EmailService.sendPayoutCompletedEmail(
+              user.email,
+              user.fullname,
+              payout.amount,
+              payout.currency,
+              payout.alias || payout.destination_account,
+              transactionReceipt
+            );
+        });
+      } else {
         await balanceRepository.addAvailableBalance(
           payout.user_id,
-          Number(payout.amount),
+          payout.amount,
           payout.currency,
           client
         );
@@ -285,41 +253,31 @@ export class PayoutService {
           adminId,
           client
         );
-
         await historyRepository.createRecordWithClient(client, {
           userId: payout.user_id,
           order_id: null,
-          amount: Number(payout.amount),
+          amount: payout.amount,
           currency: payout.currency,
           type: 'payout_refund' as any,
-          description: `Reintegro por retiro rechazado: ${adminNotes || 'S/M'}`,
+          description: `Reintegro: ${adminNotes}`,
         });
-
         await client.query('COMMIT');
 
-        if (user) {
-          EmailService.sendSecurityAlert(
-            user.email,
-            'Solicitud de retiro rechazada',
-            `Tu solicitud por ${payout.amount} ${payout.currency} fue rechazada. Motivo: ${adminNotes || 'S/M'}`
-          );
-        }
+        userRepository.getById(payout.user_id).then(user => {
+          if (user)
+            EmailService.sendSecurityAlert(user.email, 'Retiro rechazado', `Motivo: ${adminNotes}`);
+        });
       }
-
-      return { success: true, status };
+      return { success: true };
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, payoutId }, 'Error al procesar el cambio de estado');
+      logger.error({ error: error.message, payoutId }, 'Error en updatePayoutStatus');
       throw error;
     } finally {
       client.release();
     }
   }
 
-  /**
-   * Retiro de fondos de la PLATAFORMA (Empresa).
-   * Mueve dinero de platform_balances a platform_withdrawals.
-   */
   static async requestPlatformPayout(
     amount: number,
     currency: string,
@@ -328,48 +286,25 @@ export class PayoutService {
     adminId: string
   ) {
     const client = await pool.connect();
-    const sanitizedAmount = Math.floor(amount * 100) / 100;
-
-    if (sanitizedAmount <= 0) {
-      throw new AppError('El monto debe ser mayor a cero', 400);
-    }
-
     try {
       await client.query('BEGIN');
-
-      // 1. Verificamos y descontamos del balance de la plataforma
-      // Este método debe validar internamente que haya fondos suficientes
-      await platformBalanceRepository.deductFromAvailable(sanitizedAmount, currency, client);
-
-      // 2. Registramos el egreso oficial
+      await platformBalanceRepository.deductFromAvailable(amount, currency, client);
       const withdrawal = await platformWithdrawalRepository.create(
         {
           adminId,
-          amount: sanitizedAmount,
+          amount,
           currency,
           description,
           transactionReceipt,
         },
         client
       );
-
-      // 3. Opcional: Notificamos al logger o auditoría interna
-      logger.info(
-        { adminId, amount: sanitizedAmount, currency, ref: transactionReceipt },
-        '🏢 Retiro de fondos de plataforma procesado'
-      );
-
       await client.query('COMMIT');
       return { success: true, data: withdrawal };
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message }, 'Error crítico en retiro de plataforma');
-      throw new AppError(
-        error.message.includes('balance')
-          ? 'La plataforma no tiene saldo disponible suficiente'
-          : 'Error al procesar retiro de plataforma',
-        400
-      );
+      logger.error({ error: error.message, adminId }, 'Error en platform payout');
+      throw new AppError('Error en retiro plataforma', 400);
     } finally {
       client.release();
     }

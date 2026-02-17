@@ -5,17 +5,45 @@ import bcrypt from 'bcrypt';
 import pool from '../db/postgres';
 import { config } from '../config/index';
 
-// Agregamos esta interfaz para que AuthController pueda tipar el usuario correctamente
-export interface UserWithPassword {
+// --- INTERFACES DE CONTRATO ---
+
+export interface UserBase {
   id: string;
   username: string;
   email: string;
   fullname: string;
-  password: string; // La incluimos porque el login la necesita para comparar
   level: number;
   active: number;
+  affiliate_slug: string;
   must_change_password: boolean;
   createdate: Date;
+}
+
+export interface UserWithPassword extends UserBase {
+  password: string;
+}
+
+export interface CreateUserInput {
+  email: string;
+  fullname: string;
+  password?: string;
+  level?: number;
+  active?: number;
+}
+
+export interface UpdateUserInput {
+  fullname?: string;
+  level?: number;
+  active?: number;
+}
+
+export interface RefreshTokenRow {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  expires_at: Date;
+  revoked: boolean;
+  created_at: Date;
 }
 
 export const userRepository = {
@@ -25,40 +53,40 @@ export const userRepository = {
   async findByCredentials(identifier: string): Promise<UserWithPassword | null> {
     const schema = config.db?.schema || 'public';
     const query = `
-      SELECT id, username, password, email, fullname, level, active, must_change_password, createdate
+      SELECT id, username, password, email, fullname, level, active, must_change_password, createdate, affiliate_slug
       FROM "${schema}".users 
       WHERE username = $1 OR email = $1
     `;
-    const { rows } = await pool.query(query, [identifier]);
+    const { rows } = await pool.query<UserWithPassword>(query, [identifier]);
     return rows[0] || null;
   },
 
   /**
    * Obtiene la información pública/básica de un usuario por su ID.
    */
-  async getById(id: string) {
+  async getById(id: string): Promise<UserBase | null> {
     const schema = config.db?.schema || 'public';
-    const query = `SELECT id, username, email, fullname, level, active, must_change_password, createdate 
+    const query = `SELECT id, username, email, fullname, level, active, must_change_password, createdate, affiliate_slug
                    FROM "${schema}".users WHERE id = $1`;
-    const { rows } = await pool.query(query, [id]);
+    const { rows } = await pool.query<UserBase>(query, [id]);
     return rows[0] || null;
   },
 
   /**
-   * Obtiene lista de todos los usuarios (Requerido por UserController.getUsers)
+   * Obtiene lista de todos los usuarios
    */
-  async getUsers() {
+  async getUsers(): Promise<UserBase[]> {
     const schema = config.db?.schema || 'public';
-    const query = `SELECT id, username, email, fullname, level, active, createdate FROM "${schema}".users ORDER BY createdate DESC`;
-    const { rows } = await pool.query(query);
+    const query = `SELECT id, username, email, fullname, level, active, createdate, affiliate_slug, must_change_password 
+                   FROM "${schema}".users ORDER BY createdate DESC`;
+    const { rows } = await pool.query<UserBase>(query);
     return rows;
   },
 
   // --- MÉTODOS DE REFRESH TOKEN ---
 
-  async saveRefreshToken(userId: string, tokenHash: string, expiresAt: Date) {
+  async saveRefreshToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
     const schema = config.db?.schema || 'public';
-    // Sin ON CONFLICT para soportar múltiples sesiones activas
     const query = `
       INSERT INTO "${schema}".refresh_tokens (user_id, token_hash, expires_at)
       VALUES ($1, $2, $3)
@@ -66,29 +94,23 @@ export const userRepository = {
     await pool.query(query, [userId, tokenHash, expiresAt]);
   },
 
-  /**
-   * Alias para getRefreshToken que usa tu AuthController
-   */
-  async findRefreshToken(tokenHash: string) {
+  async findRefreshToken(tokenHash: string): Promise<RefreshTokenRow | null> {
     const schema = config.db?.schema || 'public';
     const query = `
       SELECT * FROM "${schema}".refresh_tokens 
       WHERE token_hash = $1 AND revoked = FALSE AND expires_at > CURRENT_TIMESTAMP
     `;
-    const { rows } = await pool.query(query, [tokenHash]);
+    const { rows } = await pool.query<RefreshTokenRow>(query, [tokenHash]);
     return rows[0] || null;
   },
 
-  /**
-   * Elimina un token específico (Requerido por Logout)
-   */
-  async deleteSpecificRefreshToken(tokenHash: string) {
+  async deleteSpecificRefreshToken(tokenHash: string): Promise<void> {
     const schema = config.db?.schema || 'public';
     const query = `DELETE FROM "${schema}".refresh_tokens WHERE token_hash = $1`;
     await pool.query(query, [tokenHash]);
   },
 
-  async deleteRefreshToken(userId: string) {
+  async deleteRefreshToken(userId: string): Promise<void> {
     const schema = config.db?.schema || 'public';
     const query = `DELETE FROM "${schema}".refresh_tokens WHERE user_id = $1`;
     await pool.query(query, [userId]);
@@ -96,25 +118,21 @@ export const userRepository = {
 
   // --- MÉTODOS DE GESTIÓN DE USUARIO ---
 
-  async createUser(input: any) {
+  async createUser(input: CreateUserInput) {
     const schema = config.db?.schema || 'public';
     const { password, email, fullname, level = 1, active = 0 } = input;
 
-    // 1. GENERACIÓN AUTOMÁTICA DE USERNAME
-    // Tomamos lo que está antes del '@' y le sumamos 3 números aleatorios
-    // Ejemplo: "kike.perez@gmail.com" -> "kike.perez842"
-    const baseName = email.split('@')[0].substring(0, 15); // Limitar a 15 caracteres
+    const baseName = email.split('@')[0].substring(0, 15);
     const randomSuffix = Math.floor(100 + Math.random() * 900);
     const generatedUsername = `${baseName}${randomSuffix}`;
-
-    // El slug inicial será igual al username base (más limpio)
     const affiliateSlug = generatedUsername;
 
     const mustChangePassword = Number(level) === 1;
-    const passwordWithPepper = password + config.passwordPepper;
+    // Si no hay password (registro manual admin), generamos uno aleatorio temporal
+    const rawPassword = password || crypto.randomBytes(12).toString('hex');
+    const passwordWithPepper = rawPassword + config.passwordPepper;
     const hash = await bcrypt.hash(passwordWithPepper, 12);
 
-    // Tokens de verificación (opcionales según tu flujo de registro manual)
     const verificationToken = active === 0 ? crypto.randomBytes(32).toString('hex') : null;
     const expires = active === 0 ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
 
@@ -123,7 +141,7 @@ export const userRepository = {
       (username, affiliate_slug, password, email, fullname, level, active, 
        verification_token, verification_token_expires, must_change_password)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    RETURNING id, username, affiliate_slug, email, fullname;
+    RETURNING id, username, affiliate_slug, email, fullname, level, active;
     `;
 
     const { rows } = await pool.query(query, [
@@ -138,13 +156,11 @@ export const userRepository = {
       expires,
       mustChangePassword,
     ]);
+
     return { ...rows[0], verificationToken };
   },
 
-  /**
-   * Verifica la cuenta mediante el token (Requerido por verifyEmail)
-   */
-  async verifyAccount(token: string) {
+  async verifyAccount(token: string): Promise<boolean> {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".users 
@@ -156,11 +172,11 @@ export const userRepository = {
     return rows.length > 0;
   },
 
-  async updUser({ id, input }: { id: string; input: any }) {
+  async updUser({ id, input }: { id: string; input: UpdateUserInput }): Promise<UserBase | null> {
     const schema = config.db?.schema || 'public';
     const { fullname, level, active } = input;
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: (string | number)[] = [];
     let paramIndex = 1;
 
     if (fullname !== undefined) {
@@ -180,14 +196,11 @@ export const userRepository = {
 
     values.push(id);
     const query = `UPDATE "${schema}".users SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-    const { rows } = await pool.query(query, values);
+    const { rows } = await pool.query<UserBase>(query, values);
     return rows[0] || null;
   },
 
-  /**
-   * Cambia la contraseña (Requerido por UserController)
-   */
-  async chgPassUser({ id, input }: { id: string; input: { password: string } }) {
+  async chgPassUser({ id, input }: { id: string; input: { password: string } }): Promise<void> {
     const schema = config.db?.schema || 'public';
     const passwordWithPepper = input.password + config.passwordPepper;
     const hash = await bcrypt.hash(passwordWithPepper, 12);
@@ -195,35 +208,30 @@ export const userRepository = {
     await pool.query(query, [hash, id]);
   },
 
-  /**
-   * Actualiza contraseña y quita flag de cambio obligatorio (Requerido por AuthController)
-   */
-  async updatePasswordAndClearFlag(id: string, passwordHash: string) {
+  async updatePasswordAndClearFlag(id: string, passwordHash: string): Promise<boolean> {
     const schema = config.db?.schema || 'public';
     const query = `UPDATE "${schema}".users SET password = $1, must_change_password = false WHERE id = $2`;
     const result = await pool.query(query, [passwordHash, id]);
     return (result.rowCount ?? 0) > 0;
   },
 
-  /**
-   * Elimina un usuario (Requerido por UserController)
-   */
-  async deleteUser(id: string) {
+  async deleteUser(id: string): Promise<boolean> {
     const schema = config.db?.schema || 'public';
     const query = `DELETE FROM "${schema}".users WHERE id = $1`;
     const result = await pool.query(query, [id]);
     return (result.rowCount ?? 0) > 0;
   },
 
-  async validateRefreshToken(tokenHash: string) {
+  async validateRefreshToken(tokenHash: string): Promise<string | null> {
     const token = await this.findRefreshToken(tokenHash);
     return token ? token.user_id : null;
   },
 
-  /**
-   * Guarda un token de recuperación de contraseña.
-   */
-  async saveResetToken(email: string, token: string, expires: Date) {
+  async saveResetToken(
+    email: string,
+    token: string,
+    expires: Date
+  ): Promise<{ id: string } | null> {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".users 
@@ -231,14 +239,11 @@ export const userRepository = {
       WHERE email = $3
       RETURNING id;
     `;
-    const { rows } = await pool.query(query, [token, expires, email]);
+    const { rows } = await pool.query<{ id: string }>(query, [token, expires, email]);
     return rows[0] || null;
   },
 
-  /**
-   * Cambia la contraseña usando el token de recuperación.
-   */
-  async resetPasswordByToken(token: string, newPasswordHash: string) {
+  async resetPasswordByToken(token: string, newPasswordHash: string): Promise<boolean> {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".users 
@@ -253,19 +258,19 @@ export const userRepository = {
     return rows.length > 0;
   },
 
-  /**
-   * Busca un usuario específicamente por su slug de afiliado.
-   */
-  async findByAffiliateSlug(slug: string) {
+  async findByAffiliateSlug(
+    slug: string
+  ): Promise<Pick<UserBase, 'id' | 'username' | 'affiliate_slug'> | null> {
     const schema = config.db?.schema || 'public';
-    // Buscamos por slug, pero mantenemos compatibilidad por si pasan el ID directamente
     const query = `
       SELECT id, username, affiliate_slug 
       FROM "${schema}".users 
       WHERE affiliate_slug = $1 OR id::text = $1 
       LIMIT 1
     `;
-    const { rows } = await pool.query(query, [slug]);
+    const { rows } = await pool.query<Pick<UserBase, 'id' | 'username' | 'affiliate_slug'>>(query, [
+      slug,
+    ]);
     return rows[0] || null;
   },
 };

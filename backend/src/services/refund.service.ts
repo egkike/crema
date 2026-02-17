@@ -12,9 +12,6 @@ import logger from '../utils/logger';
 import { config } from '../config/index';
 
 export class RefundService {
-  /**
-   * Helper privado para inicializar el cliente de Mercado Pago.
-   */
   private static getMPClient() {
     return new MercadoPagoConfig({
       accessToken: config.mercadoPago?.accessToken || 'dummy_token',
@@ -31,8 +28,7 @@ export class RefundService {
     try {
       await client.query('BEGIN');
 
-      // 1. Obtener la orden con bloqueo FOR UPDATE para evitar colisiones con el proceso de liberación.
-      // NOTA: Asegúrate que orderRepository.getById use FOR UPDATE cuando se le pasa el cliente.
+      // 1. Obtener la orden con bloqueo FOR UPDATE
       const order = await orderRepository.getById(orderId, client);
 
       if (!order) throw new AppError('La orden no existe', 404);
@@ -41,14 +37,13 @@ export class RefundService {
       // VALIDACIÓN DE GARANTÍA
       const orderCreatedAt = new Date(order.created_at).getTime();
       const guaranteeDays = order.days_of_guarantee_applied || 7;
-      const guaranteeMillis = guaranteeDays * 24 * 60 * 60 * 1000;
-      const expirationDate = orderCreatedAt + guaranteeMillis;
+      const expirationDate = orderCreatedAt + (guaranteeDays * 24 * 60 * 60 * 1000);
 
       if (Date.now() > expirationDate) {
         throw new AppError(`El periodo de garantía de ${guaranteeDays} días ha expirado.`, 400);
       }
 
-      // SEGURIDAD: Solo se reembolsa si el dinero no ha sido liberado al saldo disponible.
+      // SEGURIDAD: Solo se reembolsa si el dinero NO ha sido liberado
       if (order.balance_released) {
         throw new AppError(
           'El saldo ya fue liberado. El reembolso debe gestionarse manualmente.',
@@ -58,12 +53,12 @@ export class RefundService {
 
       const orderCurrency = order.currency;
 
-      // 2. REVERTIR COMISIONES DE USUARIOS (CREADOR Y AFILIADOS)
+      // 2. REVERTIR COMISIONES DE USUARIOS
       const commissions = await commissionRepository.getByOrderId(orderId);
 
       for (const comm of commissions) {
-        // Solo revertimos si la comisión está pendiente (no pagada aún)
         if (comm.status === 'pending') {
+          // Usamos comm.netAmount (mapeado por el repo)
           const amountToDeduct = Math.floor(Number(comm.netAmount) * 100) / 100;
 
           await balanceRepository.deductPendingEarnings(
@@ -86,10 +81,8 @@ export class RefundService {
 
       // 3. REVERTIR GANANCIAS DE LA PLATAFORMA
       const pEarningsQuery = `
-        SELECT total_amount 
-        FROM "${schema}".platform_earnings 
-        WHERE order_id = $1 AND status = 'active'
-        FOR UPDATE;
+        SELECT total_amount FROM "${schema}".platform_earnings 
+        WHERE order_id = $1 AND status = 'active' FOR UPDATE;
       `;
       const { rows: pEarnings } = await client.query(pEarningsQuery, [orderId]);
 
@@ -103,23 +96,20 @@ export class RefundService {
         );
 
         await client.query(
-          `UPDATE "${schema}".platform_earnings 
-           SET status = 'refunded', updated_at = CURRENT_TIMESTAMP 
-           WHERE order_id = $1`,
+          `UPDATE "${schema}".platform_earnings SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE order_id = $1`,
           [orderId]
         );
       }
 
-      // 4. ACTUALIZAR ESTADOS DE LA ORDEN Y COMISIONES
+      // 4. ACTUALIZAR ESTADOS
       await orderRepository.updateStatus(orderId, 'refunded', client);
       await commissionRepository.updateStatusByOrder(orderId, 'refunded', client);
 
       // 5. REGISTRO DE AUDITORÍA
-      // Ajuste: Usamos order.creator_id o el seller_id que venga del JOIN en el repositorio.
       await refundRepository.create(
         {
           orderId,
-          sellerId: order.creator_id || order.seller_id,
+          sellerId: order.creator_id,
           buyerId: order.buyer_id,
           amount: Number(order.amount),
           currency: orderCurrency,
@@ -128,30 +118,26 @@ export class RefundService {
         client
       );
 
-      // 6. REEMBOLSO EN PASARELA (MERCADO PAGO)
+      // 6. REEMBOLSO EN MERCADO PAGO
       if (order.payment_method === 'mercadopago' && order.transaction_id) {
         try {
           const mpClient = this.getMPClient();
           const refundInstance = new PaymentRefund(mpClient);
-
-          await refundInstance.create({
-            payment_id: String(order.transaction_id) as any,
-          });
-          logger.info(`Mercado Pago: Reembolso exitoso para orden ${orderId}`);
+          await refundInstance.create({ payment_id: String(order.transaction_id) });
         } catch (mpError: any) {
           logger.error({ mpError: mpError.message }, 'Error en API de Mercado Pago');
-          // Lanzamos error para hacer ROLLBACK de todo si MP falla
           throw new AppError(`Error en Mercado Pago: ${mpError.message}`, 400);
         }
       }
 
       await client.query('COMMIT');
+      logger.info({ orderId }, '✅ Reembolso procesado exitosamente');
       return { success: true };
+
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, orderId }, 'Fallo en RefundService');
-      if (error instanceof AppError) throw error;
-      throw new AppError(error.message || 'Error interno al procesar el reembolso', 500);
+      logger.error({ error: error.message, orderId }, '💥 Fallo en RefundService');
+      throw error instanceof AppError ? error : new AppError(error.message, 500);
     } finally {
       client.release();
     }

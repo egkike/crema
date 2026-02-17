@@ -2,36 +2,46 @@ import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
+// --- INTERFACES ---
+
 export interface CreatePayoutDTO {
   userId: string;
   amount: number;
   currency: string;
   destination_account: string;
-  bank_name?: string | undefined;
-  account_holder?: string | undefined;
-  tax_id?: string | undefined;
-  alias?: string | undefined;
+  bank_name?: string | null;
+  account_holder?: string | null;
+  tax_id?: string | null;
+  alias?: string | null;
+}
+
+export interface Payout extends Omit<CreatePayoutDTO, 'userId'> {
+  id: string;
+  user_id: string; // Mapeado de userId
+  status: 'pending' | 'completed' | 'rejected' | 'cancelled' | 'processing';
+  admin_notes?: string | null;
+  transaction_receipt?: string | null;
+  admin_id?: string | null;
+  processed_at?: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  // Campos del JOIN (opcionales)
+  email?: string;
+  fullname?: string;
 }
 
 export const payoutRepository = {
-  mapRow(row: any) {
+  mapRow(row: any): Payout | null {
     if (!row) return null;
     return {
       ...row,
       amount: Number(row.amount),
-    };
+    } as Payout;
   },
 
-  /**
-   * Obtiene un payout bloqueando la fila para actualización.
-   */
-  async getByIdForUpdate(id: string, client: any) {
+  async getByIdForUpdate(id: string, client: any): Promise<Payout | null> {
     const schema = config.db?.schema || 'public';
-    const query = `
-      SELECT * FROM "${schema}".payouts 
-      WHERE id = $1 
-      FOR UPDATE;
-    `;
+    const query = `SELECT * FROM "${schema}".payouts WHERE id = $1 FOR UPDATE;`;
     try {
       const { rows } = await client.query(query, [id]);
       return this.mapRow(rows[0]);
@@ -41,10 +51,7 @@ export const payoutRepository = {
     }
   },
 
-  /**
-   * Crea el registro con todos los campos de transferencia argentinos.
-   */
-  async create(data: CreatePayoutDTO, client: any) {
+  async create(data: CreatePayoutDTO, client: any): Promise<Payout | null> {
     const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".payouts (
@@ -54,29 +61,20 @@ export const payoutRepository = {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending') 
       RETURNING *;
     `;
-    try {
-      const values = [
-        data.userId,
-        data.amount,
-        data.currency,
-        data.destination_account,
-        data.bank_name || null,
-        data.account_holder || null,
-        data.tax_id || null,
-        data.alias || null,
-      ];
-
-      const { rows } = await client.query(query, values);
-      return this.mapRow(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, userId: data.userId }, 'DB Error: Create payout failed');
-      throw error;
-    }
+    const values = [
+      data.userId,
+      data.amount,
+      data.currency,
+      data.destination_account,
+      data.bank_name || null,
+      data.account_holder || null,
+      data.tax_id || null,
+      data.alias || null,
+    ];
+    const { rows } = await client.query(query, values);
+    return this.mapRow(rows[0]);
   },
 
-  /**
-   * Actualiza estado con soporte para recibos de transacción y ID de administrador.
-   */
   async updateStatus(
     id: string,
     status: string,
@@ -84,123 +82,47 @@ export const payoutRepository = {
     transactionReceipt: string | null = null,
     adminId: string | null = null,
     client?: any
-  ) {
+  ): Promise<Payout | null> {
     const schema = config.db?.schema || 'public';
     const db = client || pool;
-
     const query = `
-    UPDATE "${schema}".payouts 
-    SET 
-      status = $1::text, 
-      admin_notes = COALESCE($2::text, admin_notes),
-      transaction_receipt = COALESCE($3::text, transaction_receipt),
-      admin_id = COALESCE($4::uuid, admin_id),
-      processed_at = CASE 
-        WHEN $1::text = 'completed' OR $1::text = 'rejected' THEN CURRENT_TIMESTAMP 
-        ELSE processed_at 
-      END,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = $5::uuid
-    RETURNING *;
-  `;
-
-    try {
-      const values = [status, adminNotes || null, transactionReceipt || null, adminId || null, id];
-
-      const { rows } = await db.query(query, values);
-      return rows[0] || null;
-    } catch (error: any) {
-      logger.error({ payoutId: id, error: error.message }, 'DB Error: updateStatus payout failed');
-      throw error;
-    }
-  },
-
-  /**
-   * Obtiene payouts por estado con info del usuario.
-   */
-  async getByStatus(status: string) {
-    const schema = config.db?.schema || 'public';
-    const query = `
-      SELECT p.*, u.email, u.fullname 
-      FROM "${schema}".payouts p
-      JOIN "${schema}".users u ON p.user_id = u.id
-      WHERE p.status = $1
-      ORDER BY p.created_at ASC;
+      UPDATE "${schema}".payouts 
+      SET 
+        status = $1, 
+        admin_notes = COALESCE($2, admin_notes),
+        transaction_receipt = COALESCE($3, transaction_receipt),
+        admin_id = COALESCE($4::uuid, admin_id),
+        processed_at = CASE WHEN $1 IN ('completed', 'rejected') THEN CURRENT_TIMESTAMP ELSE processed_at END,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5::uuid
+      RETURNING *;
     `;
-    try {
-      const { rows } = await pool.query(query, [status]);
-      return rows.map(row => this.mapRow(row));
-    } catch (error: any) {
-      logger.error({ error: error.message, status }, 'DB Error: get payouts by status failed');
-      throw error;
-    }
-  },
-
-  /**
-   * Historial de retiros de un usuario específico.
-   */
-  async getByUserId(userId: string) {
-    const schema = config.db?.schema || 'public';
-    const query = `
-      SELECT * FROM "${schema}".payouts 
-      WHERE user_id = $1 
-      ORDER BY created_at DESC;
-    `;
-    try {
-      const { rows } = await pool.query(query, [userId]);
-      return rows.map(row => this.mapRow(row));
-    } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'DB Error: get payouts by user failed');
-      throw error;
-    }
+    const { rows } = await db.query(query, [status, adminNotes, transactionReceipt, adminId, id]);
+    return this.mapRow(rows[0]);
   },
 
   async hasRecentPayout(userId: string, limit: number = 1): Promise<boolean> {
     const schema = config.db?.schema || 'public';
-    // Contamos solo solicitudes activas (pending, completed, processing)
-    // Ignoramos 'rejected' y 'cancelled' porque el usuario debería poder re-intentar
     const query = `
-      SELECT COUNT(*) as total 
-      FROM "${schema}".payouts 
-      WHERE user_id = $1 
-      AND created_at >= CURRENT_DATE 
+      SELECT COUNT(*) as total FROM "${schema}".payouts 
+      WHERE user_id = $1 AND created_at >= CURRENT_DATE 
       AND status NOT IN ('rejected', 'cancelled');
     `;
-
-    try {
-      const { rows } = await pool.query(query, [userId]);
-      const total = parseInt(rows[0].total, 10);
-      return total >= limit;
-    } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'DB Error: hasRecentPayout failed');
-      return true; // Bloqueamos por seguridad ante error
-    }
+    const { rows } = await pool.query(query, [userId]);
+    return parseInt(rows[0].total, 10) >= limit;
   },
 
-  /**
-   * Obtiene todos los retiros con info de usuario para reportes globales
-   */
-  async getAll() {
+  async getByUserId(userId: string): Promise<Payout[]> {
     const schema = config.db?.schema || 'public';
-    const query = `
-      SELECT p.*, u.email, u.fullname 
-      FROM "${schema}".payouts p
-      JOIN "${schema}".users u ON p.user_id = u.id
-      ORDER BY p.created_at DESC;
-    `;
-    try {
-      const { rows } = await pool.query(query);
-      return rows.map(row => this.mapRow(row));
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'DB Error: getAll payouts failed');
-      throw error;
-    }
+    const query = `SELECT * FROM "${schema}".payouts WHERE user_id = $1 ORDER BY created_at DESC;`;
+    const { rows } = await pool.query(query, [userId]);
+    return rows.map(row => this.mapRow(row) as Payout);
   },
 
   /**
-   * Obtiene retiros con filtros de estado y rango de fechas
+   * Obtiene retiros con filtros de estado y rango de fechas para exportación CSV
    */
-  async getForExport(status?: string, startDate?: string, endDate?: string) {
+  async getForExport(status?: string, startDate?: string, endDate?: string): Promise<Payout[]> {
     const schema = config.db?.schema || 'public';
     let query = `
       SELECT p.*, u.email, u.fullname 
@@ -224,9 +146,32 @@ export const payoutRepository = {
 
     try {
       const { rows } = await pool.query(query, values);
-      return rows.map(row => this.mapRow(row));
+      // Usamos mapRow para asegurar que 'amount' sea Number
+      return rows.map(row => this.mapRow(row) as Payout);
     } catch (error: any) {
       logger.error({ error: error.message }, 'DB Error: getForExport failed');
+      throw error;
+    }
+  },
+
+  /**
+   * Obtiene retiros filtrados por estado (pending, completed, rejected, cancelled)
+   */
+  async getByStatus(status: string): Promise<Payout[]> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT p.*, u.email, u.fullname 
+      FROM "${schema}".payouts p
+      JOIN "${schema}".users u ON p.user_id = u.id
+      WHERE p.status = $1
+      ORDER BY p.created_at ASC;
+    `;
+
+    try {
+      const { rows } = await pool.query(query, [status]);
+      return rows.map(row => this.mapRow(row) as Payout);
+    } catch (error: any) {
+      logger.error({ error: error.message, status }, 'DB Error: getByStatus failed');
       throw error;
     }
   },

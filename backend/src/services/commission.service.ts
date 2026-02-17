@@ -6,21 +6,25 @@ import { historyRepository } from '../repositories/history.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
+import { Order } from '../repositories/order.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
 /**
- * Utilidad para redondeo financiero a 2 decimales para evitar errores de coma flotante.
+ * Utilidad para redondeo financiero a 2 decimales.
  */
 const roundToTwo = (num: number): number => {
   return Math.round((num + Number.EPSILON) * 100) / 100;
 };
 
 export class CommissionService {
-  static async processOrderCommissions(order: any, product: any) {
+  /**
+   * Reparte el dinero de una orden entre Plataforma, Creador y Afiliado.
+   */
+  static async processOrderCommissions(order: Order, product: any) {
     const schema = config.db?.schema || 'public';
 
-    // Evitar procesamiento doble
+    // Evitar procesamiento doble (Idempotencia)
     if (order.commissions_calculated) return;
 
     const client = await pool.connect();
@@ -28,7 +32,7 @@ export class CommissionService {
     try {
       await client.query('BEGIN');
 
-      // 1. Bloqueo de seguridad para evitar condiciones de carrera
+      // 1. Bloqueo de seguridad (FOR UPDATE) para evitar condiciones de carrera si entran 2 webhooks
       const checkQuery = `SELECT commissions_calculated FROM "${schema}".orders WHERE id = $1 FOR UPDATE`;
       const { rows } = await client.query(checkQuery, [order.id]);
 
@@ -45,31 +49,30 @@ export class CommissionService {
       }
 
       // 2. CÁLCULO DE COMISIÓN DE PLATAFORMA
-      // --- Lógica de Plan ---
       const subscription = await subscriptionRepository.getActiveSubscription(product.creator_id);
 
-      let percentValue = Number(configs['fee_percent']); // Default global (0.099)
+      // fee_percent suele venir como string '0.099', lo convertimos a número
+      let percentValue = Number(configs['fee_percent'] || 0.099);
 
-      // Si el plan del usuario define una comisión específica (ej: 0.05 para 5%)
+      // Si el plan tiene comisión preferencial (features.custom_fee_percent)
       if (subscription?.features?.custom_fee_percent !== undefined) {
         percentValue = Number(subscription.features.custom_fee_percent);
         logger.info(
-          { userId: product.creator_id, plan: subscription.plan_name },
+          { userId: product.creator_id, plan: subscription.plan_name, fee: percentValue },
           'Aplicando comisión preferencial por plan'
         );
       }
-      // ------------------------------------
 
       const totalAmount = Number(order.amount);
-      const threshold = Number(configs['price_threshold']);
-      const lowFee = Number(configs['fixed_fee_low']);
-      const highFee = Number(configs['fixed_fee_high']);
+      const threshold = Number(configs['price_threshold'] || 0);
+      const lowFee = Number(configs['fixed_fee_low'] || 0);
+      const highFee = Number(configs['fixed_fee_high'] || 0);
 
       const variableFee = roundToTwo(totalAmount * percentValue);
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
       const totalPlatformFee = roundToTwo(variableFee + fixedFee);
 
-      // 3. REGISTRO DE GANANCIAS DE LA PLATAFORMA
+      // 3. REGISTRO DE GANANCIAS DE LA PLATAFORMA (Uso de client para transacción)
       await client.query(
         `INSERT INTO "${schema}".platform_earnings 
          (order_id, variable_amount, fixed_amount, total_amount, currency, status, balance_released) 
@@ -102,7 +105,7 @@ export class CommissionService {
               feeApplied: 0,
               netAmount: affiliateAmount,
               currency: orderCurrency,
-              type: 'affiliate',
+              type: 'affiliate' as any,
               status: 'pending',
             },
             client
@@ -120,18 +123,17 @@ export class CommissionService {
             order_id: order.id,
             amount: affiliateAmount,
             currency: orderCurrency,
-            type: 'sale_affiliate',
+            type: 'sale_affiliate' as any,
             description: `Comisión afiliado: ${product.title}`,
           });
         }
       }
 
       // 5. REGISTRO DE GANANCIA DEL CREADOR
-      // Usamos el mismo método de redondeo para consistencia absoluta
       const creatorNetAmount = roundToTwo(totalAmount - totalPlatformFee - affiliateAmount);
 
       if (creatorNetAmount < 0) {
-        throw new AppError('Las comisiones superan el total de la venta.', 500);
+        throw new AppError('Error matemático: las comisiones superan el total de la venta.', 500);
       }
 
       await commissionRepository.create(
@@ -142,7 +144,7 @@ export class CommissionService {
           feeApplied: totalPlatformFee,
           netAmount: creatorNetAmount,
           currency: orderCurrency,
-          type: 'creator',
+          type: 'creator' as any,
           status: 'pending',
         },
         client
@@ -160,13 +162,12 @@ export class CommissionService {
         order_id: order.id,
         amount: creatorNetAmount,
         currency: orderCurrency,
-        type: 'sale_creator',
+        type: 'sale_creator' as any,
         description: `Venta directa: ${product.title}`,
       });
 
-      // 6. ACTUALIZACIÓN FINAL DE LA ORDEN
-      // Guardamos un snapshot de los días de garantía aplicados en este momento
-      const currentGuaranteeDays = product.days_of_guarantee || 7;
+      // 6. CIERRE DE LA ORDEN
+      const currentGuaranteeDays = product.days_of_guarantee ?? 7;
 
       await client.query(
         `UPDATE "${schema}".orders 
@@ -180,13 +181,15 @@ export class CommissionService {
       );
 
       await client.query('COMMIT');
-
-      logger.info({ orderId: order.id }, 'Comisiones distribuidas y garantía registrada');
+      logger.info(
+        { orderId: order.id, creatorNet: creatorNetAmount },
+        '✅ Comisiones distribuidas'
+      );
 
       return { platformFee: totalPlatformFee, creatorNet: creatorNetAmount };
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, orderId: order.id }, 'Error en CommissionService');
+      logger.error({ error: error.message, orderId: order.id }, '💥 Error en CommissionService');
       throw error instanceof AppError ? error : new AppError('Error al procesar comisiones', 500);
     } finally {
       client.release();

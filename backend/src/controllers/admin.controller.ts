@@ -140,8 +140,9 @@ export class AdminController {
     try {
       const { id } = req.params;
       const { status, adminNotes, transactionReceipt } = req.body;
-      const adminId = (req as any).user.id;
-
+      const adminId = req.user?.id;
+      if (!adminId) throw new AppError('Sesión de administrador no válida', 401);
+      
       if (!['completed', 'rejected'].includes(status)) {
         throw new AppError('Estado no válido', 400);
       }

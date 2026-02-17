@@ -2,17 +2,18 @@ import { Request, Response, NextFunction } from 'express';
 
 import { subscriptionRepository } from '../../repositories/subscription.repository';
 import { productRepository } from '../../repositories/product.repository';
+import { USER_LEVELS } from '../../constants/roles';
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 
 export const checkPlanLimits = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = (req as any).user;
+    const { user } = req;
     const { type, sizeBytes } = req.body;
 
     // 1. Validar que sea un Creador (Nivel 3).
     // Los Afiliados (Nivel 2) no pueden crear productos en absoluto.
-    if (user.level < 3) {
+    if (!user || user.level < USER_LEVELS.CREATOR) {
       throw new AppError('Tu nivel de cuenta no permite la creación de productos.', 403);
     }
 

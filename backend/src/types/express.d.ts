@@ -18,7 +18,7 @@ declare global {
         affiliate_slug?: string;
         // Agregamos la fecha de registro o campos de sesión si los necesitas
         iat?: number;
-      } & Partial<JwtPayload>;
+      } & Partial<JwtPayload> | undefined;
       rateLimit?: {
         key: string;
         limit: number;

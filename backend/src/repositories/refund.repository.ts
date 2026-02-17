@@ -4,7 +4,7 @@ import logger from '../utils/logger';
 
 export interface RefundData {
   orderId: string;
-  sellerId: string;
+  sellerId: string | null;
   buyerId: string;
   amount: number;
   currency: string;

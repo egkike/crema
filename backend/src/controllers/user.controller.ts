@@ -13,7 +13,7 @@ export class UserController {
   getSession(req: Request, res: Response) {
     return res.status(200).json({
       success: true,
-      user: (req as any).user,
+      user: req.user,
     });
   }
 
@@ -50,7 +50,7 @@ export class UserController {
       throw new AppError(errorMsg || 'Datos inválidos', 400);
     }
 
-    const { username, password, email, fullname } = validation.data;
+    const { password, email, fullname } = validation.data;
     if (!password) throw new AppError('La contraseña es requerida', 400);
 
     const pwdCheck = validatePasswordDetailed(password);
@@ -60,7 +60,6 @@ export class UserController {
 
     // 1. Crear usuario (active = 0 + token)
     const newUser = await userRepository.createUser({
-      username: username!,
       password: password!,
       email: email!,
       fullname: fullname!,
@@ -75,7 +74,7 @@ export class UserController {
 
     // Quitamos password y token de la respuesta pública
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password: _, verificationToken: __, ...publicUser } = newUser as any;
+    const { password: _, verificationToken: __, ...publicUser } = newUser;
 
     return res.status(201).json({
       success: true,
@@ -103,13 +102,26 @@ export class UserController {
     const { id, fullname, level, active } = req.body;
     if (!id) throw new AppError('ID requerido', 400);
 
+    // 1. Validamos los datos (esto devuelve un objeto que puede tener campos undefined)
     const validation = validatePartialUser({ fullname, level, active });
     if (!validation.success) {
       const errorMsg = JSON.parse(validation.error.message)[0]?.message;
       throw new AppError(errorMsg || 'Datos inválidos', 400);
     }
 
-    const updated = await userRepository.updUser({ id, input: validation.data });
+    // 2. CREAMOS UN OBJETO LIMPIO: Solo incluimos lo que NO es undefined
+    // Esto satisface la restricción de 'exactOptionalPropertyTypes'
+    const updateData: any = {}; // Usamos any temporalmente para la construcción o definimos el tipo
+    if (validation.data.fullname !== undefined) updateData.fullname = validation.data.fullname;
+    if (validation.data.level !== undefined) updateData.level = validation.data.level;
+    if (validation.data.active !== undefined) updateData.active = validation.data.active;
+
+    // 3. Pasamos el objeto limpio al repositorio
+    const updated = await userRepository.updUser({
+      id,
+      input: updateData,
+    });
+
     if (!updated) throw new AppError('Usuario no encontrado', 404);
 
     return res.status(200).json({ success: true, user: updated });
@@ -136,7 +148,7 @@ export class UserController {
     await userRepository.chgPassUser({ id, input: { password } });
 
     logger.info(
-      { adminId: (req as any).user.id, targetUserId: id },
+      { adminId: req.user?.id, targetUserId: id }, // Acceso seguro
       'Admin reseteó contraseña de usuario'
     );
 
@@ -162,7 +174,12 @@ export class UserController {
    */
   async changeMyPassword(req: Request, res: Response) {
     const { oldPassword, password } = req.body;
-    const reqUser = (req as any).user;
+    const { user: reqUser } = req;
+
+    // Si reqUser es undefined, lanzamos error antes de usarlo
+    if (!reqUser) {
+      throw new AppError('Usuario no identificado', 401);
+    }
 
     if (!password || !oldPassword) {
       throw new AppError('Contraseña actual y nueva son requeridas', 400);

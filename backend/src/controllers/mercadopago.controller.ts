@@ -12,9 +12,6 @@ import { OrderService } from '../services/order.service';
 import { SubscriptionService } from '../services/subscription.service';
 import logger from '../utils/logger';
 
-/**
- * Helper para obtener el cliente de Mercado Pago dinámicamente
- */
 const getMPClient = () => {
   return new MercadoPagoConfig({
     accessToken: config.mercadoPago?.accessToken || 'dummy_token',
@@ -30,8 +27,9 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
 
     if (!product || !price) throw new AppError('Producto no disponible', 404);
 
-    let buyerId = (req as any).user?.id;
-    let tempPassword;
+    // ✅ req.user ya está tipado por nuestro express.d.ts
+    let buyerId = req.user?.id;
+    let tempPassword: string | undefined;
 
     if (!buyerId) {
       if (!email) throw new AppError('Email requerido', 400);
@@ -40,6 +38,7 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
         buyerId = user.id;
       } else {
         tempPassword = crypto.randomBytes(10).toString('hex');
+        // ✅ Ajustado al nuevo userRepository tipado
         const newUser = await userRepository.createUser({
           email,
           fullname: fullname || 'Cliente',
@@ -51,8 +50,12 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
       }
     }
 
+    if (!buyerId) {
+      throw new AppError('No se pudo determinar o crear el usuario comprador', 500);
+    }
+
     const externalReference = `ORD-${buyerId}-${Date.now()}`;
-    const affiliateId = req.cookies.affiliate_id || null; // 👈 Captura la cookie
+    const affiliateId = (req.cookies.affiliate_id as string) || null;
 
     await orderRepository.create({
       buyerId,
@@ -65,7 +68,6 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
       affiliateId: affiliateId,
     });
 
-    // Instanciación bajo demanda
     const mpClient = getMPClient();
     const preferenceClient = new Preference(mpClient);
     const mpResponse = await preferenceClient.create({
@@ -79,7 +81,7 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
             currency_id: 'ARS',
           },
         ],
-        payer: { email: String(email).trim() },
+        payer: { email: String(email || req.user?.email || '').trim() },
         metadata: { temp_password: tempPassword },
         back_urls: {
           success: `${config.frontendUrl}/checkout/success`,
@@ -102,11 +104,12 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
 };
 
 export const handleWebhook = async (req: Request, res: Response) => {
-  res.status(200).send('OK'); // Siempre responder 200 inmediatamente
+  res.status(200).send('OK');
 
   try {
     const { action, type, data } = req.body;
-    const rawId = data?.id || req.query.id;
+    // Forzamos a string para que el SDK no se queje
+    const rawId = (data?.id || req.query.id) as string;
 
     if (!rawId) return;
 
@@ -115,13 +118,14 @@ export const handleWebhook = async (req: Request, res: Response) => {
     // CASO A: Venta de Producto Único
     if (type === 'payment' || action === 'payment.created') {
       const paymentInstance = new Payment(mpClient);
-      const payment = await paymentInstance.get({ id: String(rawId) });
+      const payment = await paymentInstance.get({ id: rawId });
 
       if (payment.external_reference) {
         await OrderService.processPaymentNotification({
           externalReference: payment.external_reference,
-          status: payment.status!,
+          status: payment.status || 'pending',
           transactionId: String(payment.id),
+          // Acceso seguro a metadata que suele ser el dolor de cabeza de TS
           tempPassword: payment.metadata?.temp_password,
         });
       }
@@ -134,20 +138,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
       action === 'subscription_preapproval.updated'
     ) {
       const preApprovalClient = new PreApproval(mpClient);
-      const sub = await preApprovalClient.get({ id: String(rawId) });
+      const sub = await preApprovalClient.get({ id: rawId });
 
       if (sub.external_reference && sub.external_reference.startsWith('SUB:')) {
-        // Usamos ":" como separador para no romper los UUIDs
         const parts = sub.external_reference.split(':');
         const userId = parts[1];
         const planId = parts[2];
 
         if (sub.status === 'authorized') {
-          await SubscriptionService.handleSubscriptionPayment(userId, planId, sub.id!);
+          await SubscriptionService.handleSubscriptionPayment(userId, planId, String(sub.id));
         }
 
         if (sub.status === 'cancelled') {
-          // Si se cancela desde MP directamente, hacemos el downgrade en nuestra DB
           await SubscriptionService.cancelSubscription(userId);
         }
       }

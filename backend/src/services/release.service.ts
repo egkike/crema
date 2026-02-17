@@ -3,42 +3,56 @@ import { balanceRepository } from '../repositories/balance.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { historyRepository } from '../repositories/history.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
+import { userRepository } from '../repositories/user.repository';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
 import { EmailService } from './email.service';
 
-export const ReleaseService = {
-  async processPendingBalances(force: boolean = false, targetOrderId?: string) {
-    const schema = config.db?.schema || 'public';
-    const client = await pool.connect();
+// Definimos una interfaz para las estadísticas del proceso
+interface ReleaseStats {
+  count: number;
+  releasedToUsers: Record<string, number>;
+  releasedToPlatform: Record<string, number>;
+}
 
-    const stats = {
+export const ReleaseService = {
+  /**
+   * Procesa la liberación de saldos pendientes que hayan superado el periodo de garantía.
+   */
+  async processPendingBalances(
+    force: boolean = false,
+    targetOrderId?: string
+  ): Promise<ReleaseStats> {
+    const schema = config.db?.schema || 'public';
+
+    const stats: ReleaseStats = {
       count: 0,
-      releasedToUsers: {} as Record<string, number>,
-      releasedToPlatform: {} as Record<string, number>,
+      releasedToUsers: {},
+      releasedToPlatform: {},
     };
 
+    // 1. Buscamos las órdenes candidatas fuera de una transacción larga para no bloquear la DB entera
+    const intervalSql = force
+      ? "INTERVAL '0 seconds'"
+      : "(COALESCE(o.days_of_guarantee_applied, 7) || ' days')::INTERVAL";
+
+    const findOrdersQuery = `
+      SELECT o.id, o.amount, o.currency, p.creator_id
+      FROM "${schema}".orders o
+      JOIN "${schema}".products p ON o.product_id = p.id
+      WHERE o.status = 'paid' 
+      AND o.commissions_calculated = TRUE 
+      AND o.balance_released = FALSE
+      AND o.created_at <= NOW() - ${intervalSql}
+      ${targetOrderId ? `AND o.id = $1` : ''}
+    `;
+
     try {
-      const intervalSql = force
-        ? "INTERVAL '0 seconds'"
-        : "(o.days_of_guarantee_applied || ' days')::INTERVAL";
-
-      // JOIN con la tabla products para obtener p.creator_id
-      const query = `
-        SELECT o.id, o.amount, o.currency, p.creator_id, o.days_of_guarantee_applied
-        FROM "${schema}".orders o
-        JOIN "${schema}".products p ON o.product_id = p.id
-        WHERE o.status = 'paid' 
-        AND o.commissions_calculated = TRUE 
-        AND o.balance_released = FALSE
-        AND o.created_at <= NOW() - ${intervalSql}
-        ${targetOrderId ? `AND o.id = $1` : ''}
-        FOR UPDATE OF o SKIP LOCKED;
-      `;
-
-      const queryParams = targetOrderId ? [targetOrderId] : [];
-      const { rows: ordersToRelease } = await client.query(query, queryParams);
+      const { rows: ordersToRelease } = await pool.query(
+        findOrdersQuery,
+        targetOrderId ? [targetOrderId] : []
+      );
 
       if (ordersToRelease.length === 0) {
         logger.debug('No hay órdenes pendientes de liberación.');
@@ -47,18 +61,32 @@ export const ReleaseService = {
 
       logger.info(`Iniciando liberación de ${ordersToRelease.length} órdenes.`);
 
+      // 2. Procesamos cada orden con su propia transacción y su propio cliente del pool
       for (const order of ordersToRelease) {
+        const client = await pool.connect();
         try {
           await client.query('BEGIN');
 
+          // Bloqueamos la fila de la orden para evitar procesamientos duplicados (FOR UPDATE)
+          const lockOrder = await client.query(
+            `SELECT id FROM "${schema}".orders WHERE id = $1 AND balance_released = FALSE FOR UPDATE SKIP LOCKED`,
+            [order.id]
+          );
+
+          if (lockOrder.rows.length === 0) {
+            await client.query('ROLLBACK');
+            client.release();
+            continue;
+          }
+
+          // A. LIBERACIÓN A USUARIOS (Creador y Afiliados)
           const commissions = await commissionRepository.getByOrderId(order.id);
 
           for (const comm of commissions) {
-            // ✅ IMPORTANTE: Aquí usamos comm.userId y comm.netAmount
-            // porque tu repositorio ya hace el mapeo de snake_case a camelCase.
             if (comm.status === 'pending') {
               const amountToRelease = Math.floor(Number(comm.netAmount) * 100) / 100;
 
+              // Mueve de pending_balance a available_balance
               await balanceRepository.releaseBalance(
                 comm.userId,
                 amountToRelease,
@@ -66,7 +94,6 @@ export const ReleaseService = {
                 client
               );
 
-              const historyType = 'balance_release'; // Tipo unificado para liberación
               const role = comm.userId === order.creator_id ? 'Creador' : 'Afiliado';
 
               await historyRepository.createRecordWithClient(client, {
@@ -74,19 +101,21 @@ export const ReleaseService = {
                 order_id: order.id,
                 amount: amountToRelease,
                 currency: order.currency,
-                type: historyType as any,
+                type: 'balance_release' as any,
                 description: `Saldo liberado (${role}) - Orden #${order.id.substring(0, 8)}`,
               });
 
               stats.releasedToUsers[order.currency] =
                 (stats.releasedToUsers[order.currency] || 0) + amountToRelease;
 
-              this.notifyUser(comm.userId, amountToRelease, order.currency, schema);
+              // Notificación asíncrona (fuera de la transacción para no demorar)
+              this.notifyUser(comm.userId, amountToRelease, order.currency);
             }
           }
 
+          // B. LIBERACIÓN A PLATAFORMA
           const platformEarningsQuery = `
-            SELECT total_amount, currency 
+            SELECT id, total_amount 
             FROM "${schema}".platform_earnings 
             WHERE order_id = $1 AND balance_released = FALSE AND status = 'active'
             FOR UPDATE;
@@ -102,14 +131,15 @@ export const ReleaseService = {
             await client.query(
               `UPDATE "${schema}".platform_earnings 
                SET balance_released = TRUE, released_at = CURRENT_TIMESTAMP 
-               WHERE order_id = $1`,
-              [order.id]
+               WHERE id = $1`,
+              [pEarnings[0].id]
             );
 
             stats.releasedToPlatform[order.currency] =
               (stats.releasedToPlatform[order.currency] || 0) + pAmount;
           }
 
+          // C. CIERRE DE LA ORDEN
           await commissionRepository.updateStatusByOrder(order.id, 'paid', client);
 
           await client.query(
@@ -125,30 +155,30 @@ export const ReleaseService = {
             { orderId: order.id, error: error.message },
             'Error liberando orden individual'
           );
+        } finally {
+          client.release();
         }
       }
 
-      logger.info(stats, 'Proceso de liberación completado exitosamente');
+      logger.info(stats, 'Proceso de liberación finalizado');
       return stats;
     } catch (error: any) {
       logger.error({ error: error.message }, 'Fallo crítico en ReleaseService');
       throw error;
-    } finally {
-      client.release();
     }
   },
 
-  async notifyUser(userId: string, amount: number, currency: string, schema: string) {
+  /**
+   * Notifica al usuario por email de forma segura.
+   */
+  async notifyUser(userId: string, amount: number, currency: string) {
     try {
-      const res = await pool.query(`SELECT email, fullname FROM "${schema}".users WHERE id = $1`, [
-        userId,
-      ]);
-      const user = res.rows[0];
+      const user = await userRepository.getById(userId);
       if (user) {
         EmailService.sendBalanceReleasedEmail(user.email, user.fullname, amount, currency);
       }
     } catch (err: any) {
-      logger.error(`Error en notificación: ${err.message}`);
+      logger.error({ userId, error: err.message }, 'Error enviando notificación de liberación');
     }
   },
 };

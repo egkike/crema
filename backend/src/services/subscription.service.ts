@@ -8,7 +8,10 @@ import logger from '../utils/logger';
 
 import { EmailService } from './email.service';
 
-const client = new MercadoPagoConfig({ accessToken: config.mercadoPago.accessToken });
+// Tipamos el cliente de forma global en el servicio
+const client = new MercadoPagoConfig({
+  accessToken: config.mercadoPago?.accessToken || 'dummy_token',
+});
 
 export class SubscriptionService {
   /**
@@ -18,7 +21,10 @@ export class SubscriptionService {
     try {
       // 1. Obtener datos del plan (precio, nombre)
       const plan = await subscriptionRepository.getPlanById(planId);
-      if (!plan || plan.is_free) throw new AppError('Plan no válido para suscripción de pago', 400);
+
+      if (!plan || plan.is_free) {
+        throw new AppError('Plan no válido para suscripción de pago', 400);
+      }
 
       // 2. Crear la suscripción en Mercado Pago (PreApproval)
       const preApprovalClient = new PreApproval(client);
@@ -31,7 +37,7 @@ export class SubscriptionService {
           auto_recurring: {
             frequency: 1,
             frequency_type: 'months',
-            transaction_amount: Number(plan.amount), // Precio del plan
+            transaction_amount: Number(plan.amount), // Forzamos a número por seguridad
             currency_id: 'ARS',
           },
           back_url: `${config.frontendUrl}/dashboard/subscription/success`,
@@ -44,8 +50,17 @@ export class SubscriptionService {
         preapproval_id: subscription.id,
       };
     } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'Error creando suscripción en MP');
-      throw new AppError('No se pudo generar el plan de pago', 500);
+      logger.error(
+        {
+          error: error.message,
+          userId,
+          planId,
+        },
+        'Error creando suscripción en MP'
+      );
+
+      if (error instanceof AppError) throw error;
+      throw new AppError('No se pudo generar el plan de pago con Mercado Pago', 500);
     }
   }
 
@@ -55,36 +70,42 @@ export class SubscriptionService {
   static async handleSubscriptionPayment(userId: string, planId: string, mpPreapprovalId: string) {
     // 1. Obtener datos del plan para saber cuánto cobrar
     const plan = await subscriptionRepository.getPlanById(planId);
-    if (!plan) throw new Error('Plan no encontrado al procesar pago');
+    if (!plan) {
+      logger.error({ userId, planId }, 'Plan no encontrado al procesar pago de suscripción');
+      throw new Error('Plan no encontrado al procesar pago');
+    }
 
-    // 2. Actualizamos la suscripción del usuario (lo que ya hacíamos)
+    // 2. Actualizamos la suscripción del usuario
     await subscriptionRepository.upgradeUserPlan(userId, planId, mpPreapprovalId);
 
-    // 3. Registramos la plata en la billetera de la plataforma
-    // Como es suscripción, el 100% (plan.amount) es ganancia
+    // 3. Registramos la ganancia en la plataforma
     await subscriptionRepository.recordSubscriptionEarning(
       Number(plan.amount),
       plan.currency || 'ARS'
     );
 
-    logger.info({ userId, planId, amount: plan.amount }, 'Suscripción y ganancia registradas');
+    logger.info(
+      { userId, planId, amount: plan.amount },
+      'Suscripción y ganancia registradas con éxito'
+    );
   }
 
-/**
+  /**
    * Cancela una suscripción recurrente en Mercado Pago y realiza el downgrade en DB
-   * @param isWebhook Si es true, indica que la cancelación viene de MP y no debemos llamar a su API de vuelta.
    */
   static async cancelSubscription(userId: string, isWebhook: boolean = false) {
     // 1. Obtener la suscripción actual del usuario
     const sub = await subscriptionRepository.getActiveSubscription(userId);
 
-    // Si no tiene una suscripción con ID de MP, no hay nada que cancelar
+    // Si no tiene una suscripción con ID de MP, no hay nada que cancelar en la pasarela
     if (!sub || !sub.mp_preapproval_id) {
-      return { message: 'No hay suscripción activa para procesar.' };
+      // Si el usuario no tiene nada activo, solo aplicamos downgrade por si acaso y salimos
+      await subscriptionRepository.forceDowngrade(userId);
+      return { message: 'No hay suscripción activa en Mercado Pago para procesar.' };
     }
 
     try {
-      // 2. Si la orden NO viene del Webhook (viene del usuario), notificamos a MP
+      // 2. Si la orden NO viene del Webhook, notificamos a MP
       if (!isWebhook) {
         const preApprovalClient = new PreApproval(client);
         await preApprovalClient.update({
@@ -97,21 +118,21 @@ export class SubscriptionService {
       await subscriptionRepository.forceDowngrade(userId);
 
       // 4. Notificar al usuario por Email
-      // Obtenemos los datos del usuario para el correo
       const user = await userRepository.getById(userId);
       if (user) {
-        await EmailService.sendDowngradeNotification(user.email, user.fullname);
+        // No bloqueamos el flujo si falla el email, solo lo lanzamos como promesa
+        EmailService.sendDowngradeNotification(user.email, user.fullname).catch(err =>
+          logger.error({ err: err.message, userId }, 'Error enviando email de downgrade')
+        );
       }
 
-      logger.info({ userId, mpId: sub.mp_preapproval_id }, 'Suscripción cancelada y usuario notificado');
+      logger.info({ userId, mpId: sub.mp_preapproval_id }, 'Suscripción cancelada correctamente');
       return { message: 'Suscripción cancelada exitosamente' };
-      
     } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'Error al cancelar suscripción');
-      // Si falló el Webhook, no lanzamos error de Express, solo logueamos.
-      // Si falló la petición del usuario, sí lanzamos el error.
+      logger.error({ error: error.message, userId }, 'Error crítico al cancelar suscripción');
+
       if (!isWebhook) {
-        throw new AppError('No se pudo procesar la cancelación con el proveedor de pagos', 500);
+        throw new AppError('No se pudo procesar la cancelación con Mercado Pago', 500);
       }
     }
   }

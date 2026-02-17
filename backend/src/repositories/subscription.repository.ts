@@ -2,11 +2,42 @@ import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
 
+// --- INTERFACES DE CONTRATO ---
+
+export interface PlatformPlan {
+  id: string;
+  name: string;
+  is_free: boolean;
+  is_active: boolean;
+  amount: number; // Viene del JOIN con plan_prices
+  currency: string;
+  features?: any;
+}
+
+export interface UserSubscription {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  status: 'active' | 'cancelled' | 'expired';
+  mp_preapproval_id?: string;
+  current_period_end?: Date;
+  plan_name?: string; // Del JOIN
+  features?: {
+    custom_fee_percent?: number;
+    [key: string]: any; // Permite otras propiedades dinámicas
+  };
+  allowed_types?: string[]; // Del subquery json_agg
+}
+
 export const subscriptionRepository = {
   /**
    * Crea la suscripción inicial para un Creador (Nivel 3).
    */
-  async createInitialSubscription(userId: string, planId: string, currency: string = 'ARS') {
+  async createInitialSubscription(
+    userId: string,
+    planId: string,
+    currency: string = 'ARS'
+  ): Promise<UserSubscription> {
     const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".user_subscriptions (
@@ -15,7 +46,7 @@ export const subscriptionRepository = {
       RETURNING *;
     `;
     try {
-      const { rows } = await pool.query(query, [userId, planId, currency]);
+      const { rows } = await pool.query<UserSubscription>(query, [userId, planId, currency]);
       return rows[0];
     } catch (error: any) {
       logger.error({ userId, planId, error: error.message }, 'Error creando suscripción inicial');
@@ -26,7 +57,7 @@ export const subscriptionRepository = {
   /**
    * Obtiene la suscripción activa del usuario con los beneficios del plan.
    */
-  async getActiveSubscription(userId: string) {
+  async getActiveSubscription(userId: string): Promise<UserSubscription | null> {
     const schema = config.db?.schema || 'public';
     const query = `
       SELECT 
@@ -41,7 +72,7 @@ export const subscriptionRepository = {
       WHERE us.user_id = $1 AND us.status = 'active';
     `;
     try {
-      const { rows } = await pool.query(query, [userId]);
+      const { rows } = await pool.query<UserSubscription>(query, [userId]);
       return rows[0] || null;
     } catch (error: any) {
       logger.error({ userId, error: error.message }, 'Error obteniendo suscripción activa');
@@ -64,8 +95,10 @@ export const subscriptionRepository = {
     }
   },
 
-  // 1. Para obtener los datos del plan (nombre, precio, etc.)
-  async getPlanById(planId: string) {
+  /**
+   * Obtiene los datos del plan (nombre, precio, etc.)
+   */
+  async getPlanById(planId: string): Promise<PlatformPlan | null> {
     const schema = config.db?.schema || 'public';
     const query = `
         SELECT p.*, pp.amount, pp.currency
@@ -73,20 +106,20 @@ export const subscriptionRepository = {
         JOIN "${schema}".plan_prices pp ON p.id = pp.plan_id
         WHERE p.id = $1 AND p.is_active = true;
     `;
-    const { rows } = await pool.query(query, [planId]);
+    const { rows } = await pool.query<PlatformPlan>(query, [planId]);
     return rows[0] || null;
   },
 
-  // 2. El "Upgrade": Cambia al usuario de un plan a otro
-  async upgradeUserPlan(userId: string, planId: string, mpPreapprovalId: string) {
+  /**
+   * El "Upgrade": Cambia al usuario de un plan a otro usando una transacción
+   */
+  async upgradeUserPlan(userId: string, planId: string, mpPreapprovalId: string): Promise<void> {
     const schema = config.db?.schema || 'public';
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // Actualizamos la suscripción existente
-      // Calculamos el próximo vencimiento (ej: 30 días desde hoy)
       const updateQuery = `
             UPDATE "${schema}".user_subscriptions
             SET plan_id = $1,
@@ -94,8 +127,7 @@ export const subscriptionRepository = {
                 status = 'active',
                 current_period_end = CURRENT_TIMESTAMP + INTERVAL '1 month',
                 updated_at = CURRENT_TIMESTAMP
-            WHERE user_id = $3
-            RETURNING *;
+            WHERE user_id = $3;
         `;
 
       await client.query(updateQuery, [planId, mpPreapprovalId, userId]);
@@ -110,10 +142,9 @@ export const subscriptionRepository = {
   },
 
   /**
-   * Busca suscripciones que vencen en un número específico de días
-   * o que ya están vencidas y siguen marcadas como 'active'.
+   * Busca suscripciones que vencen en un número específico de días.
    */
-  async getExpiringSubscriptions(days: number = 0) {
+  async getExpiringSubscriptions(days: number = 0): Promise<any[]> {
     const schema = config.db?.schema || 'public';
     const query = `
       SELECT us.*, u.email, u.fullname, pp.name as plan_name
@@ -130,14 +161,13 @@ export const subscriptionRepository = {
   /**
    * Devuelve a los usuarios con plan vencido al Plan Inicial (Gratuito).
    */
-  async deactivateExpiredSubscriptions() {
+  async deactivateExpiredSubscriptions(): Promise<{ user_id: string }[]> {
     const schema = config.db?.schema || 'public';
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // 1. Obtenemos el ID del plan inicial desde tus system_settings
       const planQuery = `SELECT value FROM "${schema}".system_settings WHERE key = 'default_creator_plan_id' LIMIT 1`;
       const planRes = await client.query(planQuery);
       const defaultPlanId = planRes.rows[0]?.value;
@@ -146,13 +176,12 @@ export const subscriptionRepository = {
         throw new Error('Configuración default_creator_plan_id no encontrada en system_settings');
       }
 
-      // 2. Realizamos el downgrade: volvemos al plan inicial y limpiamos datos de MP
       const updateQuery = `
         UPDATE "${schema}".user_subscriptions
         SET plan_id = $1, 
             status = 'active', 
             mp_preapproval_id = NULL,
-            current_period_end = NULL, -- El plan gratuito no tiene fecha de fin
+            current_period_end = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE status = 'active' 
         AND current_period_end < CURRENT_TIMESTAMP
@@ -175,7 +204,7 @@ export const subscriptionRepository = {
   /**
    * Fuerza el downgrade de un usuario específico al plan gratuito
    */
-  async forceDowngrade(userId: string) {
+  async forceDowngrade(userId: string): Promise<void> {
     const schema = config.db?.schema || 'public';
     const planQuery = `SELECT value FROM "${schema}".system_settings WHERE key = 'default_creator_plan_id' LIMIT 1`;
     const planRes = await pool.query(planQuery);
@@ -196,14 +225,13 @@ export const subscriptionRepository = {
   /**
    * Registra el ingreso por suscripción en las ganancias y balances de la plataforma
    */
-  async recordSubscriptionEarning(amount: number, currency: string) {
+  async recordSubscriptionEarning(amount: number, currency: string): Promise<void> {
     const schema = config.db?.schema || 'public';
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // 1. Insertar en platform_earnings
       const earningQuery = `
         INSERT INTO "${schema}".platform_earnings (
           subscription_amount,
@@ -212,12 +240,10 @@ export const subscriptionRepository = {
           status,
           balance_released,
           released_at
-        ) VALUES ($1, $1, $2, 'active', TRUE, CURRENT_TIMESTAMP)
-        RETURNING id;
+        ) VALUES ($1, $1, $2, 'active', TRUE, CURRENT_TIMESTAMP);
       `;
       await client.query(earningQuery, [amount, currency]);
 
-      // 2. Actualizar platform_balances (Aumentamos saldo disponible directamente)
       const balanceQuery = `
         INSERT INTO "${schema}".platform_balances (currency, available_balance)
         VALUES ($1, $2)
