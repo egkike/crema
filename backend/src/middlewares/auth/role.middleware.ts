@@ -9,7 +9,7 @@ import { configRepository } from '../../repositories/config.repository';
 import logger from '../../utils/logger';
 
 // 1. Definimos los nombres de roles válidos según tu tabla system_settings
-export type UserRole = 'USER' | 'AFILIADO' | 'CREATOR' | 'STAFF' | 'ADMIN';
+export type UserRole = 'GUEST' | 'USER' | 'AFFILIATE' | 'CREATOR' | 'STAFF' | 'ADMIN';
 
 /**
  * Middleware para validar nivel de usuario de forma dinámica
