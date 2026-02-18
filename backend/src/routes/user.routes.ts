@@ -29,6 +29,7 @@ router.get('/subscription/status', subscriptionController.getMySubscriptionStatu
 /**
  * Rutas Administrativas (Solo Level >= STAFF)
  */
+router.post('/user/create', restrictTo('STAFF'), userController.createUser.bind(userController));
 router.get('/users', restrictTo('STAFF'), userController.getUsers.bind(userController));
 router.post('/user/getbyid', restrictTo('STAFF'), userController.getById.bind(userController));
 router.patch('/user/update', restrictTo('STAFF'), userController.updUser.bind(userController));
