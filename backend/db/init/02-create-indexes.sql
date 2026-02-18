@@ -1,4 +1,4 @@
--- 03-create-indexes.sql
+-- 02-create-indexes.sql
 -- Crea índices útiles sobre las tablas principales (en schema 'public' por defecto)
 
 -- Índices recomendados en tabla refresh_tokens

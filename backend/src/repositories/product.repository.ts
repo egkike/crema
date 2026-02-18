@@ -187,4 +187,81 @@ export const productRepository = {
     const { rows } = await pool.query(query, [userId]);
     return parseInt(rows[0].count, 10);
   },
+
+  async updateProduct(id: string, input: Partial<ProductInput>): Promise<Product> {
+    const schema = config.db?.schema || 'public';
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // 1. Actualizar datos básicos
+      const updateFields: string[] = [];
+      const values: any[] = [];
+      let idx = 1;
+
+      const fieldMap: Record<string, string> = {
+        title: 'title',
+        slug: 'slug',
+        description: 'description',
+        type: 'type',
+        contentUrl: 'content_url',
+        commissionPercent: 'affiliate_commission_percent',
+        sizeBytes: 'size_bytes',
+        status: 'status',
+        guaranteeDays: 'guarantee_days',
+      };
+
+      for (const [key, dbField] of Object.entries(fieldMap)) {
+        if (input[key as keyof ProductInput] !== undefined) {
+          updateFields.push(`${dbField} = $${idx}`);
+          values.push(input[key as keyof ProductInput]);
+          idx++;
+        }
+      }
+
+      if (updateFields.length > 0) {
+        values.push(id);
+        const productUpdateQuery = `
+          UPDATE "${schema}".products 
+          SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
+          WHERE id = $${idx} RETURNING *;
+        `;
+        await client.query(productUpdateQuery, values);
+      }
+
+      // 2. Actualizar precios (si se proporcionan)
+      if (input.prices) {
+        await client.query(`DELETE FROM "${schema}".product_prices WHERE product_id = $1`, [id]);
+
+        for (const p of input.prices) {
+          await client.query(
+            `INSERT INTO "${schema}".product_prices (product_id, currency, amount) VALUES ($1, $2, $3)`,
+            [id, p.currency, p.amount]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      const updatedProduct = await this.getProductById(id);
+      if (!updatedProduct) throw new Error('Error al recuperar el producto actualizado');
+      return updatedProduct;
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      logger.error({ error: error.message, productId: id }, 'Error actualizando producto');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  async deleteProduct(id: string): Promise<boolean> {
+    const schema = config.db?.schema || 'public';
+    // Borramos el producto (los precios se borran solos si hay CASCADE,
+    // sino, habría que borrarlos manualmente en una transacción)
+    const query = `DELETE FROM "${schema}".products WHERE id = $1`;
+    const result = await pool.query(query, [id]);
+    return (result.rowCount ?? 0) > 0;
+  },
 };

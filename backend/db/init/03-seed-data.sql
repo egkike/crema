@@ -1,4 +1,4 @@
--- 04-seed-data.sql
+-- 03-seed-data.sql
 
 -- Inserta datos iniciales en la tabla users (en schema 'public' por defecto)
 -- Hash password = UnaNuevaClaveSegura2026! (Se recomienda cambiar por un hash propio en producción)

@@ -7,6 +7,7 @@ import { restrictTo } from '../middlewares/auth/role.middleware';
 import { checkContentAccess } from '../middlewares/checkAccess/checkAccess.middleware';
 import { checkPlanLimits } from '../middlewares/auth/checkPlanLimits.middleware';
 import { affiliateTracking } from '../middlewares/tracking/affiliateTracking.middleware';
+import { upload } from '../middlewares/storage/upload.middleware';
 
 const router = Router();
 
@@ -20,10 +21,35 @@ router.use(jwtAuthMiddleware);
 /**
  * 2. Crear Producto - Ahora usa el rol 'CREATOR' de la DB
  */
-router.post('/create', 
+router.post(
+  '/create',
   restrictTo('CREATOR'),
-  checkPlanLimits, 
+  // 1. Validación previa (basada en el body.sizeBytes que estima el front)
+  checkPlanLimits,
+  // 2. Recibimos el archivo real
+  upload.single('file'),
+  // 3. Controlador
   productController.createProduct
+);
+
+/**
+ * 2.1 Actualizar Producto
+ */
+router.put(
+  '/:productId',
+  restrictTo('CREATOR'),
+  checkPlanLimits,
+  upload.single('file'),
+  productController.updateProduct
+);
+
+/**
+ * 2.2 Elimina Producto
+ */
+router.delete(
+  '/:productId',
+  restrictTo('CREATOR'),
+  productController.deleteProduct
 );
 
 // 3. Listar propios

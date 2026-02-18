@@ -1,4 +1,4 @@
--- 02-create-tables.sql
+-- 01-create-tables.sql
 -- Crea las tablas principales en el schema por defecto 'public'
 
 -- 1. Tablas Base (Sin dependencias externas)
