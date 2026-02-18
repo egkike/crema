@@ -25,6 +25,8 @@ Ideal para iniciar proyectos reales, APIs REST seguras o como base reutilizable.
 - Helmet + CSP (seguridad HTTP)
 - Rate limiting por ruta y usuario (express-rate-limit)
 - Permisos por nivel (middleware restrictTo)
+- Email service con nodemailer
+- Cron Jobs con node-cron
 
 ## Arquitectura rápida
 
