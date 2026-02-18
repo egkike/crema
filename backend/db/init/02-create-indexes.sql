@@ -18,6 +18,7 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_cleanup ON refresh_tokens (expires
 CREATE INDEX IF NOT EXISTS idx_products_creator_id ON products(creator_id);
 CREATE INDEX IF NOT EXISTS idx_products_type ON products(type);
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
+CREATE INDEX IF NOT EXISTS idx_products_creator_size ON products (creator_id, size_bytes);
 CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON orders(buyer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_product_id ON orders(product_id);
 CREATE INDEX IF NOT EXISTS idx_orders_external_ref ON orders(external_reference);
