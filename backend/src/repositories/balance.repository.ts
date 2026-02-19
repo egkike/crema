@@ -202,4 +202,43 @@ export const balanceRepository = {
       throw error;
     }
   },
+
+  /**
+   * Obtiene el balance bloqueando la fila para actualización (FOR UPDATE).
+   * Útil para validar saldos antes de restar en procesos transaccionales.
+   */
+  async getBalanceForUpdate(
+    userId: string,
+    currency: string,
+    client: any
+  ): Promise<UserBalance | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT total_earned, available_balance, pending_balance, currency, updated_at
+      FROM "${schema}".user_balances 
+      WHERE user_id = $1 AND currency = $2 
+      FOR UPDATE;
+    `;
+    try {
+      // Usamos client directamente porque FOR UPDATE requiere estar en una transacción
+      const { rows } = await client.query(query, [userId, currency]);
+
+      if (rows.length === 0) return null;
+
+      const row = rows[0];
+      return {
+        total_earned: Number(row.total_earned),
+        available_balance: Number(row.available_balance),
+        pending_balance: Number(row.pending_balance),
+        currency: row.currency,
+        updated_at: row.updated_at,
+      };
+    } catch (error: any) {
+      logger.error(
+        { error: error.message, userId, currency },
+        'DB Error: getBalanceForUpdate failed'
+      );
+      throw error;
+    }
+  },
 };

@@ -132,13 +132,10 @@ export const orderRepository = {
   async checkAccess(userId: string, productId: string): Promise<boolean> {
     const schema = config.db?.schema || 'public';
     const query = `
-      SELECT id FROM "${schema}".orders 
-      WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
-      UNION
-      SELECT id FROM "${schema}".products 
-      WHERE creator_id = $1 AND id = $2
-      LIMIT 1;
-    `;
+    SELECT id FROM "${schema}".orders 
+    WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
+    LIMIT 1;
+  `;
     const { rows } = await pool.query(query, [userId, productId]);
     return rows.length > 0;
   },

@@ -31,8 +31,7 @@ export class AccessService {
       id: product.id,
       title: product.title,
       type: product.type,
-      // Aseguramos que tome el valor de la columna de la DB (snake_case)
-      contentUrl: product.content_url || (product as any).contentUrl,
+      contentUrl: product.content_url,
       description: product.description,
       updatedAt: product.updated_at,
     };

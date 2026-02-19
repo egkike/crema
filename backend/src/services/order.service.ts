@@ -27,7 +27,8 @@ export class OrderService {
     }
 
     // Idempotencia: evitamos reprocesar
-    if ((order.status === 'paid' || order.status === 'approved') && status === 'approved') {
+    const finalStatuses = ['paid', 'approved', 'authorized'];
+    if (finalStatuses.includes(order.status) && finalStatuses.includes(status)) {
       logger.info({ externalReference }, 'ℹ️ Orden ya procesada previamente.');
       return;
     }

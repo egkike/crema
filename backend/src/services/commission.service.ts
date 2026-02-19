@@ -160,17 +160,13 @@ export class CommissionService {
       });
 
       // 6. CIERRE DE LA ORDEN
-      const currentGuaranteeDays = product.days_of_guarantee ?? 7;
-
       await client.query(
         `UPDATE "${schema}".orders 
-         SET status = 'paid',
-             commissions_calculated = TRUE, 
-             commission_amount = $1,
-             days_of_guarantee_applied = $2,
-             updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $3`,
-        [totalPlatformFee, currentGuaranteeDays, order.id]
+          SET commissions_calculated = TRUE, 
+          commission_amount = $1,
+          updated_at = CURRENT_TIMESTAMP 
+          WHERE id = $2`,
+        [totalPlatformFee, order.id]
       );
 
       logger.info(

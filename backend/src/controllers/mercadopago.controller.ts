@@ -187,10 +187,9 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         if (sub.status === 'authorized') {
           await SubscriptionService.handleSubscriptionPayment(userId, planId, String(sub.id));
-        }
-
-        if (sub.status === 'cancelled') {
-          await SubscriptionService.cancelSubscription(userId);
+        } else {
+          // Si expira, se pausa o falla el cobro, forzamos el downgrade
+          await SubscriptionService.cancelSubscription(userId, true);
         }
       }
     }

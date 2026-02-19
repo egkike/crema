@@ -182,7 +182,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     };
 
     // Validar comisión si se intenta cambiar
-    if (req.body.commissionPercent) {
+    if (req.body.commissionPercent !== undefined) {
       await ProductService.validateCommissionLimits(user.id, Number(req.body.commissionPercent));
     }
 

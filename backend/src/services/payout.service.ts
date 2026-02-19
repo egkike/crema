@@ -85,8 +85,18 @@ export class PayoutService {
     try {
       await client.query('BEGIN');
 
+      // 1. BLOQUEO DE SEGURIDAD: Obtenemos el saldo actual y bloqueamos la fila
+      const balance = await balanceRepository.getBalanceForUpdate(userId, currency, client);
+
+      // 2. VALIDACIÓN: Ahora que la fila está bloqueada, validamos con el valor real
+      if (!balance || balance.available_balance < sanitizedAmount) {
+        throw new AppError('Saldo insuficiente para realizar el retiro.', 400);
+      }
+
+      // 3. OPERACIÓN: Restamos el saldo (usando el mismo client)
       await balanceRepository.subtractAvailableBalance(userId, sanitizedAmount, currency, client);
 
+      // 4. CREACIÓN: Creamos el registro del retiro
       const payout = await payoutRepository.create(
         {
           userId,
