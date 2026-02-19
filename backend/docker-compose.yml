@@ -2,7 +2,10 @@ version: '3.9'
 
 services:
   api:
-    image: crema-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
     container_name: crema-api
     network_mode: "host"
     dns:
@@ -15,6 +18,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy  
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const http = require('http'); http.get('http://localhost:3000/health', (r) => { r.statusCode === 200 ? process.exit(0) : process.exit(1); }).on('error', () => process.exit(1));\""]
@@ -29,6 +34,8 @@ services:
     restart: always
     env_file:
       - .env
+    ports:
+      - "5432:5432" # Mapeo necesario para que la API en modo 'host' lo vea en localhost  
     volumes:
       - ./postgres-data:/var/lib/postgresql       # Persistencia de datos
       - ./db/init:/docker-entrypoint-initdb.d     # Scripts automáticos (solo primera vez)
@@ -44,6 +51,18 @@ services:
     networks:
       - app-network
 
+  redis:
+    image: redis:7-alpine # Versión ligera y estable
+    container_name: crema-redis
+    restart: always
+    ports:
+      - "6379:6379" # Mapeo necesario para BullMQ vía localhost
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: pgadmin
@@ -58,11 +77,6 @@ services:
       - 8.8.4.4
     depends_on:
       - db
-    networks:
-      - app-network
-    # Opcional: volumen para persistir config de pgAdmin
-    # volumes:
-    #   - pgadmin-data:/var/lib/pgadmin
 
 networks:
   app-network:
