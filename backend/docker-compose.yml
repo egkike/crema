@@ -77,6 +77,8 @@ services:
       - 8.8.4.4
     depends_on:
       - db
+    networks:
+      - app-network
 
 networks:
   app-network:
