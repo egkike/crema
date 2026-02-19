@@ -3,17 +3,15 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
-import cron from 'node-cron';
 
+import { initMainWorker, closeWorker } from './queues/main.worker';
+import { initScheduler, closeScheduler } from './queues/scheduler';
 import swaggerSpecs from './swagger';
 import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit/rateLimit';
 import { AppError } from './errors/AppError';
 import { config } from './config/index';
 import logger from './utils/logger';
 import { ReleaseService } from './services/release.service';
-import { AuthCleanupService } from './services/auth.cleanup.service';
-import { subscriptionRepository } from './repositories/subscription.repository';
-import { EmailService } from './services/email.service';
 // Importación de rutas
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -150,9 +148,6 @@ app.use((err: any, req: Request, res: Response, _: NextFunction) => {
 
 // --- PROCESOS DE ARRANQUE Y CRONS (Excluidos en Test) ---
 if (config.nodeEnv !== 'test') {
-  // La variable debe estar aquí para que los crons puedan leerla y modificarla
-  let isReleaseTaskRunning = false;
-
   // Ejecución inmediata al arrancar para liberar órdenes pendientes
   (async () => {
     try {
@@ -164,69 +159,9 @@ if (config.nodeEnv !== 'test') {
     }
   })();
 
-  // Programación de tareas cada 30 minutos para liberar órdenes pendientes
-  cron.schedule('*/30 * * * *', async () => {
-    if (isReleaseTaskRunning) {
-      logger.warn(
-        'SISTEMA: El cron de liberación se saltó porque el anterior aún está en ejecución.'
-      );
-      return;
-    }
-
-    try {
-      isReleaseTaskRunning = true;
-      // Usamos debug para el inicio, así solo se ve si activas logs detallados
-      logger.debug('SISTEMA: Revisando órdenes para liberar...');
-
-      const result = await ReleaseService.processPendingBalances();
-
-      if (result.count > 0) {
-        logger.info({ count: result.count }, 'SISTEMA: Dinero liberado exitosamente');
-      } else {
-        // Esto confirma que el cron funciona pero no hubo nada que hacer
-        logger.debug('SISTEMA: Sin órdenes pendientes para liberar en este ciclo.');
-      }
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'SISTEMA: Error crítico en Cron Release');
-    } finally {
-      isReleaseTaskRunning = false;
-    }
-  });
-
-  // CRON: Verificación diaria de suscripciones (00:05 AM)
-  cron.schedule('5 0 * * *', async () => {
-    try {
-      logger.info('SISTEMA: Iniciando verificación de suscripciones vencidas...');
-
-      // 1. Avisar a los que vencen en 3 días
-      const nearExpiration = await subscriptionRepository.getExpiringSubscriptions(3);
-      for (const sub of nearExpiration) {
-        await EmailService.sendExpirationWarning(sub.email, sub.fullname, sub.plan_name, 3);
-      }
-
-      // 2. Avisar a los que vencen HOY
-      const expiresToday = await subscriptionRepository.getExpiringSubscriptions(0);
-      for (const sub of expiresToday) {
-        await EmailService.sendExpirationWarning(sub.email, sub.fullname, sub.plan_name, 0);
-      }
-
-      // 3. Desactivar suscripciones ya pasadas
-      const deactivated = await subscriptionRepository.deactivateExpiredSubscriptions();
-      if (deactivated.length > 0) {
-        logger.info(
-          { count: deactivated.length },
-          'SISTEMA: Suscripciones desactivadas por vencimiento.'
-        );
-      }
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'SISTEMA: Error en Cron de Suscripciones');
-    }
-  });
-
-  // CRON: Limpieza de Tokens expirados
-  cron.schedule('0 3 * * *', async () => {
-    await AuthCleanupService.cleanExpiredTokens();
-  });
+  // Inicializar el motor distribuido
+  initMainWorker();
+  initScheduler();
 }
 
 // --- START SERVER ---
@@ -237,15 +172,29 @@ if (config.nodeEnv !== 'test') {
   });
 }
 
-process.on('SIGTERM', () => {
+// --- GRACEFUL SHUTDOWN ---
+const handleShutdown = async (signal: string) => {
+  logger.info(`SISTEMA: Recibida señal ${signal}. Iniciando apagado elegante...`);
+
   if (server) {
-    server.close(() => {
-      logger.info('Servidor HTTP cerrado.');
-      process.exit(0);
+    server.close(async () => {
+      logger.info('SISTEMA: Servidor HTTP cerrado.');
+      try {
+        // Cerramos conexiones de colas en paralelo
+        await Promise.all([closeWorker(), closeScheduler()]);
+        logger.info('SISTEMA: Apagado completado con éxito. 👋');
+        process.exit(0);
+      } catch (error: any) {
+        logger.error({ error: error.message }, 'SISTEMA: Error durante el cierre de colas');
+        process.exit(1);
+      }
     });
   } else {
     process.exit(0);
   }
-});
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 export { app };

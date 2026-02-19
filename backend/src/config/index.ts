@@ -12,7 +12,7 @@ const envSchema = z.object({
   SECRET_REFRESH_JWT_KEY: z.string().min(32),
   JWT_ACCESS_EXPIRY: z.string().default('10m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
-  FORCE_RELEASE_ON_STARTUP: z.preprocess((val) => val === 'true', z.boolean()).default(false),
+  FORCE_RELEASE_ON_STARTUP: z.preprocess(val => val === 'true', z.boolean()).default(false),
   DB_HOST: z.string().default('localhost'),
   DB_PORT: z.coerce.number().default(5432),
   DB_USER: z.string(),
@@ -31,6 +31,9 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM: z.string().default('"Crema" <noreply@crema.com>'),
+  REDIS_HOST: z.string().default('127.0.0.1'),
+  REDIS_PORT: z.coerce.number().default(6379),
+  REDIS_PASSWORD: z.string().optional(), // Por si usas Redis con pass en prod
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -102,6 +105,11 @@ export const config = {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
     from: env.EMAIL_FROM,
+  },
+  redis: {
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD,
   },
   apiBaseUrl: (env.API_BASE_URL || `http://localhost:${env.PORT}`).trim().replace(/\/$/, ''),
   frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),
