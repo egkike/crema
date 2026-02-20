@@ -4,6 +4,7 @@ import { config } from '../config/index';
 import { payoutMethodRepository } from '../repositories/payout_method.repository';
 import { userRepository } from '../repositories/user.repository';
 import { configRepository } from '../repositories/config.repository';
+import { SpecialValidators } from '../utils/validators';
 import { AppError } from '../errors/AppError';
 
 import { EmailService } from './email.service';
@@ -52,6 +53,13 @@ export class PayoutMethodService {
       }
       if (rule.pattern && !new RegExp(rule.pattern).test(value)) {
         throw new AppError(rule.errorMsg || `El formato de ${field} es inválido`, 400);
+      }
+
+      // Buscamos si existe una función lógica para esta moneda y este campo
+      const specialValidator = SpecialValidators[currency]?.[field];
+
+      if (specialValidator && !specialValidator(value)) {
+        throw new AppError(rule.errorMsg || `La validación lógica para ${field} ha fallado.`, 400);
       }
     }
 
