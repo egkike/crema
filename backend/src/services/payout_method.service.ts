@@ -5,6 +5,7 @@ import { payoutMethodRepository } from '../repositories/payout_method.repository
 import { userRepository } from '../repositories/user.repository';
 import { configRepository } from '../repositories/config.repository';
 import { SpecialValidators } from '../utils/validators';
+import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 
 import { EmailService } from './email.service';
@@ -33,6 +34,9 @@ export class PayoutMethodService {
 
     // 3. VALIDACIÓN DINÁMICA DE REGLAS
     for (const field in rules) {
+      // SEGURIDAD: Si la llave es 'tax_config', saltamos porque no es un campo del usuario
+      if (field === 'tax_config') continue;
+
       // Solo validamos si el campo está presente en el objeto data enviado
       if (data[field] === undefined) continue;
 
@@ -101,7 +105,8 @@ export class PayoutMethodService {
       );
 
       return updatedMethod;
-    } catch {
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'El link de confirmación es inválido o ha expirado');
       throw new AppError('El link de confirmación es inválido o ha expirado', 400);
     }
   }
