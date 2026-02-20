@@ -114,7 +114,7 @@ export const ReleaseService = {
 
           // B. LIBERACIÓN A PLATAFORMA
           const platformEarningsQuery = `
-            SELECT id, total_amount 
+            SELECT id, total_amount, tax_amount, variable_amount, fixed_amount 
             FROM "${schema}".platform_earnings 
             WHERE order_id = $1 AND balance_released = FALSE AND status = 'active'
             FOR UPDATE;
@@ -122,8 +122,10 @@ export const ReleaseService = {
           const { rows: pEarnings } = await client.query(platformEarningsQuery, [order.id]);
 
           if (pEarnings.length > 0) {
-            const pAmount = Number(pEarnings[0].total_amount);
+            const earnings = pEarnings[0];
+            const pAmount = Number(earnings.total_amount);
 
+            // Seguimos usando pAmount para el balance disponible (incluye el impuesto)
             await platformBalanceRepository.ensureBalanceExists(order.currency, client);
             await platformBalanceRepository.releaseBalance(pAmount, order.currency, client);
 
@@ -131,7 +133,17 @@ export const ReleaseService = {
               `UPDATE "${schema}".platform_earnings 
                SET balance_released = TRUE, released_at = CURRENT_TIMESTAMP 
                WHERE id = $1`,
-              [pEarnings[0].id]
+              [earnings.id]
+            );
+
+            // Log informativo más detallado
+            logger.info(
+              {
+                orderId: order.id,
+                netGain: Number(earnings.variable_amount) + Number(earnings.fixed_amount),
+                taxCollected: Number(earnings.tax_amount),
+              },
+              '💰 Ganancia de plataforma liberada'
             );
 
             stats.releasedToPlatform[order.currency] =

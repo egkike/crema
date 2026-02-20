@@ -23,6 +23,9 @@ export const adminRepository = {
         (SELECT COALESCE(pending_balance, 0) FROM "${schema}".platform_balances WHERE currency = $1) as plat_pending,
         (SELECT COALESCE(available_balance, 0) FROM "${schema}".platform_balances WHERE currency = $1) as plat_available,
         
+        -- 1.1 Desglose de impuestos acumulados (recaudados) en el periodo
+        (SELECT COALESCE(SUM(tax_amount), 0) FROM "${schema}".platform_earnings WHERE currency = $1 ${dateFilter}) as total_tax_collected,
+
         -- 2. Balances de Usuarios (Lo que se les debe - instantáneo)
         (SELECT COALESCE(SUM(pending_balance), 0) FROM "${schema}".user_balances WHERE currency = $1) as users_pending,
         (SELECT COALESCE(SUM(available_balance), 0) FROM "${schema}".user_balances WHERE currency = $1) as users_available,
@@ -53,6 +56,7 @@ export const adminRepository = {
     const platWithdrawn = parseFloat(s.total_plat_withdrawn);
     const usersPending = parseFloat(s.users_pending);
     const usersAvailable = parseFloat(s.users_available);
+    const taxCollected = parseFloat(s.total_tax_collected || 0);
 
     return {
       currency,
@@ -60,6 +64,7 @@ export const adminRepository = {
         pending: platPending,
         available: platAvailable,
         withdrawnPeriod: platWithdrawn,
+        taxCollectedPeriod: taxCollected,
         totalEarnedHistorical: platPending + platAvailable + platWithdrawn,
       },
       users: {
@@ -101,14 +106,20 @@ export const adminRepository = {
 
     const query = `
       SELECT * FROM (
-        -- INGRESOS
+        -- INGRESOS (Ajustado para mostrar Neto e Impuesto)
         SELECT 
-          id, 'INCOME' as entry_type, total_amount as amount, currency, 
-          'Comisión por venta - Orden: ' || order_id as description, created_at,
+          id, 
+          'INCOME' as entry_type, 
+          total_amount as amount, 
+          tax_amount, -- <--- columna de impuestos
+          (variable_amount + fixed_amount) as net_gain, -- <--- Calculamos ganancia neta
+          currency, 
+          'Comisión por venta - Orden: ' || order_id as description, 
+          created_at,
           NULL as transaction_receipt, NULL as admin_name
         FROM "${schema}".platform_earnings
         WHERE currency = $1 AND status = 'active' ${dateFilter}
-
+        
         UNION ALL
 
         -- EGRESOS

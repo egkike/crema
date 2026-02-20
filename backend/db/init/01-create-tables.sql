@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS platform_earnings (
     subscription_amount DECIMAL(18,8) DEFAULT 0.00,
     service_amount DECIMAL(18,8) DEFAULT 0.00, -- Por si cobras por soporte, etc.
     
+    tax_amount DECIMAL(18,8) DEFAULT 0.00,
     total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior  
     status VARCHAR(20) DEFAULT 'active', -- active, paid, refunded
     currency VARCHAR(10) REFERENCES enabled_currencies(code),

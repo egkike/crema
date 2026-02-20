@@ -7,9 +7,11 @@ import { payoutMethodRepository } from '../repositories/payout_method.repository
 import { userRepository } from '../repositories/user.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
 import { platformWithdrawalRepository } from '../repositories/platform_withdrawal.repository';
+import { SpecialValidators } from '../utils/validators';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { mainQueue } from '../queues/scheduler';
+import { roundToTwo } from '../utils/rounder';
 
 export class PayoutService {
   /**
@@ -22,7 +24,7 @@ export class PayoutService {
     payoutMethodId: string,
     userLevel: number
   ): Promise<Payout & { estimated_date: string; message: string }> {
-    const sanitizedAmount = Math.floor(amount * 100) / 100;
+    const sanitizedAmount = roundToTwo(amount);
 
     if (sanitizedAmount <= 0) {
       throw new AppError('El monto del retiro debe ser mayor a cero', 400);
@@ -94,6 +96,31 @@ export class PayoutService {
 
     try {
       await client.query('BEGIN');
+
+      // 1. Obtener reglas de la DB (para el Regex de formato)
+      const rules = await configRepository.getCurrencyValidationRules(currency);
+
+      // 2. Validación Dinámica de Tax ID
+      if (payoutData.tax_id) {
+        // A. Validación de Formato (Regex desde DB)
+        if (rules?.tax_id_validation?.pattern) {
+          const regex = new RegExp(rules.tax_id_validation.pattern);
+          if (!regex.test(payoutData.tax_id)) {
+            throw new AppError(`Formato de ID fiscal inválido para ${currency}.`, 400);
+          }
+        }
+
+        // B. Validación de Algoritmo Específico (Desde tu validators.ts)
+        // Buscamos si existe un validador para esta moneda y este campo (tax_id)
+        const validator = SpecialValidators[currency]?.tax_id;
+
+        if (validator && !validator(payoutData.tax_id)) {
+          throw new AppError(
+            `El ID fiscal (${payoutData.tax_id}) no es válido para ${currency}.`,
+            400
+          );
+        }
+      }
 
       // 1. BLOQUEO DE SEGURIDAD: Obtenemos el saldo actual y bloqueamos la fila
       const balance = await balanceRepository.getBalanceForUpdate(userId, currency, client);

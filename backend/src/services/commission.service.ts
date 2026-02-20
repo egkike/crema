@@ -8,13 +8,7 @@ import { subscriptionRepository } from '../repositories/subscription.repository'
 import { Order } from '../repositories/order.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
-
-/**
- * Utilidad para redondeo financiero a 2 decimales.
- */
-const roundToTwo = (num: number): number => {
-  return Math.round((num + Number.EPSILON) * 100) / 100;
-};
+import { roundToTwo } from '../utils/rounder';
 
 export class CommissionService {
   /**
@@ -65,12 +59,36 @@ export class CommissionService {
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
       const totalPlatformFee = roundToTwo(variableFee + fixedFee);
 
+      // --- LÓGICA DINÁMICA DE DESGLOSE FISCAL (IVA) ---
+      const rules = await configRepository.getCurrencyValidationRules(orderCurrency);
+
+      let taxAmount = 0;
+      const taxConfig = rules?.tax_config;
+
+      if (taxConfig && taxConfig.enabled) {
+        const factor = Number(taxConfig.tax_factor || 1);
+
+        // "inside" significa que el totalPlatformFee ya contiene el impuesto
+        if (taxConfig.calculation === 'inside' && factor > 1) {
+          const netPlatformAmount = roundToTwo(totalPlatformFee / factor);
+          taxAmount = roundToTwo(totalPlatformFee - netPlatformAmount);
+        }
+      }
+
       // 3. REGISTRO DE GANANCIAS DE LA PLATAFORMA (Uso de client)
+      // Guardamos el IVA calculado en 'tax_amount' para auditoría
       await client.query(
         `INSERT INTO "${schema}".platform_earnings 
-         (order_id, variable_amount, fixed_amount, total_amount, currency, status, balance_released) 
-         VALUES ($1, $2, $3, $4, $5, 'active', FALSE)`,
-        [order.id, variableFee, fixedFee, totalPlatformFee, orderCurrency]
+       (order_id, variable_amount, fixed_amount, tax_amount, total_amount, currency, status, balance_released) 
+       VALUES ($1, $2, $3, $4, $5, $6, 'active', FALSE)`,
+        [
+          order.id,
+          variableFee, // El 9.9%
+          fixedFee, // El fijo ($0.50)
+          taxAmount, // <--- El IVA desglosado
+          totalPlatformFee, // Suma de variable + fijo (lo que entra a la caja)
+          orderCurrency,
+        ]
       );
 
       await platformBalanceRepository.addToPending(totalPlatformFee, orderCurrency, client);

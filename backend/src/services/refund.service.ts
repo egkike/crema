@@ -10,6 +10,7 @@ import { platformBalanceRepository } from '../repositories/platform_balance.repo
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { config } from '../config/index';
+import { roundToTwo } from '../utils/rounder';
 
 export class RefundService {
   private static getMPClient() {
@@ -37,7 +38,7 @@ export class RefundService {
       // VALIDACIÓN DE GARANTÍA
       const orderCreatedAt = new Date(order.created_at).getTime();
       const guaranteeDays = order.days_of_guarantee_applied || 7;
-      const expirationDate = orderCreatedAt + (guaranteeDays * 24 * 60 * 60 * 1000);
+      const expirationDate = orderCreatedAt + guaranteeDays * 24 * 60 * 60 * 1000;
 
       if (Date.now() > expirationDate) {
         throw new AppError(`El periodo de garantía de ${guaranteeDays} días ha expirado.`, 400);
@@ -58,8 +59,8 @@ export class RefundService {
 
       for (const comm of commissions) {
         if (comm.status === 'pending') {
-          // Usamos comm.netAmount (mapeado por el repo)
-          const amountToDeduct = Math.floor(Number(comm.netAmount) * 100) / 100;
+          // IMPORTANTE: Usar la misma lógica de redondeo que en CommissionService
+          const amountToDeduct = roundToTwo(Number(comm.netAmount));
 
           await balanceRepository.deductPendingEarnings(
             comm.userId,
@@ -81,13 +82,14 @@ export class RefundService {
 
       // 3. REVERTIR GANANCIAS DE LA PLATAFORMA
       const pEarningsQuery = `
-        SELECT total_amount FROM "${schema}".platform_earnings 
+        SELECT total_amount, tax_amount FROM "${schema}".platform_earnings 
         WHERE order_id = $1 AND status = 'active' FOR UPDATE;
       `;
       const { rows: pEarnings } = await client.query(pEarningsQuery, [orderId]);
 
       if (pEarnings.length > 0) {
-        const platformAmountToDeduct = Math.floor(Number(pEarnings[0].total_amount) * 100) / 100;
+        // IMPORTANTE: Usar la misma lógica de redondeo que en CommissionService
+        const platformAmountToDeduct = roundToTwo(Number(pEarnings[0].total_amount));
 
         await platformBalanceRepository.deductFromPending(
           platformAmountToDeduct,
@@ -98,6 +100,11 @@ export class RefundService {
         await client.query(
           `UPDATE "${schema}".platform_earnings SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE order_id = $1`,
           [orderId]
+        );
+
+        logger.info(
+          { orderId, taxAnulled: pEarnings[0].tax_amount },
+          'Impuestos y comisiones revertidos en plataforma'
         );
       }
 
@@ -133,7 +140,6 @@ export class RefundService {
       await client.query('COMMIT');
       logger.info({ orderId }, '✅ Reembolso procesado exitosamente');
       return { success: true };
-
     } catch (error: any) {
       await client.query('ROLLBACK');
       logger.error({ error: error.message, orderId }, '💥 Fallo en RefundService');

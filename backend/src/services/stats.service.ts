@@ -106,14 +106,36 @@ export class StatsService {
 
     return {
       summary: stats,
+      // Agregamos un desglose más claro para el Admin
+      taxAuditory: {
+        collectedInPeriod: stats.platform.taxCollectedPeriod,
+        netRevenueInPeriod:
+          stats.platform.totalEarnedHistorical - stats.platform.taxCollectedPeriod,
+      },
       audit: {
         inGuaranteeOrdersCount: inGuarantee.length,
         inGuaranteeAmount: inGuarantee.reduce((sum, o) => sum + Number(o.amount), 0),
         pendingReleaseExpiredCount: waitingRelease.length,
         pendingReleaseExpiredAmount: waitingRelease.reduce((sum, o) => sum + Number(o.amount), 0),
       },
-      // ✅ Corregido: Usamos totalAccountability que es el campo real que devuelve el repositorio
       healthy: stats.systemIntegrity.isHealthy && stats.systemIntegrity.discrepanciesCount === 0,
     };
+  }
+
+  /**
+   * Obtiene el total_tax_collected, net_revenue y gross_revenue de la Plataforma
+   */
+  static async getPlatformTaxHealth(currency: string = 'ARS') {
+    const schema = config.db?.schema || 'public';
+    const query = `
+    SELECT 
+      SUM(tax_amount) as total_tax_collected,
+      SUM(variable_amount + fixed_amount + subscription_amount) as net_revenue,
+      SUM(total_amount) as gross_revenue
+    FROM "${schema}".platform_earnings
+    WHERE currency = $1 AND status = 'active'
+  `;
+    const { rows } = await pool.query(query, [currency]);
+    return rows[0];
   }
 }

@@ -39,6 +39,12 @@ VALUES
             "minLength": 3, 
             "pattern": "^[a-zA-Z ]+$",
             "errorMsg": "Nombre del titular inválido."
+        },
+        "tax_config": {
+            "enabled": true,
+            "tax_name": "IVA",
+            "tax_factor": 1.21,
+            "calculation": "inside"
         }
     }'::jsonb
 ),
@@ -58,6 +64,9 @@ VALUES
         "network": { 
             "pattern": "^(TRC20|ERC20|BEP20)$",
             "errorMsg": "Red no soportada. Use TRC20, ERC20 o BEP20."
+        },
+        "tax_config": {
+            "enabled": false
         }
     }'::jsonb
 )
