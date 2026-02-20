@@ -3,8 +3,8 @@ import { Queue } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import logger from '../utils/logger';
 
-// 1. Declaramos la variable pero sin asignarle el "new Queue" todavía
-let mainQueue: Queue | undefined;
+// 1. Declaramos y exportamos la variable pero sin asignarle el "new Queue" todavía
+export let mainQueue: Queue | undefined;
 
 export const initScheduler = async () => {
   // 2. La inicializamos aquí dentro

@@ -6,6 +6,7 @@ import { platformBalanceRepository } from '../repositories/platform_balance.repo
 import { userRepository } from '../repositories/user.repository';
 import logger from '../utils/logger';
 import { config } from '../config/index';
+import { mainQueue } from '../queues/scheduler';
 
 import { EmailService } from './email.service';
 
@@ -172,11 +173,36 @@ export const ReleaseService = {
   async notifyUser(userId: string, amount: number, currency: string) {
     try {
       const user = await userRepository.getById(userId);
+
       if (user) {
-        EmailService.sendBalanceReleasedEmail(user.email, user.fullname, amount, currency);
+        if (mainQueue) {
+          // Encolamos la tarea para que el worker la procese después
+          await mainQueue.add(
+            'send-email',
+            {
+              type: 'BALANCE_RELEASED',
+              to: user.email,
+              data: {
+                fullname: user.fullname,
+                amount,
+                currency,
+              },
+            },
+            {
+              attempts: 5,
+              backoff: { type: 'exponential', delay: 2000 },
+              removeOnComplete: true, // Limpieza automática de Redis
+            }
+          );
+          logger.debug({ userId, orderId: '...' }, 'Email de liberación encolado en BullMQ');
+        } else {
+          // Fallback: Si por alguna razón BullMQ no está listo, enviamos directo
+          // para no perder la notificación, aunque lo ideal es que BullMQ siempre esté.
+          await EmailService.sendBalanceReleasedEmail(user.email, user.fullname, amount, currency);
+        }
       }
     } catch (err: any) {
-      logger.error({ userId, error: err.message }, 'Error enviando notificación de liberación');
+      logger.error({ userId, error: err.message }, 'Error procesando notificación de liberación');
     }
   },
 };

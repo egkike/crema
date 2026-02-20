@@ -9,8 +9,7 @@ import { platformBalanceRepository } from '../repositories/platform_balance.repo
 import { platformWithdrawalRepository } from '../repositories/platform_withdrawal.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
-
-import { EmailService } from './email.service';
+import { mainQueue } from '../queues/scheduler';
 
 export class PayoutService {
   /**
@@ -132,17 +131,25 @@ export class PayoutService {
       await client.query('COMMIT');
 
       // Notificación Email
-      userRepository.getById(userId).then(user => {
+      if (mainQueue) {
+        const user = await userRepository.getById(userId);
         if (user) {
-          EmailService.sendPayoutRequestedEmail(
-            user.email,
-            user.fullname,
-            sanitizedAmount,
-            currency,
-            payoutData.alias || payoutData.destination_account
+          await mainQueue.add(
+            'send-email',
+            {
+              type: 'PAYOUT_REQUESTED',
+              to: user.email,
+              data: {
+                fullname: user.fullname,
+                amount: sanitizedAmount,
+                currency,
+                destination: payoutData.alias || payoutData.destination_account,
+              },
+            },
+            { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
           );
         }
-      });
+      }
 
       // --- Lógica de Días Hábiles ---
       const processingDays = Number(configs['payout_processing_days'] ?? 3);
@@ -208,15 +215,16 @@ export class PayoutService {
 
       await client.query('COMMIT');
 
-      userRepository.getById(userId).then(user => {
-        if (user)
-          EmailService.sendPayoutCancelledEmail(
-            user.email,
-            user.fullname,
-            payout.amount,
-            payout.currency
-          );
-      });
+      if (mainQueue) {
+        const user = await userRepository.getById(userId);
+        if (user) {
+          await mainQueue.add('send-email', {
+            type: 'PAYOUT_CANCELLED',
+            to: user.email,
+            data: { fullname: user.fullname, amount: payout.amount, currency: payout.currency },
+          });
+        }
+      }
 
       return {
         success: true,
@@ -257,17 +265,22 @@ export class PayoutService {
         );
         await client.query('COMMIT');
 
-        userRepository.getById(payout.user_id).then(user => {
-          if (user)
-            EmailService.sendPayoutCompletedEmail(
-              user.email,
-              user.fullname,
-              payout.amount,
-              payout.currency,
-              payout.alias || payout.destination_account,
-              transactionReceipt
-            );
-        });
+        if (mainQueue) {
+          const user = await userRepository.getById(payout.user_id);
+          if (user) {
+            await mainQueue.add('send-email', {
+              type: 'PAYOUT_COMPLETED',
+              to: user.email,
+              data: {
+                fullname: user.fullname,
+                amount: payout.amount,
+                currency: payout.currency,
+                destination: payout.alias || payout.destination_account,
+                receipt: transactionReceipt,
+              },
+            });
+          }
+        }
       } else {
         await balanceRepository.addAvailableBalance(
           payout.user_id,
@@ -293,10 +306,20 @@ export class PayoutService {
         });
         await client.query('COMMIT');
 
-        userRepository.getById(payout.user_id).then(user => {
-          if (user)
-            EmailService.sendSecurityAlert(user.email, 'Retiro rechazado', `Motivo: ${adminNotes}`);
-        });
+        if (mainQueue) {
+          const user = await userRepository.getById(payout.user_id);
+          if (user) {
+            await mainQueue.add('send-email', {
+              type: 'SECURITY_ALERT', // Usamos el tipo genérico de alerta
+              to: user.email,
+              data: {
+                fullname: user.fullname, // Opcional, para el template
+                subject: 'Retiro rechazado - Crema',
+                message: `Tu solicitud de retiro por ${payout.amount} ${payout.currency} ha sido rechazada. Motivo: ${adminNotes}. El saldo ha sido reintegrado a tu cuenta.`,
+              },
+            });
+          }
+        }
       }
       return { success: true };
     } catch (error: any) {

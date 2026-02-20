@@ -39,6 +39,57 @@ export const initMainWorker = () => {
             break;
           }
 
+          case 'send-email': {
+            const { type, to, data } = job.data;
+
+            switch (type) {
+              case 'BALANCE_RELEASED':
+                await EmailService.sendBalanceReleasedEmail(
+                  to,
+                  data.fullname,
+                  data.amount,
+                  data.currency
+                );
+                break;
+              case 'PAYOUT_REQUESTED':
+                await EmailService.sendPayoutRequestedEmail(
+                  to,
+                  data.fullname,
+                  data.amount,
+                  data.currency,
+                  data.destination
+                );
+                break;
+
+              case 'PAYOUT_CANCELLED':
+                await EmailService.sendPayoutCancelledEmail(
+                  to,
+                  data.fullname,
+                  data.amount,
+                  data.currency
+                );
+                break;
+
+              case 'PAYOUT_COMPLETED':
+                await EmailService.sendPayoutCompletedEmail(
+                  to,
+                  data.fullname,
+                  data.amount,
+                  data.currency,
+                  data.destination,
+                  data.receipt
+                );
+                break;
+              case 'SECURITY_ALERT':
+                await EmailService.sendSecurityAlert(to, data.subject, data.message);
+                break;
+              // Aquí puedes agregar más casos: 'WELCOME_PURCHASE', 'PAYOUT_ALERT', etc.
+              default:
+                logger.warn({ type }, 'Tipo de email no reconocido por el worker');
+            }
+            break;
+          }
+
           case 'auth-cleanup': {
             await AuthCleanupService.cleanExpiredTokens();
             logger.info('SISTEMA: Limpieza de tokens completada.');
