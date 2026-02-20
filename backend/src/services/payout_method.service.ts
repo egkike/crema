@@ -3,10 +3,10 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/index';
 import { payoutMethodRepository } from '../repositories/payout_method.repository';
 import { userRepository } from '../repositories/user.repository';
+import { configRepository } from '../repositories/config.repository';
 import { AppError } from '../errors/AppError';
 
 import { EmailService } from './email.service';
-
 
 export class PayoutMethodService {
   /**
@@ -15,6 +15,45 @@ export class PayoutMethodService {
   static async requestChange(userId: string, currency: string, type: any, data: any) {
     const user = await userRepository.getById(userId);
     if (!user) throw new AppError('Usuario no encontrado', 404);
+
+    // 1. Obtener campos requeridos y reglas de validación desde la DB
+    const requiredFields = await configRepository.getRequiredFieldsByCurrency(currency);
+    const rules = await configRepository.getCurrencyValidationRules(currency);
+
+    if (requiredFields.length === 0) {
+      throw new AppError(`La moneda ${currency} no está configurada o no existe.`, 400);
+    }
+
+    // 2. Validar presencia de campos obligatorios
+    const missingFields = requiredFields.filter(f => !data[f] || data[f].toString().trim() === '');
+    if (missingFields.length > 0) {
+      throw new AppError(`Faltan campos obligatorios: ${missingFields.join(', ')}`, 400);
+    }
+
+    // 3. VALIDACIÓN DINÁMICA DE REGLAS
+    for (const field in rules) {
+      // Solo validamos si el campo está presente en el objeto data enviado
+      if (data[field] === undefined) continue;
+
+      const value = data[field]?.toString() || '';
+      const rule = rules[field];
+
+      if (rule.minLength && value.length < rule.minLength) {
+        throw new AppError(
+          rule.errorMsg || `El campo ${field} debe tener al menos ${rule.minLength} caracteres`,
+          400
+        );
+      }
+      if (rule.maxLength && value.length > rule.maxLength) {
+        throw new AppError(
+          rule.errorMsg || `El campo ${field} no puede exceder los ${rule.maxLength} caracteres`,
+          400
+        );
+      }
+      if (rule.pattern && !new RegExp(rule.pattern).test(value)) {
+        throw new AppError(rule.errorMsg || `El formato de ${field} es inválido`, 400);
+      }
+    }
 
     // Creamos un token que expire en 15 minutos con la "payload" de los nuevos datos
     const confirmToken = jwt.sign(

@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS enabled_currencies (
     name VARCHAR(50) NOT NULL,
     symbol VARCHAR(5) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
+    required_payout_fields TEXT[] DEFAULT '{}',
+    validation_rules JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -250,6 +252,7 @@ CREATE TABLE IF NOT EXISTS payouts (
     tax_id VARCHAR(50), -- CUIT/CUIL
     alias VARCHAR(100),
     transaction_receipt TEXT, -- Nro de transferencia, Hash o ID de transacción bancaria
+    payout_data_snapshot JSONB DEFAULT '{}',
     admin_id UUID, -- ID del administrador que ejecutó la transferencia
     processed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

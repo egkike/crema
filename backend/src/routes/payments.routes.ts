@@ -1,20 +1,20 @@
 import { Router } from 'express';
 
 import { optionalJwtAuth, jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
-import * as MercadoPagoController from '../controllers/mercadopago.controller';
-import * as SimulatorController from '../controllers/simulator.controller';
+import * as PaymentController from '../controllers/payment.controller';
 import { SubscriptionService } from '../services/subscription.service';
 
 const router = Router();
 
-/**
- * RUTAS DE MERCADO PAGO
- */
-// Crear preferencia de pago (Checkout)
-router.post('/mercadopago/create', optionalJwtAuth, MercadoPagoController.createPaymentPreference);
-// Webhook: Recibe notificaciones de pago (Pública, la llama MP)
-router.post('/mercadopago/webhook', MercadoPagoController.handleWebhook);
-// Ruta para que un creador inicie su suscripción al Plan Pro
+// --- RUTA ÚNICA DE CREACIÓN ---
+// El body debe incluir gatewayId ('mercadopago' o 'simulator')
+router.post('/checkout/create', optionalJwtAuth, PaymentController.createPaymentPreference);
+
+// --- WEBHOOKS (Receptores) ---
+router.post('/webhook/mercadopago', PaymentController.handleMPWebhook);
+router.post('/webhook/simulator', PaymentController.handleSimulatorConfirm);
+
+// --- SUSCRIPCIONES (Exclusivo MP por ahora) ---
 router.post('/mercadopago/subscribe/:planId', jwtAuthMiddleware, async (req, res, next) => {
   try {
     // Forzamos que sea string para que TS no se queje
@@ -43,16 +43,5 @@ router.post('/mercadopago/cancel', jwtAuthMiddleware, async (req, res, next) => 
     next(error);
   }
 });
-
-/**
- * RUTAS DE FUTURAS PASARELAS (Ejemplo Lemon Cash)
- * Solo tendrías que descomentar y crear el controlador correspondiente.
- */
-// router.post('/lemoncash/create', optionalJwtAuth, LemonCashController.createPayment);
-// router.post('/lemoncash/webhook', LemonCashController.handleWebhook);
-
-// --- SIMULADOR (Ideal para probar USDT y comisiones rápido) ---
-router.post('/simulator/create', optionalJwtAuth, SimulatorController.createSimulatedPayment);
-router.post('/simulator/confirm', SimulatorController.confirmSimulatedPayment);
 
 export default router;

@@ -7,6 +7,14 @@ let cachedLevels: Record<string, number> | null = null;
 let lastFetch: number = 0;
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutos de vida para el caché
 
+// --- Lógica de Caché para Campos de Monedas ---
+let cachedFields: Record<string, string[]> = {};
+let lastFieldsFetch: number = 0;
+
+// --- Lógica de Caché para Reglas de Validación ---
+let cachedRules: Record<string, any> = {};
+let lastRulesFetch: number = 0;
+
 export const configRepository = {
   /**
    * Obtiene los niveles de usuario desde system_settings con caché en memoria.
@@ -18,7 +26,6 @@ export const configRepository = {
       return cachedLevels;
     }
 
-    // Buscamos el setting 'user_levels' que contiene el JSON
     const levelsJson = await this.getSetting('user_levels', '');
 
     try {
@@ -28,14 +35,12 @@ export const configRepository = {
         return cachedLevels!;
       }
     } catch (err: any) {
-      // Logueamos el error para saber qué pasó, pero no bloqueamos el sistema
       logger.error(
         { msg: err.message },
         'Error cargando user_levels desde DB, usando fallback estático'
       );
     }
 
-    // Fallback estático de seguridad si la DB no responde o el JSON está roto
     return { GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99 };
   },
 
@@ -129,6 +134,97 @@ export const configRepository = {
     } catch (error: any) {
       logger.error({ error: error.message, key }, 'Error fetching setting');
       return defaultValue;
+    }
+  },
+
+  /**
+   * Obtiene los campos obligatorios para el método de cobro de una moneda.
+   * Incluye caché de 5 minutos para optimizar performance.
+   */
+  async getRequiredFieldsByCurrency(currencyCode: string): Promise<string[]> {
+    const now = Date.now();
+
+    if (cachedFields[currencyCode] && now - lastFieldsFetch < CACHE_TTL) {
+      return cachedFields[currencyCode];
+    }
+
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT required_payout_fields 
+      FROM "${schema}".enabled_currencies 
+      WHERE code = $1 AND is_active = true
+    `;
+
+    try {
+      const { rows } = await pool.query(query, [currencyCode]);
+      const fields = rows[0]?.required_payout_fields || [];
+
+      cachedFields[currencyCode] = fields;
+      lastFieldsFetch = now;
+
+      return fields;
+    } catch (error: any) {
+      logger.error({ error: error.message, currencyCode }, 'Error fetching required_payout_fields');
+      return [];
+    }
+  },
+
+  /**
+   * Limpia el caché de campos requeridos.
+   */
+  clearFieldsCache(): void {
+    cachedFields = {};
+    cachedRules = {};
+    logger.info('Cachés de campos y reglas de monedas limpiados.');
+  },
+
+  /**
+   * Obtiene reglas de validacion de moneda con caché.
+   */
+  async getCurrencyValidationRules(currencyCode: string): Promise<any> {
+    const now = Date.now();
+
+    if (cachedRules[currencyCode] && now - lastRulesFetch < CACHE_TTL) {
+      return cachedRules[currencyCode];
+    }
+
+    const schema = config.db?.schema || 'public';
+    const query = `SELECT validation_rules FROM "${schema}".enabled_currencies WHERE code = $1`;
+
+    try {
+      const { rows } = await pool.query(query, [currencyCode]);
+      const rules = rows[0]?.validation_rules || {};
+
+      cachedRules[currencyCode] = rules;
+      lastRulesFetch = now;
+
+      return rules;
+    } catch (error: any) {
+      logger.error({ error: error.message, currencyCode }, 'Error fetching validation_rules');
+      return {};
+    }
+  },
+
+  /**
+   * Obtiene las pasarelas de pago habilitadas para una moneda específica.
+   * Ordenadas por prioridad.
+   */
+  async getGatewaysByCurrency(currencyCode: string) {
+    const schema = config.db?.schema || 'public';
+    const query = `
+    SELECT g.id, g.name, cg.is_default, cg.priority
+    FROM "${schema}".payment_gateways g
+    JOIN "${schema}".currency_gateways cg ON g.id = cg.gateway_id
+    WHERE cg.currency_code = $1 AND g.is_active = true
+    ORDER BY cg.priority DESC, g.name ASC
+  `;
+
+    try {
+      const { rows } = await pool.query(query, [currencyCode]);
+      return rows;
+    } catch (error: any) {
+      logger.error({ error: error.message, currencyCode }, 'Error fetching gateways for currency');
+      return [];
     }
   },
 };

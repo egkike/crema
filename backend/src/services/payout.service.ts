@@ -41,13 +41,24 @@ export class PayoutService {
       throw new AppError(`Este método de retiro no coincide con la moneda ${currency}`, 400);
     }
 
-    const { data } = method;
+    // 1. Obtenemos qué campos requiere esta moneda según la DB
+    const requiredFields = await configRepository.getRequiredFieldsByCurrency(currency);
+
+    // 2. Construimos el snapshot de datos basado en los requerimientos
+    const dynamicData: Record<string, any> = {};
+    requiredFields.forEach(field => {
+      dynamicData[field] = method.data[field] || null;
+    });
+
+    // 3. Mantenemos compatibilidad con columnas fijas y definimos la cuenta de destino principal
     const payoutData = {
-      destination_account: data.cbu || data.address || data.alias,
-      bank_name: data.bank_name || null,
-      account_holder: data.holder || data.account_holder || null,
-      tax_id: data.tax_id || null,
-      alias: data.alias || null,
+      ...dynamicData, // Inyectamos dinámicamente cbu, address, network, etc.
+      destination_account:
+        dynamicData.cbu || dynamicData.address || dynamicData.alias || 'Ver detalle',
+      bank_name: method.data.bank_name || null,
+      account_holder: method.data.holder || method.data.account_holder || null,
+      tax_id: method.data.tax_id || null,
+      alias: method.data.alias || null,
     };
 
     const configs = await configRepository.getConfigsByCurrency(currency);

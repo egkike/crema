@@ -1,26 +1,32 @@
 import crypto from 'crypto';
 
 import { Request, Response, NextFunction } from 'express';
-import { MercadoPagoConfig, Preference, Payment, PreApproval } from 'mercadopago';
+import { MercadoPagoConfig, Payment, PreApproval } from 'mercadopago';
 
 import { config } from '../config/index';
 import { AppError } from '../errors/AppError';
 import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { userRepository } from '../repositories/user.repository';
+import { configRepository } from '../repositories/config.repository';
 import { OrderService } from '../services/order.service';
 import { SubscriptionService } from '../services/subscription.service';
+import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
 import logger from '../utils/logger';
-
-const getMPClient = () => {
-  return new MercadoPagoConfig({
-    accessToken: config.mercadoPago?.accessToken || 'dummy_token',
-  });
-};
 
 export const createPaymentPreference = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { productId, currency = 'ARS', quantity = 1, email, fullname } = req.body;
+    // Agregamos gatewayId al body, por defecto mercadopago para no romper el frontend actual
+    const { productId, currency, quantity = 1, email, fullname, gatewayId } = req.body;
+
+    // 1. VALIDACIÓN DINÁMICA DE PASARELA SEGÚN MONEDA (Usando tu nuevo método)
+    const allowedGateways = await configRepository.getGatewaysByCurrency(currency);
+    if (!allowedGateways.some(g => g.id === gatewayId)) {
+      throw new AppError(
+        `La pasarela ${gatewayId} no está disponible para la moneda ${currency}`,
+        400
+      );
+    }
 
     const product = await productRepository.getProductById(productId);
     const price = await productRepository.getPriceByCurrency(productId, currency);
@@ -57,53 +63,45 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
     const externalReference = `ORD-${buyerId}-${Date.now()}`;
     const affiliateId = (req.cookies.affiliate_id as string) || null;
 
+    // 2. CREAR ORDEN EN DB (Ahora guardamos el paymentMethod dinámico)
     await orderRepository.create({
       buyerId,
       productId: product.id,
       amount: Number(price) * Number(quantity),
       currency,
-      paymentMethod: 'mercadopago',
+      paymentMethod: gatewayId,
       externalReference,
       status: 'pending',
       affiliateId: affiliateId,
     });
 
-    const mpClient = getMPClient();
-    const preferenceClient = new Preference(mpClient);
-    const mpResponse = await preferenceClient.create({
-      body: {
-        items: [
-          {
-            id: String(product.id),
-            title: String(product.title),
-            quantity: Number(quantity),
-            unit_price: Number(price),
-            currency_id: 'ARS',
-          },
-        ],
-        payer: { email: String(email || req.user?.email || '').trim() },
-        metadata: { temp_password: tempPassword },
-        back_urls: {
-          success: `${config.frontendUrl}/checkout/success`,
-          failure: `${config.frontendUrl}/checkout/error`,
-          pending: `${config.frontendUrl}/checkout/pending`,
-        },
-        external_reference: externalReference,
-        notification_url: `${config.apiBaseUrl}/api/payments/mercadopago/webhook`,
-        statement_descriptor: 'CREMA',
-      },
+    // 3. USO DE LA FACTORY (Aquí delegamos la complejidad de la pasarela)
+    const provider = PaymentProviderFactory.getProvider(gatewayId);
+    const paymentResponse = await provider.createPreference({
+      product,
+      amount: Number(price) * Number(quantity),
+      currency,
+      externalReference,
+      email: email || req.user?.email || '',
+      tempPassword,
     });
 
     return res.status(201).json({
       success: true,
-      data: { init_point: mpResponse.init_point },
+      data: {
+        init_point: paymentResponse.initPoint,
+        externalReference,
+      },
     });
   } catch (error: any) {
     next(error);
   }
 };
 
-export const handleWebhook = async (req: Request, res: Response) => {
+/**
+ * ENTRADA: Webhook de Mercado Pago
+ */
+export const handleMPWebhook = async (req: Request, res: Response) => {
   res.status(200).send('OK');
 
   try {
@@ -153,7 +151,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
     if (!rawId) return;
 
-    const mpClient = getMPClient();
+    // Instanciamos el cliente directamente aquí o lo traemos de config
+    const mpClient = new MercadoPagoConfig({
+      accessToken: config.mercadoPago?.accessToken || 'dummy_token',
+    });
 
     // CASO A: Venta de Producto Único
     if (type === 'payment' || action === 'payment.created') {
@@ -195,5 +196,28 @@ export const handleWebhook = async (req: Request, res: Response) => {
     }
   } catch (error: any) {
     logger.error({ error: error.message, body: req.body }, '💥 Error Webhook MP');
+  }
+};
+
+/**
+ * ENTRADA: Confirmación del Simulador
+ */
+export const handleSimulatorConfirm = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { externalReference, status = 'approved', tempPassword } = req.body;
+
+    await OrderService.processPaymentNotification({
+      externalReference,
+      status,
+      transactionId: `SIM-TX-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+      tempPassword,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Simulación de pago ${status} procesada exitosamente.`,
+    });
+  } catch (error: any) {
+    next(error);
   }
 };

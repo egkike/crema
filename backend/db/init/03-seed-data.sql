@@ -13,11 +13,58 @@ INSERT INTO system_settings (key, value, description) VALUES
 ('user_levels', '{"GUEST": 0, "USER": 1, "AFFILIATE": 2, "CREATOR": 3, "STAFF": 10, "ADMIN": 99}', 'Mapeo de niveles de permisos y roles')
 ON CONFLICT (key) DO NOTHING;
 
--- Configuración de Moneda habilitada para Argentina y Cripto
-INSERT INTO enabled_currencies (code, name, symbol) VALUES 
-('ARS', 'Pesos Argentinos', '$'),
-('USDT', 'Tether', '₮')
-ON CONFLICT (code) DO NOTHING;
+-- Configuración de Moneda habilitada para Argentina y Cripto con Reglas de Validación Dinámicas
+INSERT INTO enabled_currencies (code, name, symbol, is_active, required_payout_fields, validation_rules) 
+VALUES 
+(
+    'ARS', 
+    'Pesos Argentinos', 
+    '$', 
+    TRUE, 
+    ARRAY['cbu', 'alias', 'tax_id', 'holder'], 
+    '{
+        "cbu": { 
+            "minLength": 22, 
+            "maxLength": 22, 
+            "pattern": "^[0-9]+$",
+            "errorMsg": "El CBU debe contener exactamente 22 números."
+        },
+        "tax_id": { 
+            "minLength": 11, 
+            "maxLength": 11, 
+            "pattern": "^[0-9]+$",
+            "errorMsg": "El CUIT/CUIL debe tener 11 dígitos sin guiones."
+        },
+        "holder": { 
+            "minLength": 3, 
+            "pattern": "^[a-zA-Z ]+$",
+            "errorMsg": "Nombre del titular inválido."
+        }
+    }'::jsonb
+),
+(
+    'USDT', 
+    'Tether', 
+    '₮', 
+    TRUE, 
+    ARRAY['address', 'network'], 
+    '{
+        "address": { 
+            "minLength": 34, 
+            "maxLength": 42, 
+            "pattern": "^(T[A-Za-z0-9]{33}|0x[a-fA-F0-9]{40})$",
+            "errorMsg": "Dirección de billetera USDT inválida (Soporta TRC20 o ERC20)."
+        },
+        "network": { 
+            "pattern": "^(TRC20|ERC20|BEP20)$",
+            "errorMsg": "Red no soportada. Use TRC20, ERC20 o BEP20."
+        }
+    }'::jsonb
+)
+ON CONFLICT (code) DO UPDATE SET 
+    required_payout_fields = EXCLUDED.required_payout_fields,
+    validation_rules = EXCLUDED.validation_rules,
+    is_active = EXCLUDED.is_active;
 
 -- Configuración de Gateway habilitado para Argentina
 INSERT INTO payment_gateways (id, name) VALUES 
