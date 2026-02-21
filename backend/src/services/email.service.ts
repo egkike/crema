@@ -385,4 +385,53 @@ export class EmailService {
     `;
     return this.send(email, `Retiro cancelado: ${amount} ${currency}`, html);
   }
+
+  /**
+   * Notificación de éxito al subir de nivel (Upgrade)
+   */
+  static async sendUpgradeSuccessEmail(email: string, fullname: string, newLevel: number) {
+    const roleName = newLevel === 3 ? 'Creador' : 'Afiliado';
+    const dashboardLink = `${config.frontendUrl}/dashboard`;
+
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <span style="font-size: 40px;">🚀</span>
+        </div>
+        <h2 style="color: #2ed573; text-align: center;">¡Upgrade Exitoso!</h2>
+        <p>Hola <strong>${fullname}</strong>,</p>
+        <p>Tu cuenta ha sido actualizada correctamente. Ahora tienes acceso a todas las herramientas de <strong>${roleName}</strong>.</p>
+        
+        <div style="background: #f1f2f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0;"><strong>Nuevo Nivel:</strong> ${roleName}</p>
+          ${newLevel === 3 ? '<p style="margin: 5px 0 0; font-size: 14px;">✨ Tu plan Pro gratuito ya está activo.</p>' : ''}
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${dashboardLink}" style="background: #2f3542; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ir a mi nuevo panel</a>
+        </div>
+      </div>
+    `;
+    return this.send(email, `¡Bienvenido al nivel ${roleName}! - Crema`, html);
+  }
+
+  /**
+   * Notificación de Seguridad Genérica (para el UserController)
+   */
+  static async sendSecurityNotification(email: string, message: string) {
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 25px; border-radius: 10px;">
+        <h2 style="color: #ff4757;">Aviso de Seguridad</h2>
+        <p>Hola,</p>
+        <p>Te informamos sobre una actividad reciente en tu cuenta:</p>
+        <p style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-weight: bold; color: #2f3542;">
+          ${message}
+        </p>
+        <p style="font-size: 13px; color: #747d8c; margin-top: 20px;">
+          Si no reconoces esta acción, por favor contacta a nuestro equipo de soporte de inmediato o cambia tu contraseña.
+        </p>
+      </div>
+    `;
+    return this.send(email, 'Actividad importante en tu cuenta de Crema', html);
+  }
 }

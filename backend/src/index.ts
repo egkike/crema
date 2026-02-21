@@ -22,6 +22,7 @@ import refundRoutes from './routes/refund.routes';
 import payoutRoutes from './routes/payout.routes';
 import adminRoutes from './routes/admin.routes';
 import payoutMethodRoutes from './routes/payout_method.routes';
+import affiliateRoutes from './routes/affiliate.routes';
 
 const app = express();
 
@@ -116,6 +117,7 @@ app.use('/api/refunds', refundRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payout-methods', payoutMethodRoutes);
+app.use('/api/affiliates', affiliateRoutes);
 
 // --- SWAGGER DOCS ---
 if (config.nodeEnv !== 'production') {

@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { subscriptionRepository } from '../../repositories/subscription.repository';
 import { productRepository } from '../../repositories/product.repository';
 import { configRepository } from '../../repositories/config.repository';
+import { payoutMethodRepository } from '../../repositories/payout_method.repository';
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 
@@ -10,6 +11,11 @@ export const checkPlanLimits = async (req: Request, res: Response, next: NextFun
   try {
     const { user } = req;
     const { type, sizeBytes } = req.body;
+    const { currency } = req.body; // El front debe enviar la moneda del producto
+
+    if (!user || !user.id) {
+      throw new AppError('Usuario no autenticado o sesión inválida.', 401);
+    }
 
     // 1. Validar nivel dinámicamente
     const levels = await configRepository.getUserLevels();
@@ -17,12 +23,24 @@ export const checkPlanLimits = async (req: Request, res: Response, next: NextFun
       throw new AppError('Tu nivel de cuenta no permite la creación de productos.', 403);
     }
 
+    // Validar Moneda del usuario
+    if (currency) {
+      const userMethods = await payoutMethodRepository.getByUserId(user.id);
+      const hasCurrencyConfigured = userMethods.some(m => m.currency === currency);
+
+      if (!hasCurrencyConfigured) {
+        throw new AppError(
+          `No puedes crear productos en ${currency} sin configurar antes un método de cobro para esa moneda.`,
+          403
+        );
+      }
+    }
+
     const subscription = await subscriptionRepository.getActiveSubscription(user.id);
     if (!subscription) {
       throw new AppError('No posees una suscripción activa para realizar esta operación.', 403);
     }
 
-    // ✅ SOLUCIÓN AL ERROR DE UNDEFINED: Fallback de seguridad
     const limits = subscription.features || { max_products: 0, storage_mb: 0 };
     const allowedTypes = subscription.allowed_types || [];
 

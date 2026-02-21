@@ -140,6 +140,16 @@ BEGIN
         "custom_fee_percent": 0.05
     }') RETURNING id INTO plan_pro_id;
 
+    -- Definir Tipos Permitidos (Importante para el Middleware)
+    -- El Plan Inicial solo permite Ebooks y Podcasts
+    INSERT INTO plan_allowed_types (plan_id, product_type_id) VALUES 
+    (plan_free_id, 'ebook'), 
+    (plan_free_id, 'podcast');
+
+    -- El Plan Pro permite TODO
+    INSERT INTO plan_allowed_types (plan_id, product_type_id)
+    SELECT plan_pro_id, id FROM product_types;
+
     -- Seteamos solo el plan por defecto para creadores
     INSERT INTO system_settings (key, value, description) 
     VALUES 

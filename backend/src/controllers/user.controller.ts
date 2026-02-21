@@ -5,6 +5,7 @@ import { validatePartialUser, validatePasswordDetailed } from '../schemas/users.
 import { CaptchaService } from '../services/captcha.service';
 import { userRepository } from '../repositories/user.repository';
 import { EmailService } from '../services/email.service';
+import { UserService } from '../services/user.service';
 import { config } from '../config/index';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
@@ -204,6 +205,48 @@ export class UserController {
     return res.status(200).json({
       success: true,
       message: 'Contraseña actualizada. Inicia sesión con tus nuevas credenciales.',
+    });
+  }
+
+  /**
+   * Procesa el Upgrade de nivel (1 -> 2 o 1 -> 3)
+   * Requiere que el usuario esté logueado y envíe datos de cobro
+   */
+  async upgradeMyLevel(req: Request, res: Response) {
+    const { targetLevel, payoutData } = req.body;
+    const { user: reqUser } = req;
+
+    // 1. Salvaguarda de autenticación
+    if (!reqUser) {
+      throw new AppError('Usuario no identificado', 401);
+    }
+
+    // 2. Validaciones básicas de entrada
+    if (!targetLevel) throw new AppError('Nivel destino requerido', 400);
+
+    // Seguridad: El usuario no puede subir a niveles administrativos por esta vía
+    if (targetLevel >= 10) {
+      throw new AppError('Nivel destino no permitido a través de este proceso.', 403);
+    }
+
+    // 3. Llamada al servicio de negocio
+    // Este servicio se encarga de: validar moneda, guardar payout_method,
+    // subir nivel y asignar plan si es creador.
+    const updatedUser = await UserService.upgradeLevel(reqUser.id, Number(targetLevel), payoutData);
+
+    // 4. Notificación de seguridad (Opcional pero recomendado)
+    // Podrías disparar un email avisando que el nivel de cuenta cambió
+    EmailService.sendSecurityNotification(
+      updatedUser!.email,
+      `Tu cuenta ha sido actualizada al nivel: ${targetLevel}`
+    ).catch(err => logger.error('Error email upgrade: ' + err.message));
+
+    // Importante: El frontend deberá forzar un refresh del token o sesión
+    // para que el nuevo nivel se refleje en el req.user de las siguientes peticiones.
+    return res.status(200).json({
+      success: true,
+      message: `¡Felicidades! Ahora eres nivel ${targetLevel}.`,
+      user: updatedUser,
     });
   }
 }

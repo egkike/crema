@@ -31,7 +31,8 @@ export interface UserSubscription {
 
 export const subscriptionRepository = {
   /**
-   * Crea la suscripción inicial para un Creador (Nivel 3).
+   * Crea o actualiza la suscripción inicial para un Creador (Nivel 3).
+   * Usamos ON CONFLICT para evitar errores si el registro ya existe.
    */
   async createInitialSubscription(
     userId: string,
@@ -39,17 +40,28 @@ export const subscriptionRepository = {
     currency: string = 'ARS'
   ): Promise<UserSubscription> {
     const schema = config.db?.schema || 'public';
+
+    // ON CONFLICT asume que tienes un índice UNIQUE en user_id
     const query = `
       INSERT INTO "${schema}".user_subscriptions (
-        user_id, plan_id, currency, price_at_subscription, status
-      ) VALUES ($1, $2, $3, 0, 'active')
+        user_id, plan_id, currency, price_at_subscription, status, updated_at
+      ) VALUES ($1, $2, $3, 0, 'active', CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id) 
+      DO UPDATE SET 
+        plan_id = EXCLUDED.plan_id,
+        status = 'active',
+        currency = EXCLUDED.currency,
+        updated_at = CURRENT_TIMESTAMP
       RETURNING *;
     `;
     try {
       const { rows } = await pool.query<UserSubscription>(query, [userId, planId, currency]);
       return rows[0];
     } catch (error: any) {
-      logger.error({ userId, planId, error: error.message }, 'Error creando suscripción inicial');
+      logger.error(
+        { userId, planId, error: error.message },
+        'Error en upsert de suscripción inicial'
+      );
       throw error;
     }
   },

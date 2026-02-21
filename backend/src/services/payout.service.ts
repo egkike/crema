@@ -26,6 +26,19 @@ export class PayoutService {
   ): Promise<Payout & { estimated_date: string; message: string }> {
     const sanitizedAmount = roundToTwo(amount);
 
+    // 1. VALIDACIÓN DE NIVEL:
+    // Traemos los niveles dinámicos
+    const levels = await configRepository.getUserLevels();
+
+    // Los Compradores (Nivel 1 / levels.USER) no pueden retirar dinero.
+    // Solo niveles >= AFFILIATE (Nivel 2)
+    if (userLevel < levels.AFFILIATE) {
+      throw new AppError(
+        'Tu nivel de cuenta no permite realizar retiros. Debes ser Afiliado o Creador.',
+        403
+      );
+    }
+
     if (sanitizedAmount <= 0) {
       throw new AppError('El monto del retiro debe ser mayor a cero', 400);
     }
@@ -63,7 +76,6 @@ export class PayoutService {
     };
 
     const configs = await configRepository.getConfigsByCurrency(currency);
-    const levels = await configRepository.getUserLevels(); // Traemos roles dinámicos
     const minAmount = Number(configs['min_payout_amount'] ?? 1000);
 
     if (sanitizedAmount < minAmount) {

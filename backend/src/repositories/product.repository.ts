@@ -264,4 +264,56 @@ export const productRepository = {
     const result = await pool.query(query, [id]);
     return (result.rowCount ?? 0) > 0;
   },
+
+  async getAvailableForAffiliate(affiliateId: string): Promise<Product[]> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT p.*, 
+             COALESCE(
+               (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+                FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+               '[]'::json
+             ) as prices
+      FROM "${schema}".products p
+      WHERE p.status = 'published'
+      AND p.creator_id != $1
+      -- Filtro: El producto debe tener al menos una moneda que el afiliado tenga configurada
+      AND EXISTS (
+          SELECT 1 FROM "${schema}".product_prices pp
+          WHERE pp.product_id = p.id
+          AND pp.currency IN (
+              SELECT currency FROM "${schema}".user_payout_methods 
+              WHERE user_id = $1
+          )
+      )
+      ORDER BY p.created_at DESC;
+    `;
+    const { rows } = await pool.query(query, [affiliateId]);
+    return rows.map(row => this.mapRowToProduct(row));
+  },
+
+  async getProductsByIds(ids: string[]): Promise<Product[]> {
+    if (!ids || ids.length === 0) return [];
+
+    const schema = config.db?.schema || 'public';
+    const query = `
+    SELECT p.*, 
+           COALESCE(
+             (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+              FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+             '[]'::json
+           ) as prices
+    FROM "${schema}".products p
+    WHERE p.id = ANY($1)
+    ORDER BY p.created_at DESC;
+  `;
+
+    try {
+      const { rows } = await pool.query(query, [ids]);
+      return rows.map(row => this.mapRowToProduct(row));
+    } catch (error: any) {
+      logger.error({ error: error.message, ids }, 'Error obteniendo productos por lista de IDs');
+      throw error;
+    }
+  },
 };

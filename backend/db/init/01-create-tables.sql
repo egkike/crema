@@ -322,6 +322,14 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
     UNIQUE(user_id)
 );
 
+-- Tabla de Portfolio de productos de los Afiliados
+CREATE TABLE IF NOT EXISTS affiliate_portfolio (
+    affiliate_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (affiliate_id, product_id)
+);
+
 -- Función para los triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

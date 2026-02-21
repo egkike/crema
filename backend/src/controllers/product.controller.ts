@@ -241,6 +241,61 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
   }
 };
 
+/**
+ * Permite que un usuario (Nivel 2+) se afilie a un producto
+ */
+export const joinProductProgram = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { productId } = req.params;
+    const { user } = req;
+
+    if (!user) throw new AppError('Usuario no autenticado', 401);
+    if (typeof productId !== 'string') throw new AppError('ID de producto no válido', 400);
+
+    // Llamamos al servicio que ya tiene la lógica de validación de moneda
+    await ProductService.joinAffiliateProgram(user.id, productId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Te has afiliado correctamente al producto.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Marketplace Filtrado: Solo muestra productos compatibles con las monedas del usuario
+ */
+export const getMyAvailableMarketplace = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { user } = req;
+    if (!user) throw new AppError('Usuario no autenticado', 401);
+
+    // Usamos el nuevo método del repositorio que filtra por moneda
+    const products = await productRepository.getAvailableForAffiliate(user.id);
+
+    const affIdentifier = user.affiliate_slug || user.id;
+
+    const data = products.map(p => ({
+      id: p.id,
+      title: p.title,
+      slug: p.slug,
+      prices: p.prices, // Para que el usuario vea en qué moneda se vende
+      commission: p.affiliate_commission_percent,
+      link: `${config.frontendUrl}/p/${p.slug || p.id}?aff=${affIdentifier}`,
+    }));
+
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const productController = {
   createProduct,
   updateProduct,
@@ -248,4 +303,6 @@ export const productController = {
   getMyProducts,
   getProductById,
   getAffiliateMarketplace,
+  joinProductProgram,
+  getMyAvailableMarketplace,
 };

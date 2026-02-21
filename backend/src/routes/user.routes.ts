@@ -20,6 +20,7 @@ router.use(enforceFullAuth);
  */
 router.get('/session', userController.getSession.bind(userController));
 router.patch('/profile/change-password', userController.changeMyPassword.bind(userController));
+router.post('/upgrade', userController.upgradeMyLevel.bind(userController));
 
 /**
  * Suscripciones y Límites (Específico para Creadores/Partners)
