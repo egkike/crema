@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 import { PayoutService } from '../services/payout.service';
 import { payoutRepository } from '../repositories/payout.repository';
+import { userRepository } from '../repositories/user.repository';
+import { TwoFactorService } from '../services/twoFactor.service';
 import { requestPayoutSchema } from '../schemas/payout.schema';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
@@ -16,18 +18,55 @@ class PayoutController {
       // 1. Validar cuerpo con el nuevo esquema (ahora solo trae amount, currency y payoutMethodId)
       const validatedData = requestPayoutSchema.parse(req.body);
 
+      // 2. SEGURIDAD FINANCIERA: Obtener datos completos de seguridad del usuario
+      // Necesitamos saber si tiene 2FA activado y ver su historial reciente
+      const fullUser = await userRepository.findByCredentials(user.email);
+      if (!fullUser) throw new AppError('Información de usuario no encontrada', 404);
+
+      // A. Verificación de 2FA (Si está activo, es obligatorio para retiros)
+      if (fullUser.two_factor_enabled) {
+        const tfaCode = req.headers['x-2fa-code'] as string;
+
+        if (!tfaCode) {
+          throw new AppError('Se requiere el código 2FA para autorizar este retiro.', 403);
+        }
+
+        const isValid2FA = TwoFactorService.verifyToken(fullUser.two_factor_secret!, tfaCode);
+        if (!isValid2FA) {
+          throw new AppError('Código 2FA inválido o expirado.', 401);
+        }
+      }
+
+      // B. Cool-down de Seguridad (Verificar cambios sensibles en las últimas 24hs)
+      const recentLogs = await userRepository.getActivityLogs(fullUser.id, 5);
+      const criticalActions = ['PASSWORD_CHANGED', '2FA_DISABLED', 'EMAIL_CHANGED'];
+
+      const hasRecentSecurityChange = recentLogs.some(log => {
+        const isCritical = criticalActions.includes(log.action);
+        const isRecent =
+          new Date().getTime() - new Date(log.created_at).getTime() < 24 * 60 * 60 * 1000;
+        return isCritical && isRecent;
+      });
+
+      if (hasRecentSecurityChange) {
+        throw new AppError(
+          'Por tu seguridad, los retiros están bloqueados durante 24hs tras un cambio de contraseña o configuración de seguridad.',
+          403
+        );
+      }
+
+      // 3. Procesar el retiro
       logger.info(
-        { userId: user.id, amount: validatedData.amount, methodId: validatedData.payoutMethodId },
-        '💰 Procesando solicitud de retiro'
+        { userId: fullUser.id, amount: validatedData.amount, currency: validatedData.currency },
+        '💰 Solicitud de retiro autorizada por seguridad'
       );
 
-      // 2. Llamar al servicio pasando el ID del método pre-configurado
       const payout = await PayoutService.requestPayout(
-        user.id,
+        fullUser.id,
         validatedData.amount,
         validatedData.currency,
         validatedData.payoutMethodId,
-        user.level
+        fullUser.level
       );
 
       res.status(201).json({
