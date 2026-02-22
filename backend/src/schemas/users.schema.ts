@@ -60,6 +60,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterPartnerInput = z.infer<typeof registerPartnerSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
 // --- FUNCIONES DE VALIDACIÓN ---
 
@@ -73,6 +74,15 @@ export function validateLogin(input: unknown) {
 
 export function validateRegisterPartner(input: unknown) {
   return registerPartnerSchema.safeParse(input);
+}
+
+/**
+ * Esquema para actualizaciones parciales
+ */
+export const updateUserSchema = userSchema.partial();
+
+export function validatePartialUser(input: unknown) {
+  return updateUserSchema.safeParse(input);
 }
 
 export function validatePasswordDetailed(value: string): { valid: boolean; errors: string[] } {

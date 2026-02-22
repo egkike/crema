@@ -102,24 +102,21 @@ export class UserController {
   }
 
   async updUser(req: Request, res: Response) {
-    const { id, fullname, level, active } = req.body;
+    const { id, ...dataToValidate } = req.body;
     if (!id) throw new AppError('ID requerido', 400);
 
-    // 1. Validamos los datos (esto devuelve un objeto que puede tener campos undefined)
-    const validation = validatePartialUser({ fullname, level, active });
+    const validation = validatePartialUser(dataToValidate);
+
     if (!validation.success) {
-      const errorMsg = JSON.parse(validation.error.message)[0]?.message;
-      throw new AppError(errorMsg || 'Datos inválidos', 400);
+      const firstError = validation.error.issues[0].message;
+      throw new AppError(firstError || 'Datos inválidos', 400);
     }
 
-    // 2. CREAMOS UN OBJETO LIMPIO: Solo incluimos lo que NO es undefined
-    // Esto satisface la restricción de 'exactOptionalPropertyTypes'
-    const updateData: any = {}; // Usamos any temporalmente para la construcción o definimos el tipo
-    if (validation.data.fullname !== undefined) updateData.fullname = validation.data.fullname;
-    if (validation.data.level !== undefined) updateData.level = validation.data.level;
-    if (validation.data.active !== undefined) updateData.active = validation.data.active;
+    // Esto crea un objeto limpio que solo contiene las llaves enviadas por el usuario
+    const updateData = Object.fromEntries(
+      Object.entries(validation.data).filter(([_, value]) => value !== undefined)
+    );
 
-    // 3. Pasamos el objeto limpio al repositorio
     const updated = await userRepository.updUser({
       id,
       input: updateData,
