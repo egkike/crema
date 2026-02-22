@@ -2,9 +2,13 @@ import { Router } from 'express';
 
 import { AuthController } from '../controllers/auth.controller';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
+import { loginSchema, registerPartnerSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/users.schema';
+import { validate } from '../middlewares/auth/validate.middleware';
 
 const router = Router();
 const authController = new AuthController();
+
+// --- AUTENTICACIÓN BÁSICA Y REGISTRO ---
 
 /**
  * @swagger
@@ -13,71 +17,73 @@ const authController = new AuthController();
  * summary: Registro manual exclusivo para Socios (Afiliados y Creadores)
  * tags: [Auth]
  */
-// 1. Añadimos el endpoint de registro (Sincronizado con AuthService)
-router.post('/register', authController.register.bind(authController));
+router.post('/register', validate(registerPartnerSchema), authController.register.bind(authController));
 
-/**
- * @swagger
- * /api/auth/verify-email:
- * get:
- * summary: Verifica la cuenta del usuario mediante un token enviado por email
- * tags: [Auth]
- */
 router.get('/verify-email', authController.verifyEmail.bind(authController));
 
-/**
- * @swagger
- * /api/auth/login:
- * post:
- * summary: Inicia sesión y genera tokens de acceso y refresco
- * tags: [Auth]
- */
-router.post('/login', authController.login.bind(authController));
+router.post('/login', validate(loginSchema), authController.login.bind(authController));
 
-/**
- * @swagger
- * /api/auth/refresh:
- * post:
- * summary: Renueva el access_token usando el refresh_token de las cookies
- * tags: [Auth]
- */
-// 2. Añadimos el refresh (que ya estaba en tu controlador)
 router.post('/refresh', authController.refresh.bind(authController));
 
-/**
- * @swagger
- * /api/auth/logout:
- * post:
- * summary: Cierra la sesión del usuario
- * tags: [Auth]
- */
 router.post('/logout', jwtAuthMiddleware, authController.logout.bind(authController));
 
-/**
- * @swagger
- * /api/auth/change-password-first-login:
- * post:
- * summary: Cambio de contraseña obligatorio en el primer ingreso
- * tags: [Auth]
- */
-router.post('/change-password-first-login', jwtAuthMiddleware, authController.changePasswordFirstLogin.bind(authController));
+// --- RECUPERACIÓN Y SEGURIDAD INICIAL ---
+
+router.post(
+  '/forgot-password', 
+  validate(forgotPasswordSchema), // Valida que venga un email real
+  authController.forgotPassword.bind(authController)
+);
+
+router.post(
+  '/reset-password', 
+  validate(resetPasswordSchema), // Valida token y robustez de pass
+  authController.resetPassword.bind(authController)
+);
+
+router.post(
+  '/change-password-first-login', 
+  jwtAuthMiddleware, 
+  authController.changePasswordFirstLogin.bind(authController)
+);
+
+// --- SECCIÓN 2FA (DOBLE FACTOR) ---
 
 /**
- * @swagger
- * /api/auth/forgot-password:
- * post:
- * summary: Solicita un enlace de recuperación de contraseña
- * tags: [Auth]
+ * Verificación de 2FA durante el Login (usa token parcial)
  */
-router.post('/forgot-password', authController.forgotPassword.bind(authController));
+router.post('/login/2fa', jwtAuthMiddleware, authController.verifyLogin2FA.bind(authController));
 
 /**
- * @swagger
- * /api/auth/reset-password:
- * post:
- * summary: Cambia la contraseña usando el token de recuperación
- * tags: [Auth]
+ * Configuración inicial de 2FA
  */
-router.post('/reset-password', authController.resetPassword.bind(authController));
+router.post('/2fa/setup', jwtAuthMiddleware, authController.setup2FA.bind(authController));
+
+/**
+ * Activación final de 2FA
+ */
+router.post('/2fa/verify', jwtAuthMiddleware, authController.verifyAndEnable2FA.bind(authController));
+
+// --- GESTIÓN DE SESIONES Y AUDITORÍA (FASE C & D) ---
+
+/**
+ * Obtiene el historial de acciones de seguridad del usuario
+ */
+router.get('/activity', jwtAuthMiddleware, authController.getActivity.bind(authController));
+
+/**
+ * Obtiene todas las sesiones activas
+ */
+router.get('/sessions', jwtAuthMiddleware, authController.getSessions.bind(authController));
+
+/**
+ * Cierra todas las sesiones excepto la actual (Botón de pánico)
+ */
+router.delete('/sessions/other', jwtAuthMiddleware, authController.revokeOtherSessions.bind(authController));
+
+/**
+ * Revoca una sesión específica por ID
+ */
+router.delete('/sessions/:sessionId', jwtAuthMiddleware, authController.revokeSession.bind(authController));
 
 export default router;

@@ -50,17 +50,27 @@ export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunctio
   // ASIGNACIÓN LIMPIA: TS ya sabe que req.user existe por express.d.ts
   req.user = user as typeof req.user;
 
-  // Validación de Primer Login (Flag Partial)
+  // Validación de Primer Login y 2FA (Flag Partial)
   if (user.partial) {
-    // Solo permitimos la ruta específica de cambio de contraseña
-    const isChangePasswordPath = req.path.includes('change-password-first');
+    // Definimos las rutas que SÍ pueden pasar con un token restringido
+    const allowedPaths = [
+      '/change-password-first-login', // Ajustado para coincidir con tus rutas
+      '/login/2fa', // Para completar el login con 2FA
+      '/2fa/verify', // Para la activación inicial del 2FA (si aplica)
+      '/logout', // Siempre permitir logout incluso en estado parcial
+    ];
 
-    if (!isChangePasswordPath) {
-      logger.warn({ userId: user.id }, 'Intento de acceso con token parcial');
+    const isAllowedPath = allowedPaths.some(path => req.path.endsWith(path));
+
+    if (!isAllowedPath) {
+      logger.warn(
+        { userId: user.id, path: req.path },
+        'Intento de acceso restringido con token parcial'
+      );
       return res.status(403).json({
         success: false,
-        mustChangePassword: true,
-        message: 'Acceso restringido: Debes completar el cambio de contraseña obligatorio.',
+        error: 'RESTRICTED_ACCESS',
+        message: 'Acceso restringido: Debes completar la verificación de seguridad pendiente.',
       });
     }
   }

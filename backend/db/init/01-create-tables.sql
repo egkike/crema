@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS users (
     verification_token_expires TIMESTAMP WITH TIME ZONE,
     reset_password_token TEXT,
     reset_password_expires TIMESTAMP WITH TIME ZONE,
+    two_factor_secret TEXT,
+    two_factor_enabled BOOLEAN DEFAULT FALSE,
+    two_factor_backup_codes JSONB DEFAULT '[]',
     createdate TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -77,7 +80,21 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     revoked BOOLEAN DEFAULT FALSE,
-    revoked_at TIMESTAMP WITH TIME ZONE
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    user_agent TEXT,
+    ip_address VARCHAR(45),
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    device_type VARCHAR(50); -- Ej: Mobile, Desktop, Tablet
+);
+
+-- Tabla para el Historial de Actividad (Auditoría)
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL, -- Ej: 'LOGIN_SUCCESS', 'PASSWORD_CHANGE', '2FA_ENABLED'
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Tabla para parámetros globales del sistema

@@ -11,18 +11,68 @@ const userSchema = z.object({
   active: z.number().int().min(0).max(1).default(0),
 });
 
+/**
+ * Esquema para Login: Permite identificar por email o username
+ */
+export const loginSchema = z
+  .object({
+    email: z.string().email().optional(),
+    username: z.string().optional(),
+    password: z.string().min(1, 'La contraseña es requerida'),
+  })
+  .refine(data => data.email || data.username, {
+    message: 'Debe proporcionar al menos el email o el nombre de usuario',
+    path: ['email'],
+  });
+
+/**
+ * Esquema para Registro de Socios: Requiere campos específicos y el token de captcha
+ */
+export const registerPartnerSchema = userSchema
+  .pick({
+    email: true,
+    password: true,
+    fullname: true,
+    level: true,
+  })
+  .extend({
+    captchaToken: z.string().min(1, 'El token de verificación es requerido'),
+  });
+
+/**
+ * Esquema para solicitar recuperación (Solo email)
+ */
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
+
+/**
+ * Esquema para resetear contraseña (Token + Password)
+ */
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'El token es requerido'),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+});
+
+// Tipos para exportar
 export type UserInput = z.infer<typeof userSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+export type RegisterPartnerInput = z.infer<typeof registerPartnerSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+// --- FUNCIONES DE VALIDACIÓN ---
 
 export function validateUser(input: unknown) {
   return userSchema.safeParse(input);
 }
 
-/**
- * Ahora validatePartialUser ya no dará error si falta el username,
- * lo cual es ideal para el login y el registro simplificado.
- */
-export function validatePartialUser(input: unknown) {
-  return userSchema.partial().safeParse(input);
+export function validateLogin(input: unknown) {
+  return loginSchema.safeParse(input);
+}
+
+export function validateRegisterPartner(input: unknown) {
+  return registerPartnerSchema.safeParse(input);
 }
 
 export function validatePasswordDetailed(value: string): { valid: boolean; errors: string[] } {

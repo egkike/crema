@@ -21,6 +21,9 @@ export interface UserBase {
 
 export interface UserWithPassword extends UserBase {
   password: string;
+  two_factor_secret?: string;
+  two_factor_enabled: boolean;
+  two_factor_backup_codes: string[]; // Guardados como JSONB en DB
 }
 
 export interface CreateUserInput {
@@ -45,6 +48,19 @@ export interface RefreshTokenRow {
   expires_at: Date;
   revoked: boolean;
   created_at: Date;
+  user_agent?: string;
+  ip_address?: string;
+  device_type?: string;
+  last_active?: Date;
+}
+
+export interface ActivityLog {
+  id: string;
+  user_id: string;
+  action: string;
+  ip_address: string;
+  user_agent: string;
+  created_at: Date;
 }
 
 export const userRepository = {
@@ -54,7 +70,9 @@ export const userRepository = {
   async findByCredentials(identifier: string): Promise<UserWithPassword | null> {
     const schema = config.db?.schema || 'public';
     const query = `
-      SELECT id, username, password, email, fullname, level, active, must_change_password, createdate, affiliate_slug
+      SELECT id, username, password, email, fullname, level, active, 
+             must_change_password, createdate, affiliate_slug,
+             two_factor_secret, two_factor_enabled, two_factor_backup_codes
       FROM "${schema}".users 
       WHERE username = $1 OR email = $1
     `;
@@ -86,13 +104,25 @@ export const userRepository = {
 
   // --- MÉTODOS DE REFRESH TOKEN ---
 
-  async saveRefreshToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
+  async saveRefreshToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: Date,
+    metadata?: { userAgent?: string; ip?: string; deviceType?: string }
+  ): Promise<void> {
     const schema = config.db?.schema || 'public';
     const query = `
-      INSERT INTO "${schema}".refresh_tokens (user_id, token_hash, expires_at)
-      VALUES ($1, $2, $3)
+      INSERT INTO "${schema}".refresh_tokens (user_id, token_hash, expires_at, user_agent, ip_address, device_type)
+      VALUES ($1, $2, $3, $4, $5, $6)
     `;
-    await pool.query(query, [userId, tokenHash, expiresAt]);
+    await pool.query(query, [
+      userId,
+      tokenHash,
+      expiresAt,
+      metadata?.userAgent || null,
+      metadata?.ip || null,
+      metadata?.deviceType || 'unknown',
+    ]);
   },
 
   async findRefreshToken(tokenHash: string): Promise<RefreshTokenRow | null> {
@@ -115,6 +145,27 @@ export const userRepository = {
     const schema = config.db?.schema || 'public';
     const query = `DELETE FROM "${schema}".refresh_tokens WHERE user_id = $1`;
     await pool.query(query, [userId]);
+  },
+
+  // Obtener todas las sesiones activas de un usuario
+  async getUserSessions(userId: string): Promise<RefreshTokenRow[]> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT id, user_id, token_hash, expires_at, created_at, user_agent, ip_address, device_type, last_active
+      FROM "${schema}".refresh_tokens 
+      WHERE user_id = $1 AND revoked = FALSE AND expires_at > CURRENT_TIMESTAMP
+      ORDER BY last_active DESC
+    `;
+    const { rows } = await pool.query<RefreshTokenRow>(query, [userId]);
+    return rows;
+  },
+
+  // Revocar sesión por ID (Cerrar sesión remota)
+  async revokeSessionById(sessionId: string, userId: string): Promise<boolean> {
+    const schema = config.db?.schema || 'public';
+    const query = `DELETE FROM "${schema}".refresh_tokens WHERE id = $1 AND user_id = $2`;
+    const result = await pool.query(query, [sessionId, userId]);
+    return (result.rowCount ?? 0) > 0;
   },
 
   // --- MÉTODOS DE GESTIÓN DE USUARIO ---
@@ -287,5 +338,90 @@ export const userRepository = {
       slug,
     ]);
     return rows[0] || null;
+  },
+
+  /**
+   * Guarda el secreto de 2FA pero NO lo activa todavía.
+   * El usuario debe verificar un código primero.
+   */
+  async update2FASecret(userId: string, secret: string, backupCodes: string[]): Promise<void> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      UPDATE "${schema}".users 
+      SET two_factor_secret = $1, 
+          two_factor_backup_codes = $2::jsonb,
+          two_factor_enabled = FALSE 
+      WHERE id = $3
+    `;
+    await pool.query(query, [secret, JSON.stringify(backupCodes), userId]);
+  },
+
+  /**
+   * Activa oficialmente el 2FA para el usuario.
+   */
+  async enable2FA(userId: string): Promise<void> {
+    const schema = config.db?.schema || 'public';
+    const query = `UPDATE "${schema}".users SET two_factor_enabled = TRUE WHERE id = $1`;
+    await pool.query(query, [userId]);
+  },
+
+  /**
+   * Desactiva el 2FA y limpia los secretos.
+   */
+  async disable2FA(userId: string): Promise<void> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      UPDATE "${schema}".users 
+      SET two_factor_enabled = FALSE, 
+          two_factor_secret = NULL, 
+          two_factor_backup_codes = '[]'::jsonb 
+      WHERE id = $1
+    `;
+    await pool.query(query, [userId]);
+  },
+
+  /**
+   * Elimina todas las sesiones de un usuario excepto la actual
+   */
+  async revokeOtherSessions(userId: string, currentTokenHash: string): Promise<number> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      DELETE FROM "${schema}".refresh_tokens 
+      WHERE user_id = $1 AND token_hash != $2
+    `;
+    const result = await pool.query(query, [userId, currentTokenHash]);
+    return result.rowCount ?? 0;
+  },
+
+  /**
+   * Registra una acción de seguridad en el historial
+   */
+  async addActivityLog(
+    userId: string,
+    action: string,
+    metadata: { ip?: string; userAgent?: string }
+  ): Promise<void> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      INSERT INTO "${schema}".activity_logs (user_id, action, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4)
+    `;
+    await pool.query(query, [userId, action, metadata.ip || null, metadata.userAgent || null]);
+  },
+
+  /**
+   * Obtiene los últimos logs de actividad de un usuario
+   */
+  async getActivityLogs(userId: string, limit: number = 20): Promise<ActivityLog[]> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT id, action, ip_address, user_agent, created_at
+      FROM "${schema}".activity_logs
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `;
+    const { rows } = await pool.query<ActivityLog>(query, [userId, limit]);
+    return rows;
   },
 };
