@@ -5,6 +5,7 @@ import { PayoutService } from '../services/payout.service';
 import { payoutRepository } from '../repositories/payout.repository';
 import { userRepository } from '../repositories/user.repository';
 import { TwoFactorService } from '../services/twoFactor.service';
+import { EmailService } from '../services/email.service';
 import { requestPayoutSchema } from '../schemas/payout.schema';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
@@ -31,7 +32,7 @@ class PayoutController {
           throw new AppError('Se requiere el código 2FA para autorizar este retiro.', 403);
         }
 
-        const isValid2FA = TwoFactorService.verifyToken(fullUser.two_factor_secret!, tfaCode);
+        const isValid2FA = TwoFactorService.verifyToken(tfaCode, fullUser.two_factor_secret!);
         if (!isValid2FA) {
           throw new AppError('Código 2FA inválido o expirado.', 401);
         }
@@ -53,6 +54,37 @@ class PayoutController {
           'Por tu seguridad, los retiros están bloqueados durante 24hs tras un cambio de contraseña o configuración de seguridad.',
           403
         );
+      }
+
+      // C. VALIDACIÓN DE DISPOSITIVO (Fingerprinting dinámico)
+      const currentIP = req.ip || req.socket.remoteAddress;
+      const currentUA = req.headers['user-agent'];
+
+      // Obtenemos las sesiones activas para comparar
+      const activeSessions = await userRepository.getUserSessions(fullUser.id);
+
+      // Verificamos si la solicitud actual "hace match" con alguna sesión registrada
+      // Nota: Somos flexibles con la IP si el User-Agent es idéntico (por IPs dinámicas móviles)
+      const isRecognizedSession = activeSessions.some(session => {
+        const sameUA = session.user_agent === currentUA;
+        const sameIP = session.ip_address === currentIP;
+        return sameUA || sameIP; // Al menos uno debe coincidir perfectamente
+      });
+
+      if (!isRecognizedSession) {
+        logger.warn(
+          { userId: fullUser.id, currentIP, currentUA },
+          '⚠️ Dispositivo no reconocido detectado en solicitud de retiro'
+        );
+
+        // Disparamos el email de advertencia (sin 'await' para no demorar la respuesta del API)
+        const securityMessage = `Se ha solicitado un retiro de dinero desde un dispositivo o ubicación que no sueles usar (IP: ${currentIP}). Si no fuiste tú, por favor cambia tu contraseña y contacta a soporte inmediatamente.`;
+
+        EmailService.sendSecurityAlert(
+          fullUser.email,
+          '⚠️ Actividad de retiro inusual - Crema',
+          securityMessage
+        ).catch(err => logger.error({ err }, 'Error enviando alerta de seguridad por email'));
       }
 
       // 3. Procesar el retiro
