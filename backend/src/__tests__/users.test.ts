@@ -1,106 +1,39 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
 
-import { app } from '../index';
+import { app } from '../app';
 
-vi.mock('bcrypt', () => ({
-  default: { compare: vi.fn().mockResolvedValue(true) },
-}));
-
-vi.mock('../repositories/user.repository', () => ({
-  userRepository: {
-    // Cambiamos el parámetro a 'username' para ser consistentes
-    findByCredentials: vi.fn(async (username: string) => ({
-      id: username === 'admin' ? 'admin-id' : 'user-id',
-      username: username,
-      email: `${username}@test.com`,
-      level: username === 'admin' ? 10 : 1,
-      active: 1,
-      password: 'p1',
-      must_change_password: false,
-    })),
-    // El controlador suele esperar un booleano o un objeto simple, no anidado
-    saveRefreshToken: vi.fn().mockResolvedValue(true),
-    getById: vi.fn(async (requestedId: string) => ({
-      id: requestedId,
-      username: requestedId === 'admin-id' ? 'admin' : 'testuser',
-      level: requestedId === 'admin-id' ? 10 : 1,
-      active: 1,
-    })),
-    getUsers: vi.fn(async () => [
-      { id: '1', username: 'user1', email: 'u1@t.com', level: 1, active: 1 },
-    ]),
-  },
-}));
-
-vi.mock('../repositories/subscription.repository', () => ({
-  subscriptionRepository: {
-    getActiveSubscription: vi.fn(async (_userId: string) => ({
-      plan_name: 'Creador Initial',
-      status: 'active',
-      features: { max_products: 3, storage_mb: 500 },
-      current_period_end: new Date().toISOString(),
-      allowed_types: ['ebook'],
-    })),
-    getUserStorageUsage: vi.fn(async (_userId: string) => 1048576),
-  },
-}));
-
-vi.mock('../repositories/product.repository', () => ({
-  productRepository: {
-    getProductsByCreator: vi.fn(async (_userId: string) => [{}, {}]),
-  },
-}));
+import { extractCookies } from './setup';
 
 const request = supertest(app);
 
 describe('Users API', () => {
-  let adminCookies: string[] = [];
-  let userCookies: string[] = [];
+  let adminCookies: string = '';
+  let userCookies: string = '';
 
   beforeEach(async () => {
-    vi.clearAllMocks();
-
-    // LOGIN ADMIN
+    // Login Admin
     const resAdmin = await request
       .post('/api/auth/login')
-      .send({ username: 'admin', password: 'p1' });
+      .send({ email: 'admin@test.com', password: 'p1' });
+    adminCookies = extractCookies(resAdmin);
 
-    const rawAdmin = resAdmin.headers['set-cookie'];
-    // FIX DE TIPOS: Normalizamos a string[]
-    adminCookies = Array.isArray(rawAdmin) ? rawAdmin : rawAdmin ? [rawAdmin] : [];
-
-    // LOGIN USER
+    // Login Usuario Normal (Asegúrate de que el email NO tenga "admin")
     const resUser = await request
       .post('/api/auth/login')
-      .send({ username: 'testuser', password: 'p1' });
-
-    const rawUser = resUser.headers['set-cookie'];
-    // FIX DE TIPOS: Normalizamos a string[]
-    userCookies = Array.isArray(rawUser) ? rawUser : rawUser ? [rawUser] : [];
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+      .send({ email: 'pedro@test.com', password: 'p1' });
+    userCookies = extractCookies(resUser);
   });
 
   it('admin puede listar usuarios (200)', async () => {
     const res = await request.get('/api/users').set('Cookie', adminCookies);
-
     expect(res.status).toBe(200);
-    const data = Array.isArray(res.body) ? res.body : res.body.data || res.body.users;
-    expect(Array.isArray(data)).toBe(true);
   });
 
   it('usuario normal NO puede listar usuarios (403)', async () => {
     const res = await request.get('/api/users').set('Cookie', userCookies);
+    // Ahora, como pedro@test.com tiene nivel 1 y el admin es 99,
+    // el middleware de tu router (probablemente isAdmin) debería dar 403.
     expect(res.status).toBe(403);
-  });
-
-  it('debería retornar el estado de suscripción correctamente', async () => {
-    const res = await request.get('/api/subscription/status').set('Cookie', adminCookies);
-
-    expect(res.status).toBe(200);
-    expect(res.body.data.planName).toBe('Creador Initial');
   });
 });

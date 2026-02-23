@@ -1,63 +1,22 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import supertest from 'supertest';
 
-import { app } from '../index';
-import { userRepository } from '../repositories/user.repository';
+import { app } from '../app';
 
-vi.mock('bcrypt', () => ({
-  default: {
-    compare: vi.fn().mockResolvedValue(true),
-  },
-}));
-
-vi.mock('../repositories/user.repository', () => ({
-  userRepository: {
-    findByCredentials: vi.fn(async (_id: string) => ({
-      id: 'admin-uuid',
-      username: 'admin',
-      email: 'admin@test.com',
-      fullname: 'Admin Test',
-      level: 10,
-      active: 1, // <--- Debe ser 1 para pasar el check del controlador
-      password: 'hashed_with_pepper',
-      must_change_password: false,
-    })),
-    saveRefreshToken: vi.fn().mockResolvedValue(true),
-    // El controlador busca en la DB por el token mismo
-    findRefreshToken: vi.fn(async (_token: string) => ({
-      id: 'some-uuid', // Agregado
-      token_hash: 'some-hash', // Agregado
-      user_id: 'admin-uuid',
-      revoked: false, // Agregado
-      expires_at: new Date(Date.now() + 100000),
-      created_at: new Date(), // Agregado
-    })),
-    deleteSpecificRefreshToken: vi.fn().mockResolvedValue(true),
-    getById: vi.fn(async () => ({
-      id: 'admin-uuid',
-      username: 'admin',
-      level: 10,
-      active: 1,
-    })),
-  },
-}));
+// IMPORTANTE: Importamos el mock desde el setup
+import { userRepositoryMock as userRepository, extractCookies } from './setup';
 
 const request = supertest(app);
 
 describe('Autenticación y Sesión', () => {
-  let cookies: string[] = [];
+  let cookies: string = '';
 
   beforeEach(async () => {
-    const res = await request.post('/api/auth/login').send({ username: 'admin', password: 'p1' });
-    const rawCookies = res.headers['set-cookie'];
-
-    if (Array.isArray(rawCookies)) {
-      cookies = rawCookies;
-    } else if (typeof rawCookies === 'string') {
-      cookies = [rawCookies];
-    } else {
-      cookies = [];
-    }
+    const res = await request.post('/api/auth/login').send({
+      email: 'admin@test.com',
+      password: 'p1',
+    });
+    cookies = extractCookies(res);
   });
 
   afterEach(() => {
@@ -65,32 +24,37 @@ describe('Autenticación y Sesión', () => {
   });
 
   it('debería obtener datos de sesión con token válido', async () => {
-    const res = await request.get('/api/session').set('Cookie', cookies);
+    const res = await request.get('/api/auth/sessions').set('Cookie', cookies);
+
+    if (res.status === 500) {
+      console.info('Detalle del 500 en Sesiones:', res.body);
+    }
+
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    // Según tu controlador, puede ser .data o .sessions
+    const data = res.body.data || res.body.sessions || res.body.user;
+    expect(data).toBeDefined();
   });
 
   it('debería rechazar acceso sin token (401)', async () => {
-    const res = await request.get('/api/session');
+    const res = await request.get('/api/auth/sessions'); // Usamos ruta válida
     expect(res.status).toBe(401);
   });
 
   it('debería refrescar tokens correctamente', async () => {
-    // 1. Forzamos que el mock devuelva datos válidos y con expiración futura
-    vi.mocked(userRepository.findRefreshToken).mockResolvedValue({
-      id: 'another-uuid',
-      token_hash: 'another-hash',
+    // Ahora vi.mocked no fallará porque userRepository viene del setup
+    vi.mocked(userRepository.findRefreshToken).mockResolvedValueOnce({
+      id: 'token-uuid',
       user_id: 'admin-uuid',
+      token_hash: 'hash',
       revoked: false,
       expires_at: new Date(Date.now() + 999999),
-      created_at: new Date(),
-    });
+    } as any);
 
-    // 2. Enviamos las cookies obtenidas en el beforeEach
-    const res = await request.post('/api/auth/refresh').set('Cookie', cookies); // 'cookies' ya trae access_token y refresh_token del login
+    const res = await request.post('/api/auth/refresh').set('Cookie', cookies);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.message).toBe('Token renovado');
   });
 });

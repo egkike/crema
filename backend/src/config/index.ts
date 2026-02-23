@@ -38,21 +38,22 @@ const envSchema = z.object({
 
 const isTest = process.env.NODE_ENV === 'test';
 
+// Forzamos valores fijos para tests que NUNCA dependan del timing de dotenv
+const TEST_CONFIG = {
+  SECRET_JWT_KEY: 'static-test-secret-32-chars-long-!!',
+  SECRET_REFRESH_JWT_KEY: 'static-refresh-secret-32-chars-long-!!',
+  DB_USER: 'test_user',
+  DB_PASSWORD: 'test_pass',
+  DB_NAME: 'test_db',
+  MERCADO_PAGO_ACCESS_TOKEN: 'test_access_token_min_30_chars_long',
+  MERCADO_PAGO_PUBLIC_KEY: 'test_public_key_min_30_chars_long',
+};
+
 // --- TRUCO PARA TESTS ---
 // Si estamos en test, creamos un objeto con valores mínimos para que Zod no explote.
 // Si no, usamos el process.env real.
 const rawData = isTest
-  ? {
-      ...process.env,
-      SECRET_JWT_KEY: process.env.SECRET_JWT_KEY || 'a-dummy-secret-at-least-32-chars-long!!',
-      DB_USER: process.env.DB_USER || 'test_user',
-      DB_PASSWORD: process.env.DB_PASSWORD || 'test_pass',
-      DB_NAME: process.env.DB_NAME || 'test_db',
-      MERCADO_PAGO_ACCESS_TOKEN:
-        process.env.MERCADO_PAGO_ACCESS_TOKEN || 'test_access_token_min_30_chars_long',
-      MERCADO_PAGO_PUBLIC_KEY:
-        process.env.MERCADO_PAGO_PUBLIC_KEY || 'test_public_key_min_30_chars_long',
-    }
+? { ...process.env, ...TEST_CONFIG } // TEST_CONFIG pisa cualquier variable de entorno en test
   : process.env;
 
 const parsedEnv = envSchema.safeParse(rawData);
@@ -107,9 +108,9 @@ export const config = {
     from: env.EMAIL_FROM,
   },
   redis: {
-    host: env.REDIS_HOST,
-    port: env.REDIS_PORT,
-    password: env.REDIS_PASSWORD,
+    host: process.env.REDIS_HOST || 'localhost',
+    port: Number(process.env.REDIS_PORT) || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
   },
   apiBaseUrl: (env.API_BASE_URL || `http://localhost:${env.PORT}`).trim().replace(/\/$/, ''),
   frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),
