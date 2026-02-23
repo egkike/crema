@@ -22,22 +22,19 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     const validatedData = createProductSchema.parse(req.body);
 
-    // DETERMINAR EL TAMAÑO REAL
-    // Si hay archivo, usamos su tamaño real. Si no, usamos lo que vino por body (ej: para links externos)
+    // 1. Validar Espacio en Disco
     const finalSizeBytes = file ? file.size : validatedData.sizeBytes || 0;
-
-    // RE-VALIDACIÓN DE SEGURIDAD (Por si el body mentía)
     const currentUsage = await subscriptionRepository.getUserStorageUsage(user.id);
     const subscription = await subscriptionRepository.getActiveSubscription(user.id);
     const storageLimitBytes = (subscription?.features?.storage_mb || 0) * 1024 * 1024;
 
     if (currentUsage + finalSizeBytes > storageLimitBytes) {
-      throw new AppError('El archivo excede el espacio disponible en tu plan.', 403);
+      // Si falla, borramos el archivo de temp inmediatamente
+      if (file) fs.unlinkSync(file.path);
+      throw new AppError('Espacio insuficiente en tu plan.', 403);
     }
 
-    // Lógica de subida a la nube (S3/Cloudinary) aquí...
-    // const contentUrl = await CloudService.upload(file.buffer);
-
+    // 2. Preparar Datos Base
     const requestedComm = validatedData.commissionPercent ?? 0;
     await ProductService.validateCommissionLimits(user.id, requestedComm);
 
@@ -51,18 +48,40 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       type: validatedData.type,
       prices: validatedData.prices,
       description: validatedData.description ?? undefined,
-      contentUrl: file ? `/uploads/${file.filename}` : validatedData.contentUrl,
-      commissionPercent: validatedData.commissionPercent ?? undefined,
-      status: validatedData.status ?? undefined,
+      contentUrl: validatedData.contentUrl, // Temporalmente el del body si existe
+      commissionPercent: requestedComm,
+      status: validatedData.status ?? 'published',
       sizeBytes: finalSizeBytes,
       guaranteeDays: validatedData.guaranteeDays ?? undefined,
     };
 
-    logger.info({ creatorId: user.id, slug: uniqueSlug }, 'Creando nuevo producto');
+    // 3. Crear en DB para obtener el ID
     const product = await productRepository.createProduct(productInput);
+
+    // 4. Mover archivo de TEMP a carpeta ORGANIZADA
+    if (file) {
+      const relativeFolder = path.join('uploads', user.id, product.id);
+      const absoluteFolder = path.join(process.cwd(), relativeFolder);
+
+      if (!fs.existsSync(absoluteFolder)) {
+        fs.mkdirSync(absoluteFolder, { recursive: true });
+      }
+
+      const finalPath = path.join(absoluteFolder, file.filename);
+      fs.renameSync(file.path, finalPath);
+
+      // Normalizamos la ruta para que siempre use "/" (evita errores en Windows)
+      const dbRelativeUrl = `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
+      await productRepository.updateProduct(product.id, { contentUrl: dbRelativeUrl });
+      product.content_url = dbRelativeUrl;
+    }
 
     res.status(201).json({ success: true, data: product });
   } catch (error: any) {
+    // LIMPIEZA: Si algo falló (DB, validación), borramos el archivo de la carpeta temp
+    if ((req as any).file && fs.existsSync((req as any).file.path)) {
+      fs.unlinkSync((req as any).file.path);
+    }
     if (error instanceof z.ZodError) {
       const message = error.issues.map(issue => issue.message).join('. ');
       return next(new AppError(`Error de validación: ${message}`, 400));
@@ -171,14 +190,33 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     const storageLimitBytes = (subscription?.features?.storage_mb || 0) * 1024 * 1024;
 
     if (currentUsage - oldFileSize + newFileSize > storageLimitBytes) {
+      if (file) fs.unlinkSync(file.path); // Limpiar temp si excede
       throw new AppError('La actualización excede el espacio de almacenamiento de tu plan.', 403);
     }
 
-    // 4. Procesar actualización
+    // 4. Gestión de archivo nuevo y limpieza del viejo
+    let finalContentUrl = existingProduct.content_url;
+    if (file) {
+      const relativeFolder = path.join('uploads', user.id, productId);
+      const absoluteFolder = path.join(process.cwd(), relativeFolder);
+      if (!fs.existsSync(absoluteFolder)) fs.mkdirSync(absoluteFolder, { recursive: true });
+
+      const finalPath = path.join(absoluteFolder, file.filename);
+      fs.renameSync(file.path, finalPath);
+
+      // Borrar archivo físico anterior si existía
+      if (existingProduct.content_url && existingProduct.content_url.startsWith('/uploads/')) {
+        const oldAbsolutePath = path.join(process.cwd(), existingProduct.content_url.substring(1));
+        if (fs.existsSync(oldAbsolutePath)) fs.unlinkSync(oldAbsolutePath);
+      }
+
+      finalContentUrl = `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
+    }
+
     const productInput: Partial<ProductInput> = {
       ...req.body,
       sizeBytes: newFileSize,
-      contentUrl: file ? `/uploads/${file.filename}` : undefined,
+      contentUrl: finalContentUrl,
     };
 
     // Validar comisión si se intenta cambiar
@@ -188,19 +226,11 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
     const updated = await productRepository.updateProduct(productId, productInput);
 
-    if (
-      file &&
-      existingProduct.content_url &&
-      existingProduct.content_url.startsWith('/uploads/')
-    ) {
-      const oldPath = path.join(__dirname, '../../', existingProduct.content_url);
-      fs.unlink(oldPath, err => {
-        if (err) logger.error({ err, oldPath }, 'No se pudo eliminar el archivo antiguo del disco');
-      });
-    }
-
     res.status(200).json({ success: true, data: updated });
   } catch (error) {
+    if ((req as any).file && fs.existsSync((req as any).file.path)) {
+      fs.unlinkSync((req as any).file.path);
+    }
     next(error);
   }
 };
@@ -225,13 +255,10 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
     // 3. Borrar de la base de datos
     await productRepository.deleteProduct(productId);
 
-    // 4. Borrar archivo físico si existe
-    if (product.content_url && product.content_url.startsWith('/uploads/')) {
-      const filePath = path.join(__dirname, '../../', product.content_url);
-      fs.unlink(filePath, err => {
-        if (err)
-          logger.error({ err, filePath }, 'Error al borrar archivo físico tras eliminar producto');
-      });
+    // Borrar CARPETA del producto completa (más limpio)
+    const productDir = path.join(process.cwd(), 'uploads', product.creator_id, product.id);
+    if (fs.existsSync(productDir)) {
+      fs.rmSync(productDir, { recursive: true, force: true });
     }
 
     logger.info({ productId, userId: user.id }, 'Producto eliminado correctamente');

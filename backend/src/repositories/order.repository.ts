@@ -140,6 +140,38 @@ export const orderRepository = {
     return rows.length > 0;
   },
 
+  /**
+   * Verifica autoría y compra en una sola consulta
+   * Ideal para optimizar middlewares de acceso.
+   */
+  async verifyAccess(
+    userId: string,
+    productId: string
+  ): Promise<{ isOwner: boolean; hasPaid: boolean }> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT 
+        (p.creator_id = $1) as "isOwner",
+        EXISTS (
+          SELECT 1 FROM "${schema}".orders 
+          WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
+        ) as "hasPaid"
+      FROM "${schema}".products p
+      WHERE p.id = $2;
+    `;
+
+    const { rows } = await pool.query(query, [userId, productId]);
+
+    if (rows.length === 0) {
+      return { isOwner: false, hasPaid: false };
+    }
+
+    return {
+      isOwner: !!rows[0].isOwner,
+      hasPaid: !!rows[0].hasPaid,
+    };
+  },
+
   async getById(orderId: string, client?: any): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const db = client || pool;

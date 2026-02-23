@@ -1,39 +1,35 @@
 import { Request, Response, NextFunction } from 'express';
 
 import { orderRepository } from '../../repositories/order.repository';
-import { productRepository } from '../../repositories/product.repository';
 import { configRepository } from '../../repositories/config.repository';
 import { AppError } from '../../errors/AppError';
+import logger from '../../utils/logger';
 
-// src/middlewares/checkAccess.middleware.ts
 export const checkContentAccess = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
     const { productId } = req.params;
 
-    if (!user?.id || !productId) {
-      throw new AppError('Acceso denegado: Identificación incompleta', 400);
+    // Validación estricta de entrada
+    if (!user?.id || !productId || typeof productId !== 'string') {
+      throw new AppError('Acceso denegado: Identificación o ID de producto no válido', 400);
     }
 
-// 1. Admin dinámico (Nivel 99 por defecto en DB)
+    // 1. Admin dinámico (Nivel 99 por defecto en DB)
     const levels = await configRepository.getUserLevels();
     if (user.level >= levels.ADMIN) return next();
 
-    // 2. Buscamos el producto para ver quién es el dueño
-    const product = await productRepository.getProductById(productId as string);
-    if (!product) throw new AppError('Producto no encontrado', 404);
+    // 2. UN SOLO VIAJE: Verificamos autoría y compra simultáneamente
+    const { isOwner, hasPaid } = await orderRepository.verifyAccess(user.id, productId as string);
 
-    // 3. Si es el creador del producto, tiene acceso
-    if (product.creator_id === user.id) return next();
-
-    // 4. Verificamos si tiene una compra exitosa y no reembolsada
-    const hasAccess = await orderRepository.checkAccess(user.id, productId as string);
-
-    if (!hasAccess) {
-      throw new AppError('No tienes permiso para acceder a este contenido.', 403);
+    // 3. Lógica de decisión
+    if (isOwner || hasPaid) {
+      return next();
     }
 
-    next();
+    // Si llegó aquí, no es admin, no es dueño y no pagó
+    logger.warn({ userId: user.id, productId }, 'Intento de acceso no autorizado');
+    throw new AppError('No tienes permiso para acceder a este contenido.', 403);
   } catch (error) {
     next(error);
   }

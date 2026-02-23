@@ -41,20 +41,31 @@ export const getProductContent = async (req: Request, res: Response, next: NextF
       });
     }
 
-    // CASO B: Es un archivo local en la carpeta /uploads
+    // CASO B: Archivo local (Estructura organizada /uploads/userId/productId/...)
     if (content.contentUrl && content.contentUrl.startsWith('/uploads/')) {
-      const filePath = path.join(__dirname, '../../', content.contentUrl);
+      // Quitamos el primer '/' para que path.join trabaje desde la raíz del proyecto
+      const relativePath = content.contentUrl.startsWith('/')
+        ? content.contentUrl.substring(1)
+        : content.contentUrl;
+
+      const filePath = path.join(process.cwd(), relativePath);
 
       if (!fs.existsSync(filePath)) {
         logger.error({ filePath, productId }, 'Archivo físico no encontrado en el servidor');
-        throw new AppError(
-          'El archivo solicitado no se encuentra físicamente en el servidor.',
-          404
-        );
+        throw new AppError('El archivo no existe en el servidor.', 404);
       }
 
-      // Enviamos el archivo directamente
-      return res.sendFile(filePath);
+      // Extraer nombre original para que el usuario no vea el prefijo de Multer
+      // Multer guarda: 171234567-archivo.zip -> Usuario descarga: archivo.zip
+      const fileName = path.basename(filePath);
+      const cleanName = fileName.includes('-') ? fileName.split('-').slice(1).join('-') : fileName;
+
+      // res.download gestiona automáticamente los headers y el streaming
+      return res.download(filePath, cleanName, err => {
+        if (err) {
+          logger.error({ err, filePath }, 'Error durante la descarga del archivo');
+        }
+      });
     }
 
     // Caso por defecto (si no hay URL definida todavía)
@@ -64,10 +75,9 @@ export const getProductContent = async (req: Request, res: Response, next: NextF
       data: content,
     });
   } catch (error: any) {
-    // LOG: Error detallado
     logger.error(
       { error: error.message, userId: req.user?.id, productId: req.params.productId },
-      'Error al entregar contenido'
+      'Error al intentar entregar contenido'
     );
     next(error);
   }
