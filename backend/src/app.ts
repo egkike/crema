@@ -13,6 +13,7 @@ import logger from './utils/logger';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import productsRoutes from './routes/products.routes';
+import learningRoutes from './routes/learning.routes';
 import paymentsRouter from './routes/payments.routes';
 import balanceRoutes from './routes/balance.routes';
 import refundRoutes from './routes/refund.routes';
@@ -44,8 +45,10 @@ app.use(
           'https://*.mercadopago.com',
         ],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https://images.unsplash.com', 'https://via.placeholder.com'],
-        connectSrc: ["'self'", 'https://*.mercadopago.com'],
+        imgSrc: ["'self'", 'data:', 'https://images.unsplash.com', 'https://via.placeholder.com', 'https://*.cloudflarestream.com'],
+        mediaSrc: ["'self'", 'blob:', 'https://*.cloudflarestream.com'],
+        frameSrc: ["'self'", 'https://*.cloudflarestream.com'],
+        connectSrc: ["'self'", 'https://*.mercadopago.com', 'https://*.cloudflarestream.com'],
         fontSrc: [
           "'self'",
           'data:',
@@ -109,6 +112,7 @@ app.use('/api/payments', paymentsRouter);
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api/learning', learningRoutes);
 app.use('/api/balances', balanceRoutes);
 app.use('/api/refunds', refundRoutes);
 app.use('/api/payouts', payoutRoutes);

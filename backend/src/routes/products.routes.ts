@@ -1,63 +1,40 @@
 import { Router } from 'express';
 
 import { productController } from '../controllers/product.controller';
-import { contentController } from '../controllers/content.controller';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
-import { checkContentAccess } from '../middlewares/checkAccess/checkAccess.middleware';
 import { checkPlanLimits } from '../middlewares/auth/checkPlanLimits.middleware';
 import { affiliateTracking } from '../middlewares/tracking/affiliateTracking.middleware';
 import { upload } from '../middlewares/storage/upload.middleware';
 
 const router = Router();
 
-// 1. RUTA PÚBLICA: Ver producto y Tracking (DEBE IR ANTES DEL MIDDLEWARE GLOBAL)
+/**
+ * 1. RUTA PÚBLICA: Ver producto y Tracking
+ */
 router.get('/:productId', affiliateTracking, productController.getProductById);
 
-// --- RUTAS PROTEGIDAS (Requieren Login) ---
+// --- RUTAS PROTEGIDAS ---
 router.use(jwtAuthMiddleware);
 
 /**
- * Dashboard de Aprendizaje
- * Muestra todos los productos comprados por el usuario con su progreso (%)
- * Se coloca arriba para que ':productId' no capture la palabra 'my-learning'
- */
-router.get('/learning/my-dashboard', contentController.getMyLearningDashboard);
-
-/**
- * Actualizar Progreso de Lección
- * El body debe incluir: { productId, lessonId, completed }
- */
-router.post('/learning/progress', contentController.updateLessonProgress);
-
-/**
  * Marketplace Filtrado
- * Solo muestra productos que el usuario puede cobrar según sus monedas configuradas.
  */
 router.get('/marketplace/compatible', productController.getMyAvailableMarketplace);
 
 /**
  * Unirse como Afiliado
- * Permite que el usuario se vincule a un producto para empezar a venderlo.
- * restrictTo('AFFILIATE') o el rol que manejes para nivel 2.
  */
-router.post(
-  '/:productId/join',
-  restrictTo('AFFILIATE'), // Ajustar según tus roles ('CREATOR' también suele poder)
-  productController.joinProductProgram
-);
+router.post('/:productId/join', restrictTo('AFFILIATE'), productController.joinProductProgram);
 
 /**
- * 2. Crear Producto - Ahora usa el rol 'CREATOR' de la DB
+ * 2. Crear Producto
  */
 router.post(
   '/create',
   restrictTo('CREATOR'),
-  // 1. Validación previa (basada en el body.sizeBytes que estima el front)
   checkPlanLimits,
-  // 2. Recibimos el archivo real
   upload.single('file'),
-  // 3. Controlador
   productController.createProduct
 );
 
@@ -73,16 +50,13 @@ router.put(
 );
 
 /**
- * 2.2 Elimina Producto
+ * 2.2 Eliminar Producto
  */
 router.delete('/:productId', restrictTo('CREATOR'), productController.deleteProduct);
 
-// 3. Listar propios
+/**
+ * 3. Listar propios (Panel del Creador)
+ */
 router.get('/my-products', (req, res, next) => productController.getMyProducts(req, res, next));
-
-// 4. Acceso al contenido (Validación de compra/acceso)
-router.get('/:productId/content', checkContentAccess, (req, res, next) =>
-  contentController.getProductContent(req, res, next)
-);
 
 export default router;
