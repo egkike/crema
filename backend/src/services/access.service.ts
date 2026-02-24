@@ -33,6 +33,7 @@ export class AccessService {
       type: product.type,
       contentUrl: product.content_url,
       description: product.description,
+      has_structured_content: product.has_structured_content,
       updatedAt: product.updated_at,
     };
   }

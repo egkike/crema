@@ -34,6 +34,9 @@ const envSchema = z.object({
   REDIS_HOST: z.string().default('127.0.0.1'),
   REDIS_PORT: z.coerce.number().default(6379),
   REDIS_PASSWORD: z.string().optional(), // Por si usas Redis con pass en prod
+  CLOUDFLARE_ACCOUNT_ID: z.string().optional().default(''),
+  CLOUDFLARE_STREAM_KEY_ID: z.string().optional().default(''),
+  CLOUDFLARE_STREAM_KEY_SECRET: z.string().optional().default(''),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -47,6 +50,10 @@ const TEST_CONFIG = {
   DB_NAME: 'test_db',
   MERCADO_PAGO_ACCESS_TOKEN: 'test_access_token_min_30_chars_long',
   MERCADO_PAGO_PUBLIC_KEY: 'test_public_key_min_30_chars_long',
+  // Valores fake para tests
+  CLOUDFLARE_ACCOUNT_ID: 'test_account_id',
+  CLOUDFLARE_STREAM_KEY_ID: 'test_key_id',
+  CLOUDFLARE_STREAM_KEY_SECRET: 'test_key_secret',
 };
 
 // --- TRUCO PARA TESTS ---
@@ -111,6 +118,11 @@ export const config = {
     host: process.env.REDIS_HOST || 'localhost',
     port: Number(process.env.REDIS_PORT) || 6379,
     password: process.env.REDIS_PASSWORD || undefined,
+  },
+  streaming: {
+    cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
+    cloudflareKeyId: env.CLOUDFLARE_STREAM_KEY_ID,
+    cloudflareKeySecret: env.CLOUDFLARE_STREAM_KEY_SECRET,
   },
   apiBaseUrl: (env.API_BASE_URL || `http://localhost:${env.PORT}`).trim().replace(/\/$/, ''),
   frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),

@@ -9,6 +9,25 @@ export interface ProductPrice {
   amount: number;
 }
 
+// Interfaz para lecciones
+export interface LessonInput {
+  title: string;
+  description?: string;
+  contentType: string;
+  contentUrl?: string;
+  bodyText?: string;
+  durationSeconds?: number;
+  isPreview?: boolean;
+  orderIndex?: number;
+}
+
+// Interfaz para módulos
+export interface ModuleInput {
+  title: string;
+  orderIndex?: number;
+  lessons: LessonInput[];
+}
+
 export interface Product {
   id: string;
   slug: string;
@@ -19,6 +38,7 @@ export interface Product {
   content_url?: string | null;
   affiliate_commission_percent: number;
   size_bytes: number;
+  has_structured_content: boolean;
   status: string;
   guarantee_days: number | null;
   created_at: Date;
@@ -38,6 +58,8 @@ export interface ProductInput {
   status?: string | undefined;
   sizeBytes?: number | undefined;
   guaranteeDays?: number | undefined;
+  hasStructuredContent?: boolean;
+  modules?: ModuleInput[];
 }
 
 // --- REPOSITORIO ---
@@ -54,6 +76,7 @@ export const productRepository = {
       content_url: row.content_url || row.contentUrl,
       affiliate_commission_percent: Number(row.affiliate_commission_percent),
       size_bytes: row.size_bytes ? Number(row.size_bytes) : 0,
+      has_structured_content: !!row.has_structured_content,
       status: row.status,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -69,11 +92,13 @@ export const productRepository = {
     try {
       await client.query('BEGIN');
 
+      // 1. Insertar el Producto base
       const productQuery = `
         INSERT INTO "${schema}".products (
           creator_id, title, slug, description, type, content_url, 
-          affiliate_commission_percent, size_bytes, status, guarantee_days
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          affiliate_commission_percent, size_bytes, status, guarantee_days,
+          has_structured_content
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *;
       `;
 
@@ -84,14 +109,17 @@ export const productRepository = {
         input.description ?? null,
         input.type,
         input.contentUrl ?? null,
-        input.commissionPercent ?? 50.0,
+        input.commissionPercent ?? 10.0,
         input.sizeBytes ?? 0,
-        input.status ?? 'published',
+        input.status ?? 'draft',
         input.guaranteeDays ?? null,
+        input.hasStructuredContent ?? false,
       ]);
 
       const productRow = productRes.rows[0];
+      const productId = productRow.id;
 
+      // 2. Insertar Precios (Bulk)
       if (input.prices && input.prices.length > 0) {
         const values: any[] = [];
         const valueRows: string[] = [];
@@ -99,7 +127,7 @@ export const productRepository = {
         input.prices.forEach((p, index) => {
           const offset = index * 3;
           valueRows.push(`($${offset + 1}, $${offset + 2}, $${offset + 3})`);
-          values.push(productRow.id, p.currency, p.amount);
+          values.push(productId, p.currency, p.amount);
         });
 
         const priceBulkQuery = `
@@ -107,6 +135,45 @@ export const productRepository = {
           VALUES ${valueRows.join(', ')};
         `;
         await client.query(priceBulkQuery, values);
+      }
+
+      // 3. Insertar Contenido Estructurado (Módulos y Lecciones)
+      if (input.hasStructuredContent && input.modules && input.modules.length > 0) {
+        for (const mod of input.modules) {
+          // Insertar Módulo
+          const modRes = await client.query(
+            `
+            INSERT INTO "${schema}".product_modules (product_id, title, order_index)
+            VALUES ($1, $2, $3) RETURNING id;
+          `,
+            [productId, mod.title, mod.orderIndex ?? 0]
+          );
+
+          const moduleId = modRes.rows[0].id;
+
+          // Insertar Lecciones del Módulo
+          for (const lesson of mod.lessons) {
+            await client.query(
+              `
+              INSERT INTO "${schema}".product_lessons (
+                module_id, title, description, content_type, content_url, 
+                body_text, duration_seconds, is_preview, order_index
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+            `,
+              [
+                moduleId,
+                lesson.title,
+                lesson.description ?? null,
+                lesson.contentType ?? 'video',
+                lesson.contentUrl ?? null,
+                lesson.bodyText ?? null,
+                lesson.durationSeconds ?? 0,
+                lesson.isPreview ?? false,
+                lesson.orderIndex ?? 0,
+              ]
+            );
+          }
+        }
       }
 
       await client.query('COMMIT');
@@ -210,6 +277,7 @@ export const productRepository = {
         sizeBytes: 'size_bytes',
         status: 'status',
         guaranteeDays: 'guarantee_days',
+        hasStructuredContent: 'has_structured_content',
       };
 
       for (const [key, dbField] of Object.entries(fieldMap)) {
@@ -315,5 +383,166 @@ export const productRepository = {
       logger.error({ error: error.message, ids }, 'Error obteniendo productos por lista de IDs');
       throw error;
     }
+  },
+
+  /**
+   * Obtiene el contenido anidado y procesa las URLs de streaming
+   */
+  async getProductWithNestedContent(productId: string, userId: string): Promise<any> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+    SELECT p.*,
+    (
+      SELECT json_agg(m_data)
+      FROM (
+        SELECT m.id, m.title, m.order_index,
+        (
+          SELECT json_agg(l_data)
+          FROM (
+            SELECT l.id, l.title, l.description, l.content_type, l.content_url, 
+                   l.body_text, l.duration_seconds, l.order_index, l.is_preview,
+                   EXISTS (
+                     SELECT 1 FROM "${schema}".user_lessons_progress ulp 
+                     WHERE ulp.lesson_id = l.id AND ulp.user_id = $2
+                   ) as is_completed
+            FROM "${schema}".product_lessons l
+            WHERE l.module_id = m.id
+            ORDER BY l.order_index ASC
+          ) l_data
+        ) as lessons
+        FROM "${schema}".product_modules m
+        WHERE m.product_id = p.id
+        ORDER BY m.order_index ASC
+      ) m_data
+    ) as modules
+    FROM "${schema}".products p
+    WHERE p.id = $1;
+  `;
+    const { rows } = await pool.query(query, [productId, userId]);
+    const product = rows[0];
+
+    // Si el producto no existe o no tiene módulos, retornamos temprano
+    if (!product || !product.modules) {
+      return product;
+    }
+
+    // --- PROCESAMIENTO DE STREAMING SEGURO ---
+    // Importación dinámica para evitar dependencias circulares y cargar solo cuando sea necesario
+    try {
+      const { streamingUtil } = await import('../utils/streaming.util');
+
+      // Usamos Promise.all para procesar todas las lecciones de forma asíncrona y eficiente
+      await Promise.all(
+        product.modules.map(async (mod: any) => {
+          if (mod.lessons) {
+            await Promise.all(
+              mod.lessons.map(async (lesson: any) => {
+                // Si la lección es un video, firmamos la URL
+                if (lesson.content_type === 'video' && lesson.content_url) {
+                  lesson.content_url = await streamingUtil.getSignedUrl(
+                    lesson.content_url,
+                    'video'
+                  );
+                }
+              })
+            );
+          }
+        })
+      );
+    } catch {
+      logger.error('Error al procesar URLs firmadas de streaming en el repositorio');
+      // No bloqueamos la entrega del contenido si falla el firmado,
+      // pero el video podría no reproducirse si el provider es estricto.
+    }
+
+    return product;
+  },
+
+  async toggleLessonProgress(
+    userId: string,
+    productId: string,
+    lessonId: string,
+    completed: boolean
+  ): Promise<void> {
+    const schema = config.db?.schema || 'public';
+    if (completed) {
+      await pool.query(
+        `
+      INSERT INTO "${schema}".user_lessons_progress (user_id, product_id, lesson_id)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, lesson_id) DO NOTHING;
+    `,
+        [userId, productId, lessonId]
+      );
+    } else {
+      await pool.query(
+        `
+      DELETE FROM "${schema}".user_lessons_progress 
+      WHERE user_id = $1 AND lesson_id = $2;
+    `,
+        [userId, lessonId]
+      );
+    }
+  },
+
+  async getUserProductProgress(
+    productId: string,
+    userId: string
+  ): Promise<{
+    total_lessons: number;
+    completed_lessons: number;
+    percent: number;
+  }> {
+    const schema = config.db?.schema || 'public';
+
+    // Esta consulta cuenta el total de lecciones del producto
+    // y cuántas existen en la tabla de progreso para ese usuario.
+    const query = `
+      SELECT 
+        COUNT(l.id) as total_lessons,
+        COUNT(ulp.lesson_id) as completed_lessons
+      FROM "${schema}".product_lessons l
+      JOIN "${schema}".product_modules m ON l.module_id = m.id
+      LEFT JOIN "${schema}".user_lessons_progress ulp ON l.id = ulp.lesson_id AND ulp.user_id = $2
+      WHERE m.product_id = $1;
+    `;
+
+    const { rows } = await pool.query(query, [productId, userId]);
+    const total = parseInt(rows[0].total_lessons, 10) || 0;
+    const completed = parseInt(rows[0].completed_lessons, 10) || 0;
+
+    // Cálculo del porcentaje evitando división por cero
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return {
+      total_lessons: total,
+      completed_lessons: completed,
+      percent,
+    };
+  },
+
+  async getMyPurchasedProductsWithProgress(userId: string): Promise<any[]> {
+    const schema = config.db?.schema || 'public';
+
+    const query = `
+      SELECT 
+        p.id, p.title, p.slug, p.type,
+        COUNT(l.id) as total_lessons,
+        COUNT(ulp.lesson_id) as completed_lessons,
+        CASE 
+          WHEN COUNT(l.id) > 0 THEN ROUND((COUNT(ulp.lesson_id)::float / COUNT(l.id)::float) * 100)
+          ELSE 0 
+        END as progress_percent
+      FROM "${schema}".user_products up
+      JOIN "${schema}".products p ON up.product_id = p.id
+      LEFT JOIN "${schema}".product_modules m ON p.id = m.product_id
+      LEFT JOIN "${schema}".product_lessons l ON m.id = l.module_id
+      LEFT JOIN "${schema}".user_lessons_progress ulp ON l.id = ulp.lesson_id AND ulp.user_id = $1
+      WHERE up.user_id = $1
+      GROUP BY p.id, p.title, p.slug, p.type;
+    `;
+
+    const { rows } = await pool.query(query, [userId]);
+    return rows;
   },
 };

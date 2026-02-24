@@ -20,7 +20,7 @@ export const checkContentAccess = async (req: Request, res: Response, next: Next
     if (user.level >= levels.ADMIN) return next();
 
     // 2. UN SOLO VIAJE: Verificamos autoría y compra simultáneamente
-    const { isOwner, hasPaid } = await orderRepository.verifyAccess(user.id, productId as string);
+    const { isOwner, hasPaid } = await orderRepository.verifyAccess(user.id, productId);
 
     // 3. Lógica de decisión
     if (isOwner || hasPaid) {

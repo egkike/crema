@@ -18,13 +18,26 @@ router.get('/:productId', affiliateTracking, productController.getProductById);
 router.use(jwtAuthMiddleware);
 
 /**
- * NUEVA: Marketplace Filtrado
+ * Dashboard de Aprendizaje
+ * Muestra todos los productos comprados por el usuario con su progreso (%)
+ * Se coloca arriba para que ':productId' no capture la palabra 'my-learning'
+ */
+router.get('/learning/my-dashboard', contentController.getMyLearningDashboard);
+
+/**
+ * Actualizar Progreso de Lección
+ * El body debe incluir: { productId, lessonId, completed }
+ */
+router.post('/learning/progress', contentController.updateLessonProgress);
+
+/**
+ * Marketplace Filtrado
  * Solo muestra productos que el usuario puede cobrar según sus monedas configuradas.
  */
 router.get('/marketplace/compatible', productController.getMyAvailableMarketplace);
 
 /**
- * NUEVA: Unirse como Afiliado
+ * Unirse como Afiliado
  * Permite que el usuario se vincule a un producto para empezar a venderlo.
  * restrictTo('AFFILIATE') o el rol que manejes para nivel 2.
  */

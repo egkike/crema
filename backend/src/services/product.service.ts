@@ -1,9 +1,68 @@
 import { configRepository } from '../repositories/config.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
+import { productRepository, ProductInput } from '../repositories/product.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
 export class ProductService {
+  /**
+   * Crea un nuevo producto orquestando validaciones, generación de slug
+   * y manejo de contenido estructurado.
+   */
+  static async create(creatorId: string, data: any) {
+    // 1. Validar límites de comisión si se proporcionan
+    if (data.commissionPercent !== undefined) {
+      await this.validateCommissionLimits(creatorId, data.commissionPercent);
+    }
+
+    // 2. Generar Slug básico (puedes usar una librería como 'slugify')
+    const slug = data.title
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    // 3. Determinar lógica de contenido
+    // Si el tipo es 'course' o vienen módulos, marcamos como estructurado
+    const isStructured = data.type === 'course' || (data.modules && data.modules.length > 0);
+
+    // 4. Mapear al input del Repositorio
+    const productInput: ProductInput = {
+      creatorId,
+      title: data.title,
+      slug: `${slug}-${Date.now().toString().slice(-4)}`, // Evita colisiones rápidas
+      type: data.type,
+      prices: data.prices,
+      description: data.description,
+      contentUrl: isStructured ? null : data.contentUrl, // Si es curso, la URL principal es nula
+      commissionPercent: data.commissionPercent,
+      status: data.status || 'draft',
+      sizeBytes: data.sizeBytes,
+      guaranteeDays: data.guaranteeDays,
+      hasStructuredContent: isStructured,
+      modules: data.modules, // El repo se encarga de iterarlos si existen
+    };
+
+    try {
+      const newProduct = await productRepository.createProduct(productInput);
+      logger.info(
+        { productId: newProduct.id, type: newProduct.type },
+        'Producto creado exitosamente'
+      );
+      return newProduct;
+    } catch (error: any) {
+      // Error de violación de unicidad (Slug duplicado)
+      if (error.code === '23505') {
+        throw new AppError(
+          'Ya existe un producto con un título similar. Prueba uno distinto.',
+          400
+        );
+      }
+      throw error;
+    }
+  }
+
   /**
    * Valida que el porcentaje de comisión esté dentro de los límites legales y financieros.
    * Evita que la suma de comisiones supere el 100% del valor del producto.
@@ -67,7 +126,7 @@ export class ProductService {
     const { productRepository } = await import('../repositories/product.repository');
     const { payoutMethodRepository } = await import('../repositories/payout_method.repository');
     const { affiliateRepository } = await import('../repositories/affiliate.repository');
-    
+
     // 1. Obtener el producto y los métodos de cobro del usuario
     const [product, userMethods] = await Promise.all([
       productRepository.getProductById(productId),

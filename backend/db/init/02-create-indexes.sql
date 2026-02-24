@@ -26,6 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_commissions_affiliate_id ON commissions(affiliate
 CREATE INDEX IF NOT EXISTS idx_payouts_stats ON payouts (user_id, currency, status, amount);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_user_id ON activity_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_progress_user_product ON user_lessons_progress(user_id, product_id);
 
 -- Opcional: Crear un índice para que el Cron Job sea súper rápido
 CREATE INDEX IF NOT EXISTS idx_orders_balance_release 

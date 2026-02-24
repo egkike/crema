@@ -127,12 +127,14 @@ CREATE TABLE IF NOT EXISTS products (
     affiliate_commission_percent DECIMAL(18,8) DEFAULT 10.00,
     slug VARCHAR(100) UNIQUE,
     size_bytes BIGINT DEFAULT 0,
+    has_structured_content BOOLEAN DEFAULT FALSE,
     status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
     guarantee_days INT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 COMMENT ON COLUMN products.guarantee_days IS 'Días de garantía específicos para este producto. Si es NULL, usa el global.';
+COMMENT ON COLUMN products.has_structured_content IS 'Si es TRUE, el contenido se busca en product_modules/lessons. Si es FALSE, se usa content_url.';
 
 -- Tabla de Precios x monedas
 CREATE TABLE IF NOT EXISTS product_prices (
@@ -141,6 +143,51 @@ CREATE TABLE IF NOT EXISTS product_prices (
     currency VARCHAR(10) NOT NULL REFERENCES enabled_currencies(code),
     amount DECIMAL(18,8) NOT NULL CHECK (amount >= 0),
     UNIQUE(product_id, currency) -- Un producto no puede tener dos precios en la misma moneda
+);
+
+-- Tabla para organizar el contenido en secciones o módulos (ej: "Introducción", "Módulo Avanzado")
+CREATE TABLE IF NOT EXISTS product_modules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    order_index INT DEFAULT 0, -- Para que el creador pueda ordenar los módulos
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla para el contenido real de cada lección
+CREATE TABLE IF NOT EXISTS product_lessons (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    module_id UUID NOT NULL REFERENCES product_modules(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    
+    -- Tipo de contenido dentro de la lección
+    content_type VARCHAR(20) DEFAULT 'video' CHECK (content_type IN ('video', 'pdf', 'text', 'quiz', 'link')),
+    
+    -- URL del video (Vimeo, Wistia, YouTube) o del archivo en nuestro storage
+    content_url TEXT,
+    
+    -- Duración en segundos (si es video/audio)
+    duration_seconds INT DEFAULT 0,
+    
+    -- Para lecciones que son solo texto (tipo blog/artículo)
+    body_text TEXT,
+    
+    order_index INT DEFAULT 0,
+    is_preview BOOLEAN DEFAULT FALSE, -- ¿Es una clase gratuita de muestra?
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla para trackear el progreso de los estudiantes en las lecciones
+CREATE TABLE IF NOT EXISTS user_lessons_progress (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    lesson_id UUID NOT NULL REFERENCES product_lessons(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    completed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    PRIMARY KEY (user_id, lesson_id)
 );
 
 -- Tabla de Ordenes de compras generadas
@@ -369,3 +416,4 @@ CREATE TRIGGER trg_upd_user_payout_methods BEFORE UPDATE ON user_payout_methods 
 CREATE TRIGGER trg_upd_platform_plans BEFORE UPDATE ON platform_plans FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_user_subscriptions BEFORE UPDATE ON user_subscriptions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_upd_platform_balances BEFORE UPDATE ON platform_balances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_upd_product_lessons BEFORE UPDATE ON product_lessons FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
