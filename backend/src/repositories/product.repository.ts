@@ -386,7 +386,7 @@ export const productRepository = {
   },
 
   /**
-   * Obtiene el contenido anidado y procesa las URLs de streaming
+   * Obtiene el contenido anidado, procesa URLs de streaming e incluye info de Quizzes
    */
   async getProductWithNestedContent(productId: string, userId: string): Promise<any> {
     const schema = config.db?.schema || 'public';
@@ -404,7 +404,26 @@ export const productRepository = {
                    EXISTS (
                      SELECT 1 FROM "${schema}".user_lessons_progress ulp 
                      WHERE ulp.lesson_id = l.id AND ulp.user_id = $2
-                   ) as is_completed
+                   ) as is_completed,
+                   -- SUBCONSULTA PARA QUIZZES
+                   (
+                     SELECT json_build_object(
+                       'quiz_id', q.id,
+                       'passing_score', q.passing_score,
+                       'max_attempts', q.max_attempts,
+                       'has_passed', COALESCE(
+                         (SELECT passed FROM "${schema}".user_quiz_attempts 
+                          WHERE quiz_id = q.id AND user_id = $2 
+                          ORDER BY score DESC LIMIT 1), false),
+                       -- Enviamos las preguntas pero filtramos la respuesta correcta por seguridad
+                       'questions', (
+                          SELECT jsonb_agg(elem - 'correct')
+                          FROM jsonb_array_elements(q.questions) AS elem
+                       )
+                     )
+                     FROM "${schema}".product_lesson_quizzes q 
+                     WHERE q.lesson_id = l.id
+                   ) as quiz_info
             FROM "${schema}".product_lessons l
             WHERE l.module_id = m.id
             ORDER BY l.order_index ASC
@@ -418,26 +437,23 @@ export const productRepository = {
     FROM "${schema}".products p
     WHERE p.id = $1;
   `;
+
     const { rows } = await pool.query(query, [productId, userId]);
     const product = rows[0];
 
-    // Si el producto no existe o no tiene módulos, retornamos temprano
     if (!product || !product.modules) {
       return product;
     }
 
     // --- PROCESAMIENTO DE STREAMING SEGURO ---
-    // Importación dinámica para evitar dependencias circulares y cargar solo cuando sea necesario
     try {
       const { streamingUtil } = await import('../utils/streaming.util');
 
-      // Usamos Promise.all para procesar todas las lecciones de forma asíncrona y eficiente
       await Promise.all(
         product.modules.map(async (mod: any) => {
           if (mod.lessons) {
             await Promise.all(
               mod.lessons.map(async (lesson: any) => {
-                // Si la lección es un video, firmamos la URL
                 if (lesson.content_type === 'video' && lesson.content_url) {
                   lesson.content_url = await streamingUtil.getSignedUrl(
                     lesson.content_url,
@@ -451,8 +467,6 @@ export const productRepository = {
       );
     } catch {
       logger.error('Error al procesar URLs firmadas de streaming en el repositorio');
-      // No bloqueamos la entrega del contenido si falla el firmado,
-      // pero el video podría no reproducirse si el provider es estricto.
     }
 
     return product;
@@ -544,5 +558,107 @@ export const productRepository = {
 
     const { rows } = await pool.query(query, [userId]);
     return rows;
+  },
+
+  // --- MÉTODOS DE QUIZZES / EXÁMENES ---
+
+  /**
+   * Obtiene el Quiz configurado para una lección
+   */
+  async getLessonQuiz(lessonId: string): Promise<any | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT * FROM "${schema}".product_lesson_quizzes 
+      WHERE lesson_id = $1;
+    `;
+    const { rows } = await pool.query(query, [lessonId]);
+    return rows[0] || null;
+  },
+
+  /**
+   * Obtiene el estado de intentos de un usuario para un quiz
+   */
+  async getUserQuizStatus(
+    userId: string,
+    quizId: string
+  ): Promise<{
+    best_score: number;
+    attempts_count: number;
+    has_passed: boolean;
+  }> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT 
+        COALESCE(MAX(score), 0) as best_score,
+        COUNT(*)::int as attempts_count,
+        COALESCE(bool_or(passed), false) as has_passed
+      FROM "${schema}".user_quiz_attempts
+      WHERE user_id = $1 AND quiz_id = $2;
+    `;
+    const { rows } = await pool.query(query, [userId, quizId]);
+    return rows[0];
+  },
+
+  /**
+   * Guarda un intento de examen realizado por el alumno
+   */
+  async saveQuizAttempt(data: {
+    userId: string;
+    quizId: string;
+    score: number;
+    passed: boolean;
+    answers: any;
+  }): Promise<void> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      INSERT INTO "${schema}".user_quiz_attempts (user_id, quiz_id, score, passed, answers)
+      VALUES ($1, $2, $3, $4, $5);
+    `;
+    await pool.query(query, [
+      data.userId,
+      data.quizId,
+      data.score,
+      data.passed,
+      JSON.stringify(data.answers),
+    ]);
+  },
+
+  /**
+   * Genera un certificado si el usuario completó el 100%
+   */
+  async issueCertificate(userId: string, productId: string): Promise<any> {
+    const schema = config.db?.schema || 'public';
+
+    // 1. Verificar si ya existe para evitar duplicados
+    const existing = await pool.query(
+      `SELECT * FROM "${schema}".user_certificates WHERE user_id = $1 AND product_id = $2`,
+      [userId, productId]
+    );
+    if (existing.rows[0]) return existing.rows[0];
+
+    // 2. Insertar nuevo certificado con un código único (UUID)
+    const query = `
+      INSERT INTO "${schema}".user_certificates (user_id, product_id, certificate_code)
+      VALUES ($1, $2, gen_random_uuid())
+      RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [userId, productId]);
+    return rows[0];
+  },
+
+  /**
+   * Obtiene un certificado por su código único (Para la página pública de verificación)
+   */
+  async getCertificateByCode(code: string): Promise<any> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT uc.*, u.full_name as student_name, p.title as course_name, p.updated_at as completion_date
+      FROM "${schema}".user_certificates uc
+      JOIN "${schema}".users u ON uc.user_id = u.id
+      JOIN "${schema}".products p ON uc.product_id = p.id
+      WHERE uc.certificate_code = $1;
+    `;
+    const { rows } = await pool.query(query, [code]);
+    return rows[0] || null;
   },
 };

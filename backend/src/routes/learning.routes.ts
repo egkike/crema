@@ -6,6 +6,9 @@ import { checkContentAccess } from '../middlewares/checkAccess/checkAccess.middl
 
 const router = Router();
 
+// Ruta PÚBLICA
+router.get('/certificate/verify/:code', contentController.verifyCertificate);
+
 router.use(jwtAuthMiddleware);
 
 /**
@@ -19,6 +22,12 @@ router.get('/my-dashboard', contentController.getMyLearningDashboard);
  * URL: /api/learning/progress
  */
 router.post('/progress', contentController.updateLessonProgress);
+
+/**
+ * Enviar respuestas de un examen (Calificación automática)
+ * URL: /api/learning/quiz/submit
+ */
+router.post('/quiz/submit', contentController.submitLessonQuiz);
 
 /**
  * Consumo de contenido: Ver curso/descargar ebook

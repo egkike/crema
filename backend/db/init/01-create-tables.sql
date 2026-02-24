@@ -190,6 +190,40 @@ CREATE TABLE IF NOT EXISTS user_lessons_progress (
     PRIMARY KEY (user_id, lesson_id)
 );
 
+-- Tabla de Estructura de las preguntas (JSONB para máxima flexibilidad)
+CREATE TABLE IF NOT EXISTS product_lesson_quizzes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lesson_id UUID NOT NULL REFERENCES product_lessons(id) ON DELETE CASCADE,
+    -- JSONB: [{ "id": 1, "question": "¿...?", "options": ["a", "b"], "correct": 0 }]
+    questions JSONB NOT NULL, 
+    passing_score INT DEFAULT 80, -- Porcentaje mínimo para aprobar
+    max_attempts INT DEFAULT NULL, -- NULL es ilimitado
+    UNIQUE(lesson_id)
+);
+
+-- Tabla de Historial de intentos y resultados
+CREATE TABLE IF NOT EXISTS user_quiz_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    quiz_id UUID NOT NULL REFERENCES product_lesson_quizzes(id) ON DELETE CASCADE,
+    score INT NOT NULL, -- Nota obtenida (0-100)
+    passed BOOLEAN NOT NULL,
+    answers JSONB, -- Respuestas que eligió el usuario (para revisión)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de Certificados obtenidos
+CREATE TABLE IF NOT EXISTS user_certificates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    certificate_code UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    issued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Un usuario solo debería tener UN certificado por cada producto
+    UNIQUE(user_id, product_id)
+);
+
 -- Tabla de Ordenes de compras generadas
 CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

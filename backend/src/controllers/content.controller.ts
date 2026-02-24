@@ -16,6 +16,27 @@ const updateProgressSchema = z.object({
   completed: z.boolean(), // Sin objetos de error complejos para evitar conflictos con TS
 });
 
+const submitQuizSchema = z.object({
+  productId: z.string().uuid('ID de producto inválido'),
+  lessonId: z.string().uuid('ID de lección inválido'),
+  answers: z.array(
+    z.object({
+      questionId: z.number(),
+      selectedOption: z.number(),
+    })
+  ),
+});
+
+const checkAndIssueCertificate = async (userId: string, productId: string) => {
+  const progress = await productRepository.getUserProductProgress(productId, userId);
+
+  // Si el progreso es 100%, emitimos el certificado
+  if (progress.percent === 100) {
+    await productRepository.issueCertificate(userId, productId);
+    logger.info({ userId, productId }, 'Certificado emitido automáticamente');
+  }
+};
+
 export const getProductContent = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
@@ -114,6 +135,8 @@ export const updateLessonProgress = async (req: Request, res: Response, next: Ne
     // 2. Guardar progreso en DB
     await productRepository.toggleLessonProgress(user.id, productId, lessonId, completed);
 
+    if (completed) await checkAndIssueCertificate(user.id, productId);
+
     res.status(200).json({
       success: true,
       message: completed ? 'Lección marcada como completada' : 'Lección marcada como pendiente',
@@ -150,8 +173,98 @@ export const getMyLearningDashboard = async (req: Request, res: Response, next: 
   }
 };
 
+export const submitLessonQuiz = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { user } = req;
+    if (!user?.id) throw new AppError('Usuario no identificado.', 401);
+
+    const { productId, lessonId, answers } = submitQuizSchema.parse(req.body);
+
+    // 1. Verificar acceso al producto
+    await AccessService.getProtectedContent(user.id, productId);
+
+    // 2. Obtener el examen real (con las respuestas correctas)
+    const quiz = await productRepository.getLessonQuiz(lessonId);
+    if (!quiz) throw new AppError('Esta lección no contiene un examen.', 404);
+
+    // 3. Calificar el examen
+    const totalQuestions = quiz.questions.length;
+    let correctCount = 0;
+
+    quiz.questions.forEach((q: any) => {
+      const userAns = answers.find(a => a.questionId === q.id);
+      if (userAns && userAns.selectedOption === q.correct) {
+        correctCount++;
+      }
+    });
+
+    const score = Math.round((correctCount / totalQuestions) * 100);
+    const passed = score >= quiz.passing_score;
+
+    // 4. Guardar el intento en el historial
+    await productRepository.saveQuizAttempt({
+      userId: user.id,
+      quizId: quiz.id,
+      score,
+      passed,
+      answers, // Guardamos lo que eligió para revisión futura
+    });
+
+    // 5. Si aprobó, marcar la lección como completada automáticamente
+    if (passed) {
+      await productRepository.toggleLessonProgress(user.id, productId, lessonId, true);
+    }
+
+    if (passed) await checkAndIssueCertificate(user.id, productId);
+
+    res.status(200).json({
+      success: true,
+      message: passed
+        ? '¡Felicidades! Has aprobado el examen.'
+        : 'No has alcanzado el puntaje mínimo.',
+      data: {
+        score,
+        passed,
+        passingScore: quiz.passing_score,
+        correctAnswers: correctCount,
+        totalQuestions,
+      },
+    });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ success: false, errors: error.issues });
+    }
+    next(error);
+  }
+};
+
+export const verifyCertificate = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { code } = req.params;
+
+    if (typeof code !== 'string') {
+      throw new AppError('El código de certificado proporcionado no es válido.', 400);
+    }
+
+    const certificate = await productRepository.getCertificateByCode(code);
+
+    if (!certificate) {
+      throw new AppError('Certificado no válido o inexistente.', 404);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: certificate,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const contentController = {
   getProductContent,
   updateLessonProgress,
-  getMyLearningDashboard, 
+  getMyLearningDashboard,
+  submitLessonQuiz,
+  verifyCertificate,
 };

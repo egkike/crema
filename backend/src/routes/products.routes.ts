@@ -50,6 +50,15 @@ router.put(
 );
 
 /**
+ * Upsert de Quiz para una lección
+ */
+router.post(
+  '/quiz/manage',
+  restrictTo('CREATOR'),
+  productController.upsertQuiz
+);
+
+/**
  * 2.2 Eliminar Producto
  */
 router.delete('/:productId', restrictTo('CREATOR'), productController.deleteProduct);

@@ -10,8 +10,23 @@ import { subscriptionRepository } from '../repositories/subscription.repository'
 import { ProductService } from '../services/product.service';
 import { AppError } from '../errors/AppError';
 import { createProductSchema } from '../schemas/products.schema';
+import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
+
+const upsertQuizSchema = z.object({
+  lessonId: z.string().uuid('ID de lección inválido'),
+  questions: z.array(
+    z.object({
+      id: z.number(),
+      question: z.string().min(1, 'La pregunta no puede estar vacía'),
+      options: z.array(z.string()).min(2, 'Debe haber al menos 2 opciones'),
+      correct: z.number().int('Debe indicar el índice de la respuesta correcta'),
+    })
+  ),
+  passingScore: z.number().min(0).max(100).default(80),
+  maxAttempts: z.number().nullable().optional(),
+});
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -323,6 +338,65 @@ export const getMyAvailableMarketplace = async (
   }
 };
 
+export const upsertQuiz = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { user } = req;
+    if (!user) throw new AppError('Usuario no autenticado', 401);
+
+    const validatedData = upsertQuizSchema.parse(req.body);
+
+    // 1. Validar que la lección pertenece a un producto del usuario
+    // Usamos una consulta rápida para verificar propiedad antes de insertar
+    const schema = config.db?.schema || 'public';
+    const { rows } = await pool.query(
+      `
+      SELECT p.creator_id 
+      FROM "${schema}".product_lessons l
+      JOIN "${schema}".product_modules m ON l.module_id = m.id
+      JOIN "${schema}".products p ON m.product_id = p.id
+      WHERE l.id = $1
+    `,
+      [validatedData.lessonId]
+    );
+
+    if (rows.length === 0) throw new AppError('Lección no encontrada', 404);
+    if (rows[0].creator_id !== user.id) {
+      throw new AppError('No tienes permiso para gestionar este examen', 403);
+    }
+
+    // 2. Realizar el Upsert en la base de datos
+    // Usamos ON CONFLICT para actualizar si ya existe un quiz para esa lección
+    const query = `
+      INSERT INTO "${schema}".product_lesson_quizzes (lesson_id, questions, passing_score, max_attempts)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (lesson_id) 
+      DO UPDATE SET 
+        questions = EXCLUDED.questions,
+        passing_score = EXCLUDED.passing_score,
+        max_attempts = EXCLUDED.max_attempts
+      RETURNING *;
+    `;
+
+    const result = await pool.query(query, [
+      validatedData.lessonId,
+      JSON.stringify(validatedData.questions),
+      validatedData.passingScore,
+      validatedData.maxAttempts ?? null,
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Examen guardado correctamente',
+      data: result.rows[0],
+    });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError('Estructura de examen inválida', 400));
+    }
+    next(error);
+  }
+};
+
 export const productController = {
   createProduct,
   updateProduct,
@@ -332,4 +406,5 @@ export const productController = {
   getAffiliateMarketplace,
   joinProductProgram,
   getMyAvailableMarketplace,
+  upsertQuiz,
 };
