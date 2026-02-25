@@ -31,7 +31,14 @@ export const balanceRepository = {
     try {
       const db = client || pool;
       const { rows } = await db.query(query, [userId, amount, currency]);
-      return rows[0];
+      const row = rows[0];
+      return {
+        total_earned: Number(row.total_earned),
+        available_balance: Number(row.available_balance),
+        pending_balance: Number(row.pending_balance),
+        currency: row.currency,
+        updated_at: row.updated_at,
+      };
     } catch (error: any) {
       logger.error(
         { error: error.message, userId, amount, currency },
@@ -59,7 +66,14 @@ export const balanceRepository = {
       const { rows } = await db.query(query, [amount, userId, currency]);
       if (rows.length === 0)
         throw new Error(`Saldo pendiente insuficiente en ${currency} para liberar`);
-      return rows[0];
+      const row = rows[0];
+      return {
+        total_earned: Number(row.total_earned),
+        available_balance: Number(row.available_balance),
+        pending_balance: Number(row.pending_balance),
+        currency: row.currency,
+        updated_at: row.updated_at,
+      };
     } catch (error: any) {
       logger.error({ error: error.message, userId, currency }, 'DB Error: releaseBalance failed');
       throw error;
@@ -83,7 +97,14 @@ export const balanceRepository = {
       const { rows } = await db.query(query, [amount, userId, currency]);
       if (rows.length === 0)
         throw new Error('Saldo disponible insuficiente o balance no encontrado');
-      return rows[0];
+      const row = rows[0];
+      return {
+        total_earned: Number(row.total_earned),
+        available_balance: Number(row.available_balance),
+        pending_balance: Number(row.pending_balance),
+        currency: row.currency,
+        updated_at: row.updated_at,
+      };
     } catch (error: any) {
       logger.error(
         { error: error.message, userId, currency },
@@ -110,7 +131,14 @@ export const balanceRepository = {
       const db = client || pool;
       const { rows } = await db.query(query, [amount, userId, currency]);
       if (rows.length === 0) throw new Error('Saldo pendiente insuficiente para deducir');
-      return rows[0];
+      const row = rows[0];
+      return {
+        total_earned: Number(row.total_earned),
+        available_balance: Number(row.available_balance),
+        pending_balance: Number(row.pending_balance),
+        currency: row.currency,
+        updated_at: row.updated_at,
+      };
     } catch (error: any) {
       logger.error(
         { error: error.message, userId, currency },
@@ -135,7 +163,14 @@ export const balanceRepository = {
     try {
       const db = client || pool;
       const { rows } = await db.query(query, [amount, userId, currency]);
-      return rows[0];
+      const row = rows[0];
+      return {
+        total_earned: Number(row.total_earned),
+        available_balance: Number(row.available_balance),
+        pending_balance: Number(row.pending_balance),
+        currency: row.currency,
+        updated_at: row.updated_at,
+      };
     } catch (error: any) {
       logger.error(
         { error: error.message, userId, currency },
