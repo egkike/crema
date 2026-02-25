@@ -1,7 +1,11 @@
 import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
+import { userRepository } from '../repositories/user.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
+import { mainQueue } from '../queues/scheduler';
+
+import { EmailService } from './email.service';
 
 export class AccessService {
   /**
@@ -53,6 +57,7 @@ export class AccessService {
       if (!order || !order.is_guarantee_eligible) return;
 
       let shouldInvalidate = false;
+      let reason: 'progress' | 'download' = 'progress';
 
       // REGLA A: Cursos Estructurados (Basado en % de progreso)
       if (product.has_structured_content) {
@@ -61,17 +66,18 @@ export class AccessService {
         // Umbral del 30% (puedes parametrizarlo luego en platform_configs)
         if (progress.percent > 30) {
           shouldInvalidate = true;
+          reason = 'progress';
           logger.warn(
             { orderId: order.id, percent: progress.percent },
             'Safe-Guard: Garantía invalidada por progreso > 30%'
           );
         }
       }
-
       // REGLA B: Productos de descarga directa (Ebooks, Software, Audiobooks)
       // Se invalidan al primer acceso exitoso al contenido protegido
       else if (['ebook', 'software', 'audiobook'].includes(product.type)) {
         shouldInvalidate = true;
+        reason = 'download';
         logger.warn(
           { orderId: order.id, type: product.type },
           'Safe-Guard: Garantía invalidada por acceso a producto descargable'
@@ -79,7 +85,50 @@ export class AccessService {
       }
 
       if (shouldInvalidate) {
-        await orderRepository.invalidateGuarantee(order.id);
+        // 1. Intentamos invalidar en la DB
+        const invalidatedOrder = await orderRepository.invalidateGuarantee(order.id);
+
+        // 2. Si invalidatedOrder es verídico, significa que el estado cambió JUSTO AHORA
+        if (invalidatedOrder) {
+          // BUSCAMOS AL USUARIO AQUÍ PARA SOLUCIONAR EL ERROR DE NOMBRE:
+          const user = await userRepository.getById(userId);
+
+          if (user) {
+            if (mainQueue) {
+              // Opción A: Usar la cola (Recomendado)
+              await mainQueue.add(
+                'send-email',
+                {
+                  type: 'GUARANTEE_INVALIDATED',
+                  to: user.email,
+                  data: {
+                    fullname: user.fullname,
+                    productTitle: product.title,
+                    reason: reason,
+                  },
+                },
+                { attempts: 3, backoff: 2000 }
+              );
+
+              logger.info(
+                { userId, orderId: order.id },
+                'Safe-Guard: Email de pérdida de garantía encolado'
+              );
+            } else {
+              // Opción B: Fallback directo si la cola no está disponible
+              await EmailService.sendGuaranteeInvalidatedEmail(
+                user.email,
+                user.fullname,
+                product.title,
+                reason
+              );
+              logger.info(
+                { userId, orderId: order.id },
+                'Safe-Guard: Email enviado directo (sin cola)'
+              );
+            }
+          }
+        }
       }
     } catch (error) {
       // No bloqueamos el acceso al contenido si falla la auditoría de garantía,

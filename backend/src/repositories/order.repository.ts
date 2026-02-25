@@ -75,17 +75,19 @@ export const orderRepository = {
   },
 
   /**
-   * Inactiva la elegibilidad de reembolso por consumo
+   * Inactiva la elegibilidad de reembolso por consumo y retorna la orden actualizada
    */
-  async invalidateGuarantee(orderId: string, client?: any): Promise<void> {
+  async invalidateGuarantee(orderId: string, client?: any): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const db = client || pool;
     const query = `
       UPDATE "${schema}".orders 
       SET is_guarantee_eligible = FALSE, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $1;
+      WHERE id = $1 AND is_guarantee_eligible = TRUE
+      RETURNING *;
     `;
-    await db.query(query, [orderId]);
+    const { rows } = await db.query(query, [orderId]);
+    return this.mapRowToOrder(rows[0]);
   },
 
   async create(data: CreateOrderDTO): Promise<Order | null> {

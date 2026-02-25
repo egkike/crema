@@ -24,7 +24,6 @@ export const initMainWorker = () => {
             }
             break;
           }
-
           case 'subscription-check': {
             // 1. Avisar a los que vencen en 3 días
             const nearExpiration = await subscriptionRepository.getExpiringSubscriptions(3);
@@ -38,10 +37,8 @@ export const initMainWorker = () => {
             }
             break;
           }
-
           case 'send-email': {
             const { type, to, data } = job.data;
-
             switch (type) {
               case 'BALANCE_RELEASED':
                 await EmailService.sendBalanceReleasedEmail(
@@ -60,7 +57,6 @@ export const initMainWorker = () => {
                   data.destination
                 );
                 break;
-
               case 'PAYOUT_CANCELLED':
                 await EmailService.sendPayoutCancelledEmail(
                   to,
@@ -69,7 +65,14 @@ export const initMainWorker = () => {
                   data.currency
                 );
                 break;
-
+              case 'GUARANTEE_INVALIDATED':
+                await EmailService.sendGuaranteeInvalidatedEmail(
+                  to,
+                  data.fullname,
+                  data.productTitle,
+                  data.reason
+                );
+                break;
               case 'PAYOUT_COMPLETED':
                 await EmailService.sendPayoutCompletedEmail(
                   to,
@@ -89,13 +92,11 @@ export const initMainWorker = () => {
             }
             break;
           }
-
           case 'auth-cleanup': {
             await AuthCleanupService.cleanExpiredTokens();
             logger.info('SISTEMA: Limpieza de tokens completada.');
             break;
           }
-
           default:
             logger.warn({ task: name }, 'SISTEMA: Tarea no reconocida en el worker');
         }

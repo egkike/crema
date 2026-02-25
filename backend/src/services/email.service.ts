@@ -434,4 +434,37 @@ export class EmailService {
     `;
     return this.send(email, 'Actividad importante en tu cuenta de Crema', html);
   }
+
+  /**
+   * Notificación de invalidacion de garantia
+   */
+  static async sendGuaranteeInvalidatedEmail(
+    email: string,
+    fullname: string,
+    productTitle: string,
+    reason: 'progress' | 'download'
+  ) {
+    const reasonText =
+      reason === 'progress'
+        ? 'has superado el 30% de progreso en el contenido'
+        : 'has accedido a archivos de descarga directa';
+
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <span style="font-size: 40px;">🛡️</span>
+        </div>
+        <h2 style="color: #2f3542; text-align: center;">Actualización de tu garantía</h2>
+        <p>Hola <strong>${fullname}</strong>,</p>
+        <p>Te informamos que, debido a que ${reasonText}, la garantía de reembolso para <strong>${productTitle}</strong> ya no se encuentra disponible.</p>
+        
+        <div style="background: #fff3cd; padding: 15px; border-left: 5px solid #ffa502; margin: 20px 0; font-size: 14px; color: #856404; border-radius: 4px;">
+          <strong>Nota:</strong> Esta es una medida de protección automática. Conservas tu acceso de por vida al producto y soporte.
+        </div>
+
+        <p style="font-size: 13px; color: #747d8c;">Si crees que esto es un error, por favor contacta a nuestro equipo de soporte.</p>
+      </div>
+    `;
+    return this.send(email, `Información sobre tu garantía: ${productTitle}`, html);
+  }
 }
