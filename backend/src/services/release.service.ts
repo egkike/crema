@@ -34,18 +34,18 @@ export const ReleaseService = {
     };
 
     // AJUSTE SAFE-GUARD:
-    // Usamos 'release_date' directamente si existe, ya que el repositorio de órdenes
+    // Usamos 'created_at' directamente si existe, ya que el repositorio de órdenes
     // ahora lo calcula con precisión sumando los días de garantía al 'created_at'.
     const findOrdersQuery = `
-      SELECT o.id, o.amount, o.currency, p.creator_id, o.release_date
+      SELECT o.id, o.amount, o.currency, p.creator_id
       FROM "${schema}".orders o
       JOIN "${schema}".products p ON o.product_id = p.id
       WHERE o.status = 'paid' 
       AND o.commissions_calculated = TRUE 
       AND o.balance_released = FALSE
       AND (
-        ${force ? 'TRUE' : `o.release_date <= NOW()`} 
-        OR o.is_guarantee_eligible = FALSE -- Opcional: Liberar inmediato si perdió la garantía
+      ${force ? 'TRUE' : `(o.created_at + (o.days_of_guarantee_applied || ' days')::interval) <= NOW()`} 
+        OR o.is_guarantee_eligible = FALSE -- <-- Liberar inmediato si perdió la garantía 
       )
       ${targetOrderId ? `AND o.id = $1` : ''}
     `;

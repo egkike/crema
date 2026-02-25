@@ -13,16 +13,14 @@ import { roundToTwo } from '../utils/rounder';
 export class CommissionService {
   /**
    * Reparte el dinero de una orden entre Plataforma, Creador y Afiliado.
-   * Ahora recibe el 'client' para participar en la transacción del OrderService.
+   * Aplica lógica de desglose fiscal (IVA) si la moneda lo requiere.
    */
   static async processOrderCommissions(order: Order, product: any, client: any) {
     const schema = config.db?.schema || 'public';
 
-    // Evitar procesamiento doble (Idempotencia)
     if (order.commissions_calculated) return;
 
     try {
-      // 1. Bloqueo de seguridad (FOR UPDATE) - REUTILIZANDO EL CLIENT
       const checkQuery = `SELECT commissions_calculated FROM "${schema}".orders WHERE id = $1 FOR UPDATE`;
       const { rows } = await client.query(checkQuery, [order.id]);
 
@@ -32,68 +30,59 @@ export class CommissionService {
 
       const orderCurrency = order.currency;
       const configs = await configRepository.getConfigsByCurrency(orderCurrency);
+      const rules = await configRepository.getCurrencyValidationRules(orderCurrency);
 
       if (!configs || Object.keys(configs).length === 0) {
         throw new AppError(`Configuración inexistente para moneda: ${orderCurrency}`, 500);
       }
 
-      // 2. CÁLCULO DE COMISIÓN DE PLATAFORMA
-      const subscription = await subscriptionRepository.getActiveSubscription(product.creator_id);
+      // --- 1. LÓGICA FISCAL INICIAL ---
+      const totalAmount = Number(order.amount);
+      const taxConfig = rules?.tax_config;
 
+      let calculationBase = totalAmount; // Por defecto es el bruto
+      if (taxConfig && taxConfig.enabled && taxConfig.calculation === 'inside') {
+        const factor = Number(taxConfig.tax_factor || 1);
+        // Extraemos el neto (Ej: 121 / 1.21 = 100)
+        calculationBase = roundToTwo(totalAmount / factor);
+      }
+
+      // --- 2. CÁLCULO DE COMISIÓN DE PLATAFORMA ---
+      const subscription = await subscriptionRepository.getActiveSubscription(product.creator_id);
       let percentValue = Number(configs['fee_percent'] || 0.099);
 
       if (subscription?.features?.custom_fee_percent !== undefined) {
         percentValue = Number(subscription.features.custom_fee_percent);
-        logger.info(
-          { userId: product.creator_id, plan: subscription.plan_name, fee: percentValue },
-          'Aplicando comisión preferencial por plan'
-        );
       }
 
-      const totalAmount = Number(order.amount);
       const threshold = Number(configs['price_threshold'] || 0);
       const lowFee = Number(configs['fixed_fee_low'] || 0);
       const highFee = Number(configs['fixed_fee_high'] || 0);
 
-      const variableFee = roundToTwo(totalAmount * percentValue);
+      // Calculamos sobre el NETO para ser justos con el creador
+      const variableFee = roundToTwo(calculationBase * percentValue);
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
       const totalPlatformFee = roundToTwo(variableFee + fixedFee);
 
-      // --- LÓGICA DINÁMICA DE DESGLOSE FISCAL (IVA) ---
-      const rules = await configRepository.getCurrencyValidationRules(orderCurrency);
-
-      let taxAmount = 0;
-      const taxConfig = rules?.tax_config;
-
-      if (taxConfig && taxConfig.enabled) {
+      // Desglose del IVA de la comisión de la plataforma (para auditoría/facturación)
+      let platformTaxAmount = 0;
+      if (taxConfig && taxConfig.enabled && taxConfig.calculation === 'inside') {
         const factor = Number(taxConfig.tax_factor || 1);
-
-        // "inside" significa que el totalPlatformFee ya contiene el impuesto
-        if (taxConfig.calculation === 'inside' && factor > 1) {
-          const netPlatformAmount = roundToTwo(totalPlatformFee / factor);
-          taxAmount = roundToTwo(totalPlatformFee - netPlatformAmount);
-        }
+        const netPlatformFee = roundToTwo(totalPlatformFee / factor);
+        platformTaxAmount = roundToTwo(totalPlatformFee - netPlatformFee);
       }
 
-      // 3. REGISTRO DE GANANCIAS DE LA PLATAFORMA (Uso de client)
-      // Guardamos el IVA calculado en 'tax_amount' para auditoría
+      // --- 3. REGISTRO DE GANANCIAS DE PLATAFORMA ---
       await client.query(
         `INSERT INTO "${schema}".platform_earnings 
-       (order_id, variable_amount, fixed_amount, tax_amount, total_amount, currency, status, balance_released) 
-       VALUES ($1, $2, $3, $4, $5, $6, 'active', FALSE)`,
-        [
-          order.id,
-          variableFee, // El 9.9%
-          fixedFee, // El fijo ($0.50)
-          taxAmount, // <--- El IVA desglosado
-          totalPlatformFee, // Suma de variable + fijo (lo que entra a la caja)
-          orderCurrency,
-        ]
+        (order_id, variable_amount, fixed_amount, tax_amount, total_amount, currency, status, balance_released) 
+        VALUES ($1, $2, $3, $4, $5, $6, 'active', FALSE)`,
+        [order.id, variableFee, fixedFee, platformTaxAmount, totalPlatformFee, orderCurrency]
       );
 
       await platformBalanceRepository.addToPending(totalPlatformFee, orderCurrency, client);
 
-      // 4. LÓGICA DE AFILIADO
+      // --- 4. LÓGICA DE AFILIADO ---
       let affiliateAmount = 0;
       if (order.affiliate_id) {
         const rawMinComm = await configRepository.getSetting(
@@ -101,11 +90,11 @@ export class CommissionService {
           '10'
         );
         const minGlobalComm = Number(rawMinComm);
-
         const productCommPercent = Number(product.affiliate_commission_percent || 0);
         const effectiveCommPercent = Math.max(productCommPercent, minGlobalComm);
 
-        affiliateAmount = roundToTwo(totalAmount * (effectiveCommPercent / 100));
+        // El afiliado también cobra sobre el NETO
+        affiliateAmount = roundToTwo(calculationBase * (effectiveCommPercent / 100));
 
         if (affiliateAmount > 0) {
           await commissionRepository.create(
@@ -140,7 +129,8 @@ export class CommissionService {
         }
       }
 
-      // 5. REGISTRO DE GANANCIA DEL CREADOR
+      // --- 5. REGISTRO DE GANANCIA DEL CREADOR ---
+      // El creador se queda con el Resto (que incluye el IVA de la venta original para que él lo tribute)
       const creatorNetAmount = roundToTwo(totalAmount - totalPlatformFee - affiliateAmount);
 
       if (creatorNetAmount < 0) {
@@ -177,27 +167,16 @@ export class CommissionService {
         description: `Venta directa: ${product.title}`,
       });
 
-      // 6. CIERRE DE LA ORDEN
+      // --- 6. FINALIZAR ---
       await client.query(
-        `UPDATE "${schema}".orders 
-          SET commissions_calculated = TRUE, 
-          commission_amount = $1,
-          updated_at = CURRENT_TIMESTAMP 
-          WHERE id = $2`,
+        `UPDATE "${schema}".orders SET commissions_calculated = TRUE, commission_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
         [totalPlatformFee, order.id]
-      );
-
-      logger.info(
-        { orderId: order.id, creatorNet: creatorNetAmount },
-        '✅ Comisiones distribuidas'
       );
 
       return { platformFee: totalPlatformFee, creatorNet: creatorNetAmount };
     } catch (error: any) {
-      // Ya NO hacemos ROLLBACK aquí, lo hará el OrderService
       logger.error({ error: error.message, orderId: order.id }, '💥 Error en CommissionService');
       throw error instanceof AppError ? error : new AppError('Error al procesar comisiones', 500);
     }
-    // Ya NO hacemos client.release() aquí, lo hará el OrderService
   }
 }

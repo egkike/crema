@@ -467,4 +467,62 @@ export class EmailService {
     `;
     return this.send(email, `Información sobre tu garantía: ${productTitle}`, html);
   }
+
+  static async sendPayoutRejectedEmail(
+    email: string,
+    fullname: string,
+    amount: number,
+    currency: string,
+    reason: string
+  ) {
+    const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 12px;">
+      <h2 style="color: #eb4d4b; text-align: center;">Solicitud de retiro rechazada</h2>
+      <p>Hola <strong>${fullname}</strong>,</p>
+      <p>Tu solicitud de retiro por un monto de <strong>${amount} ${currency}</strong> no ha podido ser procesada por nuestro equipo administrativo.</p>
+      
+      <div style="background: #fdf2f2; border-left: 4px solid #eb4d4b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+        <strong>Motivo del rechazo:</strong><br>
+        ${reason}
+      </div>
+
+      <p>El saldo ha sido reintegrado automáticamente a tu cuenta y ya se encuentra disponible para ser retirado nuevamente.</p>
+      <p style="font-size: 13px; color: #636e72;">Por favor, revisa que tus datos de cobro sean correctos antes de realizar una nueva solicitud.</p>
+    </div>
+  `;
+    return this.send(email, `Actualización sobre tu retiro de ${currency}`, html);
+  }
+
+  /**
+   * Notifica al CREADOR que ha realizado una venta
+   */
+  static async sendSaleNotificationEmail(
+    email: string,
+    productTitle: string,
+    amount: number,
+    currency: string
+  ) {
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <span style="font-size: 40px;">💰</span>
+        </div>
+        <h2 style="color: #2ed573; text-align: center;">¡Nueva venta realizada!</h2>
+        <p>¡Hola! Tenemos excelentes noticias para ti.</p>
+        <p>Has realizado una venta de tu producto: <strong>${productTitle}</strong>.</p>
+        
+        <div style="background: #f1f2f6; padding: 20px; border-radius: 8px; text-align: center; margin: 25px 0;">
+          <p style="margin: 0; color: #747d8c; font-size: 14px;">Monto bruto de la orden:</p>
+          <span style="font-size: 24px; font-weight: bold; color: #2f3542;">${amount} ${currency}</span>
+        </div>
+
+        <p>El dinero se ha acreditado en tu saldo pendiente y se liberará una vez finalizado el periodo de garantía.</p>
+        
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${config.frontendUrl}/dashboard/sales" style="background: #2f3542; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ver mis ventas</a>
+        </div>
+      </div>
+    `;
+    return this.send(email, `🎉 ¡Nueva venta de ${productTitle}!`, html);
+  }
 }

@@ -48,6 +48,14 @@ export const initMainWorker = () => {
                   data.currency
                 );
                 break;
+              case 'GUARANTEE_INVALIDATED':
+                await EmailService.sendGuaranteeInvalidatedEmail(
+                  to,
+                  data.fullname,
+                  data.productTitle,
+                  data.reason
+                );
+                break;
               case 'PAYOUT_REQUESTED':
                 await EmailService.sendPayoutRequestedEmail(
                   to,
@@ -65,14 +73,6 @@ export const initMainWorker = () => {
                   data.currency
                 );
                 break;
-              case 'GUARANTEE_INVALIDATED':
-                await EmailService.sendGuaranteeInvalidatedEmail(
-                  to,
-                  data.fullname,
-                  data.productTitle,
-                  data.reason
-                );
-                break;
               case 'PAYOUT_COMPLETED':
                 await EmailService.sendPayoutCompletedEmail(
                   to,
@@ -81,6 +81,15 @@ export const initMainWorker = () => {
                   data.currency,
                   data.destination,
                   data.receipt
+                );
+                break;
+              case 'PAYOUT_REJECTED':
+                await EmailService.sendPayoutRejectedEmail(
+                  to,
+                  data.fullname,
+                  data.amount,
+                  data.currency,
+                  data.reason
                 );
                 break;
               case 'SECURITY_ALERT':

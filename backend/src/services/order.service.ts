@@ -26,10 +26,13 @@ export class OrderService {
       return;
     }
 
-    // Idempotencia: evitamos reprocesar
     const finalStatuses = ['paid', 'approved', 'authorized'];
-    if (finalStatuses.includes(order.status) && finalStatuses.includes(status)) {
-      logger.info({ externalReference }, 'ℹ️ Orden ya procesada previamente.');
+    // Si la orden ya está pagada y llega un "approved", simplemente ignoramos.
+    if (finalStatuses.includes(order.status)) {
+      logger.info(
+        { externalReference, status },
+        'ℹ️ Webhook ignorado: La orden ya está en un estado final.'
+      );
       return;
     }
 
@@ -119,6 +122,17 @@ export class OrderService {
           buyer.email,
           buyer.fullname,
           product.title
+        );
+      }
+
+      // Buscamos los datos del creador para enviarle su notificación
+      const creator = await userRepository.getById(product.creator_id);
+      if (creator) {
+        await EmailService.sendSaleNotificationEmail(
+          creator.email,
+          product.title,
+          lockedOrder.amount,
+          lockedOrder.currency
         );
       }
 

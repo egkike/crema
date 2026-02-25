@@ -43,6 +43,6 @@ export const validateCBU = (cbu: string): boolean => {
 export const SpecialValidators: Record<string, Record<string, (val: string) => boolean>> = {
   ARS: {
     tax_id: validateCUIT,
-    account_number: validateCBU, // Lo usamos para validar el CBU
+    cbu: validateCBU,
   },
 };

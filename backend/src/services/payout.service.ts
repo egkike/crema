@@ -349,12 +349,13 @@ export class PayoutService {
           const user = await userRepository.getById(payout.user_id);
           if (user) {
             await mainQueue.add('send-email', {
-              type: 'SECURITY_ALERT', // Usamos el tipo genérico de alerta
+              type: 'PAYOUT_REJECTED',
               to: user.email,
               data: {
-                fullname: user.fullname, // Opcional, para el template
-                subject: 'Retiro rechazado - Crema',
-                message: `Tu solicitud de retiro por ${payout.amount} ${payout.currency} ha sido rechazada. Motivo: ${adminNotes}. El saldo ha sido reintegrado a tu cuenta.`,
+                fullname: user.fullname,
+                amount: payout.amount,
+                currency: payout.currency,
+                reason: adminNotes,
               },
             });
           }

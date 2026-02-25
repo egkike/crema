@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 
 import { config } from '../config/index';
 import { payoutMethodRepository } from '../repositories/payout_method.repository';
+import { payoutRepository } from '../repositories/payout.repository';
 import { userRepository } from '../repositories/user.repository';
 import { configRepository } from '../repositories/config.repository';
 import { SpecialValidators } from '../utils/validators';
@@ -15,6 +16,19 @@ export class PayoutMethodService {
    * Genera un token de confirmación y lo envía por email
    */
   static async requestChange(userId: string, currency: string, type: any, data: any) {
+    // Buscamos si el usuario tiene retiros en estado 'pending' o 'processing'
+    const pendingPayouts = await payoutRepository.getByStatusAndUser(userId, [
+      'pending',
+      'processing',
+    ]);
+
+    if (pendingPayouts.length > 0) {
+      throw new AppError(
+        'No puedes modificar tus métodos de cobro mientras tengas retiros pendientes de procesar.',
+        403
+      );
+    }
+
     const user = await userRepository.getById(userId);
     if (!user) throw new AppError('Usuario no encontrado', 404);
 

@@ -215,4 +215,28 @@ export const payoutRepository = {
       throw error;
     }
   },
+
+  /**
+   * Obtiene retiros de un usuario filtrados por uno o más estados.
+   * Útil para bloquear cambios de métodos de pago si hay procesos pendientes.
+   */
+  async getByStatusAndUser(userId: string, statuses: string[]): Promise<Payout[]> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT * FROM "${schema}".payouts 
+      WHERE user_id = $1 AND status = ANY($2)
+      ORDER BY created_at DESC;
+    `;
+
+    try {
+      const { rows } = await pool.query(query, [userId, statuses]);
+      return rows.map(row => this.mapRow(row) as Payout);
+    } catch (error: any) {
+      logger.error(
+        { error: error.message, userId, statuses },
+        'DB Error: getByStatusAndUser failed'
+      );
+      throw error;
+    }
+  },
 };
