@@ -37,6 +37,17 @@ const checkAndIssueCertificate = async (userId: string, productId: string) => {
   }
 };
 
+/**
+ * Helper para centralizar la validación de Safe-Guard al actualizar progreso
+ */
+const evaluateSafeGuard = async (userId: string, productId: string) => {
+  const product = await productRepository.getProductById(productId);
+  if (product) {
+    // Llamamos al método que creamos en el AccessService
+    await AccessService.evaluateGuaranteeStatus(userId, productId, product);
+  }
+};
+
 export const getProductContent = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
@@ -52,6 +63,8 @@ export const getProductContent = async (req: Request, res: Response, next: NextF
     }
 
     // 1. Verificar acceso (esto ya valida si el usuario compró el producto)
+    // El AccessService ahora ya internamente llama a evaluateGuaranteeStatus
+    // Esto cubre el caso de Ebooks/Descargables al primer acceso.
     const accessInfo = await AccessService.getProtectedContent(user.id, productId);
 
     // 2. Si es contenido estructurado (Cursos), buscamos el árbol completo
@@ -135,7 +148,12 @@ export const updateLessonProgress = async (req: Request, res: Response, next: Ne
     // 2. Guardar progreso en DB
     await productRepository.toggleLessonProgress(user.id, productId, lessonId, completed);
 
-    if (completed) await checkAndIssueCertificate(user.id, productId);
+    // --- LÓGICA SAFE-GUARD ---
+    // Si marca como completado, evaluamos si superó el umbral del 30%
+    if (completed) {
+      await evaluateSafeGuard(user.id, productId);
+      await checkAndIssueCertificate(user.id, productId);
+    }
 
     res.status(200).json({
       success: true,
@@ -213,9 +231,11 @@ export const submitLessonQuiz = async (req: Request, res: Response, next: NextFu
     // 5. Si aprobó, marcar la lección como completada automáticamente
     if (passed) {
       await productRepository.toggleLessonProgress(user.id, productId, lessonId, true);
+      // --- LÓGICA SAFE-GUARD ---
+      // Al aprobar una lección mediante quiz, también evaluamos progreso
+      await evaluateSafeGuard(user.id, productId);
+      await checkAndIssueCertificate(user.id, productId);
     }
-
-    if (passed) await checkAndIssueCertificate(user.id, productId);
 
     res.status(200).json({
       success: true,

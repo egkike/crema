@@ -35,13 +35,25 @@ export class RefundService {
       if (!order) throw new AppError('La orden no existe', 404);
       if (order.status === 'refunded') throw new AppError('La orden ya fue reembolsada', 400);
 
-      // VALIDACIÓN DE GARANTÍA
-      const orderCreatedAt = new Date(order.created_at).getTime();
-      const guaranteeDays = order.days_of_guarantee_applied || 7;
-      const expirationDate = orderCreatedAt + guaranteeDays * 24 * 60 * 60 * 1000;
+      // --- VALIDACIÓN SAFE-GUARD ---
+      // Si el AccessService invalidó la garantía por consumo/descarga, detenemos aquí.
+      if (!order.is_guarantee_eligible) {
+        throw new AppError(
+          'Esta orden ya no es elegible para reembolso debido al consumo del producto.',
+          403
+        );
+      }
 
-      if (Date.now() > expirationDate) {
-        throw new AppError(`El periodo de garantía de ${guaranteeDays} días ha expirado.`, 400);
+      // VALIDACIÓN CRONOLÓGICA
+      // Si tienes release_date, es la fecha límite. Si no, calculamos con created_at + days.
+      const now = new Date();
+      const expirationDate = order.release_date ? new Date(order.release_date) : null;
+
+      if (expirationDate && now > expirationDate) {
+        throw new AppError(
+          `El periodo de garantía ha expirado el ${expirationDate.toLocaleDateString()}.`,
+          400
+        );
       }
 
       // SEGURIDAD: Solo se reembolsa si el dinero NO ha sido liberado
@@ -125,7 +137,7 @@ export class RefundService {
         client
       );
 
-      // 6. REEMBOLSO EN MERCADO PAGO
+      // 6. REEMBOLSO EN LA PASARELA (Mercado Pago)
       if (order.payment_method === 'mercadopago' && order.transaction_id) {
         try {
           const mpClient = this.getMPClient();

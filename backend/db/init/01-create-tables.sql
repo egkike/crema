@@ -243,9 +243,11 @@ CREATE TABLE IF NOT EXISTS orders (
     commissions_calculated BOOLEAN DEFAULT FALSE,
     balance_released BOOLEAN DEFAULT FALSE,
     days_of_guarantee_applied INT DEFAULT 7,
+    is_guarantee_eligible BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON COLUMN orders.is_guarantee_eligible IS 'Se vuelve FALSE si el usuario consume el producto (descarga o progreso > 30%)';
 
 -- Tabla de Comisiones generadas
 CREATE TABLE IF NOT EXISTS commissions (

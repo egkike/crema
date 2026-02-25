@@ -30,6 +30,7 @@ export interface Order {
   commissions_calculated: boolean;
   balance_released: boolean;
   days_of_guarantee_applied: number | null;
+  is_guarantee_eligible: boolean;
   created_at: Date;
   updated_at: Date;
   // Campos agregados por el mapeador o joins
@@ -53,9 +54,38 @@ export const orderRepository = {
       ...row,
       amount: Number(row.amount),
       commission_amount: row.commission_amount ? Number(row.commission_amount) : 0,
+      is_guarantee_eligible: row.is_guarantee_eligible ?? true,
       release_date: releaseDate,
       creator_id: row.creator_id || null,
     } as Order;
+  },
+
+  /**
+   * Obtiene la orden pagada activa de un usuario para un producto específico
+   */
+  async getActiveOrder(userId: string, productId: string): Promise<Order | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT * FROM "${schema}".orders 
+      WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
+      ORDER BY created_at DESC LIMIT 1;
+    `;
+    const { rows } = await pool.query(query, [userId, productId]);
+    return this.mapRowToOrder(rows[0]);
+  },
+
+  /**
+   * Inactiva la elegibilidad de reembolso por consumo
+   */
+  async invalidateGuarantee(orderId: string, client?: any): Promise<void> {
+    const schema = config.db?.schema || 'public';
+    const db = client || pool;
+    const query = `
+      UPDATE "${schema}".orders 
+      SET is_guarantee_eligible = FALSE, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $1;
+    `;
+    await db.query(query, [orderId]);
   },
 
   async create(data: CreateOrderDTO): Promise<Order | null> {

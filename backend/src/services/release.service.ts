@@ -33,19 +33,20 @@ export const ReleaseService = {
       releasedToPlatform: {},
     };
 
-    // 1. Buscamos las órdenes candidatas fuera de una transacción larga para no bloquear la DB entera
-    const intervalSql = force
-      ? "INTERVAL '0 seconds'"
-      : "(COALESCE(o.days_of_guarantee_applied, 7) || ' days')::INTERVAL";
-
+    // AJUSTE SAFE-GUARD:
+    // Usamos 'release_date' directamente si existe, ya que el repositorio de órdenes
+    // ahora lo calcula con precisión sumando los días de garantía al 'created_at'.
     const findOrdersQuery = `
-      SELECT o.id, o.amount, o.currency, p.creator_id
+      SELECT o.id, o.amount, o.currency, p.creator_id, o.release_date
       FROM "${schema}".orders o
       JOIN "${schema}".products p ON o.product_id = p.id
       WHERE o.status = 'paid' 
       AND o.commissions_calculated = TRUE 
       AND o.balance_released = FALSE
-      AND o.created_at <= NOW() - ${intervalSql}
+      AND (
+        ${force ? 'TRUE' : `o.release_date <= NOW()`} 
+        OR o.is_guarantee_eligible = FALSE -- Opcional: Liberar inmediato si perdió la garantía
+      )
       ${targetOrderId ? `AND o.id = $1` : ''}
     `;
 

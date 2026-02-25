@@ -499,6 +499,10 @@ export const productRepository = {
     }
   },
 
+  /**
+   * Obtiene el progreso real del usuario en un producto
+   * Vital para la lógica de Safe-Guard (Garantía)
+   */
   async getUserProductProgress(
     productId: string,
     userId: string
@@ -509,12 +513,10 @@ export const productRepository = {
   }> {
     const schema = config.db?.schema || 'public';
 
-    // Esta consulta cuenta el total de lecciones del producto
-    // y cuántas existen en la tabla de progreso para ese usuario.
     const query = `
       SELECT 
-        COUNT(l.id) as total_lessons,
-        COUNT(ulp.lesson_id) as completed_lessons
+        COUNT(l.id)::int as total_lessons,
+        COUNT(ulp.lesson_id)::int as completed_lessons
       FROM "${schema}".product_lessons l
       JOIN "${schema}".product_modules m ON l.module_id = m.id
       LEFT JOIN "${schema}".user_lessons_progress ulp ON l.id = ulp.lesson_id AND ulp.user_id = $2
@@ -522,10 +524,9 @@ export const productRepository = {
     `;
 
     const { rows } = await pool.query(query, [productId, userId]);
-    const total = parseInt(rows[0].total_lessons, 10) || 0;
-    const completed = parseInt(rows[0].completed_lessons, 10) || 0;
+    const total = rows[0].total_lessons || 0;
+    const completed = rows[0].completed_lessons || 0;
 
-    // Cálculo del porcentaje evitando división por cero
     const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     return {
@@ -535,25 +536,31 @@ export const productRepository = {
     };
   },
 
+  /**
+   * Lista productos comprados.
+   */
   async getMyPurchasedProductsWithProgress(userId: string): Promise<any[]> {
     const schema = config.db?.schema || 'public';
 
     const query = `
       SELECT 
         p.id, p.title, p.slug, p.type,
-        COUNT(l.id) as total_lessons,
-        COUNT(ulp.lesson_id) as completed_lessons,
+        COUNT(l.id)::int as total_lessons,
+        COUNT(ulp.lesson_id)::int as completed_lessons,
         CASE 
           WHEN COUNT(l.id) > 0 THEN ROUND((COUNT(ulp.lesson_id)::float / COUNT(l.id)::float) * 100)
           ELSE 0 
-        END as progress_percent
-      FROM "${schema}".user_products up
-      JOIN "${schema}".products p ON up.product_id = p.id
+        END as progress_percent,
+        o.is_guarantee_eligible,
+        o.created_at as purchase_date
+      FROM "${schema}".orders o
+      JOIN "${schema}".products p ON o.product_id = p.id
       LEFT JOIN "${schema}".product_modules m ON p.id = m.product_id
       LEFT JOIN "${schema}".product_lessons l ON m.id = l.module_id
       LEFT JOIN "${schema}".user_lessons_progress ulp ON l.id = ulp.lesson_id AND ulp.user_id = $1
-      WHERE up.user_id = $1
-      GROUP BY p.id, p.title, p.slug, p.type;
+      WHERE o.buyer_id = $1 AND o.status = 'paid'
+      GROUP BY p.id, p.title, p.slug, p.type, o.is_guarantee_eligible, o.created_at
+      ORDER BY o.created_at DESC;
     `;
 
     const { rows } = await pool.query(query, [userId]);
