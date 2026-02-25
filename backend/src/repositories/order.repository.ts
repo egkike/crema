@@ -220,4 +220,29 @@ export const orderRepository = {
     const { rows } = await db.query(query, [orderId]);
     return this.mapRowToOrder(rows[0]);
   },
+
+  /**
+   * Obtiene la orden pagada activa incluyendo datos del comprador (Email y Nombre)
+   * Optimiza el envío de notificaciones en el AccessService.
+   */
+  async getActiveOrderWithBuyer(userId: string, productId: string): Promise<any | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT o.*, u.email as buyer_email, u.fullname as buyer_name
+      FROM "${schema}".orders o
+      JOIN "${schema}".users u ON o.buyer_id = u.id
+      WHERE o.buyer_id = $1 AND o.product_id = $2 AND o.status = 'paid'
+      ORDER BY o.created_at DESC LIMIT 1;
+    `;
+    const { rows } = await pool.query(query, [userId, productId]);
+    if (!rows[0]) return null;
+
+    // Mapeamos la fila base y conservamos los campos del JOIN
+    const order = this.mapRowToOrder(rows[0]);
+    return {
+      ...order,
+      buyer_email: rows[0].buyer_email,
+      buyer_name: rows[0].buyer_name,
+    };
+  },
 };

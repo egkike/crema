@@ -479,21 +479,24 @@ export const productRepository = {
     completed: boolean
   ): Promise<void> {
     const schema = config.db?.schema || 'public';
+
     if (completed) {
-      await pool.query(
-        `
-      INSERT INTO "${schema}".user_lessons_progress (user_id, product_id, lesson_id)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (user_id, lesson_id) DO NOTHING;
-    `,
-        [userId, productId, lessonId]
-      );
+      // Validamos que la lección pertenezca al producto a través del módulo
+      const query = `
+        INSERT INTO "${schema}".user_lessons_progress (user_id, product_id, lesson_id)
+        SELECT $1, $2, $3
+        WHERE EXISTS (
+          SELECT 1 FROM "${schema}".product_lessons l
+          JOIN "${schema}".product_modules m ON l.module_id = m.id
+          WHERE l.id = $3 AND m.product_id = $2
+        )
+        ON CONFLICT (user_id, lesson_id) DO NOTHING;
+      `;
+      await pool.query(query, [userId, productId, lessonId]);
     } else {
       await pool.query(
-        `
-      DELETE FROM "${schema}".user_lessons_progress 
-      WHERE user_id = $1 AND lesson_id = $2;
-    `,
+        `DELETE FROM "${schema}".user_lessons_progress 
+         WHERE user_id = $1 AND lesson_id = $2;`,
         [userId, lessonId]
       );
     }
@@ -659,7 +662,11 @@ export const productRepository = {
   async getCertificateByCode(code: string): Promise<any> {
     const schema = config.db?.schema || 'public';
     const query = `
-      SELECT uc.*, u.full_name as student_name, p.title as course_name, p.updated_at as completion_date
+      SELECT 
+        uc.*, 
+        u.fullname as student_name, -- Ajustado de full_name a fullname
+        p.title as course_name, 
+        p.updated_at as completion_date
       FROM "${schema}".user_certificates uc
       JOIN "${schema}".users u ON uc.user_id = u.id
       JOIN "${schema}".products p ON uc.product_id = p.id

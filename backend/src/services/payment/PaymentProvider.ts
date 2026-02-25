@@ -12,4 +12,7 @@ export interface PaymentProvider {
     email: string;
     tempPassword?: string | undefined; 
   }): Promise<PaymentResponse>;
+
+  // Método para procesar devoluciones
+  refund(transactionId: string, amount: number): Promise<void>;
 }

@@ -1,5 +1,3 @@
-import { MercadoPagoConfig, PaymentRefund } from 'mercadopago';
-
 import pool from '../db/postgres';
 import { balanceRepository } from '../repositories/balance.repository';
 import { historyRepository } from '../repositories/history.repository';
@@ -7,18 +5,13 @@ import { orderRepository } from '../repositories/order.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { refundRepository } from '../repositories/refund.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
+import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 import { roundToTwo } from '../utils/rounder';
 
 export class RefundService {
-  private static getMPClient() {
-    return new MercadoPagoConfig({
-      accessToken: config.mercadoPago?.accessToken || 'dummy_token',
-    });
-  }
-
   /**
    * Procesa el reembolso de una orden de forma atómica.
    */
@@ -45,9 +38,10 @@ export class RefundService {
       }
 
       // VALIDACIÓN CRONOLÓGICA
-      // Si tienes release_date, es la fecha límite. Si no, calculamos con created_at + days.
+      // Calculamos con created_at + days.
       const now = new Date();
-      const expirationDate = order.release_date ? new Date(order.release_date) : null;
+      const expirationDate = new Date(order.created_at);
+      expirationDate.setDate(expirationDate.getDate() + (order.days_of_guarantee_applied || 7));
 
       if (expirationDate && now > expirationDate) {
         throw new AppError(
@@ -137,15 +131,21 @@ export class RefundService {
         client
       );
 
-      // 6. REEMBOLSO EN LA PASARELA (Mercado Pago)
-      if (order.payment_method === 'mercadopago' && order.transaction_id) {
+      // 6. REEMBOLSO EN LA PASARELA (Agnóstico / Factory)
+      if (order.transaction_id) {
         try {
-          const mpClient = this.getMPClient();
-          const refundInstance = new PaymentRefund(mpClient);
-          await refundInstance.create({ payment_id: String(order.transaction_id) });
-        } catch (mpError: any) {
-          logger.error({ mpError: mpError.message }, 'Error en API de Mercado Pago');
-          throw new AppError(`Error en Mercado Pago: ${mpError.message}`, 400);
+          const provider = PaymentProviderFactory.getProvider(order.payment_method);
+
+          // El servicio no sabe CÓMO se reembolsa, solo le ordena al provider que lo haga.
+          await provider.refund(order.transaction_id, Number(order.amount));
+
+          logger.info({ orderId, gateway: order.payment_method }, 'Reembolso en pasarela OK');
+        } catch (gatewayError: any) {
+          logger.error({ error: gatewayError.message }, 'Fallo en pasarela externa');
+          throw new AppError(
+            `Error en pasarela (${order.payment_method}): ${gatewayError.message}`,
+            400
+          );
         }
       }
 

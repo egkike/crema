@@ -1,4 +1,4 @@
-import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { MercadoPagoConfig, Preference, PaymentRefund } from 'mercadopago';
 
 import { config } from '../../../config';
 import { PaymentProvider, PaymentResponse } from '../PaymentProvider';
@@ -45,5 +45,19 @@ export class MercadoPagoProvider implements PaymentProvider {
     }
 
     return { initPoint: response.init_point };
+  }
+
+  async refund(transactionId: string, amount: number): Promise<void> {
+    try {
+      const refundInstance = new PaymentRefund(this.client);
+      await refundInstance.create({
+        payment_id: Number(transactionId),
+        body: {
+          amount: amount,
+        },
+      });
+    } catch (error: any) {
+      throw new Error(`Error en Mercado Pago Refund: ${error.message}`);
+    }
   }
 }

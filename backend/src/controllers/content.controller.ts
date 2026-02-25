@@ -37,17 +37,6 @@ const checkAndIssueCertificate = async (userId: string, productId: string) => {
   }
 };
 
-/**
- * Helper para centralizar la validación de Safe-Guard al actualizar progreso
- */
-const evaluateSafeGuard = async (userId: string, productId: string) => {
-  const product = await productRepository.getProductById(productId);
-  if (product) {
-    // Llamamos al método que creamos en el AccessService
-    await AccessService.evaluateGuaranteeStatus(userId, productId, product);
-  }
-};
-
 export const getProductContent = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
@@ -139,38 +128,54 @@ export const updateLessonProgress = async (req: Request, res: Response, next: Ne
     const { user } = req;
     if (!user?.id) throw new AppError('Usuario no identificado.', 401);
 
-    // Validar el cuerpo de la petición
+    // 1. Validar el cuerpo de la petición (Zod)
     const { productId, lessonId, completed } = updateProgressSchema.parse(req.body);
 
-    // 1. Validar que el usuario tiene acceso al producto antes de marcar progreso
-    await AccessService.getProtectedContent(user.id, productId);
+    // 2. Validar acceso Y obtener el objeto producto en una sola operación
+    // AccessService.getProtectedContent ya valida si el producto existe, está publicado
+    // y si el usuario tiene permiso (compra o autoría).
+    const product = await AccessService.getProtectedContent(user.id, productId);
 
-    // 2. Guardar progreso en DB
+    // 3. Guardar progreso en DB
     await productRepository.toggleLessonProgress(user.id, productId, lessonId, completed);
 
-    // --- LÓGICA SAFE-GUARD ---
-    // Si marca como completado, evaluamos si superó el umbral del 30%
+    // 4. LÓGICA DE AUTOMATIZACIÓN (Solo si marca como completado)
     if (completed) {
-      await evaluateSafeGuard(user.id, productId);
+      // Pasamos el objeto 'product' que ya obtuvimos en el paso 2
+      // Evitamos una consulta extra a la DB dentro de evaluateGuaranteeStatus
+      await AccessService.evaluateGuaranteeStatus(user.id, productId, product);
+
+      // Verificamos si con esta lección completó el 100% para el certificado
       await checkAndIssueCertificate(user.id, productId);
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: completed ? 'Lección marcada como completada' : 'Lección marcada como pendiente',
-      data: { lessonId, completed },
+      data: {
+        lessonId,
+        completed,
+        productId,
+      },
     });
   } catch (error: any) {
-    // Si es un error de validación de Zod
+    // Manejo unificado de errores de validación (Zod)
     if (error instanceof z.ZodError) {
+      logger.warn({ userId: req.user?.id, errors: error.issues }, 'Validación fallida en progreso');
       return res.status(400).json({
         success: false,
-        message: 'Datos de validación inválidos',
-        errors: error.issues, // .issues es la forma más compatible de obtener la lista de errores
+        message: 'Los datos enviados son incorrectos.',
+        errors: error.issues.map(issue => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
       });
     }
 
-    logger.error({ error: error.message, userId: req.user?.id }, 'Error al actualizar progreso');
+    logger.error(
+      { error: error.message, userId: req.user?.id, productId: req.body?.productId },
+      'Error crítico al actualizar progreso'
+    );
     next(error);
   }
 };
@@ -196,16 +201,18 @@ export const submitLessonQuiz = async (req: Request, res: Response, next: NextFu
     const { user } = req;
     if (!user?.id) throw new AppError('Usuario no identificado.', 401);
 
+    // 1. Validar esquema de entrada
     const { productId, lessonId, answers } = submitQuizSchema.parse(req.body);
 
-    // 1. Verificar acceso al producto
-    await AccessService.getProtectedContent(user.id, productId);
+    // 2. Verificar acceso y obtener objeto producto (1 sola consulta)
+    // Esto ya dispara el Safe-Guard para descargables si fuera el caso
+    const product = await AccessService.getProtectedContent(user.id, productId);
 
-    // 2. Obtener el examen real (con las respuestas correctas)
+    // 3. Obtener el examen real
     const quiz = await productRepository.getLessonQuiz(lessonId);
     if (!quiz) throw new AppError('Esta lección no contiene un examen.', 404);
 
-    // 3. Calificar el examen
+    // 4. Calificar el examen
     const totalQuestions = quiz.questions.length;
     let correctCount = 0;
 
@@ -219,25 +226,29 @@ export const submitLessonQuiz = async (req: Request, res: Response, next: NextFu
     const score = Math.round((correctCount / totalQuestions) * 100);
     const passed = score >= quiz.passing_score;
 
-    // 4. Guardar el intento en el historial
+    // 5. Guardar el intento
     await productRepository.saveQuizAttempt({
       userId: user.id,
       quizId: quiz.id,
       score,
       passed,
-      answers, // Guardamos lo que eligió para revisión futura
+      answers,
     });
 
-    // 5. Si aprobó, marcar la lección como completada automáticamente
+    // 6. Si aprobó, automatizamos el progreso y las salvaguardas
     if (passed) {
+      // Marcamos la lección como completada
       await productRepository.toggleLessonProgress(user.id, productId, lessonId, true);
-      // --- LÓGICA SAFE-GUARD ---
-      // Al aprobar una lección mediante quiz, también evaluamos progreso
-      await evaluateSafeGuard(user.id, productId);
+
+      // --- LÓGICA SAFE-GUARD OPTIMIZADA ---
+      // Usamos el objeto 'product' que ya tenemos para no re-consultar la DB
+      await AccessService.evaluateGuaranteeStatus(user.id, productId, product);
+
+      // Verificamos si merece certificado
       await checkAndIssueCertificate(user.id, productId);
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: passed
         ? '¡Felicidades! Has aprobado el examen.'
@@ -251,9 +262,16 @@ export const submitLessonQuiz = async (req: Request, res: Response, next: NextFu
       },
     });
   } catch (error: any) {
+    // Unificación de errores de validación Zod
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ success: false, errors: error.issues });
+      return res.status(400).json({
+        success: false,
+        message: 'Error en los datos del examen',
+        errors: error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
+      });
     }
+
+    logger.error({ error: error.message, userId: req.user?.id }, 'Error en submitLessonQuiz');
     next(error);
   }
 };

@@ -7,4 +7,9 @@ export class SimulatorProvider implements PaymentProvider {
     const url = `${config.frontendUrl}/simulator/pay?ref=${data.externalReference}&amount=${data.amount}&currency=${data.currency}`;
     return { initPoint: url };
   }
+
+  async refund(transactionId: string, amount: number): Promise<void> {
+    console.info(`[SIMULATOR] Reembolso procesado para TX: ${transactionId} por ${amount}`);
+    return Promise.resolve();
+  }
 }

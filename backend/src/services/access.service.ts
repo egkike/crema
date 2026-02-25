@@ -1,6 +1,5 @@
 import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
-import { userRepository } from '../repositories/user.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { mainQueue } from '../queues/scheduler';
@@ -51,7 +50,8 @@ export class AccessService {
 
   static async evaluateGuaranteeStatus(userId: string, productId: string, product: any) {
     try {
-      const order = await orderRepository.getActiveOrder(userId, productId);
+      // Usamos el nuevo método con JOIN
+      const order = await orderRepository.getActiveOrderWithBuyer(userId, productId);
 
       // Si no hay orden pagada o ya perdió la garantía, salimos
       if (!order || !order.is_guarantee_eligible) return;
@@ -85,49 +85,41 @@ export class AccessService {
       }
 
       if (shouldInvalidate) {
-        // 1. Intentamos invalidar en la DB
+        // 1. Intentamos invalidar en la DB (Atómico)
         const invalidatedOrder = await orderRepository.invalidateGuarantee(order.id);
 
-        // 2. Si invalidatedOrder es verídico, significa que el estado cambió JUSTO AHORA
+        // 2. Si se invalidó justo ahora, disparamos el email
         if (invalidatedOrder) {
-          // BUSCAMOS AL USUARIO AQUÍ PARA SOLUCIONAR EL ERROR DE NOMBRE:
-          const user = await userRepository.getById(userId);
+          // Usamos los datos que ya vienen del JOIN en 'getActiveOrderWithBuyer'
+          const targetEmail = order.buyer_email;
+          const targetName = order.buyer_name;
 
-          if (user) {
-            if (mainQueue) {
-              // Opción A: Usar la cola (Recomendado)
-              await mainQueue.add(
-                'send-email',
-                {
-                  type: 'GUARANTEE_INVALIDATED',
-                  to: user.email,
-                  data: {
-                    fullname: user.fullname,
-                    productTitle: product.title,
-                    reason: reason,
-                  },
+          if (mainQueue) {
+            await mainQueue.add(
+              'send-email',
+              {
+                type: 'GUARANTEE_INVALIDATED',
+                to: targetEmail,
+                data: {
+                  fullname: targetName,
+                  productTitle: product.title,
+                  reason: reason,
                 },
-                { attempts: 3, backoff: 2000 }
-              );
-
-              logger.info(
-                { userId, orderId: order.id },
-                'Safe-Guard: Email de pérdida de garantía encolado'
-              );
-            } else {
-              // Opción B: Fallback directo si la cola no está disponible
-              await EmailService.sendGuaranteeInvalidatedEmail(
-                user.email,
-                user.fullname,
-                product.title,
-                reason
-              );
-              logger.info(
-                { userId, orderId: order.id },
-                'Safe-Guard: Email enviado directo (sin cola)'
-              );
-            }
+              },
+              { attempts: 3, backoff: 2000 }
+            );
+          } else {
+            await EmailService.sendGuaranteeInvalidatedEmail(
+              targetEmail,
+              targetName,
+              product.title,
+              reason
+            );
           }
+          logger.info(
+            { orderId: order.id },
+            'Safe-Guard: Notificación de pérdida de garantía enviada'
+          );
         }
       }
     } catch (error) {

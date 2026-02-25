@@ -9,46 +9,42 @@ export class StatsService {
    */
   static async getCreatorStats(userId: string, currency: string = 'ARS') {
     const schema = config.db?.schema || 'public';
-    const query = `
+
+    // Unificamos las métricas de balance en una sola consulta
+    const balanceQuery = `
       SELECT 
-        -- 1. Ganancia Histórica Total (todo lo que entró a su cuenta)
-        COALESCE((
-          SELECT total_earned 
-          FROM "${schema}".user_balances 
-          WHERE user_id = $1 AND currency = $2
-        ), 0) as total_earned,
-        
-        -- 2. Saldo Disponible (lo que puede retirar ya mismo)
-        COALESCE((
-          SELECT available_balance 
-          FROM "${schema}".user_balances 
-          WHERE user_id = $1 AND currency = $2
-        ), 0) as available_now,
-        
-        -- 3. Saldo Pendiente (ventas en periodo de garantía)
-        COALESCE((
-          SELECT pending_balance 
-          FROM "${schema}".user_balances 
-          WHERE user_id = $1 AND currency = $2
-        ), 0) as pending_release,
-        
-        -- 4. Total que ya ha sido pagado al usuario con éxito
-        COALESCE((
-          SELECT SUM(amount) 
-          FROM "${schema}".payouts 
-          WHERE user_id = $1 AND currency = $2 AND status = 'completed'
-        ), 0) as total_withdrawn;
+        COALESCE(total_earned, 0) as total_earned,
+        COALESCE(available_balance, 0) as available_now,
+        COALESCE(pending_balance, 0) as pending_release
+      FROM "${schema}".user_balances 
+      WHERE user_id = $1 AND currency = $2
+    `;
+
+    const withdrawalQuery = `
+      SELECT COALESCE(SUM(amount), 0) as total_withdrawn 
+      FROM "${schema}".payouts 
+      WHERE user_id = $1 AND currency = $2 AND status = 'completed'
     `;
 
     try {
-      const { rows } = await pool.query(query, [userId, currency]);
-      const stats = rows[0];
+      // Ejecutamos ambas en paralelo para máxima velocidad
+      const [balanceRes, withdrawalRes] = await Promise.all([
+        pool.query(balanceQuery, [userId, currency]),
+        pool.query(withdrawalQuery, [userId, currency]),
+      ]);
+
+      const balance = balanceRes.rows[0] || {
+        total_earned: 0,
+        available_now: 0,
+        pending_release: 0,
+      };
+      const withdrawn = withdrawalRes.rows[0].total_withdrawn;
 
       return {
-        totalEarned: Number(stats.total_earned),
-        availableBalance: Number(stats.available_now),
-        pendingBalance: Number(stats.pending_release),
-        totalWithdrawn: Number(stats.total_withdrawn),
+        totalEarned: Number(balance.total_earned),
+        availableBalance: Number(balance.available_now),
+        pendingBalance: Number(balance.pending_release),
+        totalWithdrawn: Number(withdrawn),
         currency,
       };
     } catch (error: any) {
@@ -64,7 +60,14 @@ export class StatsService {
     const query = `
       SELECT 
         d.date::date as day,
-        COALESCE(SUM(bh.amount), 0) as daily_income
+        -- Sumamos ventas y restamos reembolsos para obtener el NETO diario
+        COALESCE(SUM(
+          CASE 
+            WHEN bh.type IN ('sale_creator', 'sale_affiliate') THEN bh.amount 
+            WHEN bh.type = 'refund' THEN -ABS(bh.amount) -- Aseguramos que el refund reste
+            ELSE 0 
+          END
+        ), 0) as daily_net_income
       FROM (
         SELECT CURRENT_DATE - i as date
         FROM generate_series(0, 6) i
@@ -73,7 +76,6 @@ export class StatsService {
         bh.created_at::date = d.date 
         AND bh.user_id = $1 
         AND bh.currency = $2
-        AND bh.type IN ('sale_creator', 'sale_affiliate')
       GROUP BY d.date
       ORDER BY d.date ASC;
     `;
@@ -82,7 +84,7 @@ export class StatsService {
       const { rows } = await pool.query(query, [userId, currency]);
       return rows.map(r => ({
         day: r.day,
-        income: Number(r.daily_income),
+        income: Number(r.daily_net_income),
       }));
     } catch (error: any) {
       throw new Error(`Error al obtener gráfico de ventas: ${error.message}`);
@@ -106,11 +108,10 @@ export class StatsService {
 
     return {
       summary: stats,
-      // Agregamos un desglose más claro para el Admin
       taxAuditory: {
         collectedInPeriod: stats.platform.taxCollectedPeriod,
-        netRevenueInPeriod:
-          stats.platform.totalEarnedHistorical - stats.platform.taxCollectedPeriod,
+        // Tu ganancia real es el total generado menos los impuestos que debes pagar
+        netCompanyRevenue: stats.platform.totalEarnedHistorical - stats.platform.taxCollectedPeriod,
       },
       audit: {
         inGuaranteeOrdersCount: inGuarantee.length,
