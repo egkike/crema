@@ -40,6 +40,8 @@ coverage/
 .nyc_output/
 test-results/
 vitest-report/
+src/utils/dev/
+test/
 
 # Archivos temporales y caché
 *.swp
