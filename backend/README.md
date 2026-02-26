@@ -1,231 +1,105 @@
-# Backend Template TS (Node.js + Express + PostgreSQL)
+# Crema API Core 🍦
 
-Template moderno, seguro y testeado de backend en **TypeScript** con Express, JWT (access + refresh token con rotación y revocación), PostgreSQL, rate limiting, roles/permisos, error handling profesional, tests con Vitest y documentación automática con Swagger.
+**Crema** es una infraestructura integral para el ecosistema de e-learning, diseñada para ofrecer seguridad avanzada a creadores y una experiencia fluida para afiliados. Destaca por su sistema **Safe-Guard** y su integración nativa con streaming profesional mediante Mux Video.
 
-Ideal para iniciar proyectos reales, APIs REST seguras o como base reutilizable.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://github.com/egkike/backend-template-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/egkike/backend-template-ts/actions)
-[![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)](https://github.com/egkike/backend-template-ts)
 [![Node](https://img.shields.io/badge/node-20+-blue)](https://nodejs.org/)
-[![pnpm](https://img.shields.io/badge/pnpm-v8+-orange)](https://pnpm.io/)
-[![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
+[![pnpm](https://img.shields.io/badge/pnpm-10+-orange)](https://pnpm.io/)
+[![Database](https://img.shields.io/badge/PostgreSQL-18-blue)](https://www.postgresql.org/)
+[![Queue](https://img.shields.io/badge/BullMQ-Redis-red)](https://docs.bullmq.io/)
 
-## Tecnologías principales
+---
 
-- Node.js + TypeScript
-- Express.js
-- PostgreSQL (con pg)
-- JWT (access + refresh token con rotación)
-- Bcrypt para hashing de contraseñas
-- Pino (logger estructurado)
-- Zod para validación de env
-- Vitest + Supertest (tests)
-- Swagger/OpenAPI + Swagger UI (documentación interactiva)
-- Helmet + CSP (seguridad HTTP)
-- Rate limiting por ruta y usuario (express-rate-limit)
-- Permisos por nivel (middleware restrictTo)
-- Email service con nodemailer
-- Cron Jobs con node-cron
+## 🚀 Funcionalidades Destacadas
 
-## Arquitectura rápida
+### 🛡️ Safe-Guard (Protección Antifraude)
+Implementado en `src/services/access.service.ts`, este sistema protege la propiedad intelectual del creador:
+- **Validación de Garantía:** Invalida automáticamente la posibilidad de reembolso si el progreso del curso supera el **30%** o si se accede a un producto descargable (Ebooks/Software).
+- **Control de Acceso:** Middleware especializado (`checkAccess.middleware.ts`) que verifica la propiedad, autoría o compra antes de servir cualquier contenido protegido.
 
-El proyecto sigue una arquitectura clásica de API REST:
+### 🎥 Streaming de Video Seguro
+Integración con **Mux Video** (vía `src/utils/streaming.util.ts`) para prevenir la piratería:
+- **Firmas RS256:** Generación de tokens dinámicos para URLs de video con tiempo de expiración configurable.
+- **Protección HLS:** El contenido se sirve en fragmentos cifrados, impidiendo la descarga directa del archivo fuente original.
 
-- **Frontend / Cliente** se comunica con la **API Express + Node.js** mediante HTTPS y JWT.
-- La API maneja la lógica de negocio, autenticación, rate limiting, logging y seguridad.
-- La **API se conecta a PostgreSQL 18** para persistencia de datos (con retry automático para arranque lento).
-- Seguridad: Helmet (CSP), hpp, xss-clean, rate-limit por ruta.
-- Validación: Zod + schemas estrictos.
-- Tests: Vitest + Supertest.
-- Documentación: Swagger interactiva (solo en desarrollo).
+### 💳 Sistema de Pagos y Comisiones
+- **Multi-pasarela:** Arquitectura basada en el patrón *Factory* (`PaymentProviderFactory.ts`) preparada para Mercado Pago y futuros proveedores.
+- **Gestión de Balances:** Lógica interna para separar saldo pendiente (en garantía), disponible (para retiro) y liberado (`balance.repository.ts`).
+- **Afiliación:** Tracking de referidos mediante `affiliateTracking.middleware.ts` y reparto automático de comisiones parametrizables por producto.
 
-## Requisitos
+### 🎓 Motor de Aprendizaje (LMS)
+- **Progreso en tiempo real:** Registro detallado de lecciones, módulos y seguimiento de completitud.
+- **Quizzes:** Calificación automática de exámenes con registro de intentos y puntajes.
+- **Certificación:** Emisión automática de certificados con código único de verificación (UUID) al alcanzar el 100% del progreso.
 
-- Node.js ≥ 20
-- pnpm ≥ 8 (recomendado)
-- PostgreSQL ≥ 15 (o Docker para DB)
-- Editor con soporte TS (VS Code recomendado)
+---
 
-## Instalación
+## 🛠️ Stack Tecnológico
 
-1. Clona el repositorio
+- **Core:** Node.js v20+ con Express v5 (Manejo nativo de promesas).
+- **Lenguaje:** TypeScript v5.9+.
+- **Build Tool:** Esbuild (Compilación ultrarrápida).
+- **Base de Datos:** PostgreSQL con Pool de conexiones nativo (`pg`).
+- **Procesamiento Asíncrono:** BullMQ con Redis para colas de emails, limpieza de tokens y tareas programadas.
+- **Seguridad:** JWT (Access + Refresh Tokens con rotación), Helmet, Rate Limiting y 2FA (otplib).
+- **Validación:** Zod para esquemas de datos e integridad de entrada.
 
-```bash
-git clone https://github.com/egkike/backend-template-ts.git
-cd backend-template-ts
+---
+
+## 📁 Estructura del Proyecto
+
+```text
+src/
+├── controllers/    # Controladores: admin, affiliate, balance, payout, product, etc.
+├── repositories/   # Capa de persistencia: Consultas SQL puras (Patrón Repository).
+├── services/       # Lógica de negocio: auth, commission, release, payment, etc.
+├── queues/         # Procesamiento en segundo plano con BullMQ (Workers/Schedulers).
+├── middlewares/    # Seguridad y Negocio: Safe-Guard, Role, PlanLimits, Tracking.
+├── utils/          # Herramientas: Streaming (Mux), JWT, Logger (Pino), Rounder.
+├── schemas/        # Esquemas de validación Zod.
+└── db/             # Conexión a Postgres y scripts de inicialización.
 ```
 
-2. Instala dependencias
+---
 
-```bash
+## ⚙️ Configuración Rápida
+
+1- Instalación:
+
+```Bash
 pnpm install
 ```
 
-3. Crea el archivo .env (copia de .env.example)
+2- Variables de Entorno:
+Crea un archivo `.env` basándote en los requerimientos del sistema:
 
-```bash
-cp .env.example .env
+- PostgreSQL: Credenciales de acceso a la DB.
+
+- Redis: Host y puerto para BullMQ.
+
+- Mercado Pago: Access Tokens para la pasarela.
+
+- Mux: Signing Keys e IDs para el streaming seguro.
+
+3- Ejecución:
+
+```Bash
+pnpm dev   # Desarrollo con tsx watch
+pnpm build # Compilación para producción con esbuild
+pnpm start # Ejecución de la build generada
 ```
-
-4. Edita `.env` con tus valores (ver sección Configuración)
-
-## Configuración (.env)
-
-```env
-# Puerto del servidor
-PORT=3000
-
-# Entorno
-NODE_ENV=development  # o production
-
-# Base de datos PostgreSQL
-POSTGRES_USER=app_user
-POSTGRES_PASSWORD=tu_password
-POSTGRES_DB=app_db
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=app_user
-DB_PASSWORD=tu_password
-DB_NAME=app_db
-DB_SCHEMA=public
-
-# JWT
-SECRET_JWT_KEY=your-very-long-and-secure-secret-here-min-128-chars
-JWT_ACCESS_EXPIRY=15m
-JWT_REFRESH_EXPIRY=7d
-
-# CORS (separados por coma)
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-
-# Opcional: para producción
-TRUST_PROXY=true  # si usas reverse proxy (nginx, etc.)
-```
-
-## Base de datos (PostgreSQL)
-- Las tablas se crean a partir de los scripts de `./db/init/*.sql`, cuando corre `docker-compose.yml`.
-
-**Recomendación**: Usa pgAdmin o DBeaver para ver las tablas.
-- pgAdmin integrado: http://localhost:5050 (user: admin@local.com, pass: admin)
-- Conexión automática a `db` (host: db, puerto: 5432, user: app_user)
-
-## Comandos principales
-
-```bash
-pnpm dev          # Desarrollo (tsx watch)
-pnpm build        # Compila a JavaScript (dist/)
-pnpm start        # Ejecuta en producción (node dist/index.js)
-pnpm test         # Ejecuta todos los tests
-pnpm test:watch   # Tests en modo watch
-pnpm test:coverage # Tests + reporte de cobertura
-```
-
-## Desarrollo con Docker (recomendado)
-
-```bash
-# Construir imagen (usa --network host si tienes problemas de DNS)
-docker build -t crema-api -f Dockerfile --network host --no-cache .
-
-# Levantar todo (API + DB + pgAdmin opcional)
-docker-compose up -d
-```
-
-**Acceso**:
-- API: http://localhost:3000
-- Health: http://localhost:3000/health
-- Swagger (solo dev): http://localhost:3000/api-docs
-- pgAdmin: http://localhost:5050 (admin@local.com / admin)
-- PostgreSQL: localhost:5432 (user: postgres, pass: del .env)
-
-**Inicialización automática de la DB**:
-- La primera vez que se levanta el contenedor db (cuando `./postgres-data` está vacío o no existe), Postgres ejecuta automáticamente todos los archivos `.sql` en la carpeta `./db/init` (en orden alfabético).
-- Esto crea el schema, tablas, índices y datos iniciales (seed) sin intervención manual.
-- En arranques posteriores (con datos ya existentes), los scripts se ignoran (comportamiento estándar de la imagen oficial de Postgres).
-
-```bash
-# Detener todo y eliminar los contenedores y la red (No borra el volúmen de datos en ./postgres-data):
-
-docker-compose down
-```
-
-## Estructura de carpetas
-
-```
-backend/
-├── db
-├── src
-│   ├── __tests__     # Tests con Vitest
-│   ├── config        # Configuración (db, env, etc.)
-│   ├── controllers   # Controladores (auth, user)
-│   ├── db            # Conexión al pool de PostgreSQL
-│   ├── errors        # AppError personalizado
-│   ├── middlewares   # JWT, roles, rate-limit
-│   ├── repositories  # Acceso a DB (user.repository.ts)
-│   ├── routes        # Rutas (auth.routes.ts, user.routes.ts)
-│   ├── schemas       # Zod schemas (users.ts)
-│   ├── types         # Tipos TypeScript
-│   ├── utils         # JWT, logger, etc.
-│   └── index.ts      # Entrada principal (app Express)
-├── .env.example
-├── .prettierrc
-├── docker-compose.yml
-├── Dockerfile
-├── eslint.config.mjs
-├── package.json
-├── pnpm-lock.yaml
-├── README.md
-├── tsconfig.build.json
-├── tsconfig.json
-└── vitest.config.ts
-```
-
-## Funcionalidades clave
-
-- Autenticación JWT con access (15 min) + refresh token (7 días, rotación + revocación en logout)
-- Cookies HttpOnly + SameSite=Strict
-- Permisos por nivel (middleware restrictTo)
-- Rate limiting por ruta y usuario
-- Validación de contraseñas detallada
-- Error handler profesional con AppError
-- Documentación Swagger interactiva (/api-docs)
-- Tests con Vitest + Supertest (cobertura auth, logout, refresh, permisos)
-
-## Swagger / Documentación API
-Una vez levantado el servidor, accede a:
-
-```
-http://localhost:3000/api-docs
-```
-
-Interfaz interactiva para probar todos los endpoints (login, refresh, logout, CRUD usuarios, etc.).
-
-## Tests
-
-```bash
-pnpm test
-```
-
-Cobertura actual:
-- Login, refresh, logout + revocación
-- Permisos (403 en rutas restringidas)
-- Errores (400, 401, 403)
-- Creación de usuario con contraseña débil (400)
-
-## Contribuir
-
-1. Forkea el repositorio
-2. Crea tu rama (`git checkout -b feature/nueva-funcionalidad`)
-3. Commitea con conventional commits (`git commit -m 'feat: nueva funcionalidad'`)
-4. Push a tu rama (`git push origin feature/nueva-funcionalidad`)
-5. Abre un Pull Request
-
-¡Todas las contribuciones son bienvenidas! (mejoras de seguridad, tests, docs, etc.)
-
-## Licencia
-
-MIT License - usa libremente, modifica y distribuye.
 
 ---
-¡Gracias por usar este template!
-Creado con ❤️ por Kike Garcia (@kike_eg)
-¡Contribuye, forkéalo y hazlo tuyo!
+
+## 🧪 Testing y Calidad
+
+El proyecto utiliza Vitest para garantizar la integridad de los flujos críticos:
+
+```Bash
+pnpm test          # Ejecutar suite de pruebas
+pnpm test:coverage # Reporte de cobertura de código
+pnpm lint          # Verificación de estilos y errores de sintaxis
+```
+
+---
+
+## Diseñado por Kike Garcia para el ecosistema de creadores y afiliados de Crema. 🍦
