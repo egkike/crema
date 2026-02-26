@@ -14,7 +14,7 @@ const lessonSchema = z.object({
   title: z.string().min(1, 'La lección requiere un título'),
   description: z.string().optional(),
   contentType: z.enum(['video', 'pdf', 'text', 'quiz', 'link']).default('video'),
-  contentUrl: z.string().url('URL de contenido inválida').optional(),
+  contentUrl: z.string().min(1, 'El contenido o ID es requerido').optional(),
   bodyText: z.string().optional(),
   durationSeconds: z.number().nonnegative().optional(),
   isPreview: z.boolean().default(false),
@@ -27,7 +27,7 @@ const moduleSchema = z.object({
   lessons: z.array(lessonSchema).min(1, 'Un módulo debe tener al menos una lección'),
 });
 
-// 3. Schema Principal Mejorado
+// 3. Schema Principal
 export const createProductSchema = z
   .object({
     title: z
@@ -43,8 +43,9 @@ export const createProductSchema = z
       .array(priceSchema)
       .min(1, { message: 'Debes asignar al menos un precio en una moneda habilitada' }),
 
-    // Si no es estructurado, este campo es el principal
-    contentUrl: z.string().url({ message: 'Debe ser una URL válida' }).optional(),
+    // Si no es estructurado (ej: un Ebook), este campo es el principal
+    // Permitimos string simple para mayor compatibilidad
+    contentUrl: z.string().min(1, 'URL o ID de contenido inválido').optional(),
 
     commissionPercent: z
       .number()

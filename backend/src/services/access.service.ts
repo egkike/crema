@@ -36,12 +36,18 @@ export class AccessService {
 
     logger.info({ userId, productId }, `Acceso concedido al contenido: ${product.title}`);
 
+    let finalUrl = product.content_url;
+    if (product.type === 'video' && !product.has_structured_content && finalUrl) {
+      const { streamingUtil } = await import('../utils/streaming.util');
+      finalUrl = await streamingUtil.getSignedUrl(finalUrl, 'video');
+    }
+
     // 2. Retorno estructurado (Normalizando nombres de propiedades)
     return {
       id: product.id,
       title: product.title,
       type: product.type,
-      contentUrl: product.content_url,
+      contentUrl: finalUrl,
       description: product.description,
       has_structured_content: product.has_structured_content,
       updatedAt: product.updated_at,

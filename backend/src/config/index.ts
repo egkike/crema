@@ -37,6 +37,11 @@ const envSchema = z.object({
   CLOUDFLARE_ACCOUNT_ID: z.string().optional().default(''),
   CLOUDFLARE_STREAM_KEY_ID: z.string().optional().default(''),
   CLOUDFLARE_STREAM_KEY_SECRET: z.string().optional().default(''),
+  // --- VARIABLES MUX ---
+  MUX_TOKEN_ID: z.string().min(1),
+  MUX_TOKEN_SECRET: z.string().min(1),
+  MUX_SIGNING_KEY_ID: z.string().min(1),
+  MUX_SIGNING_KEY: z.string().min(1),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -54,6 +59,11 @@ const TEST_CONFIG = {
   CLOUDFLARE_ACCOUNT_ID: 'test_account_id',
   CLOUDFLARE_STREAM_KEY_ID: 'test_key_id',
   CLOUDFLARE_STREAM_KEY_SECRET: 'test_key_secret',
+  // Valores fake para Mux en tests
+  MUX_TOKEN_ID: 'test_token_id',
+  MUX_TOKEN_SECRET: 'test_token_secret',
+  MUX_SIGNING_KEY_ID: 'test_signing_key_id',
+  MUX_SIGNING_KEY: 'test_signing_key_base64',
 };
 
 // --- TRUCO PARA TESTS ---
@@ -123,6 +133,12 @@ export const config = {
     cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
     cloudflareKeyId: env.CLOUDFLARE_STREAM_KEY_ID,
     cloudflareKeySecret: env.CLOUDFLARE_STREAM_KEY_SECRET,
+  },
+  mux: {
+    tokenId: env.MUX_TOKEN_ID,
+    tokenSecret: env.MUX_TOKEN_SECRET,
+    signingKeyId: env.MUX_SIGNING_KEY_ID,
+    signingKey: env.MUX_SIGNING_KEY,
   },
   apiBaseUrl: (env.API_BASE_URL || `http://localhost:${env.PORT}`).trim().replace(/\/$/, ''),
   frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),

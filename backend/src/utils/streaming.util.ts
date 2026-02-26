@@ -6,69 +6,71 @@ import logger from './logger';
 
 class StreamingUtil {
   /**
-   * Genera una URL firmada para Cloudflare Stream.
-   * @param contentUrl El ID del video o la URL base de Cloudflare
+   * Genera una URL firmada para Mux Video.
+   * @param playbackId El ID del video (guardado en content_url)
    * @param contentType Tipo de contenido (video)
    */
-  public async getSignedUrl(contentUrl: string, contentType: string): Promise<string> {
-    if (!contentUrl || contentType !== 'video') return contentUrl;
+  public async getSignedUrl(playbackId: string, contentType: string): Promise<string> {
+    // Si no es video o no hay ID, devolvemos lo que llegó
+    if (!playbackId || contentType !== 'video') return playbackId;
 
     try {
-      // Si la URL es de Cloudflare, la firmamos
-      if (contentUrl.includes('cloudflarestream.com') || !contentUrl.startsWith('http')) {
-        return this.signCloudflareUrl(contentUrl);
+      // Si parece un playback ID de Mux (alfanumérico corto), lo firmamos
+      // O si prefieres, puedes validar que no sea una URL externa HTTP
+      if (!playbackId.startsWith('http')) {
+        return this.signMuxUrl(playbackId);
       }
 
-      return contentUrl;
+      return playbackId;
     } catch (error: any) {
       logger.error(
-        { error: error.message, contentUrl },
-        'Error en el proceso de firma de streaming'
+        { error: error.message, playbackId },
+        'Error en el proceso de firma de streaming con Mux'
       );
-      return contentUrl;
+      return playbackId;
     }
   }
 
   /**
-   * Crea un token JWT firmado para Cloudflare Stream usando HMAC-SHA256
+   * Crea un token JWT firmado para Mux usando RS256
    */
-  private signCloudflareUrl(videoIdOrUrl: string): string {
-    const { cloudflareKeyId, cloudflareKeySecret } = config.streaming;
+  private signMuxUrl(playbackId: string): string {
+    const { signingKeyId, signingKey } = config.mux;
 
-    // Si no hay llaves configuradas, devolvemos la URL original (útil en dev)
-    if (!cloudflareKeyId || !cloudflareKeySecret) {
-      logger.warn('Cloudflare Stream keys no configuradas, devolviendo URL sin firma');
-      return videoIdOrUrl;
+    if (!signingKeyId || !signingKey) {
+      logger.warn('Mux Signing keys no configuradas, devolviendo ID sin firma');
+      return playbackId;
     }
 
-    // Extraer el Video ID si viene una URL completa
-    const videoId = videoIdOrUrl.split('/').pop()?.replace('watch', '') || videoIdOrUrl;
-
-    // 1. Definir el Header del JWT
+    // 1. Definir el Header del JWT (Mux requiere RS256)
     const header = {
-      alg: 'HS256',
+      alg: 'RS256',
       typ: 'JWT',
-      kid: cloudflareKeyId,
+      kid: signingKeyId,
     };
 
-    // 2. Definir el Payload (expira en 1 hora por defecto)
+    // 2. Definir el Payload
     const epochNow = Math.floor(Date.now() / 1000);
     const payload = {
-      sub: videoId,
-      kid: cloudflareKeyId,
+      sub: playbackId,
+      aud: 'v', // 'v' indica que el token es para Video Playback
       exp: epochNow + 3600, // + 1 hora
-      nbf: epochNow - 60, // Un minuto de margen por desajustes de reloj
+      kid: signingKeyId,
     };
 
-    // 3. Serializar y codificar en Base64Url
+    // 3. Codificar Header y Payload
     const base64UrlHeader = this.toBase64Url(JSON.stringify(header));
     const base64UrlPayload = this.toBase64Url(JSON.stringify(payload));
+    const tokenData = `${base64UrlHeader}.${base64UrlPayload}`;
 
-    // 4. Generar la Firma HMAC-SHA256
-    const signature = crypto
-      .createHmac('sha256', Buffer.from(cloudflareKeySecret, 'base64'))
-      .update(`${base64UrlHeader}.${base64UrlPayload}`)
-      .digest();
+    // 4. Generar la Firma usando RSA-SHA256 (RS256)
+    // Mux entrega la llave privada en formato Base64 o PEM
+    const privateKeyBuffer = Buffer.from(signingKey, 'base64');
+
+    const signature = crypto.sign('sha256', Buffer.from(tokenData), {
+      key: privateKeyBuffer,
+      padding: crypto.constants.RSA_PKCS1_PADDING,
+    });
 
     const base64UrlSignature = signature
       .toString('base64')
@@ -76,13 +78,15 @@ class StreamingUtil {
       .replace(/\//g, '_')
       .replace(/=/g, '');
 
-    // 5. Construir la URL final con el token
-    const jwt = `${base64UrlHeader}.${base64UrlPayload}.${base64UrlSignature}`;
-    return `https://customer-${config.streaming.cloudflareAccountId}.cloudflarestream.com/${jwt}/watch`;
+    // 5. Construir el JWT y la URL de stream HLS (.m3u8)
+    const jwt = `${tokenData}.${base64UrlSignature}`;
+
+    // Mux utiliza el formato .m3u8 para streaming adaptativo
+    return `https://stream.mux.com/${playbackId}.m3u8?token=${jwt}`;
   }
 
   /**
-   * Helper para convertir strings a Base64Url (estándar JWT)
+   * Helper para convertir strings o buffers a Base64Url
    */
   private toBase64Url(str: string): string {
     return Buffer.from(str)
