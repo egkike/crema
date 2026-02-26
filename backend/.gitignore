@@ -51,6 +51,7 @@ vitest-report/
 *.cache
 .eslintcache
 .prettierrc.cache
+test.*
 
 # PostgreSQL / bases de datos locales (por si exportas dumps)
 *.sql.dump
