@@ -9,7 +9,7 @@ import { PaymentProviderFactory } from '../services/payment/PaymentProviderFacto
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { config } from '../config/index';
-import { roundToTwo } from '../utils/rounder';
+import { roundToTwo } from '../utils/rounder.util';
 
 export class RefundService {
   /**

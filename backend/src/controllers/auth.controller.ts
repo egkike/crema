@@ -9,7 +9,7 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
   cleanPayload,
-} from '../utils/jwt';
+} from '../utils/jwt.util';
 import { validatePasswordDetailed } from '../schemas/users.schema';
 import logger from '../utils/logger';
 import { config } from '../config/index';

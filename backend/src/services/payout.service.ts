@@ -7,11 +7,11 @@ import { payoutMethodRepository } from '../repositories/payout_method.repository
 import { userRepository } from '../repositories/user.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
 import { platformWithdrawalRepository } from '../repositories/platform_withdrawal.repository';
-import { SpecialValidators } from '../utils/validators';
+import { SpecialValidators } from '../utils/validators.util';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { mainQueue } from '../queues/scheduler';
-import { roundToTwo } from '../utils/rounder';
+import { roundToTwo } from '../utils/rounder.util';
 
 export class PayoutService {
   /**

@@ -8,7 +8,7 @@ import { subscriptionRepository } from '../repositories/subscription.repository'
 import { Order } from '../repositories/order.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
-import { roundToTwo } from '../utils/rounder';
+import { roundToTwo } from '../utils/rounder.util';
 
 export class CommissionService {
   /**

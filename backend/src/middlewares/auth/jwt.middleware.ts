@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
-import { verifyToken } from '../../utils/jwt';
+import { verifyToken } from '../../utils/jwt.util';
 import logger from '../../utils/logger';
 
 /**

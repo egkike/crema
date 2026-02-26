@@ -5,7 +5,7 @@ import { payoutMethodRepository } from '../repositories/payout_method.repository
 import { payoutRepository } from '../repositories/payout.repository';
 import { userRepository } from '../repositories/user.repository';
 import { configRepository } from '../repositories/config.repository';
-import { SpecialValidators } from '../utils/validators';
+import { SpecialValidators } from '../utils/validators.util';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 
