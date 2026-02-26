@@ -102,4 +102,4 @@ pnpm lint          # Verificación de estilos y errores de sintaxis
 
 ---
 
-## Diseñado por Kike Garcia para el ecosistema de creadores y afiliados de Crema. 🍦
+Diseñado por Kike Garcia para el ecosistema de creadores y afiliados de Crema. 🍦
