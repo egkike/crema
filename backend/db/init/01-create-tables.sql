@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     user_agent TEXT,
     ip_address VARCHAR(45),
     last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    device_type VARCHAR(50); -- Ej: Mobile, Desktop, Tablet
+    device_type VARCHAR(50) -- Ej: Mobile, Desktop, Tablet
 );
 
 -- Tabla para el Historial de Actividad (Auditoría)

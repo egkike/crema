@@ -34,20 +34,40 @@ if (config.nodeEnv !== 'test') {
 const handleShutdown = async (signal: string) => {
   logger.info(`SISTEMA: Recibida señal ${signal}. Iniciando apagado elegante...`);
 
-  if (server) {
-    server.close(async () => {
-      logger.info('SISTEMA: Servidor HTTP cerrado.');
-      try {
-        await Promise.all([closeWorker(), closeScheduler()]);
-        logger.info('SISTEMA: Apagado completado con éxito. 👋');
-        process.exit(0);
-      } catch (error: any) {
-        logger.error({ error: error.message }, 'SISTEMA: Error durante el cierre de colas');
-        process.exit(1);
-      }
-    });
-  } else {
+  // Disyuntor de emergencia: Si en 10 segundos no cerró, forzamos la salida.
+  const forceExitTimeout = setTimeout(() => {
+    logger.error(
+      'SISTEMA: No se pudo cerrar limpiamente en el tiempo previsto. Forzando salida...'
+    );
+    process.exit(1);
+  }, 10000); // 10 segundos es un estándar seguro
+
+  // Permitimos que el timer no bloquee el cierre natural si todo termina antes.
+  forceExitTimeout.unref();
+
+  try {
+    // Iniciamos todos los cierres en paralelo para máxima eficiencia
+    const closes: Promise<void | unknown>[] = [];
+
+    if (server) {
+      // Envolvemos server.close en una promesa
+      closes.push(new Promise(resolve => server.close(resolve)));
+      logger.info('SISTEMA: Cerrando servidor HTTP...');
+    }
+
+    // closeWorker y closeScheduler ya devuelven promesas, así que van directo
+    closes.push(closeWorker());
+    closes.push(closeScheduler());
+
+    // Esperamos a que todas las promesas se cumplan
+    await Promise.all(closes);
+
+    clearTimeout(forceExitTimeout);
+    logger.info('SISTEMA: Apagado completado con éxito. 👋');
     process.exit(0);
+  } catch (error: any) {
+    logger.error({ error: error.message }, 'SISTEMA: Error durante el proceso de apagado');
+    process.exit(1);
   }
 };
 

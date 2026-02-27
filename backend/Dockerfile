@@ -1,11 +1,15 @@
-# Etapa 1: Construcción (builder)
+# Etapa 1: Builder
 FROM node:22-slim AS builder
 RUN apt-get update && apt-get upgrade -y
 
 WORKDIR /app
 
-# Instalar pnpm (node 22 ya trae un npm moderno)
-RUN npm install -g pnpm
+# Activamos el pnpm (corepack)
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Configuramos pnpm para que use una estructura plana (hoisted)
+# Esto garantiza que 'pino' esté donde Node lo busca
+RUN pnpm config set node-linker hoisted
 
 COPY package.json pnpm-lock.yaml ./
 COPY tsconfig.json tsconfig.build.json ./
@@ -17,23 +21,23 @@ COPY src/ ./src/
 # Compila el proyecto
 RUN pnpm build
 
-# Verificamos que dist exista (debug opcional)
-RUN ls -la dist || echo "dist no generado!"
-
 # Etapa 2: Imagen final
 FROM node:22-alpine
-# FIX SEGURIDAD: Actualiza los paquetes internos de Alpine (como ssl o musl)
-# apk upgrade aplica los parches de seguridad más recientes disponibles
 RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
+# Copiamos lo que construiste (ahora son archivos reales, no links)
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
 ENV NODE_ENV=production
 ENV PORT=3000
+
+# Seguridad: Recomendado correr como usuario no-root (opcional pero mejor)
+RUN addgroup -S crema && adduser -S crema -G crema && chown -R crema:crema /app
+USER crema
 
 EXPOSE 3000
 

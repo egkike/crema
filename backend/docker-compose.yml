@@ -5,81 +5,64 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      network: host
+      network: host 
     container_name: crema-api
-    network_mode: "host"
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
-      - 1.0.0.1
-    env_file:
-      - .env
+    restart: unless-stopped
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy  
-    restart: unless-stopped
+        condition: service_healthy
+    networks:
+      - crema-net
+    ports:
+      # Exponemos explícitamente a 0.0.0.0 para que el "host" pueda verlo
+      - "0.0.0.0:3000:3000"
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"const http = require('http'); http.get('http://localhost:3000/health', (r) => { r.statusCode === 200 ? process.exit(0) : process.exit(1); }).on('error', () => process.exit(1));\""]
-      interval: 10s
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
       timeout: 10s
-      retries: 30
-      start_period: 120s  # Tiempo generoso para arranque lento (recomendado)
+      retries: 3
 
   db:
-    image: postgres:18
+    image: postgres:18-alpine
     container_name: crema-db
     restart: always
-    env_file:
-      - .env
-    ports:
-      - "5432:5432" # Mapeo necesario para que la API en modo 'host' lo vea en localhost  
+    env_file: .env
     volumes:
-      - ./postgres-data:/var/lib/postgresql       # Persistencia de datos
-      - ./db/init:/docker-entrypoint-initdb.d     # Scripts automáticos (solo primera vez)
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
+      - ./postgres-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d      # Scripts automáticos (solo primera vez)
+    networks:
+      - crema-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U $${DB_USER} -d $${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
-    networks:
-      - app-network
 
   redis:
-    image: redis:7-alpine # Versión ligera y estable
+    image: redis:7-alpine
     container_name: crema-redis
     restart: always
-    ports:
-      - "6379:6379" # Mapeo necesario para BullMQ vía localhost
+    networks:
+      - crema-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s
-      retries: 5
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: pgadmin
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: crema-ngrok
     restart: always
+    network_mode: host
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@local.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"  # Accede en http://localhost:5050 (solo dev)
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: http localhost:3000 --url=https://unforsworn-skiagraphical-claretta.ngrok-free.dev
     depends_on:
-      - db
-    networks:
-      - app-network
+      api:
+        condition: service_healthy
 
 networks:
-  app-network:
+  crema-net:
     driver: bridge

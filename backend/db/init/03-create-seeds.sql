@@ -1,6 +1,7 @@
--- 03-seed-data.sql
+-- 03-create-seeds.sql
 
 -- Inserta datos iniciales en la tabla users (en schema 'public' por defecto)
+
 -- Hash password = UnaNuevaClaveSegura2026! (Se recomienda cambiar por un hash propio en producción)
 INSERT INTO users (username, password, email, fullname, level, active, must_change_password) VALUES 
 ('admin_crema', '$2b$12$7OR1Xy6A2.hqaskZjOizle13AcMRLUVBH//NKR40MyeQJx4//CeSq', 'admin@crema.com', 'Super Administrador Crema', 99, 1, false)
