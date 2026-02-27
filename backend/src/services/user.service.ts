@@ -74,10 +74,21 @@ export class UserService {
     if (targetLevel === levels.CREATOR) {
       try {
         const defaultPlanId = await configRepository.getSetting('default_creator_plan_id');
+
         if (defaultPlanId && defaultPlanId.trim() !== '') {
-          await subscriptionRepository.createInitialSubscription(userId, defaultPlanId);
+          // 1. Obtenemos la moneda que el usuario acaba de configurar para sus cobros
+          // Si por alguna razón no viene (aunque lo validamos arriba), usamos 'ARS' como fallback seguro
+          const userCurrency = payoutData?.currency || 'ARS';
+
+          // 2. AHORA PASAMOS LOS 3 ARGUMENTOS: userId, planId, currency
+          await subscriptionRepository.createInitialSubscription(
+            userId,
+            defaultPlanId,
+            userCurrency
+          );
+
           logger.info(
-            { userId, planId: defaultPlanId },
+            { userId, planId: defaultPlanId, currency: userCurrency },
             'Suscripción gratuita asignada al nuevo creador'
           );
         } else {
@@ -87,7 +98,6 @@ export class UserService {
           );
         }
       } catch (subError: any) {
-        // Logueamos el error pero no revertimos el upgrade, para no romper la experiencia
         logger.error(
           { userId, error: subError.message },
           'Fallo al asignar suscripción inicial en upgrade'

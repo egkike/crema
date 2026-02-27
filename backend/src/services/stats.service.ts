@@ -1,8 +1,48 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 import { adminRepository } from '../repositories/admin.repository';
+import logger from '../utils/logger';
 
 export class StatsService {
+  /**
+   * Obtiene la fecha más cercana de liberación y el monto total para ese día.
+   */
+  static async getNextReleaseInfo(userId: string, currency: string = 'ARS') {
+    const schema = config.db?.schema || 'public';
+
+    // Buscamos la fecha de liberación más próxima que aún no haya sido liberada
+    const query = `
+    SELECT 
+      (o.created_at + (o.days_of_guarantee_applied || ' days')::interval)::date as next_release_date,
+      SUM(c.net_amount) as total_amount
+    FROM "${schema}".orders o
+    JOIN "${schema}".commissions c ON o.id = c.order_id
+    WHERE c.user_id = $1 
+      AND o.currency = $2
+      AND o.balance_released = FALSE
+      AND o.status = 'paid'
+      AND o.is_guarantee_eligible = TRUE -- Solo las que siguen esperando por calendario
+    GROUP BY next_release_date
+    HAVING (next_release_date) >= CURRENT_DATE
+    ORDER BY next_release_date ASC
+    LIMIT 1;
+  `;
+
+    try {
+      const { rows } = await pool.query(query, [userId, currency]);
+
+      if (rows.length === 0) return null;
+
+      return {
+        date: rows[0].next_release_date,
+        amount: Number(rows[0].total_amount),
+      };
+    } catch (error: any) {
+      logger.error({ userId, error: error.message }, 'Error al obtener próxima liberación');
+      return null;
+    }
+  }
+
   /**
    * Obtiene las métricas principales del dashboard para un usuario.
    * Centraliza: Ganancia Total, Disponible, Pendiente y Retirado.
@@ -10,27 +50,27 @@ export class StatsService {
   static async getCreatorStats(userId: string, currency: string = 'ARS') {
     const schema = config.db?.schema || 'public';
 
-    // Unificamos las métricas de balance en una sola consulta
     const balanceQuery = `
-      SELECT 
-        COALESCE(total_earned, 0) as total_earned,
-        COALESCE(available_balance, 0) as available_now,
-        COALESCE(pending_balance, 0) as pending_release
-      FROM "${schema}".user_balances 
-      WHERE user_id = $1 AND currency = $2
-    `;
+    SELECT 
+      COALESCE(total_earned, 0) as total_earned,
+      COALESCE(available_balance, 0) as available_now,
+      COALESCE(pending_balance, 0) as pending_release
+    FROM "${schema}".user_balances 
+    WHERE user_id = $1 AND currency = $2
+  `;
 
     const withdrawalQuery = `
-      SELECT COALESCE(SUM(amount), 0) as total_withdrawn 
-      FROM "${schema}".payouts 
-      WHERE user_id = $1 AND currency = $2 AND status = 'completed'
-    `;
+    SELECT COALESCE(SUM(amount), 0) as total_withdrawn 
+    FROM "${schema}".payouts 
+    WHERE user_id = $1 AND currency = $2 AND status = 'completed'
+  `;
 
     try {
-      // Ejecutamos ambas en paralelo para máxima velocidad
-      const [balanceRes, withdrawalRes] = await Promise.all([
+      // Ejecutamos las tres consultas en paralelo
+      const [balanceRes, withdrawalRes, nextRelease] = await Promise.all([
         pool.query(balanceQuery, [userId, currency]),
         pool.query(withdrawalQuery, [userId, currency]),
+        this.getNextReleaseInfo(userId, currency),
       ]);
 
       const balance = balanceRes.rows[0] || {
@@ -45,6 +85,7 @@ export class StatsService {
         availableBalance: Number(balance.available_now),
         pendingBalance: Number(balance.pending_release),
         totalWithdrawn: Number(withdrawn),
+        nextRelease, // { date: '2024-05-20', amount: 15000.00 } o null
         currency,
       };
     } catch (error: any) {
@@ -53,7 +94,7 @@ export class StatsService {
   }
 
   /**
-   * OPCIONAL: Obtiene ingresos diarios de los últimos 7 días para un gráfico
+   * Obtiene ingresos diarios de los últimos 7 días para un gráfico
    */
   static async getLastSevenDaysSales(userId: string, currency: string = 'ARS') {
     const schema = config.db?.schema || 'public';

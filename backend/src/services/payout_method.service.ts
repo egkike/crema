@@ -5,6 +5,9 @@ import { payoutMethodRepository } from '../repositories/payout_method.repository
 import { payoutRepository } from '../repositories/payout.repository';
 import { userRepository } from '../repositories/user.repository';
 import { configRepository } from '../repositories/config.repository';
+import { productRepository } from '../repositories/product.repository';
+import { subscriptionRepository } from '../repositories/subscription.repository';
+import { balanceRepository } from '../repositories/balance.repository';
 import { SpecialValidators } from '../utils/validators.util';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
@@ -16,7 +19,7 @@ export class PayoutMethodService {
    * Genera un token de confirmación y lo envía por email
    */
   static async requestChange(userId: string, currency: string, type: any, data: any) {
-    // Buscamos si el usuario tiene retiros en estado 'pending' o 'processing'
+    // 1. Buscamos si el usuario tiene retiros en estado 'pending' o 'processing'
     const pendingPayouts = await payoutRepository.getByStatusAndUser(userId, [
       'pending',
       'processing',
@@ -26,6 +29,36 @@ export class PayoutMethodService {
       throw new AppError(
         'No puedes modificar tus métodos de cobro mientras tengas retiros pendientes de procesar.',
         403
+      );
+    }
+
+    // 2. ¿Tiene productos activos en esta moneda?
+    const activeProductsCount = await productRepository.countActiveByCreatorAndCurrency(
+      userId,
+      currency
+    );
+    if (activeProductsCount > 0) {
+      throw new AppError(
+        `No puedes cambiar/eliminar la moneda ${currency} porque tienes ${activeProductsCount} productos activos usándola. Archiva o elimina los productos primero.`,
+        400
+      );
+    }
+
+    // 3. ¿Su suscripción Pro depende de esta moneda?
+    const subscription = await subscriptionRepository.getActiveSubscription(userId);
+    if (subscription && subscription.currency === currency && subscription.status === 'active') {
+      throw new AppError(
+        `Esta moneda (${currency}) es la base de tu suscripción actual. No puedes modificarla hasta que la suscripción finalice o cambies el método de pago de la misma.`,
+        400
+      );
+    }
+
+    // 4. ¿Hay saldo pendiente que deba ser liquidado en esta moneda?
+    const balance = await balanceRepository.getByUserIdAndCurrency(userId, currency);
+    if (balance && Number(balance.pending_balance) > 0) {
+      throw new AppError(
+        `Tienes saldos pendientes de liberación en ${currency}. Debes esperar a que se liberen y retirarlos antes de quitar esta moneda.`,
+        400
       );
     }
 

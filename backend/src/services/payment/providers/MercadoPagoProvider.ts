@@ -1,7 +1,7 @@
-import { MercadoPagoConfig, Preference, PaymentRefund } from 'mercadopago';
+import { MercadoPagoConfig, Preference, PaymentRefund, PreApproval } from 'mercadopago';
 
 import { config } from '../../../config';
-import { PaymentProvider, PaymentResponse } from '../PaymentProvider';
+import { PaymentProvider, PaymentResponse, SubscriptionData } from '../PaymentProvider';
 
 export class MercadoPagoProvider implements PaymentProvider {
   // Usamos el token de la config, con un fallback por seguridad
@@ -59,5 +59,42 @@ export class MercadoPagoProvider implements PaymentProvider {
     } catch (error: any) {
       throw new Error(`Error en Mercado Pago Refund: ${error.message}`);
     }
+  }
+
+  async createSubscription(data: SubscriptionData): Promise<PaymentResponse> {
+    const preApproval = new PreApproval(this.client);
+
+    const response = await preApproval.create({
+      body: {
+        reason: data.planName,
+        external_reference: data.externalReference,
+        payer_email: data.email,
+        auto_recurring: {
+          frequency: 1,
+          frequency_type: 'months',
+          transaction_amount: Number(data.amount),
+          currency_id: data.currency,
+        },
+        back_url: `${config.frontendUrl}/dashboard/subscription/success`,
+        status: 'pending',
+      },
+    });
+
+    if (!response.init_point) {
+      throw new Error('Error al crear suscripción en Mercado Pago');
+    }
+
+    return {
+      initPoint: response.init_point,
+      providerReference: response.id,
+    };
+  }
+
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    const preApproval = new PreApproval(this.client);
+    await preApproval.update({
+      id: subscriptionId,
+      body: { status: 'cancelled' },
+    });
   }
 }

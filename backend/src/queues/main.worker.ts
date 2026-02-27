@@ -4,6 +4,7 @@ import { redisConnection } from '../config/redis';
 import { ReleaseService } from '../services/release.service';
 import { AuthCleanupService } from '../services/auth.cleanup.service';
 import { subscriptionRepository } from '../repositories/subscription.repository';
+import { mainQueue } from '../queues/scheduler';
 import { EmailService } from '../services/email.service';
 import logger from '../utils/logger';
 
@@ -25,15 +26,42 @@ export const initMainWorker = () => {
             break;
           }
           case 'subscription-check': {
-            // 1. Avisar a los que vencen en 3 días
+            // 1. Obtener los que vencen en 3 días
             const nearExpiration = await subscriptionRepository.getExpiringSubscriptions(3);
+
+            // En lugar de esperar el envío de cada mail aquí,
+            // creamos una nueva tarea en la cola para cada uno.
             for (const sub of nearExpiration) {
-              await EmailService.sendExpirationWarning(sub.email, sub.fullname, sub.plan_name, 3);
+              // USAMOS mainQueue directamente en lugar de job.queue
+              if (mainQueue) {
+                await mainQueue.add(
+                  'send-email',
+                  {
+                    type: 'SUBSCRIPTION_EXPIRING_SOON',
+                    to: sub.email,
+                    data: {
+                      fullname: sub.fullname,
+                      plan_name: sub.plan_name,
+                      days_left: 3,
+                    },
+                  },
+                  {
+                    attempts: 3,
+                    backoff: { type: 'exponential', delay: 2000 },
+                    removeOnComplete: true,
+                  }
+                );
+              }
             }
-            // 2. Desactivar vencidas
+
+            // 2. Desactivar vencidas (esta lógica se mantiene porque es DB pura)
             const deactivated = await subscriptionRepository.deactivateExpiredSubscriptions();
-            if (deactivated.length > 0) {
-              logger.info({ count: deactivated.length }, 'SISTEMA: Subs desactivadas vía BullMQ');
+
+            if (nearExpiration.length > 0 || deactivated.length > 0) {
+              logger.info(
+                { warned: nearExpiration.length, deactivated: deactivated.length },
+                'SISTEMA: Proceso de suscripciones completado y tareas de email delegadas'
+              );
             }
             break;
           }
@@ -90,6 +118,14 @@ export const initMainWorker = () => {
                   data.amount,
                   data.currency,
                   data.reason
+                );
+                break;
+              case 'SUBSCRIPTION_EXPIRING_SOON':
+                await EmailService.sendExpirationWarning(
+                  to,
+                  data.fullname,
+                  data.plan_name,
+                  data.days_left
                 );
                 break;
               case 'SECURITY_ALERT':

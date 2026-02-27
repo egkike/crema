@@ -39,4 +39,14 @@ export const payoutMethodRepository = {
     const { rows } = await pool.query(query, [userId, currency, type, data]);
     return rows[0];
   },
+
+  /**
+   * Obtiene la moneda principal de cobro del usuario.
+   */
+  async getUserCurrency(userId: string): Promise<string | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `SELECT currency FROM "${schema}".user_payout_methods WHERE user_id = $1 AND is_default = true LIMIT 1`;
+    const { rows } = await pool.query(query, [userId]);
+    return rows[0]?.currency || null;
+  },
 };

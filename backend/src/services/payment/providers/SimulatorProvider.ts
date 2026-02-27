@@ -1,11 +1,29 @@
-import { PaymentProvider, PaymentResponse } from '../PaymentProvider';
+import crypto from 'crypto';
+
+import { PaymentProvider, PaymentResponse, SubscriptionData } from '../PaymentProvider';
 import { config } from '../../../config';
 
 export class SimulatorProvider implements PaymentProvider {
   async createPreference(data: any): Promise<PaymentResponse> {
-    // El simulador simplemente redirige a una ruta interna de tu frontend
     const url = `${config.frontendUrl}/simulator/pay?ref=${data.externalReference}&amount=${data.amount}&currency=${data.currency}`;
     return { initPoint: url };
+  }
+
+  async createSubscription(data: SubscriptionData): Promise<PaymentResponse> {
+    // Simulamos una URL de suscripción
+    const url = `${config.frontendUrl}/simulator/pay?ref=${data.externalReference}&type=subscription`;
+
+    return {
+      initPoint: url,
+      // Generamos un ID con prefijo SIM para identificarlo en la DB
+      providerReference: `SIM-SUB-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+    };
+  }
+
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    // En el simulador simplemente logueamos la acción
+    console.info(`[SIMULATOR] Suscripción cancelada exitosamente: ${subscriptionId}`);
+    return Promise.resolve();
   }
 
   async refund(transactionId: string, amount: number): Promise<void> {

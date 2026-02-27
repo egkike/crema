@@ -19,14 +19,16 @@ export interface UserSubscription {
   user_id: string;
   plan_id: string;
   status: 'active' | 'cancelled' | 'expired';
-  mp_preapproval_id?: string;
+  // Nombre agnóstico para cualquier pasarela
+  gateway_subscription_id?: string;
+  currency: string;
   current_period_end?: Date;
-  plan_name?: string; // Del JOIN
+  plan_name?: string;
   features?: {
     custom_fee_percent?: number;
-    [key: string]: any; // Permite otras propiedades dinámicas
+    [key: string]: any;
   };
-  allowed_types?: string[]; // Del subquery json_agg
+  allowed_types?: string[];
 }
 
 export const subscriptionRepository = {
@@ -37,7 +39,7 @@ export const subscriptionRepository = {
   async createInitialSubscription(
     userId: string,
     planId: string,
-    currency: string = 'ARS'
+    currency: string
   ): Promise<UserSubscription> {
     const schema = config.db?.schema || 'public';
 
@@ -52,7 +54,7 @@ export const subscriptionRepository = {
         status = 'active',
         currency = EXCLUDED.currency,
         updated_at = CURRENT_TIMESTAMP
-      RETURNING *;
+      RETURNING *, mp_preapproval_id as gateway_subscription_id;
     `;
     try {
       const { rows } = await pool.query<UserSubscription>(query, [userId, planId, currency]);
@@ -74,6 +76,7 @@ export const subscriptionRepository = {
     const query = `
       SELECT 
         us.*, 
+        us.mp_preapproval_id as gateway_subscription_id, -- Alias para agnóstico
         pp.name as plan_name, 
         pp.features,
         (SELECT json_agg(product_type_id) 
@@ -108,24 +111,32 @@ export const subscriptionRepository = {
   },
 
   /**
-   * Obtiene los datos del plan (nombre, precio, etc.)
+   * Obtiene los datos del plan filtrados por la moneda del usuario.
    */
-  async getPlanById(planId: string): Promise<PlatformPlan | null> {
+  async getPlanById(planId: string, currency: string): Promise<PlatformPlan | null> {
     const schema = config.db?.schema || 'public';
     const query = `
         SELECT p.*, pp.amount, pp.currency
         FROM "${schema}".platform_plans p
         JOIN "${schema}".plan_prices pp ON p.id = pp.plan_id
-        WHERE p.id = $1 AND p.is_active = true;
+        WHERE p.id = $1 
+          AND pp.currency = $2 -- <--- FILTRO CRÍTICO
+          AND p.is_active = true;
     `;
-    const { rows } = await pool.query<PlatformPlan>(query, [planId]);
+    const { rows } = await pool.query<PlatformPlan>(query, [planId, currency]);
     return rows[0] || null;
   },
 
   /**
-   * El "Upgrade": Cambia al usuario de un plan a otro usando una transacción
+   * El "Upgrade": Cambia al usuario de un plan a otro usando una transacción.
+   * Ahora persiste la moneda del pago realizado.
    */
-  async upgradeUserPlan(userId: string, planId: string, mpPreapprovalId: string): Promise<void> {
+  async upgradeUserPlan(
+    userId: string,
+    planId: string,
+    gatewaySubscriptionId: string,
+    currency: string // <--- Nuevo parámetro
+  ): Promise<void> {
     const schema = config.db?.schema || 'public';
     const client = await pool.connect();
 
@@ -136,17 +147,21 @@ export const subscriptionRepository = {
             UPDATE "${schema}".user_subscriptions
             SET plan_id = $1,
                 mp_preapproval_id = $2,
+                currency = $3, -- <--- Guardamos la moneda del upgrade
                 status = 'active',
                 current_period_end = CURRENT_TIMESTAMP + INTERVAL '1 month',
                 updated_at = CURRENT_TIMESTAMP
-            WHERE user_id = $3;
+            WHERE user_id = $4;
         `;
 
-      await client.query(updateQuery, [planId, mpPreapprovalId, userId]);
+      await client.query(updateQuery, [planId, gatewaySubscriptionId, currency, userId]);
 
       await client.query('COMMIT');
-    } catch (error) {
+
+      logger.info({ userId, planId, currency }, 'Upgrade de plan procesado en DB');
+    } catch (error: any) {
       await client.query('ROLLBACK');
+      logger.error({ userId, error: error.message }, 'Error en upgradeUserPlan');
       throw error;
     } finally {
       client.release();
@@ -180,33 +195,41 @@ export const subscriptionRepository = {
     try {
       await client.query('BEGIN');
 
+      // 1. Obtenemos el ID del plan gratuito desde la configuración
       const planQuery = `SELECT value FROM "${schema}".system_settings WHERE key = 'default_creator_plan_id' LIMIT 1`;
       const planRes = await client.query(planQuery);
       const defaultPlanId = planRes.rows[0]?.value;
 
-      if (!defaultPlanId) {
-        throw new Error('Configuración default_creator_plan_id no encontrada en system_settings');
-      }
+      if (!defaultPlanId) throw new Error('Configuración default_creator_plan_id no encontrada');
 
+      // 2. Ejecutamos el Downgrade
+      // Mantenemos la 'currency' actual del registro para que el usuario no cambie de divisa
+      // Limpiamos mp_preapproval_id porque ya no hay un cobro recurrente activo
       const updateQuery = `
         UPDATE "${schema}".user_subscriptions
         SET plan_id = $1, 
             status = 'active', 
-            mp_preapproval_id = NULL,
+            mp_preapproval_id = NULL, 
             current_period_end = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE status = 'active' 
-        AND current_period_end < CURRENT_TIMESTAMP
+          AND current_period_end < CURRENT_TIMESTAMP
+          AND plan_id != $1 -- Evitamos procesar los que ya son gratuitos
         RETURNING user_id;
       `;
 
       const { rows } = await client.query(updateQuery, [defaultPlanId]);
 
       await client.query('COMMIT');
+
+      if (rows.length > 0) {
+        logger.info({ count: rows.length }, 'Suscripciones vencidas devueltas al plan gratuito');
+      }
+
       return rows;
     } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message }, 'Error procesando downgrade de suscripciones');
+      logger.error({ error: error.message }, 'Error desactivando suscripciones expiradas');
       throw error;
     } finally {
       client.release();
@@ -226,7 +249,7 @@ export const subscriptionRepository = {
       UPDATE "${schema}".user_subscriptions
       SET plan_id = $1, 
           status = 'active', 
-          mp_preapproval_id = NULL,
+          mp_preapproval_id = NULL, -- Limpiamos ID de pasarela
           current_period_end = NULL,
           updated_at = CURRENT_TIMESTAMP
       WHERE user_id = $2;

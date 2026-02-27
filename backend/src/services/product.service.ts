@@ -1,6 +1,7 @@
 import { configRepository } from '../repositories/config.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
 import { productRepository, ProductInput } from '../repositories/product.repository';
+import { payoutMethodRepository } from '../repositories/payout_method.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
@@ -10,6 +11,32 @@ export class ProductService {
    * y manejo de contenido estructurado.
    */
   static async create(creatorId: string, data: any) {
+    // --- VALIDACIÓN DE MONEDA PARA EL CREADOR ---
+    const userMethods = await payoutMethodRepository.getByUserId(creatorId);
+    if (!userMethods || userMethods.length === 0) {
+      throw new AppError(
+        'Debes configurar al menos un método de cobro antes de crear productos.',
+        400
+      );
+    }
+
+    const userCurrencies = userMethods.map(m => m.currency);
+    
+    // Validamos que TODAS las monedas de los precios cargados en el producto
+    // existan en el perfil del creador.
+    if (data.prices && Array.isArray(data.prices)) {
+      for (const price of data.prices) {
+        if (!userCurrencies.includes(price.currency)) {
+          throw new AppError(
+            `No puedes crear un precio en ${price.currency} porque no tienes ese método de cobro configurado.`,
+            400
+          );
+        }
+      }
+    } else {
+      throw new AppError('El producto debe tener al menos un precio definido.', 400);
+    }
+
     // 1. Validar límites de comisión si se proporcionan
     if (data.commissionPercent !== undefined) {
       await this.validateCommissionLimits(creatorId, data.commissionPercent);

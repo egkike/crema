@@ -14,27 +14,36 @@ router.post('/checkout/create', optionalJwtAuth, PaymentController.createPayment
 router.post('/webhook/mercadopago', PaymentController.handleMPWebhook);
 router.post('/webhook/simulator', PaymentController.handleSimulatorConfirm);
 
-// --- SUSCRIPCIONES (Exclusivo MP por ahora) ---
-router.post('/mercadopago/subscribe/:planId', jwtAuthMiddleware, async (req, res, next) => {
+// --- SUSCRIPCIONES ---
+// Cambiamos la ruta para que sea más genérica si quieres, o mantenemos la lógica
+router.post('/subscribe/:planId', jwtAuthMiddleware, async (req, res, next) => {
   try {
-    // Forzamos que sea string para que TS no se queje
     const planId = req.params.planId as string;
     const user = (req as any).user;
-
-    // Si el email viene de un array por error, tomamos el primero o forzamos string
     const userEmail = String(user.email);
 
-    const result = await SubscriptionService.createSubscriptionLink(user.id, planId, userEmail);
+    // 1. Obtenemos el gatewayId del body, o por defecto 'mercadopago'
+    // Esto te permite testear con el simulator desde el frontend fácilmente
+    const gatewayId = req.body.gatewayId || 'mercadopago';
+
+    // 2. Ahora pasamos los 4 argumentos requeridos
+    const result = await SubscriptionService.createSubscriptionLink(
+      user.id,
+      planId,
+      userEmail,
+      gatewayId
+    );
 
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
 });
+
 /**
- * Cancelar suscripción activa en MP
+ * Cancelar suscripción activa en Pasarela
  */
-router.post('/mercadopago/cancel', jwtAuthMiddleware, async (req, res, next) => {
+router.post('/subscription/cancel', jwtAuthMiddleware, async (req, res, next) => {
   try {
     const user = (req as any).user;
     const result = await SubscriptionService.cancelSubscription(user.id);

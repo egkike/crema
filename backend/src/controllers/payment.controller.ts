@@ -187,10 +187,20 @@ export const handleMPWebhook = async (req: Request, res: Response) => {
         const planId = parts[2];
 
         if (sub.status === 'authorized') {
-          await SubscriptionService.handleSubscriptionPayment(userId, planId, String(sub.id));
-        } else {
-          // Si expira, se pausa o falla el cobro, forzamos el downgrade
+          // ✅ Éxito: Activamos/Renovamos
+          await SubscriptionService.handleSubscriptionPayment(
+            userId,
+            planId,
+            String(sub.id) // gatewaySubscriptionId
+          );
+        } else if (['cancelled', 'expired'].includes(sub.status || '')) {
+          // ✅ Fallo definitivo: Downgrade
+          // Usamos el flag isWebhook = true para no intentar llamar a la API de MP de vuelta
           await SubscriptionService.cancelSubscription(userId, true);
+        } else {
+          // ⚠️ Otros estados (pending, authorized_payment_pending):
+          // Podrías solo loguear o enviar un aviso al usuario sin quitarle el acceso aún.
+          logger.info({ userId, status: sub.status }, 'Suscripción MP en estado transitorio');
         }
       }
     }
@@ -206,6 +216,31 @@ export const handleSimulatorConfirm = async (req: Request, res: Response, next: 
   try {
     const { externalReference, status = 'approved', tempPassword } = req.body;
 
+    // 1. DETECTAR SI ES UNA SUSCRIPCIÓN (SUB:userId:planId)
+    if (externalReference && externalReference.startsWith('SUB:')) {
+      const parts = externalReference.split(':');
+      const userId = parts[1];
+      const planId = parts[2];
+
+      if (status === 'approved' || status === 'authorized') {
+        // Activamos la suscripción en el simulador
+        await SubscriptionService.handleSubscriptionPayment(
+          userId,
+          planId,
+          `SIM-SUB-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
+        );
+      } else {
+        // Downgrade si el estado no es exitoso
+        await SubscriptionService.cancelSubscription(userId, true);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Simulación de SUSCRIPCIÓN ${status} procesada.`,
+      });
+    }
+
+    // 2. CASO POR DEFECTO: Venta de producto único (OrderService)
     await OrderService.processPaymentNotification({
       externalReference,
       status,
@@ -215,7 +250,7 @@ export const handleSimulatorConfirm = async (req: Request, res: Response, next: 
 
     return res.status(200).json({
       success: true,
-      message: `Simulación de pago ${status} procesada exitosamente.`,
+      message: `Simulación de PAGO ${status} procesada exitosamente.`,
     });
   } catch (error: any) {
     next(error);

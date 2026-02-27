@@ -675,4 +675,24 @@ export const productRepository = {
     const { rows } = await pool.query(query, [code]);
     return rows[0] || null;
   },
+
+  async countActiveByCreatorAndCurrency(creatorId: string, currency: string): Promise<number> {
+    const schema = config.db?.schema || 'public';
+
+    // Contamos productos que:
+    // 1. Sean del creador
+    // 2. Estén en estado 'published'
+    // 3. Tengan al menos un precio en la moneda que se quiere borrar/cambiar
+    const query = `
+    SELECT COUNT(DISTINCT p.id) as count
+    FROM "${schema}".products p
+    JOIN "${schema}".product_prices pp ON p.id = pp.product_id
+    WHERE p.creator_id = $1 
+      AND p.status = 'published'
+      AND pp.currency = $2
+  `;
+
+    const { rows } = await pool.query(query, [creatorId, currency]);
+    return parseInt(rows[0].count, 10);
+  },
 };
