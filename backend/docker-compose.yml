@@ -58,7 +58,7 @@ services:
     network_mode: host
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
-    command: http localhost:3000 --url=https://unforsworn-skiagraphical-claretta.ngrok-free.dev
+    command: http localhost:3000 --url=https://${NGROK_DOMAIN}
     depends_on:
       api:
         condition: service_healthy
