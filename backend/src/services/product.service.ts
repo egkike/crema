@@ -11,7 +11,20 @@ export class ProductService {
    * y manejo de contenido estructurado.
    */
   static async create(creatorId: string, data: any) {
-    // --- VALIDACIÓN DE MONEDA PARA EL CREADOR ---
+    // 0. Extraer datos con valores por defecto para evitar undefined
+    const {
+      title,
+      type,
+      prices,
+      description,
+      contentUrl,
+      commissionPercent,
+      sizeBytes = 0,
+      guaranteeDays,
+      modules = [],
+    } = data;
+
+    // 1. --- VALIDACIÓN DE MONEDA PARA EL CREADOR ---
     const userMethods = await payoutMethodRepository.getByUserId(creatorId);
     if (!userMethods || userMethods.length === 0) {
       throw new AppError(
@@ -21,11 +34,11 @@ export class ProductService {
     }
 
     const userCurrencies = userMethods.map(m => m.currency);
-    
-    // Validamos que TODAS las monedas de los precios cargados en el producto
-    // existan en el perfil del creador.
-    if (data.prices && Array.isArray(data.prices)) {
-      for (const price of data.prices) {
+
+    // 2. Validamos que TODAS las monedas de los precios cargados en el producto
+    //    existan en el perfil del creador.
+    if (prices && Array.isArray(prices)) {
+      for (const price of prices) {
         if (!userCurrencies.includes(price.currency)) {
           throw new AppError(
             `No puedes crear un precio en ${price.currency} porque no tienes ese método de cobro configurado.`,
@@ -37,38 +50,47 @@ export class ProductService {
       throw new AppError('El producto debe tener al menos un precio definido.', 400);
     }
 
-    // 1. Validar límites de comisión si se proporcionan
-    if (data.commissionPercent !== undefined) {
-      await this.validateCommissionLimits(creatorId, data.commissionPercent);
+    // 3. Validar límites de comisión si se proporcionan
+    if (commissionPercent !== undefined) {
+      await this.validateCommissionLimits(creatorId, commissionPercent);
     }
 
-    // 2. Generar Slug básico (puedes usar una librería como 'slugify')
-    const slug = data.title
+    // 4. VALIDACIÓN: Integridad del contenido
+    // Si no hay tamaño de archivo (sizeBytes 0) y no hay URL externa, el producto está vacío.
+    if (!sizeBytes && !contentUrl && (!modules || modules.length === 0)) {
+      throw new AppError(
+        'Debes subir un archivo o proporcionar una URL de contenido externa.',
+        400
+      );
+    }
+
+    // 5. Generar Slug básico (puedes usar una librería como 'slugify')
+    const slugBase = title
       .toLowerCase()
       .trim()
       .replace(/[^\w\s-]/g, '')
       .replace(/[\s_-]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
-    // 3. Determinar lógica de contenido
+    // 6. Determinar lógica de contenido
     // Si el tipo es 'course' o vienen módulos, marcamos como estructurado
-    const isStructured = data.type === 'course' || (data.modules && data.modules.length > 0);
+    const isStructured = type === 'course' || (modules && modules.length > 0);
 
-    // 4. Mapear al input del Repositorio
+    // 7. Mapear al input del Repositorio
     const productInput: ProductInput = {
       creatorId,
-      title: data.title,
-      slug: `${slug}-${Date.now().toString().slice(-4)}`, // Evita colisiones rápidas
-      type: data.type,
-      prices: data.prices,
-      description: data.description,
-      contentUrl: isStructured ? null : data.contentUrl, // Si es curso, la URL principal es nula
-      commissionPercent: data.commissionPercent,
+      title,
+      slug: `${slugBase}-${Date.now().toString().slice(-4)}`,
+      type,
+      prices,
+      description,
+      contentUrl: isStructured ? null : contentUrl,
+      commissionPercent,
       status: data.status || 'draft',
-      sizeBytes: data.sizeBytes,
-      guaranteeDays: data.guaranteeDays,
+      sizeBytes: Number(sizeBytes), // Aseguramos que sea número para el SUM de la DB
+      guaranteeDays,
       hasStructuredContent: isStructured,
-      modules: data.modules, // El repo se encarga de iterarlos si existen
+      modules,
     };
 
     try {
@@ -105,18 +127,17 @@ export class ProductService {
       const minAffiliateComm = Number(rawMinComm);
 
       // 3. Obtener el porcentaje de fee de la plataforma
-      // --- Fee dinámico por plan ---
-      const subscription = await subscriptionRepository.getActiveSubscription(creatorId);
+      const subscription = await subscriptionRepository.getCreatorPlanLimits(creatorId);
 
       let platformFeePercent =
         platformConfigs && platformConfigs['fee_percent']
           ? Number(platformConfigs['fee_percent']) * 100
           : 10;
 
+      // Si el plan tiene un fee personalizado (ej: 5% en el Plan Pro), lo usamos
       if (subscription?.features?.custom_fee_percent !== undefined) {
         platformFeePercent = Number(subscription.features.custom_fee_percent) * 100;
       }
-      // -------------------------------------------
 
       // 4. VALIDACIÓN 1: Contra el mínimo global (Protección al Afiliado)
       if (requestedComm < minAffiliateComm) {
@@ -140,7 +161,6 @@ export class ProductService {
       }
     } catch (error: any) {
       if (error instanceof AppError) throw error;
-
       logger.error({ error: error.message }, 'Error al validar límites de comisión');
       throw new AppError('No se pudieron validar los límites de comisión en este momento.', 500);
     }

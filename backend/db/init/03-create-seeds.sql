@@ -119,42 +119,52 @@ INSERT INTO product_types (id, name) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- Insertar Planes solo para Creadores (Nivel 3)
+-- 1. Limpieza previa para evitar conflictos en re-ejecuciones
+DELETE FROM plan_allowed_types;
+DELETE FROM platform_plans;
+
+-- 2. Insertar Planes con la nueva lógica de negocio
 DO $$
 DECLARE
     plan_free_id UUID;
     plan_pro_id UUID;
 BEGIN
-    -- Plan Inicial (Para que todos los nuevos creadores empiecen aquí)
+    -- Plan Inicial: 0 MB de storage. Solo para servicios o enlaces externos.
     INSERT INTO platform_plans (name, level_required, is_free, features)
     VALUES ('Creador Initial', 3, true, '{
         "max_products": 3, 
-        "storage_mb": 500, 
-        "advanced_stats": false
+        "storage_mb": 0, 
+        "allow_file_uploads": false,
+        "advanced_stats": false,
+        "custom_fee_percent": 0.099
     }') RETURNING id INTO plan_free_id;
 
-    -- Plan Pro (Pago)
+    -- Plan Pro: 10 GB de storage y todos los beneficios.
     INSERT INTO platform_plans (name, level_required, is_free, features)
     VALUES ('Creador Pro', 3, false, '{
         "max_products": 100, 
         "storage_mb": 10240, 
+        "allow_file_uploads": true,
         "advanced_stats": true,
         "custom_fee_percent": 0.05
     }') RETURNING id INTO plan_pro_id;
 
-    -- Definir Tipos Permitidos (Importante para el Middleware)
-    -- El Plan Inicial solo permite Ebooks y Podcasts
+    -- 3. Definir Tipos Permitidos por Plan
+    -- El Plan Inicial NO permite 'ebook', 'podcast' ni 'audiobook' porque son archivos pesados.
+    -- Solo permite tipos que funcionan por links o accesos manuales.
     INSERT INTO plan_allowed_types (plan_id, product_type_id) VALUES 
-    (plan_free_id, 'ebook'), 
-    (plan_free_id, 'podcast');
+    (plan_free_id, 'membership'), 
+    (plan_free_id, 'software'),
+    (plan_free_id, 'course'); -- Nota: El curso en Free será validado para ser solo vía Link (YouTube/Vimeo)
 
-    -- El Plan Pro permite TODO
+    -- El Plan Pro permite absolutamente TODO el catálogo.
     INSERT INTO plan_allowed_types (plan_id, product_type_id)
     SELECT plan_pro_id, id FROM product_types;
 
-    -- Seteamos solo el plan por defecto para creadores
+    -- 4. Actualizar Settings Globales
     INSERT INTO system_settings (key, value, description) 
     VALUES 
     ('default_creator_plan_id', plan_free_id, 'Plan asignado automáticamente al subir a Nivel 3'),
-    ('min_global_affiliate_commission', '10', 'Porcentaje mínimo de comisión que un creador debe ofrecer (0-100)')
+    ('min_global_affiliate_commission', '10', 'Porcentaje mínimo de comisión que un creador debe ofrecer')
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 END $$;

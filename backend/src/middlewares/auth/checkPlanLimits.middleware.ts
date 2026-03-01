@@ -7,11 +7,18 @@ import { payoutMethodRepository } from '../../repositories/payout_method.reposit
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 
+interface CreateProductBody {
+  type: string;
+  sizeBytes?: number;
+  content_url?: string;
+  currency: string;
+  title: string;
+}
+
 export const checkPlanLimits = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
-    const { type, sizeBytes } = req.body;
-    const { currency } = req.body; // El front debe enviar la moneda del producto
+    const { type, sizeBytes, content_url, currency } = req.body as CreateProductBody;
 
     if (!user || !user.id) {
       throw new AppError('Usuario no autenticado o sesión inválida.', 401);
@@ -23,7 +30,7 @@ export const checkPlanLimits = async (req: Request, res: Response, next: NextFun
       throw new AppError('Tu nivel de cuenta no permite la creación de productos.', 403);
     }
 
-    // Validar Moneda del usuario
+    // 2. Validar Moneda del usuario
     if (currency) {
       const userMethods = await payoutMethodRepository.getByUserId(user.id);
       const hasCurrencyConfigured = userMethods.some(m => m.currency === currency);
@@ -36,38 +43,58 @@ export const checkPlanLimits = async (req: Request, res: Response, next: NextFun
       }
     }
 
-    const subscription = await subscriptionRepository.getActiveSubscription(user.id);
-    if (!subscription) {
-      throw new AppError('No posees una suscripción activa para realizar esta operación.', 403);
+    // 3. Obtener Límites del Plan (Usando el nuevo método optimizado)
+    const planLimits = await subscriptionRepository.getCreatorPlanLimits(user.id);
+    if (!planLimits) {
+      throw new AppError('No posees una suscripción activa para operar.', 403);
     }
 
-    const limits = subscription.features || { max_products: 0, storage_mb: 0 };
-    const allowedTypes = subscription.allowed_types || [];
+    const { features, allowedTypes, currentStorageBytes } = planLimits;
+    const storageLimitBytes = Number(features.storage_mb || 0) * 1024 * 1024;
+    const incomingSize = Number(sizeBytes || 0);
 
-    // 2. VALIDACIÓN A: Tipo de Producto
+    // 4. VALIDACIÓN: Tipo de Producto
     if (allowedTypes.length > 0 && !allowedTypes.includes(type)) {
-      throw new AppError(`Tu plan actual no permite crear productos del tipo: ${type}`, 403);
-    }
-
-    // 3. VALIDACIÓN B: Cantidad de Productos
-    const productsCount = await productRepository.countProductsByCreator(user.id);
-    if (productsCount >= (limits.max_products || 0)) {
       throw new AppError(
-        `Límite de productos alcanzado (${limits.max_products}). Sube de plan para publicar más.`,
+        `Tu plan "${planLimits.planName}" no permite productos de tipo: ${type}`,
         403
       );
     }
 
-    // 4. VALIDACIÓN C: Almacenamiento
-    const storageLimitBytes = Number(limits.storage_mb || 0) * 1024 * 1024;
-    const currentStorageUsed = await subscriptionRepository.getUserStorageUsage(user.id);
-    const incomingSize = Number(sizeBytes || 0);
-
-    if (currentStorageUsed + incomingSize > storageLimitBytes) {
-      throw new AppError('Espacio insuficiente. Libera espacio o mejora tu plan.', 403);
+    // 5. VALIDACIÓN: Cantidad de Productos
+    const productsCount = await productRepository.countProductsByCreator(user.id);
+    if (productsCount >= (features.max_products || 0)) {
+      throw new AppError(
+        `Límite alcanzado (${features.max_products} productos). Mejora tu plan para publicar más.`,
+        403
+      );
     }
 
-    logger.info({ userId: user.id, type }, 'Límites de plan verificados con éxito');
+    // 6. VALIDACIÓN CRÍTICA: Almacenamiento (La regla del 0 MB)
+    if (storageLimitBytes === 0) {
+      // Si el plan es de 0MB, no puede haber sizeBytes (subida de archivos)
+      if (incomingSize > 0) {
+        throw new AppError(
+          'Tu plan actual no permite el alojamiento de archivos. Por favor, utiliza un link externo o mejora tu plan.',
+          403
+        );
+      }
+
+      // Para cursos en plan gratuito, forzamos que el contenido sea un link (YouTube/Vimeo)
+      if (type === 'course' && !content_url) {
+        throw new AppError(
+          'Para cursos en el plan gratuito, debes proporcionar una URL de video externa.',
+          400
+        );
+      }
+    } else {
+      // Si el plan tiene espacio, validamos que no se pase del total
+      if (currentStorageBytes + incomingSize > storageLimitBytes) {
+        throw new AppError('Espacio de almacenamiento insuficiente en tu plan.', 403);
+      }
+    }
+
+    logger.info({ userId: user.id, plan: planLimits.planName, type }, 'Límites verificados');
     next();
   } catch (error) {
     next(error);

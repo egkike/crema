@@ -298,4 +298,45 @@ export const subscriptionRepository = {
       client.release();
     }
   },
+
+  /**
+   * Obtiene de un solo golpe el plan, los tipos permitidos y el uso actual de espacio.
+   * Ideal para ser usado en Middlewares de validación.
+   */
+  async getCreatorPlanLimits(userId: string) {
+    const schema = config.db?.schema || 'public';
+
+    // Consulta combinada: Trae suscripción + beneficios + uso de almacenamiento actual
+    const query = `
+      SELECT 
+        us.plan_id,
+        pp.name as plan_name,
+        pp.features,
+        (SELECT json_agg(product_type_id) 
+         FROM "${schema}".plan_allowed_types 
+         WHERE plan_id = pp.id) as allowed_types,
+        (SELECT COALESCE(SUM(size_bytes), 0) 
+         FROM "${schema}".products 
+         WHERE creator_id = $1) as current_storage_bytes
+      FROM "${schema}".user_subscriptions us
+      JOIN "${schema}".platform_plans pp ON us.plan_id = pp.id
+      WHERE us.user_id = $1 AND us.status = 'active';
+    `;
+
+    try {
+      const { rows } = await pool.query(query, [userId]);
+      if (!rows[0]) return null;
+
+      return {
+        planName: rows[0].plan_name,
+        features: rows[0].features, // { storage_mb, max_products, allow_file_uploads... }
+        allowedTypes: rows[0].allowed_types || [],
+        currentStorageBytes: parseInt(rows[0].current_storage_bytes, 10),
+        currentStorageMb: parseFloat((rows[0].current_storage_bytes / (1024 * 1024)).toFixed(2)),
+      };
+    } catch (error: any) {
+      logger.error({ userId, error: error.message }, 'Error en getCreatorPlanLimits');
+      throw error;
+    }
+  },
 };

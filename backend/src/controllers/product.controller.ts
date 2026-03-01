@@ -37,16 +37,27 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     const validatedData = createProductSchema.parse(req.body);
 
-    // 1. Validar Espacio en Disco
-    const finalSizeBytes = file ? file.size : validatedData.sizeBytes || 0;
-    const currentUsage = await subscriptionRepository.getUserStorageUsage(user.id);
-    const subscription = await subscriptionRepository.getActiveSubscription(user.id);
-    const storageLimitBytes = (subscription?.features?.storage_mb || 0) * 1024 * 1024;
+    // 1. Validar Límites con el nuevo método optimizado
+    const planLimits = await subscriptionRepository.getCreatorPlanLimits(user.id);
+    if (!planLimits) throw new AppError('No posees una suscripción activa.', 403);
 
-    if (currentUsage + finalSizeBytes > storageLimitBytes) {
-      // Si falla, borramos el archivo de temp inmediatamente
-      if (file) fs.unlinkSync(file.path);
-      throw new AppError('Espacio insuficiente en tu plan.', 403);
+    const { features, currentStorageBytes } = planLimits;
+    const storageLimitBytes = (features.storage_mb || 0) * 1024 * 1024;
+    const incomingSizeBytes = file ? file.size : 0;
+
+    // Validación estricta para el Plan Inicial (0 MB)
+    if (storageLimitBytes === 0 && file) {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      throw new AppError(
+        'Tu plan actual no permite el alojamiento de archivos. Usa links externos.',
+        403
+      );
+    }
+
+    // Validación de espacio insuficiente
+    if (currentStorageBytes + incomingSizeBytes > storageLimitBytes) {
+      if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      throw new AppError('Espacio insuficiente en tu plan de almacenamiento.', 403);
     }
 
     // 2. Preparar Datos Base
@@ -63,10 +74,10 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       type: validatedData.type,
       prices: validatedData.prices,
       description: validatedData.description ?? undefined,
-      contentUrl: validatedData.contentUrl, // Temporalmente el del body si existe
+      contentUrl: validatedData.contentUrl,
       commissionPercent: requestedComm,
       status: validatedData.status ?? 'published',
-      sizeBytes: finalSizeBytes,
+      sizeBytes: incomingSizeBytes,
       guaranteeDays: validatedData.guaranteeDays ?? undefined,
     };
 
@@ -191,8 +202,13 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       throw new AppError('No tienes permiso para editar este producto', 403);
     }
 
-    // 2. Calcular compensación de espacio
-    const currentUsage = await subscriptionRepository.getUserStorageUsage(user.id);
+    // 2. Obtener límites y uso actual en una sola consulta
+    const planLimits = await subscriptionRepository.getCreatorPlanLimits(user.id);
+    if (!planLimits) throw new AppError('No posees una suscripción activa.', 403);
+
+    const { features, currentStorageBytes } = planLimits;
+    const storageLimitBytes = (features.storage_mb || 0) * 1024 * 1024;
+
     const oldFileSize = existingProduct.size_bytes || 0;
     const newFileSize = file
       ? file.size
@@ -200,13 +216,16 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
         ? Number(req.body.sizeBytes)
         : oldFileSize;
 
-    // 3. Validar contra plan
-    const subscription = await subscriptionRepository.getActiveSubscription(user.id);
-    const storageLimitBytes = (subscription?.features?.storage_mb || 0) * 1024 * 1024;
+    // 3. Validar: (Uso Actual - Tamaño Viejo + Tamaño Nuevo)
+    if (currentStorageBytes - oldFileSize + newFileSize > storageLimitBytes) {
+      if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      throw new AppError('La actualización excede el espacio de tu plan.', 403);
+    }
 
-    if (currentUsage - oldFileSize + newFileSize > storageLimitBytes) {
-      if (file) fs.unlinkSync(file.path); // Limpiar temp si excede
-      throw new AppError('La actualización excede el espacio de almacenamiento de tu plan.', 403);
+    // Si el plan es 0MB y están intentando subir un archivo en el update
+    if (storageLimitBytes === 0 && file) {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      throw new AppError('Tu plan no permite alojamiento de archivos.', 403);
     }
 
     // 4. Gestión de archivo nuevo y limpieza del viejo

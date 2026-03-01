@@ -3,6 +3,8 @@ import path from 'path';
 
 import multer from 'multer';
 
+import { config } from '../../config/index';
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Carpeta temporal para validación
@@ -19,5 +21,7 @@ const storage = multer.diskStorage({
 
 export const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  limits: { 
+    fileSize: config.storage.maxGlobalSizeBytes 
+  },
 });

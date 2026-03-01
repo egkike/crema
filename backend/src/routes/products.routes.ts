@@ -29,12 +29,13 @@ router.post('/:productId/join', restrictTo('AFFILIATE'), productController.joinP
 
 /**
  * 2. Crear Producto
+ * El checkPlanLimits debe validar primero el TIPO de producto.
  */
 router.post(
   '/create',
   restrictTo('CREATOR'),
-  checkPlanLimits,
-  upload.single('file'),
+  checkPlanLimits, // Verifica: ¿Puede crear este tipo? ¿Tiene cupo de productos?
+  upload.single('file'), // Procesa el archivo si lo hay
   productController.createProduct
 );
 
@@ -44,7 +45,7 @@ router.post(
 router.put(
   '/:productId',
   restrictTo('CREATOR'),
-  checkPlanLimits,
+  checkPlanLimits, 
   upload.single('file'),
   productController.updateProduct
 );

@@ -42,6 +42,7 @@ const envSchema = z.object({
   MUX_TOKEN_SECRET: z.string().min(1),
   MUX_SIGNING_KEY_ID: z.string().min(1),
   MUX_SIGNING_KEY: z.string().min(1),
+  MAX_GLOBAL_UPLOAD_SIZE_MB: z.coerce.number().default(100),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -70,7 +71,7 @@ const TEST_CONFIG = {
 // Si estamos en test, creamos un objeto con valores mínimos para que Zod no explote.
 // Si no, usamos el process.env real.
 const rawData = isTest
-? { ...process.env, ...TEST_CONFIG } // TEST_CONFIG pisa cualquier variable de entorno en test
+  ? { ...process.env, ...TEST_CONFIG } // TEST_CONFIG pisa cualquier variable de entorno en test
   : process.env;
 
 const parsedEnv = envSchema.safeParse(rawData);
@@ -144,6 +145,10 @@ export const config = {
   frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),
   recaptchaSecretKey: env.RECAPTCHA_SECRET_KEY,
   passwordPepper: process.env.PASSWORD_PEPPER || 'dev_pepper_fallback_local',
+  storage: {
+    maxGlobalSizeMb: env.MAX_GLOBAL_UPLOAD_SIZE_MB,
+    maxGlobalSizeBytes: env.MAX_GLOBAL_UPLOAD_SIZE_MB * 1024 * 1024,
+  },
 } as const;
 
 if (config.nodeEnv === 'development') {
