@@ -12,7 +12,6 @@ const envSchema = z.object({
   SECRET_REFRESH_JWT_KEY: z.string().min(32),
   JWT_ACCESS_EXPIRY: z.string().default('10m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
-  FORCE_RELEASE_ON_STARTUP: z.preprocess(val => val === 'true', z.boolean()).default(false),
   DB_HOST: z.string().default('localhost'),
   DB_PORT: z.coerce.number().default(5432),
   DB_USER: z.string(),

@@ -51,6 +51,12 @@ export class PayoutService {
     if (method.user_id !== userId) {
       throw new AppError('No tienes permiso para usar este método de retiro', 403);
     }
+    if (!method.is_active || !method.is_verified) {
+      throw new AppError(
+        'El método de retiro seleccionado no está verificado o se encuentra inactivo.',
+        400
+      );
+    }
     if (method.currency !== currency) {
       throw new AppError(`Este método de retiro no coincide con la moneda ${currency}`, 400);
     }

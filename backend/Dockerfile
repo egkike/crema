@@ -32,12 +32,18 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
+# 2. CREAR CARPETA DE LOGS Y DAR PERMISOS (Crucial para Pino)
+# Seguridad: Recomendado correr como usuario no-root (opcional pero mejor)
+RUN mkdir -p /app/logs && \
+    addgroup -S crema && \
+    adduser -S crema -G crema && \
+    chown -R crema:crema /app
+
+# Cambiamos al usuario
+USER crema
+
 ENV NODE_ENV=production
 ENV PORT=3000
-
-# Seguridad: Recomendado correr como usuario no-root (opcional pero mejor)
-RUN addgroup -S crema && adduser -S crema -G crema && chown -R crema:crema /app
-USER crema
 
 EXPOSE 3000
 

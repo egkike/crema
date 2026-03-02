@@ -21,7 +21,14 @@ export const initMainWorker = () => {
           case 'release-balances': {
             const result = await ReleaseService.processPendingBalances();
             if (result.count > 0) {
-              logger.info({ count: result.count }, 'SISTEMA: Dinero liberado vía BullMQ');
+              logger.info(
+                {
+                  count: result.count,
+                  users: result.releasedToUsers, // Ver cuánto fue a creadores/afiliados
+                  platform: result.releasedToPlatform, // Ver cuánto fue a la plataforma
+                },
+                '💰 SISTEMA: Liberación masiva completada exitosamente'
+              );
             }
             break;
           }

@@ -93,8 +93,8 @@ export class CommissionService {
         const productCommPercent = Number(product.affiliate_commission_percent || 0);
         const effectiveCommPercent = Math.max(productCommPercent, minGlobalComm);
 
-        // El afiliado también cobra sobre el NETO
-        affiliateAmount = roundToTwo(calculationBase * (effectiveCommPercent / 100));
+        // Usamos totalAmount (Bruto) en lugar de calculationBase
+        affiliateAmount = roundToTwo(totalAmount * (effectiveCommPercent / 100));
 
         if (affiliateAmount > 0) {
           await commissionRepository.create(
@@ -129,8 +129,9 @@ export class CommissionService {
         }
       }
 
-      // --- 5. REGISTRO DE GANANCIA DEL CREADOR ---
-      // El creador se queda con el Resto (que incluye el IVA de la venta original para que él lo tribute)
+      // --- 5. REGISTRO DE GANANCIA DEL CREADOR (EL REMANENTE) ---
+      // El creador recibe el total menos lo que se llevó la plataforma y el afiliado.
+      // Es importante notar que el creador recibe el IVA remanente para su declaración.
       const creatorNetAmount = roundToTwo(totalAmount - totalPlatformFee - affiliateAmount);
 
       if (creatorNetAmount < 0) {

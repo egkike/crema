@@ -12,9 +12,9 @@ export const initScheduler = async () => {
 
   try {
     const jobs = [
-      { name: 'release-balances', pattern: '*/30 * * * *', id: 'job-release' },
-      { name: 'subscription-check', pattern: '5 0 * * *', id: 'job-subscriptions' },
-      { name: 'auth-cleanup', pattern: '0 3 * * *', id: 'job-cleanup' },
+      { name: 'release-balances', pattern: '*/30 * * * *' }, // Cada 30 min
+      { name: 'subscription-check', pattern: '5 0 * * *' }, // 00:05 AM
+      { name: 'auth-cleanup', pattern: '0 3 * * *' }, // 03:00 AM
     ];
 
     // Limpiamos y re-programamos
@@ -29,8 +29,8 @@ export const initScheduler = async () => {
         {},
         {
           repeat: { pattern: job.pattern },
-          jobId: job.id,
-          removeOnComplete: true,
+          removeOnComplete: true, // No llenar Redis con jobs terminados
+          removeOnFail: false, // Mantener los fallidos para debug
           attempts: 3,
           backoff: { type: 'exponential', delay: 1000 },
         }

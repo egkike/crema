@@ -18,7 +18,7 @@ if (config.nodeEnv !== 'test') {
   (async () => {
     try {
       logger.info('SISTEMA: Ejecutando liberación de saldos inicial (Startup)...');
-      const result = await ReleaseService.processPendingBalances(config.forceReleaseOnStartup);
+      const result = await ReleaseService.processPendingBalances(false);
       logger.info({ ordersProcessed: result.count }, 'SISTEMA: Proceso inicial completado');
     } catch (error: any) {
       logger.error({ error: error.message }, 'SISTEMA: Error en ejecución inicial');
@@ -63,8 +63,15 @@ const handleShutdown = async (signal: string) => {
     await Promise.all(closes);
 
     clearTimeout(forceExitTimeout);
+
+    // logger.flush() asegura que los mensajes en memoria se envíen a los transportes (archivo/consola)
+    if ((logger as any).flush) {
+      (logger as any).flush();
+    }
     logger.info('SISTEMA: Apagado completado con éxito. 👋');
-    process.exit(0);
+
+    // Pequeño delay para que el hilo de pino-roll termine de escribir al disco
+    setTimeout(() => process.exit(0), 500);
   } catch (error: any) {
     logger.error({ error: error.message }, 'SISTEMA: Error durante el proceso de apagado');
     process.exit(1);

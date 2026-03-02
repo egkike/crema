@@ -86,7 +86,11 @@ export class OrderService {
       // 3. Actualizar estado de la orden
       await orderRepository.updateStatus(lockedOrder.id, 'paid', client);
 
-      // 4. Procesar comisiones pasando el cliente de la transacción
+      // Actualizamos el objeto local para que CommissionService vea la realidad
+      lockedOrder.status = 'paid';
+      lockedOrder.days_of_guarantee_applied = guaranteeDays;
+
+      // 4. Procesar comisiones (Ahora lockedOrder ya dice "paid")
       await CommissionService.processOrderCommissions(lockedOrder, product, client);
 
       // 5. Activación de usuario si corresponde

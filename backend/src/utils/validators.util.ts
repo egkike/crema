@@ -1,12 +1,36 @@
+/**
+ * Valida un CUIT/CUIL de Argentina.
+ * Verifica longitud, prefijo oficial y algoritmo de dígito verificador (Módulo 11).
+ */
 export const validateCUIT = (cuit: string): boolean => {
   const cleanCuit = cuit.replace(/-/g, '');
+
+  // 1. Longitud y caracteres numéricos
   if (cleanCuit.length !== 11 || !/^\d+$/.test(cleanCuit)) return false;
+
+  // 2. Validación de Prefijos Oficiales (AFIP/ANSES)
+  const validPrefixes = ['20', '23', '24', '27', '30', '33', '34'];
+  const prefix = cleanCuit.substring(0, 2);
+  if (!validPrefixes.includes(prefix)) return false;
+
+  // 3. Algoritmo de Dígito Verificador (Módulo 11)
   const factors = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
   let sum = 0;
-  for (let i = 0; i < 10; i++) sum += parseInt(cleanCuit[i]) * factors[i];
+
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cleanCuit[i]) * factors[i];
+  }
+
   let checkDigit = 11 - (sum % 11);
+
   if (checkDigit === 11) checkDigit = 0;
-  if (checkDigit === 10) checkDigit = 9;
+  if (checkDigit === 10) {
+    // Nota: Históricamente, si el DV daba 10, se cambiaba el prefijo a 23
+    // y se recalculaba para que el DV sea otro número.
+    // Pero si llega un 10 aquí, el algoritmo oficial dicta usar 9.
+    checkDigit = 9;
+  }
+
   return checkDigit === parseInt(cleanCuit[10]);
 };
 

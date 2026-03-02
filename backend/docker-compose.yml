@@ -9,6 +9,8 @@ services:
     container_name: crema-api
     restart: unless-stopped
     env_file: .env
+    volumes:
+      - ./logs:/app/logs  # Persistencia de los logs
     depends_on:
       db:
         condition: service_healthy
@@ -31,7 +33,7 @@ services:
     restart: always
     env_file: .env
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data   # Persistencia de la base de datos
       - ./db/init:/docker-entrypoint-initdb.d      # Scripts automáticos (solo primera vez)
     networks:
       - crema-net

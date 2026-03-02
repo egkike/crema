@@ -44,8 +44,15 @@ export const ReleaseService = {
       AND o.commissions_calculated = TRUE 
       AND o.balance_released = FALSE
       AND (
-      ${force ? 'TRUE' : `(o.created_at + (o.days_of_guarantee_applied || ' days')::interval) <= NOW()`} 
-        OR o.is_guarantee_eligible = FALSE -- <-- Liberar inmediato si perdió la garantía 
+      ${
+        force
+          ? 'TRUE'
+          : `
+      (o.is_guarantee_eligible = FALSE) -- Caso A: Producto sin garantía (Liberar inmediato)
+        OR 
+      ((o.created_at + (o.days_of_guarantee_applied || ' days')::interval) <= NOW()) -- Caso B: Tiempo cumplido
+      `
+      }
       )
       ${targetOrderId ? `AND o.id = $1` : ''}
     `;

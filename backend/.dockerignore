@@ -1,0 +1,6 @@
+postgres-data
+node_modules
+dist
+.git
+.env
+coverage
