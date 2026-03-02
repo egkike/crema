@@ -168,3 +168,23 @@ BEGIN
     ('min_global_affiliate_commission', '10', 'Porcentaje mínimo de comisión que un creador debe ofrecer')
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 END $$;
+
+-- Insertar Precios al Plan Pro en las Monedas correspondientes
+DO $$
+DECLARE
+    pro_plan_id UUID;
+BEGIN
+    SELECT id INTO pro_plan_id FROM platform_plans WHERE name = 'Creador Pro' LIMIT 1;
+
+    IF pro_plan_id IS NOT NULL THEN
+        -- Precio en ARS (Nivelado a ~15 USD)
+        INSERT INTO plan_prices (plan_id, currency, amount)
+        VALUES (pro_plan_id, 'ARS', 22500.00000000)
+        ON CONFLICT (plan_id, currency) DO UPDATE SET amount = EXCLUDED.amount;
+
+        -- Precio en USDT (Base)
+        INSERT INTO plan_prices (plan_id, currency, amount)
+        VALUES (pro_plan_id, 'USDT', 15.00000000)
+        ON CONFLICT (plan_id, currency) DO UPDATE SET amount = EXCLUDED.amount;
+    END IF;
+END $$;

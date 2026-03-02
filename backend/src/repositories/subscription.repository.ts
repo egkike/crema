@@ -54,7 +54,7 @@ export const subscriptionRepository = {
         status = 'active',
         currency = EXCLUDED.currency,
         updated_at = CURRENT_TIMESTAMP
-      RETURNING *, mp_preapproval_id as gateway_subscription_id;
+      RETURNING *;
     `;
     try {
       const { rows } = await pool.query<UserSubscription>(query, [userId, planId, currency]);
@@ -76,15 +76,17 @@ export const subscriptionRepository = {
     const query = `
       SELECT 
         us.*, 
-        us.mp_preapproval_id as gateway_subscription_id, -- Alias para agnóstico
         pp.name as plan_name, 
         pp.features,
-        (SELECT json_agg(product_type_id) 
-         FROM "${schema}".plan_allowed_types 
-         WHERE plan_id = pp.id) as allowed_types
+        COALESCE(
+          json_agg(DISTINCT pat.product_type_id) FILTER (WHERE pat.product_type_id IS NOT NULL), 
+          '[]'
+        ) as allowed_types
       FROM "${schema}".user_subscriptions us
       JOIN "${schema}".platform_plans pp ON us.plan_id = pp.id
-      WHERE us.user_id = $1 AND us.status = 'active';
+      LEFT JOIN "${schema}".plan_allowed_types pat ON pp.id = pat.plan_id
+      WHERE us.user_id = $1 AND us.status = 'active'
+      GROUP BY us.id, pp.id; -- Agrupamos para permitir la agregación de tipos
     `;
     try {
       const { rows } = await pool.query<UserSubscription>(query, [userId]);
@@ -146,7 +148,7 @@ export const subscriptionRepository = {
       const updateQuery = `
             UPDATE "${schema}".user_subscriptions
             SET plan_id = $1,
-                mp_preapproval_id = $2,
+                gateway_subscription_id = $2,
                 currency = $3, -- <--- Guardamos la moneda del upgrade
                 status = 'active',
                 current_period_end = CURRENT_TIMESTAMP + INTERVAL '1 month',
@@ -204,12 +206,12 @@ export const subscriptionRepository = {
 
       // 2. Ejecutamos el Downgrade
       // Mantenemos la 'currency' actual del registro para que el usuario no cambie de divisa
-      // Limpiamos mp_preapproval_id porque ya no hay un cobro recurrente activo
+      // Limpiamos gateway_subscription_id porque ya no hay un cobro recurrente activo
       const updateQuery = `
         UPDATE "${schema}".user_subscriptions
         SET plan_id = $1, 
             status = 'active', 
-            mp_preapproval_id = NULL, 
+            gateway_subscription_id = NULL, 
             current_period_end = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE status = 'active' 
@@ -249,7 +251,7 @@ export const subscriptionRepository = {
       UPDATE "${schema}".user_subscriptions
       SET plan_id = $1, 
           status = 'active', 
-          mp_preapproval_id = NULL, -- Limpiamos ID de pasarela
+          gateway_subscription_id = NULL, -- Limpiamos ID de pasarela
           current_period_end = NULL,
           updated_at = CURRENT_TIMESTAMP
       WHERE user_id = $2;
@@ -301,41 +303,47 @@ export const subscriptionRepository = {
 
   /**
    * Obtiene de un solo golpe el plan, los tipos permitidos y el uso actual de espacio.
-   * Ideal para ser usado en Middlewares de validación.
+   * OPTIMIZADO: Usa JOINs y GROUP BY en lugar de subconsultas en el SELECT.
    */
   async getCreatorPlanLimits(userId: string) {
     const schema = config.db?.schema || 'public';
 
-    // Consulta combinada: Trae suscripción + beneficios + uso de almacenamiento actual
     const query = `
       SELECT 
         us.plan_id,
         pp.name as plan_name,
         pp.features,
-        (SELECT json_agg(product_type_id) 
-         FROM "${schema}".plan_allowed_types 
-         WHERE plan_id = pp.id) as allowed_types,
-        (SELECT COALESCE(SUM(size_bytes), 0) 
-         FROM "${schema}".products 
-         WHERE creator_id = $1) as current_storage_bytes
+        -- Agregamos los tipos permitidos en un array (usando filter para evitar nulos)
+        COALESCE(
+          json_agg(DISTINCT pat.product_type_id) FILTER (WHERE pat.product_type_id IS NOT NULL), 
+          '[]'
+        ) as allowed_types,
+        -- Sumamos el tamaño de los productos del creador
+        COALESCE(SUM(DISTINCT pr.size_bytes), 0) as current_storage_bytes
       FROM "${schema}".user_subscriptions us
       JOIN "${schema}".platform_plans pp ON us.plan_id = pp.id
-      WHERE us.user_id = $1 AND us.status = 'active';
+      LEFT JOIN "${schema}".plan_allowed_types pat ON pp.id = pat.plan_id
+      LEFT JOIN "${schema}".products pr ON us.user_id = pr.creator_id
+      WHERE us.user_id = $1 AND us.status = 'active'
+      GROUP BY us.plan_id, pp.name, pp.features;
     `;
 
     try {
       const { rows } = await pool.query(query, [userId]);
       if (!rows[0]) return null;
 
+      const row = rows[0];
+      const storageBytes = parseInt(row.current_storage_bytes, 10);
+
       return {
-        planName: rows[0].plan_name,
-        features: rows[0].features, // { storage_mb, max_products, allow_file_uploads... }
-        allowedTypes: rows[0].allowed_types || [],
-        currentStorageBytes: parseInt(rows[0].current_storage_bytes, 10),
-        currentStorageMb: parseFloat((rows[0].current_storage_bytes / (1024 * 1024)).toFixed(2)),
+        planName: row.plan_name,
+        features: row.features, // { storage_mb, max_products, custom_fee_percent... }
+        allowedTypes: row.allowed_types,
+        currentStorageBytes: storageBytes,
+        currentStorageMb: parseFloat((storageBytes / (1024 * 1024)).toFixed(2)),
       };
     } catch (error: any) {
-      logger.error({ userId, error: error.message }, 'Error en getCreatorPlanLimits');
+      logger.error({ userId, error: error.message }, 'Error optimizado en getCreatorPlanLimits');
       throw error;
     }
   },

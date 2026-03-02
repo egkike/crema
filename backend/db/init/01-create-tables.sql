@@ -415,7 +415,7 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
     currency VARCHAR(10) REFERENCES enabled_currencies(code), -- Moneda de cobro
     price_at_subscription DECIMAL(18,8),                      -- Precio pactado
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
-    mp_preapproval_id TEXT UNIQUE, 
+    gateway_subscription_id TEXT UNIQUE, 
     current_period_end TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
