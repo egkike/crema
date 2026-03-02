@@ -10,7 +10,8 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./logs:/app/logs  # Persistencia de los logs
+      - ./logs:/app/logs        # Persistencia de los logs
+      - ./uploads:/app/uploads  # Persistencia del contenido de los Creadores
     depends_on:
       db:
         condition: service_healthy

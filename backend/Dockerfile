@@ -32,9 +32,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
-# 2. CREAR CARPETA DE LOGS Y DAR PERMISOS (Crucial para Pino)
-# Seguridad: Recomendado correr como usuario no-root (opcional pero mejor)
-RUN mkdir -p /app/logs && \
+# --- PREPARACIÓN DE CARPETAS Y PERMISOS ---
+# Creamos logs y uploads en una sola línea para optimizar la imagen
+RUN mkdir -p /app/logs /app/uploads && \
     addgroup -S crema && \
     adduser -S crema -G crema && \
     chown -R crema:crema /app
