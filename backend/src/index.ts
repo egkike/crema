@@ -27,7 +27,9 @@ if (config.nodeEnv !== 'test') {
 
   // 3. Inicializar motores de colas
   initMainWorker();
-  initScheduler();
+  initScheduler().catch(err => {
+    logger.error({ err }, 'SISTEMA: Fallo crítico al inicializar el Scheduler');
+  });
 }
 
 // --- GRACEFUL SHUTDOWN ---

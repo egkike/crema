@@ -28,6 +28,7 @@ export const initScheduler = async () => {
         job.name,
         {},
         {
+          jobId: `repeat:${job.name}`, // ID fijo para que no se duplique nunca
           repeat: { pattern: job.pattern },
           removeOnComplete: true, // No llenar Redis con jobs terminados
           removeOnFail: false, // Mantener los fallidos para debug

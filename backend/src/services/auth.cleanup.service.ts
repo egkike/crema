@@ -9,7 +9,8 @@ export class AuthCleanupService {
 
     try {
       const result = await client.query(
-        `DELETE FROM "${schema}".refresh_tokens WHERE expires_at < NOW()`
+        `DELETE FROM "${schema}".refresh_tokens WHERE id IN 
+        (SELECT id FROM "${schema}".refresh_tokens WHERE expires_at < NOW() LIMIT 5000)`
       );
 
       const deletedCount = result.rowCount ?? 0;

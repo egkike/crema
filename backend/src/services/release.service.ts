@@ -7,6 +7,7 @@ import { userRepository } from '../repositories/user.repository';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 import { mainQueue } from '../queues/scheduler';
+import { roundToTwo } from '../utils/rounder.util';
 
 import { EmailService } from './email.service';
 
@@ -91,7 +92,7 @@ export const ReleaseService = {
 
           for (const comm of commissions) {
             if (comm.status === 'pending') {
-              const amountToRelease = Math.floor(Number(comm.netAmount) * 100) / 100;
+              const amountToRelease = roundToTwo(Number(comm.netAmount));
 
               // Mueve de pending_balance a available_balance
               await balanceRepository.releaseBalance(
@@ -112,8 +113,9 @@ export const ReleaseService = {
                 description: `Saldo liberado (${role}) - Orden #${order.id.substring(0, 8)}`,
               });
 
-              stats.releasedToUsers[order.currency] =
-                (stats.releasedToUsers[order.currency] || 0) + amountToRelease;
+              stats.releasedToUsers[order.currency] = roundToTwo(
+                (stats.releasedToUsers[order.currency] || 0) + amountToRelease
+              );
 
               // Notificación asíncrona (fuera de la transacción para no demorar)
               this.notifyUser(comm.userId, amountToRelease, order.currency);
@@ -131,7 +133,7 @@ export const ReleaseService = {
 
           if (pEarnings.length > 0) {
             const earnings = pEarnings[0];
-            const pAmount = Number(earnings.total_amount);
+            const pAmount = roundToTwo(Number(earnings.total_amount));
 
             // Seguimos usando pAmount para el balance disponible (incluye el impuesto)
             await platformBalanceRepository.ensureBalanceExists(order.currency, client);
@@ -154,8 +156,9 @@ export const ReleaseService = {
               '💰 Ganancia de plataforma liberada'
             );
 
-            stats.releasedToPlatform[order.currency] =
-              (stats.releasedToPlatform[order.currency] || 0) + pAmount;
+            stats.releasedToPlatform[order.currency] = roundToTwo(
+              (stats.releasedToPlatform[order.currency] || 0) + pAmount
+            );
           }
 
           // C. CIERRE DE LA ORDEN

@@ -8,10 +8,15 @@ import { mainQueue } from '../queues/scheduler';
 import { EmailService } from '../services/email.service';
 import logger from '../utils/logger';
 
-let worker: Worker | undefined;
+let criticalWorker: Worker | undefined;
+let notificationWorker: Worker | undefined;
 
 export const initMainWorker = () => {
-  const worker = new Worker(
+  /**
+   * 1. WORKER CRÍTICO: Finanzas, Suscripciones y Base de Datos
+   * Concurrencia 1 para asegurar integridad transaccional y evitar race conditions en balances.
+   */
+  criticalWorker = new Worker(
     'crema-tasks',
     async (job: Job) => {
       const { name } = job;
@@ -24,22 +29,19 @@ export const initMainWorker = () => {
               logger.info(
                 {
                   count: result.count,
-                  users: result.releasedToUsers, // Ver cuánto fue a creadores/afiliados
-                  platform: result.releasedToPlatform, // Ver cuánto fue a la plataforma
+                  users: result.releasedToUsers,
+                  platform: result.releasedToPlatform,
                 },
-                '💰 SISTEMA: Liberación masiva completada exitosamente'
+                '💰 CRITICAL: Liberación masiva completada exitosamente'
               );
             }
             break;
           }
+
           case 'subscription-check': {
-            // 1. Obtener los que vencen en 3 días
             const nearExpiration = await subscriptionRepository.getExpiringSubscriptions(3);
 
-            // En lugar de esperar el envío de cada mail aquí,
-            // creamos una nueva tarea en la cola para cada uno.
             for (const sub of nearExpiration) {
-              // USAMOS mainQueue directamente en lugar de job.queue
               if (mainQueue) {
                 await mainQueue.add(
                   'send-email',
@@ -61,120 +63,145 @@ export const initMainWorker = () => {
               }
             }
 
-            // 2. Desactivar vencidas (esta lógica se mantiene porque es DB pura)
             const deactivated = await subscriptionRepository.deactivateExpiredSubscriptions();
 
             if (nearExpiration.length > 0 || deactivated.length > 0) {
               logger.info(
                 { warned: nearExpiration.length, deactivated: deactivated.length },
-                'SISTEMA: Proceso de suscripciones completado y tareas de email delegadas'
+                'CRITICAL: Proceso de suscripciones completado'
               );
             }
             break;
           }
-          case 'send-email': {
-            const { type, to, data } = job.data;
-            switch (type) {
-              case 'BALANCE_RELEASED':
-                await EmailService.sendBalanceReleasedEmail(
-                  to,
-                  data.fullname,
-                  data.amount,
-                  data.currency
-                );
-                break;
-              case 'GUARANTEE_INVALIDATED':
-                await EmailService.sendGuaranteeInvalidatedEmail(
-                  to,
-                  data.fullname,
-                  data.productTitle,
-                  data.reason
-                );
-                break;
-              case 'PAYOUT_REQUESTED':
-                await EmailService.sendPayoutRequestedEmail(
-                  to,
-                  data.fullname,
-                  data.amount,
-                  data.currency,
-                  data.destination
-                );
-                break;
-              case 'PAYOUT_CANCELLED':
-                await EmailService.sendPayoutCancelledEmail(
-                  to,
-                  data.fullname,
-                  data.amount,
-                  data.currency
-                );
-                break;
-              case 'PAYOUT_COMPLETED':
-                await EmailService.sendPayoutCompletedEmail(
-                  to,
-                  data.fullname,
-                  data.amount,
-                  data.currency,
-                  data.destination,
-                  data.receipt
-                );
-                break;
-              case 'PAYOUT_REJECTED':
-                await EmailService.sendPayoutRejectedEmail(
-                  to,
-                  data.fullname,
-                  data.amount,
-                  data.currency,
-                  data.reason
-                );
-                break;
-              case 'SUBSCRIPTION_EXPIRING_SOON':
-                await EmailService.sendExpirationWarning(
-                  to,
-                  data.fullname,
-                  data.plan_name,
-                  data.days_left
-                );
-                break;
-              case 'SECURITY_ALERT':
-                await EmailService.sendSecurityAlert(to, data.subject, data.message);
-                break;
-              // Aquí puedes agregar más casos: 'WELCOME_PURCHASE', 'PAYOUT_ALERT', etc.
-              default:
-                logger.warn({ type }, 'Tipo de email no reconocido por el worker');
-            }
-            break;
-          }
+
           case 'auth-cleanup': {
             await AuthCleanupService.cleanExpiredTokens();
-            logger.info('SISTEMA: Limpieza de tokens completada.');
+            logger.info('CRITICAL: Limpieza de tokens completada.');
             break;
           }
+
+          // Si llega un send-email aquí, el worker simplemente lo ignora para que lo tome el otro
+          case 'send-email':
+            return;
+
           default:
-            logger.warn({ task: name }, 'SISTEMA: Tarea no reconocida en el worker');
+            logger.warn({ task: name }, 'CRITICAL: Tarea no reconocida');
         }
       } catch (error: any) {
-        logger.error({ task: name, error: error.message }, '💥 Error en proceso de BullMQ');
-        throw error; // Esto permite que BullMQ intente de nuevo si falla
+        logger.error({ task: name, error: error.message }, '💥 Error en Critical Worker');
+        throw error;
       }
     },
     {
       connection: redisConnection,
-      concurrency: 1, // Procesamiento secuencial para proteger la integridad de la DB
+      concurrency: 1,
     }
   );
 
-  worker.on('failed', (job, err) => {
+  /**
+   * 2. WORKER DE NOTIFICACIONES: Emails y Alertas
+   * Concurrencia 5 para procesar múltiples envíos de I/O en paralelo sin demoras.
+   */
+  notificationWorker = new Worker(
+    'crema-tasks',
+    async (job: Job) => {
+      if (job.name !== 'send-email') return;
+
+      const { type, to, data } = job.data;
+
+      try {
+        switch (type) {
+          case 'BALANCE_RELEASED':
+            await EmailService.sendBalanceReleasedEmail(
+              to,
+              data.fullname,
+              data.amount,
+              data.currency
+            );
+            break;
+          case 'GUARANTEE_INVALIDATED':
+            await EmailService.sendGuaranteeInvalidatedEmail(
+              to,
+              data.fullname,
+              data.productTitle,
+              data.reason
+            );
+            break;
+          case 'PAYOUT_REQUESTED':
+            await EmailService.sendPayoutRequestedEmail(
+              to,
+              data.fullname,
+              data.amount,
+              data.currency,
+              data.destination
+            );
+            break;
+          case 'PAYOUT_CANCELLED':
+            await EmailService.sendPayoutCancelledEmail(
+              to,
+              data.fullname,
+              data.amount,
+              data.currency
+            );
+            break;
+          case 'PAYOUT_COMPLETED':
+            await EmailService.sendPayoutCompletedEmail(
+              to,
+              data.fullname,
+              data.amount,
+              data.currency,
+              data.destination,
+              data.receipt
+            );
+            break;
+          case 'PAYOUT_REJECTED':
+            await EmailService.sendPayoutRejectedEmail(
+              to,
+              data.fullname,
+              data.amount,
+              data.currency,
+              data.reason
+            );
+            break;
+          case 'SUBSCRIPTION_EXPIRING_SOON':
+            await EmailService.sendExpirationWarning(
+              to,
+              data.fullname,
+              data.plan_name,
+              data.days_left
+            );
+            break;
+          case 'SECURITY_ALERT':
+            await EmailService.sendSecurityAlert(to, data.subject, data.message);
+            break;
+          default:
+            logger.warn({ type }, 'NOTIFY: Tipo de email no reconocido');
+        }
+      } catch (error: any) {
+        logger.error({ type, to, error: error.message }, '💥 Error en Notification Worker');
+        throw error;
+      }
+    },
+    {
+      connection: redisConnection,
+      concurrency: 5,
+    }
+  );
+
+  // Manejo de fallos para ambos workers
+  const handleFailure = (job: Job | undefined, err: Error) => {
     logger.error(
       { jobId: job?.id, task: job?.name, error: err.message },
       '❌ Tarea de BullMQ fallida definitivamente'
     );
-  });
+  };
+
+  criticalWorker.on('failed', handleFailure);
+  notificationWorker.on('failed', handleFailure);
 };
 
-// Función para cerrar el worker
 export const closeWorker = async () => {
-  if (worker) {
-    await worker.close();
-    logger.info('SISTEMA: Worker de BullMQ cerrado.');
-  }
+  if (criticalWorker) await criticalWorker.close();
+  if (notificationWorker) await notificationWorker.close();
+  logger.info('SISTEMA: Workers de BullMQ cerrados correctamente.');
 };
