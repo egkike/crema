@@ -1,6 +1,22 @@
-postgres-data
-node_modules
-dist
+# Datos de la base de datos (Crucial ignorar)
+postgres-data/
+postgres-data/*
+
+# Dependencias locales
+node_modules/
+.pnpm-store/
+
+# Logs y temporales
+logs/
+uploads/
+*.log
+
+# Git y editores
 .git
-.env
-coverage
+.vscode
+.idea
+.DS_Store
+
+# Archivos de build locales
+dist/
+build/

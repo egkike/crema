@@ -33,9 +33,13 @@ services:
     container_name: crema-db
     restart: always
     env_file: .env
+    environment:
+      # Forzamos a que use la ruta estándar de Docker
+      - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data   # Persistencia de la base de datos
-      - ./db/init:/docker-entrypoint-initdb.d      # Scripts automáticos (solo primera vez)
+      # Mapeamos nuestra carpeta local a esa misma ruta interna
+      - ./postgres-data:/var/lib/postgresql/data/pgdata   # Persistencia de la base de datos
+      - ./db/init:/docker-entrypoint-initdb.d             # Scripts automáticos (solo primera vez)
     networks:
       - crema-net
     healthcheck:
