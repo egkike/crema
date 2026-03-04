@@ -36,4 +36,10 @@ router.post('/quiz/submit', contentController.submitLessonQuiz);
  */
 router.get('/:productId/content', checkContentAccess, contentController.getProductContent);
 
+/**
+ * Obtener datos de una lección específica (Video, Texto, etc)
+ * URL: /api/learning/lesson/:lessonId
+ */
+router.get('/lesson/:lessonId', contentController.getLessonDetail);
+
 export default router;

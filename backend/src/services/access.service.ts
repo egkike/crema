@@ -134,4 +134,36 @@ export class AccessService {
       logger.error({ error, userId, productId }, 'Error en Safe-Guard evaluation');
     }
   }
+
+  /**
+   * Obtiene una lección específica validando acceso y resolviendo streaming si aplica.
+   */
+  static async getProtectedLesson(userId: string, lessonId: string) {
+    // 1. Buscamos la lección y verificamos que el usuario haya pagado el producto padre
+    const lesson = await productRepository.getLessonWithAccess(lessonId, userId);
+
+    if (!lesson) {
+      throw new AppError('No tienes acceso a esta lección o el producto no ha sido pagado.', 403);
+    }
+
+    let finalUrl = lesson.content_url;
+
+    // 2. Si es un video y NO es un link externo (YouTube/Vimeo),
+    // podríamos usar tu utilidad de streaming firmado (Cloudflare/AWS)
+    if (
+      lesson.content_type === 'video' &&
+      finalUrl &&
+      !finalUrl.includes('youtube.com') &&
+      !finalUrl.includes('vimeo.com')
+    ) {
+      const { streamingUtil } = await import('../utils/streaming.util');
+      finalUrl = await streamingUtil.getSignedUrl(finalUrl, 'video');
+    }
+
+    // 3. Si es YouTube/Vimeo, el Frontend recibirá el link pero bajo demanda (una por una)
+    return {
+      ...lesson,
+      content_url: finalUrl,
+    };
+  }
 }

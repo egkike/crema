@@ -299,10 +299,33 @@ export const verifyCertificate = async (req: Request, res: Response, next: NextF
   }
 };
 
+export const getLessonDetail = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    const { lessonId } = req.params;
+
+    if (!userId) throw new AppError('No autorizado', 401);
+
+    if (typeof lessonId !== 'string') {
+      throw new AppError('ID de lección inválido.', 400);
+    }
+
+    const lesson = await AccessService.getProtectedLesson(userId, lessonId);
+
+    res.status(200).json({
+      success: true,
+      data: lesson,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const contentController = {
   getProductContent,
   updateLessonProgress,
   getMyLearningDashboard,
   submitLessonQuiz,
   verifyCertificate,
+  getLessonDetail,
 };

@@ -695,4 +695,20 @@ export const productRepository = {
     const { rows } = await pool.query(query, [creatorId, currency]);
     return parseInt(rows[0].count, 10);
   },
+
+  async getLessonWithAccess(lessonId: string, userId: string): Promise<any | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+    SELECT l.*, p.id as product_id, p.creator_id
+    FROM "${schema}".product_lessons l
+    JOIN "${schema}".product_modules m ON l.module_id = m.id
+    JOIN "${schema}".products p ON m.product_id = p.id
+    LEFT JOIN "${schema}".orders o ON o.product_id = p.id AND o.buyer_id = $2 AND o.status = 'paid'
+    WHERE l.id = $1 
+    AND (o.id IS NOT NULL OR p.creator_id = $2); -- Acceso si compró o si es el dueño
+  `;
+
+    const { rows } = await pool.query(query, [lessonId, userId]);
+    return rows[0] || null;
+  },
 };
