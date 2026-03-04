@@ -96,44 +96,56 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
   }
 };
 
+/**
+ * Maneja los webhooks de forma asíncrona para evitar timeouts de la pasarela.
+ */
 export const handleProviderWebhook = async (req: Request, res: Response) => {
-  // Importante: La ruta debe ser /api/payments/webhook/:gatewayId
   const { gatewayId } = req.params;
 
   if (typeof gatewayId !== 'string') {
-    throw new AppError('Gateway ID inválido', 400);
+    return res.status(400).send('Gateway ID inválido');
   }
 
-  try {
-    const provider = PaymentProviderFactory.getProvider(gatewayId);
-    const result = await provider.handleWebhook({
-      body: req.body,
-      headers: req.headers,
-      query: req.query,
-    });
+  // 1. RESPUESTA INMEDIATA: Cerramos la conexión con MP con éxito.
+  res.status(200).send('OK');
 
-    if (!result) return res.status(200).send('OK');
+  // 2. PROCESAMIENTO EN SEGUNDO PLANO (Background processing)
+  // Usamos una función autoejecutable para que el controlador termine aquí
+  // pero el proceso de validación y DB continúe.
+  (async () => {
+    try {
+      const provider = PaymentProviderFactory.getProvider(gatewayId);
 
-    if (result.type === 'subscription') {
-      const [, userId, planId] = result.externalReference.split(':');
-      if (result.status === 'authorized' || result.status === 'approved') {
-        await SubscriptionService.handleSubscriptionPayment(userId, planId, result.transactionId);
-      } else if (['cancelled', 'expired'].includes(result.status)) {
-        await SubscriptionService.cancelSubscription(userId, true);
-      }
-    } else {
-      // Pago de producto único
-      await OrderService.processPaymentNotification({
-        externalReference: result.externalReference,
-        status: result.status,
-        transactionId: result.transactionId,
-        tempPassword: result.metadata?.temp_password,
+      const result = await provider.handleWebhook({
+        body: req.body,
+        headers: req.headers,
+        query: req.query,
       });
-    }
 
-    res.status(200).send('OK');
-  } catch (error: any) {
-    logger.error({ gatewayId, error: error.message }, 'Error en webhook dinámico');
-    res.status(200).send('Error logueado');
-  }
+      // Si la firma falló o el ID no existe en MP, 'result' será null y salimos.
+      if (!result) return;
+
+      if (result.type === 'subscription') {
+        const [, userId, planId] = result.externalReference.split(':');
+        if (result.status === 'authorized' || result.status === 'approved') {
+          await SubscriptionService.handleSubscriptionPayment(userId, planId, result.transactionId);
+        } else if (['cancelled', 'expired'].includes(result.status)) {
+          await SubscriptionService.cancelSubscription(userId, true);
+        }
+      } else {
+        // Pago de producto único
+        await OrderService.processPaymentNotification({
+          externalReference: result.externalReference,
+          status: result.status,
+          transactionId: result.transactionId,
+          tempPassword: result.metadata?.temp_password,
+        });
+      }
+    } catch (error: any) {
+      logger.error(
+        { gatewayId, error: error.message },
+        'Error en procesamiento background de webhook'
+      );
+    }
+  })();
 };

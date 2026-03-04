@@ -3,7 +3,12 @@ import crypto from 'crypto';
 import { MercadoPagoConfig, Preference, PaymentRefund, PreApproval, Payment } from 'mercadopago';
 
 import { config } from '../../../config';
-import { PaymentProvider, PaymentResponse, SubscriptionData, WebhookResult } from '../PaymentProvider';
+import {
+  PaymentProvider,
+  PaymentResponse,
+  SubscriptionData,
+  WebhookResult,
+} from '../PaymentProvider';
 import logger from '../../../utils/logger';
 
 export class MercadoPagoProvider implements PaymentProvider {
@@ -111,7 +116,6 @@ export class MercadoPagoProvider implements PaymentProvider {
     const xRequestId = headers['x-request-id'] as string;
 
     // 1. VALIDACIÓN DE SEGURIDAD (HMAC SHA256)
-    // Solo validamos si tenemos el secreto configurado en las variables de entorno
     if (config.mercadoPago.webhookSecret && xSignature) {
       try {
         const parts = xSignature.split(',');
@@ -125,22 +129,22 @@ export class MercadoPagoProvider implements PaymentProvider {
         });
 
         if (ts && hash) {
-          const resourceId = (data?.id || query.id) as string;
-          // El manifiesto debe seguir el orden exacto que requiere MP
-          const manifest = `id:${resourceId};request-id:${xRequestId};ts:${ts};`;
+          const resourceId = (data?.id || query.id || body.id) as string;
+          if (resourceId) {
+            const manifest = `id:${resourceId};request-id:${xRequestId};ts:${ts};`;
+            const hmac = crypto
+              .createHmac('sha256', config.mercadoPago.webhookSecret)
+              .update(manifest)
+              .digest('hex');
 
-          const hmac = crypto
-            .createHmac('sha256', config.mercadoPago.webhookSecret)
-            .update(manifest)
-            .digest('hex');
-
-          if (hmac !== hash) {
-            logger.warn({ xRequestId }, '⚠️ Firma de Webhook MP inválida. Posible fraude.');
-            return null;
+            if (hmac !== hash) {
+              logger.warn({ xRequestId, resourceId }, '⚠️ Firma de Webhook MP inválida.');
+              return null;
+            }
           }
         }
-      } catch (err) {
-        logger.error({ err }, 'Error validando firma de Mercado Pago');
+      } catch (err: any) {
+        logger.error({ err: err.message }, 'Error validando firma');
         return null;
       }
     }
@@ -150,24 +154,26 @@ export class MercadoPagoProvider implements PaymentProvider {
     if (!rawId) return null;
 
     try {
-      // CASO A: Pago Único (Product Purchase)
-      if (type === 'payment' || action === 'payment.created' || action === 'payment.updated') {
+      // CASO A: Pago Único
+      if (type === 'payment' || (action && action.startsWith('payment.'))) {
         const paymentInstance = new Payment(this.client);
+        // Aquí es donde el simulador fallaba. Al estar en un try/catch,
+        // si el ID no existe, simplemente devolvemos null y no explota el server.
         const payment = await paymentInstance.get({ id: rawId });
 
         return {
           externalReference: payment.external_reference || '',
           status: payment.status || 'pending',
           transactionId: String(payment.id),
-          metadata: payment.metadata, // Aquí viene temp_password si existe
+          metadata: payment.metadata,
           type: 'payment',
         };
       }
 
-      // CASO B: Suscripción Mensual (PreApproval)
+      // CASO B: Suscripción
       if (
         type === 'subscription_preapproval' ||
-        (action && action.startsWith('subscription_preapproval'))
+        (action && action.startsWith('subscription_preapproval.'))
       ) {
         const preApprovalClient = new PreApproval(this.client);
         const sub = await preApprovalClient.get({ id: rawId });
@@ -180,8 +186,12 @@ export class MercadoPagoProvider implements PaymentProvider {
         };
       }
     } catch (error: any) {
-      logger.error({ error: error.message, rawId, type }, 'Error consultando recurso en API de MP');
-      throw error; // Re-lanzamos para que el controlador lo gestione
+      // Logueamos el error (como el 404 del simulador) pero no relanzamos para no bloquear el flujo
+      logger.warn(
+        { rawId, error: error.message },
+        'No se pudo verificar el recurso en la API de MP'
+      );
+      return null;
     }
 
     return null;
