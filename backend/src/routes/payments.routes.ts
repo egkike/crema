@@ -11,8 +11,7 @@ const router = Router();
 router.post('/checkout/create', optionalJwtAuth, PaymentController.createPaymentPreference);
 
 // --- WEBHOOKS (Receptores) ---
-router.post('/webhook/mercadopago', PaymentController.handleMPWebhook);
-router.post('/webhook/simulator', PaymentController.handleSimulatorConfirm);
+router.post('/webhook/:gatewayId', PaymentController.handleProviderWebhook);
 
 // --- SUSCRIPCIONES ---
 // Cambiamos la ruta para que sea más genérica si quieres, o mantenemos la lógica

@@ -146,7 +146,7 @@ export const config = {
   passwordPepper: process.env.PASSWORD_PEPPER || 'dev_pepper_fallback_local',
   storage: {
     maxGlobalSizeMb: env.MAX_GLOBAL_UPLOAD_SIZE_MB,
-    maxGlobalSizeBytes: env.MAX_GLOBAL_UPLOAD_SIZE_MB * 1024 * 1024,
+    maxGlobalSizeBytes: Number(process.env.MAX_GLOBAL_SIZE_BYTES) || 100 * 1024 * 1024, // 100MB por defecto
   },
 } as const;
 

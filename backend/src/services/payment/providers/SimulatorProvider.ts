@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-import { PaymentProvider, PaymentResponse, SubscriptionData } from '../PaymentProvider';
+import { PaymentProvider, PaymentResponse, SubscriptionData, WebhookResult } from '../PaymentProvider';
 import { config } from '../../../config';
 
 export class SimulatorProvider implements PaymentProvider {
@@ -29,5 +29,15 @@ export class SimulatorProvider implements PaymentProvider {
   async refund(transactionId: string, amount: number): Promise<void> {
     console.info(`[SIMULATOR] Reembolso procesado para TX: ${transactionId} por ${amount}`);
     return Promise.resolve();
+  }
+
+  async handleWebhook({ body }: any): Promise<WebhookResult | null> {
+    return {
+      externalReference: body.externalReference,
+      status: body.status || 'approved',
+      transactionId: body.transactionId || `SIM-TX-${Date.now()}`,
+      metadata: { temp_password: body.tempPassword },
+      type: body.externalReference.startsWith('SUB:') ? 'subscription' : 'payment',
+    };
   }
 }

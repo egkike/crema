@@ -1,9 +1,7 @@
 import crypto from 'crypto';
 
 import { Request, Response, NextFunction } from 'express';
-import { MercadoPagoConfig, Payment, PreApproval } from 'mercadopago';
 
-import { config } from '../config/index';
 import { AppError } from '../errors/AppError';
 import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
@@ -98,161 +96,44 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
   }
 };
 
-/**
- * ENTRADA: Webhook de Mercado Pago
- */
-export const handleMPWebhook = async (req: Request, res: Response) => {
-  res.status(200).send('OK');
+export const handleProviderWebhook = async (req: Request, res: Response) => {
+  // Importante: La ruta debe ser /api/payments/webhook/:gatewayId
+  const { gatewayId } = req.params;
+
+  if (typeof gatewayId !== 'string') {
+    throw new AppError('Gateway ID inválido', 400);
+  }
 
   try {
-    const { action, type, data } = req.body;
-    const xSignature = req.headers['x-signature'] as string;
-    const xRequestId = req.headers['x-request-id'] as string;
-
-    // 2. VALIDACIÓN DE SEGURIDAD (Solo si tenemos el secret configurado)
-    if (config.mercadoPago.webhookSecret && xSignature) {
-      const parts = xSignature.split(',');
-      let ts: string | undefined;
-      let hash: string | undefined;
-
-      parts.forEach(part => {
-        const [key, value] = part.split('=');
-        if (key === 'ts') ts = value;
-        if (key === 'v1') hash = value;
-      });
-
-      if (ts && hash) {
-        // El formato de MP para el manifiesto es: id:[data.id];request-id:[x-request-id];ts:[ts];
-        // Nota: El id depende de si es un pago o una suscripción
-        const resourceId = (data?.id || req.query.id) as string;
-        const manifest = `id:${resourceId};request-id:${xRequestId};ts:${ts};`;
-
-        const hmac = crypto
-          .createHmac('sha256', config.mercadoPago.webhookSecret)
-          .update(manifest)
-          .digest('hex');
-
-        if (hmac !== hash) {
-          logger.warn(
-            { xRequestId },
-            '⚠️ Firma de Webhook MP inválida. Posible intento de fraude.'
-          );
-          return; // Abortamos el procesamiento
-        }
-      }
-    } else if (config.isProduction) {
-      // En producción, si no hay firma y tenemos el secret, sospechamos
-      logger.error('❌ Webhook recibido sin firma en entorno de producción');
-      return;
-    }
-
-    // Forzamos a string para que el SDK no se queje
-    const rawId = (data?.id || req.query.id) as string;
-
-    if (!rawId) return;
-
-    // Instanciamos el cliente directamente aquí o lo traemos de config
-    const mpClient = new MercadoPagoConfig({
-      accessToken: config.mercadoPago?.accessToken || 'dummy_token',
+    const provider = PaymentProviderFactory.getProvider(gatewayId);
+    const result = await provider.handleWebhook({
+      body: req.body,
+      headers: req.headers,
+      query: req.query,
     });
 
-    // CASO A: Venta de Producto Único
-    if (type === 'payment' || action === 'payment.created') {
-      const paymentInstance = new Payment(mpClient);
-      const payment = await paymentInstance.get({ id: rawId });
+    if (!result) return res.status(200).send('OK');
 
-      if (payment.external_reference) {
-        await OrderService.processPaymentNotification({
-          externalReference: payment.external_reference,
-          status: payment.status || 'pending',
-          transactionId: String(payment.id),
-          // Acceso seguro a metadata que suele ser el dolor de cabeza de TS
-          tempPassword: payment.metadata?.temp_password,
-        });
-      }
-    }
-
-    // CASO B: Suscripción Mensual (PreApproval)
-    if (
-      type === 'subscription_preapproval' ||
-      action === 'subscription_preapproval.created' ||
-      action === 'subscription_preapproval.updated'
-    ) {
-      const preApprovalClient = new PreApproval(mpClient);
-      const sub = await preApprovalClient.get({ id: rawId });
-
-      if (sub.external_reference && sub.external_reference.startsWith('SUB:')) {
-        const parts = sub.external_reference.split(':');
-        const userId = parts[1];
-        const planId = parts[2];
-
-        if (sub.status === 'authorized') {
-          // ✅ Éxito: Activamos/Renovamos
-          await SubscriptionService.handleSubscriptionPayment(
-            userId,
-            planId,
-            String(sub.id) // gatewaySubscriptionId
-          );
-        } else if (['cancelled', 'expired'].includes(sub.status || '')) {
-          // ✅ Fallo definitivo: Downgrade
-          // Usamos el flag isWebhook = true para no intentar llamar a la API de MP de vuelta
-          await SubscriptionService.cancelSubscription(userId, true);
-        } else {
-          // ⚠️ Otros estados (pending, authorized_payment_pending):
-          // Podrías solo loguear o enviar un aviso al usuario sin quitarle el acceso aún.
-          logger.info({ userId, status: sub.status }, 'Suscripción MP en estado transitorio');
-        }
-      }
-    }
-  } catch (error: any) {
-    logger.error({ error: error.message, body: req.body }, '💥 Error Webhook MP');
-  }
-};
-
-/**
- * ENTRADA: Confirmación del Simulador
- */
-export const handleSimulatorConfirm = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { externalReference, status = 'approved', tempPassword } = req.body;
-
-    // 1. DETECTAR SI ES UNA SUSCRIPCIÓN (SUB:userId:planId)
-    if (externalReference && externalReference.startsWith('SUB:')) {
-      const parts = externalReference.split(':');
-      const userId = parts[1];
-      const planId = parts[2];
-
-      if (status === 'approved' || status === 'authorized') {
-        // Activamos la suscripción en el simulador
-        await SubscriptionService.handleSubscriptionPayment(
-          userId,
-          planId,
-          `SIM-SUB-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
-        );
-      } else {
-        // Downgrade si el estado no es exitoso
+    if (result.type === 'subscription') {
+      const [, userId, planId] = result.externalReference.split(':');
+      if (result.status === 'authorized' || result.status === 'approved') {
+        await SubscriptionService.handleSubscriptionPayment(userId, planId, result.transactionId);
+      } else if (['cancelled', 'expired'].includes(result.status)) {
         await SubscriptionService.cancelSubscription(userId, true);
       }
-
-      return res.status(200).json({
-        success: true,
-        message: `Simulación de SUSCRIPCIÓN ${status} procesada.`,
+    } else {
+      // Pago de producto único
+      await OrderService.processPaymentNotification({
+        externalReference: result.externalReference,
+        status: result.status,
+        transactionId: result.transactionId,
+        tempPassword: result.metadata?.temp_password,
       });
     }
 
-    // 2. CASO POR DEFECTO: Venta de producto único (OrderService)
-    await OrderService.processPaymentNotification({
-      externalReference,
-      status,
-      transactionId: `SIM-TX-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
-      tempPassword,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: `Simulación de PAGO ${status} procesada exitosamente.`,
-    });
+    res.status(200).send('OK');
   } catch (error: any) {
-    next(error);
+    logger.error({ gatewayId, error: error.message }, 'Error en webhook dinámico');
+    res.status(200).send('Error logueado');
   }
 };

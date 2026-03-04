@@ -11,6 +11,14 @@ export interface SubscriptionData {
   email: string;
 }
 
+export interface WebhookResult {
+  externalReference: string;
+  status: string;
+  transactionId: string;
+  metadata?: any;
+  type: 'payment' | 'subscription';
+}
+
 export interface PaymentProvider {
   createPreference(data: {
     product: any;
@@ -18,7 +26,7 @@ export interface PaymentProvider {
     currency: string;
     externalReference: string;
     email: string;
-    tempPassword?: string | undefined; 
+    tempPassword?: string | undefined;
   }): Promise<PaymentResponse>;
 
   // Método para suscripciones
@@ -28,4 +36,6 @@ export interface PaymentProvider {
 
   // Método para procesar devoluciones
   refund(transactionId: string, amount: number): Promise<void>;
+
+  handleWebhook(payload: { body: any; headers: any; query: any }): Promise<WebhookResult | null>;
 }

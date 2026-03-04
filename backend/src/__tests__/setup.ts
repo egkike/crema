@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 
 const MOCK_PASSWORD_HASH = bcrypt.hashSync('p1' + 'test-pepper', 10);
 
+// --- CONFIG MOCK ---
 vi.mock('../config/index', () => ({
   config: {
     redis: { host: 'localhost', port: 6379, password: '' },
@@ -26,10 +27,12 @@ vi.mock('../config/index', () => ({
   },
 }));
 
+// --- REPOSITORY MOCKS ---
+
 export const userRepositoryMock = {
   getUsers: vi.fn(async () => [
     { id: 'admin-uuid', username: 'admin', level: 99 },
-    { id: 'user-uuid', username: 'kike', level: 1 },
+    { id: 'user-uuid', username: 'kike', level: 2 },
   ]),
   getUserSessions: vi.fn(async () => [
     { id: 'sess-1', last_active: new Date(), device: 'Test Browser' },
@@ -37,17 +40,16 @@ export const userRepositoryMock = {
   findByCredentials: vi.fn(async (email: string) => {
     const isAdmin = email.includes('admin');
     return {
-      // Usamos 'user-uuid' para el usuario normal, clave para content.test.ts
       id: isAdmin ? 'admin-uuid' : 'user-uuid',
       email,
-      level: isAdmin ? 99 : 1, // Admin es > STAFF(50), User es < STAFF
+      level: isAdmin ? 99 : 2,
       active: 1,
       password: MOCK_PASSWORD_HASH,
     };
   }),
   getById: vi.fn(async (id: string) => ({
     id,
-    level: id === 'admin-uuid' ? 99 : 1,
+    level: id === 'admin-uuid' ? 99 : 2,
     active: 1,
   })),
   findRefreshToken: vi.fn(async () => ({
@@ -66,64 +68,98 @@ export const productRepositoryMock = {
     ...data,
     prices: data.prices || [],
   })),
-  getProductById: vi.fn(async (id: string) => ({ id, creator_id: 'admin-uuid', size_bytes: 100 })),
+  getProductById: vi.fn(async (id: string) => ({
+    id,
+    creator_id: 'user-uuid',
+    size_bytes: 100,
+    status: 'published',
+    type: 'course',
+    prices: [{ amount: 100, currency: 'ARS' }],
+  })),
   getProductByIdOrSlug: vi.fn(async (id: string) => ({
     id,
-    creator_id: 'admin-uuid',
-    title: 'Test',
-    prices: [],
+    creator_id: 'user-uuid',
+    title: 'Test Product',
+    status: 'published',
+    type: 'course',
+    prices: [{ amount: 100, currency: 'ARS' }],
+    content_url: 'https://cdn.test.com/file.zip',
   })),
   getProductsByCreator: vi.fn().mockResolvedValue([]),
   getPublicProducts: vi.fn().mockResolvedValue([]),
   getAvailableForAffiliate: vi.fn().mockResolvedValue([]),
   updateProduct: vi.fn().mockResolvedValue({ id: 'updated-prod' }),
   deleteProduct: vi.fn().mockResolvedValue(true),
+  // Añadimos métodos que usa el controlador de contenido
+  getUserProductProgress: vi.fn(async () => ({
+    percent: 0,
+    total_lessons: 10,
+    completed_lessons: 0,
+  })),
+  getProductWithNestedContent: vi.fn(async id => ({ id, title: 'Course', modules: [] })),
 };
 
-vi.mock('../repositories/user.repository', () => ({ userRepository: userRepositoryMock }));
-vi.mock('../repositories/product.repository', () => ({ productRepository: productRepositoryMock }));
+// --- CORRECCIÓN CRÍTICA: Nombre de función verifyAccess ---
+export const orderRepositoryMock = {
+  verifyAccess: vi.fn(async (userId: string, productId: string) => {
+    return {
+      isOwner: productId === 'id-propia' || userId === 'admin-uuid',
+      hasPaid: productId === 'id-comprada',
+    };
+  }),
+};
 
-// 1. Mock de ConfigRepository (para los niveles de usuario)
-export const configRepositoryMock = {
-  // El middleware restrictTo('STAFF') buscará este valor
-  getUserLevels: vi.fn(async () => ({
-    GUEST: 0,
-    USER: 1,
-    CREATOR: 2,
-    STAFF: 50,
-    ADMIN: 99,
+export const subscriptionRepositoryMock = {
+  getCreatorPlanLimits: vi.fn(async () => ({
+    planName: 'Pro',
+    features: { storage_mb: 1024, max_products: 100, custom_fee_percent: 10 },
+    allowedTypes: ['course', 'digital_download', 'membership'],
+    currentStorageBytes: 0,
   })),
+  getUserStorageUsage: vi.fn().mockResolvedValue(0),
+};
+
+export const configRepositoryMock = {
+  getUserLevels: vi.fn(async () => ({ GUEST: 0, USER: 1, CREATOR: 2, STAFF: 50, ADMIN: 99 })),
   getSetting: vi.fn(async key => (key === 'min_global_affiliate_commission' ? '10' : 'ARS')),
   getConfigsByCurrency: vi.fn(async () => ({ fee_percent: '0.1' })),
 };
 
-// 2. Mock de PayoutMethodRepository (para validar la moneda al crear producto)
-export const payoutMethodRepositoryMock = {
-  getByUserId: vi.fn(async () => [{ currency: 'ARS' }, { currency: 'USD' }]),
+// --- SERVICE MOCKS ---
+
+// Mockeamos AccessService porque es lo que usa el controlador de contenido
+export const AccessServiceMock = {
+  getProtectedContent: vi.fn(async (_userId, _productId) => ({
+    has_structured_content: false,
+    contentUrl: 'https://cdn.test.com/file.zip',
+    title: 'Test Product',
+    type: 'course',
+  })),
+  evaluateGuaranteeStatus: vi.fn().mockResolvedValue(undefined),
+  // Si tu controlador usa getProtectedLesson, añádela también aquí:
+  getProtectedLesson: vi.fn(async (_userId, _lessonId) => ({
+    id: _lessonId,
+    title: 'Lección de prueba',
+    contentUrl: 'https://youtube.com/watch?v=123',
+  })),
 };
 
-// 3. Actualiza el SubscriptionRepository con los campos del middleware
-vi.mock('../repositories/subscription.repository', () => ({
-  subscriptionRepository: {
-    getActiveSubscription: vi.fn().mockResolvedValue({
-      status: 'active',
-      allowed_types: ['course', 'digital_download', 'membership'], // <--- Requerido por middleware
-      features: {
-        max_products: 100, // <--- Requerido por middleware
-        storage_mb: 1024, // <--- Requerido por middleware
-        custom_fee_percent: 0.05,
-      },
-    }),
-    getUserStorageUsage: vi.fn().mockResolvedValue(0),
-  },
-}));
+// --- APLICACIÓN DE MOCKS ---
 
-// Aplica los nuevos mocks
+vi.mock('../repositories/user.repository', () => ({ userRepository: userRepositoryMock }));
+vi.mock('../repositories/product.repository', () => ({ productRepository: productRepositoryMock }));
+vi.mock('../repositories/order.repository', () => ({ orderRepository: orderRepositoryMock }));
+vi.mock('../repositories/subscription.repository', () => ({
+  subscriptionRepository: subscriptionRepositoryMock,
+}));
 vi.mock('../repositories/config.repository', () => ({ configRepository: configRepositoryMock }));
 vi.mock('../repositories/payout_method.repository', () => ({
-  payoutMethodRepository: payoutMethodRepositoryMock,
+  payoutMethodRepository: { getByUserId: vi.fn(async () => [{ currency: 'ARS' }]) },
 }));
 
+vi.mock('../services/access.service', () => ({ AccessService: AccessServiceMock }));
+
+// --- RESTO DE MOCKS (DB, LOGS, ETC) ---
 const dbResponse = { rows: [], rowCount: 0 };
 vi.mock('../db/postgres', () => ({
   default: { query: vi.fn().mockResolvedValue(dbResponse) },
@@ -134,21 +170,8 @@ vi.mock('../db/postgres', () => ({
   },
 }));
 
-vi.mock('../config/redis', () => ({ redisConnection: { host: 'localhost', port: 6379 } }));
-vi.mock('../queues/scheduler', () => ({ mainQueue: { add: vi.fn() } }));
-vi.mock('../queues/main.worker', () => ({ default: { on: vi.fn(), close: vi.fn() } }));
-vi.mock('../services/release.service', () => ({
-  ReleaseService: { processPendingBalances: vi.fn() },
-}));
-vi.mock('../services/auth.cleanup.service', () => ({
-  AuthCleanupService: { cleanExpiredTokens: vi.fn() },
-}));
 vi.mock('../utils/logger', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-}));
-vi.mock('node-cron', () => ({ default: { schedule: vi.fn() } }));
-vi.mock('nodemailer', () => ({
-  default: { createTransport: vi.fn().mockReturnValue({ sendMail: vi.fn(), verify: vi.fn() }) },
 }));
 
 export const extractCookies = (res: any) => {
