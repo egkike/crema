@@ -47,10 +47,12 @@ export const orderRepository = {
   mapRowToOrder(row: any): Order | null {
     if (!row) return null;
 
-    let releaseDate: Date | null = null;
-    if (row.created_at) {
+    // Cálculo dinámico de fecha de liberación si no existe release_at
+    let releaseDate = row.release_at ? new Date(row.release_at) : null;
+
+    if (!releaseDate && row.created_at) {
       const date = new Date(row.created_at);
-      const days = row.days_of_guarantee_applied !== null ? row.days_of_guarantee_applied : 7;
+      const days = row.days_of_guarantee_applied ?? 7;
       date.setDate(date.getDate() + Number(days));
       releaseDate = date;
     }
@@ -58,14 +60,16 @@ export const orderRepository = {
     return {
       ...row,
       amount: Number(row.amount),
-      commission_amount: row.commission_amount ? Number(row.commission_amount) : 0,
-      gateway_fee: row.gateway_fee ? Number(row.gateway_fee) : 0,
-      gateway_tax: row.gateway_tax ? Number(row.gateway_tax) : 0,
-      net_platform_profit: row.net_platform_profit ? Number(row.net_platform_profit) : 0,
-      is_guarantee_eligible: row.is_guarantee_eligible ?? true,
+      commission_amount: Number(row.commission_amount || 0),
+      gateway_fee: Number(row.gateway_fee || 0),
+      gateway_tax: Number(row.gateway_tax || 0),
+      net_platform_profit: Number(row.net_platform_profit || 0),
+      is_guarantee_eligible: Boolean(row.is_guarantee_eligible),
+      // release_date es para el frontend, release_at es el valor real de DB
       release_date: releaseDate,
-      gateway_liquidity_days_applied: Number(row.gateway_liquidity_days_applied || 0),
       release_at: row.release_at ? new Date(row.release_at) : null,
+      created_at: new Date(row.created_at),
+      updated_at: new Date(row.updated_at),
       creator_id: row.creator_id || null,
     } as Order;
   },
@@ -85,7 +89,8 @@ export const orderRepository = {
   },
 
   /**
-   * Inactiva la elegibilidad de reembolso por consumo y retorna la orden actualizada
+   * Inactiva la elegibilidad de reembolso por consumo.
+   * El WHERE asegura que si ya era FALSE, el RETURNING no devuelva nada (Idempotencia).
    */
   async invalidateGuarantee(orderId: string, client?: any): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
@@ -184,8 +189,8 @@ export const orderRepository = {
   },
 
   /**
-   * Verifica autoría y compra en una sola consulta
-   * Ideal para optimizar middlewares de acceso.
+   * Verifica autoría y compra en una sola consulta.
+   * Ajustado para manejar casos donde el producto no existe.
    */
   async verifyAccess(
     userId: string,
@@ -194,24 +199,21 @@ export const orderRepository = {
     const schema = config.db?.schema || 'public';
     const query = `
       SELECT 
-        (p.creator_id = $1) as "isOwner",
+        (creator_id = $1) as "isOwner",
         EXISTS (
           SELECT 1 FROM "${schema}".orders 
           WHERE buyer_id = $1 AND product_id = $2 AND status = 'paid'
         ) as "hasPaid"
-      FROM "${schema}".products p
-      WHERE p.id = $2;
+      FROM "${schema}".products
+      WHERE id = $2;
     `;
 
     const { rows } = await pool.query(query, [userId, productId]);
-
-    if (rows.length === 0) {
-      return { isOwner: false, hasPaid: false };
-    }
+    if (!rows.length) return { isOwner: false, hasPaid: false };
 
     return {
-      isOwner: !!rows[0].isOwner,
-      hasPaid: !!rows[0].hasPaid,
+      isOwner: Boolean(rows[0].isOwner),
+      hasPaid: Boolean(rows[0].hasPaid),
     };
   },
 

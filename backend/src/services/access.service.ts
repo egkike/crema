@@ -31,15 +31,24 @@ export class AccessService {
     // --- LÓGICA SAFE-GUARD: Evaluación de Garantía ---
     // Solo evaluamos si el usuario NO es el dueño (es un comprador)
     if (product.creator_id !== userId) {
-      await this.evaluateGuaranteeStatus(userId, productId, product);
+      // Importante: No bloqueamos el await aquí para que el acceso sea instantáneo,
+      // pero lo lanzamos para que procese la regla.
+      this.evaluateGuaranteeStatus(userId, productId, product).catch(err =>
+        logger.error({ err }, 'Error silencioso en Safe-Guard')
+      );
     }
 
-    logger.info({ userId, productId }, `Acceso concedido al contenido: ${product.title}`);
-
     let finalUrl = product.content_url;
-    if (product.type === 'video' && !product.has_structured_content && finalUrl) {
-      const { streamingUtil } = await import('../utils/streaming.util');
-      finalUrl = await streamingUtil.getSignedUrl(finalUrl, 'video');
+
+    // 2. Resolución de Video firmado
+    if (product.type === 'video' && finalUrl && !product.has_structured_content) {
+      try {
+        const { streamingUtil } = await import('../utils/streaming.util');
+        finalUrl = await streamingUtil.getSignedUrl(finalUrl, 'video');
+      } catch (err) {
+        logger.error({ err }, 'Error al firmar URL de video');
+        // No lanzamos error para no romper la experiencia, enviamos la original o null
+      }
     }
 
     // 2. Retorno estructurado (Normalizando nombres de propiedades)
@@ -49,89 +58,66 @@ export class AccessService {
       type: product.type,
       contentUrl: finalUrl,
       description: product.description,
-      has_structured_content: product.has_structured_content,
+      has_structured_content: !!product.has_structured_content,
       updatedAt: product.updated_at,
     };
   }
 
   static async evaluateGuaranteeStatus(userId: string, productId: string, product: any) {
     try {
-      // Usamos el nuevo método con JOIN
       const order = await orderRepository.getActiveOrderWithBuyer(userId, productId);
 
-      // Si no hay orden pagada o ya perdió la garantía, salimos
+      // Si no es elegible para garantía (ya pasó el tiempo o ya se invalidó), salimos.
       if (!order || !order.is_guarantee_eligible) return;
 
       let shouldInvalidate = false;
       let reason: 'progress' | 'download' = 'progress';
 
-      // REGLA A: Cursos Estructurados (Basado en % de progreso)
+      // REGLA A: Cursos (Umbral de progreso)
       if (product.has_structured_content) {
         const progress = await productRepository.getUserProductProgress(productId, userId);
-
-        // Umbral del 30% (puedes parametrizarlo luego en platform_configs)
         if (progress.percent > 30) {
           shouldInvalidate = true;
           reason = 'progress';
-          logger.warn(
-            { orderId: order.id, percent: progress.percent },
-            'Safe-Guard: Garantía invalidada por progreso > 30%'
-          );
         }
       }
-      // REGLA B: Productos de descarga directa (Ebooks, Software, Audiobooks)
-      // Se invalidan al primer acceso exitoso al contenido protegido
-      else if (['ebook', 'software', 'audiobook'].includes(product.type)) {
+      // REGLA B: Descargables (Acceso inmediato invalida garantía)
+      else if (['ebook', 'software', 'audiobook', 'archive'].includes(product.type)) {
         shouldInvalidate = true;
         reason = 'download';
-        logger.warn(
-          { orderId: order.id, type: product.type },
-          'Safe-Guard: Garantía invalidada por acceso a producto descargable'
-        );
       }
 
       if (shouldInvalidate) {
-        // 1. Intentamos invalidar en la DB (Atómico)
-        const invalidatedOrder = await orderRepository.invalidateGuarantee(order.id);
+        const wasInvalidated = await orderRepository.invalidateGuarantee(order.id);
 
-        // 2. Si se invalidó justo ahora, disparamos el email
-        if (invalidatedOrder) {
-          // Usamos los datos que ya vienen del JOIN en 'getActiveOrderWithBuyer'
-          const targetEmail = order.buyer_email;
-          const targetName = order.buyer_name;
+        if (wasInvalidated) {
+          const emailData = {
+            type: 'GUARANTEE_INVALIDATED',
+            to: order.buyer_email,
+            data: {
+              fullname: order.buyer_name,
+              productTitle: product.title,
+              reason:
+                reason === 'progress'
+                  ? 'haber superado el 30% del contenido'
+                  : 'haber accedido a la descarga del producto',
+            },
+          };
 
           if (mainQueue) {
-            await mainQueue.add(
-              'send-email',
-              {
-                type: 'GUARANTEE_INVALIDATED',
-                to: targetEmail,
-                data: {
-                  fullname: targetName,
-                  productTitle: product.title,
-                  reason: reason,
-                },
-              },
-              { attempts: 3, backoff: 2000 }
-            );
+            await mainQueue.add('send-email', emailData, { attempts: 3, backoff: 2000 });
           } else {
             await EmailService.sendGuaranteeInvalidatedEmail(
-              targetEmail,
-              targetName,
+              emailData.to,
+              emailData.data.fullname,
               product.title,
               reason
             );
           }
-          logger.info(
-            { orderId: order.id },
-            'Safe-Guard: Notificación de pérdida de garantía enviada'
-          );
         }
       }
     } catch (error) {
-      // No bloqueamos el acceso al contenido si falla la auditoría de garantía,
-      // pero lo logueamos para revisión técnica.
-      logger.error({ error, userId, productId }, 'Error en Safe-Guard evaluation');
+      logger.error({ error, userId, productId }, 'Safe-Guard Failure');
     }
   }
 
@@ -139,28 +125,21 @@ export class AccessService {
    * Obtiene una lección específica validando acceso y resolviendo streaming si aplica.
    */
   static async getProtectedLesson(userId: string, lessonId: string) {
-    // 1. Buscamos la lección y verificamos que el usuario haya pagado el producto padre
+    // El repo debe validar: existencia de lección + existencia de orden pagada para el producto padre
     const lesson = await productRepository.getLessonWithAccess(lessonId, userId);
 
     if (!lesson) {
-      throw new AppError('No tienes acceso a esta lección o el producto no ha sido pagado.', 403);
+      throw new AppError('Acceso denegado o lección no encontrada.', 403);
     }
 
     let finalUrl = lesson.content_url;
 
-    // 2. Si es un video y NO es un link externo (YouTube/Vimeo),
-    // podríamos usar tu utilidad de streaming firmado (Cloudflare/AWS)
-    if (
-      lesson.content_type === 'video' &&
-      finalUrl &&
-      !finalUrl.includes('youtube.com') &&
-      !finalUrl.includes('vimeo.com')
-    ) {
+    // Solo firmamos si es video propio (no embebido externo)
+    if (lesson.content_type === 'video' && finalUrl && !finalUrl.match(/youtube|vimeo/)) {
       const { streamingUtil } = await import('../utils/streaming.util');
       finalUrl = await streamingUtil.getSignedUrl(finalUrl, 'video');
     }
 
-    // 3. Si es YouTube/Vimeo, el Frontend recibirá el link pero bajo demanda (una por una)
     return {
       ...lesson,
       content_url: finalUrl,

@@ -29,20 +29,23 @@ router.post('/:productId/join', restrictTo('AFFILIATE'), productController.joinP
 
 /**
  * 2. Crear Producto
- * El checkPlanLimits debe validar primero el TIPO de producto.
+ * checkPlanLimits actúa como "Bouncer". Si el Content-Length excede el plan, 
+ * rebota la petición antes de que Multer empiece a escribir en disco/S3.
  */
 router.post(
   '/create',
   restrictTo('CREATOR'),
-  checkPlanLimits, // Verifica: ¿Puede crear este tipo? ¿Tiene cupo de productos?
-  upload.single('file'), // Procesa el archivo si lo hay
+  checkPlanLimits, 
+  upload.single('file'), 
   productController.createProduct
 );
 
 /**
  * 2.1 Actualizar Producto
+ * Se aplica la misma lógica. Si es un PATCH, productId se pasa por params
+ * y checkPlanLimits lo detecta para no contar doble el cupo de activos.
  */
-router.put(
+router.patch(
   '/:productId',
   restrictTo('CREATOR'),
   checkPlanLimits, 

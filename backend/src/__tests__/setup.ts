@@ -32,7 +32,7 @@ vi.mock('../config/index', () => ({
 export const userRepositoryMock = {
   getUsers: vi.fn(async () => [
     { id: 'admin-uuid', username: 'admin', level: 99 },
-    { id: 'user-uuid', username: 'kike', level: 2 },
+    { id: 'user-uuid', username: 'kike', level: 3 }, // Ajustado a Nivel 3 (CREATOR en seeds)
   ]),
   getUserSessions: vi.fn(async () => [
     { id: 'sess-1', last_active: new Date(), device: 'Test Browser' },
@@ -42,14 +42,14 @@ export const userRepositoryMock = {
     return {
       id: isAdmin ? 'admin-uuid' : 'user-uuid',
       email,
-      level: isAdmin ? 99 : 2,
+      level: isAdmin ? 99 : 3, // Ajustado a 3
       active: 1,
       password: MOCK_PASSWORD_HASH,
     };
   }),
   getById: vi.fn(async (id: string) => ({
     id,
-    level: id === 'admin-uuid' ? 99 : 2,
+    level: id === 'admin-uuid' ? 99 : 3, // Ajustado a 3
     active: 1,
   })),
   findRefreshToken: vi.fn(async () => ({
@@ -62,7 +62,7 @@ export const userRepositoryMock = {
 };
 
 export const productRepositoryMock = {
-  countProductsByCreator: vi.fn(async () => 0),
+  countPublishedByCreator: vi.fn(async () => 0),
   createProduct: vi.fn(async (data: any) => ({
     id: 'new-prod',
     ...data,
@@ -90,7 +90,6 @@ export const productRepositoryMock = {
   getAvailableForAffiliate: vi.fn().mockResolvedValue([]),
   updateProduct: vi.fn().mockResolvedValue({ id: 'updated-prod' }),
   deleteProduct: vi.fn().mockResolvedValue(true),
-  // Añadimos métodos que usa el controlador de contenido
   getUserProductProgress: vi.fn(async () => ({
     percent: 0,
     total_lessons: 10,
@@ -99,7 +98,6 @@ export const productRepositoryMock = {
   getProductWithNestedContent: vi.fn(async id => ({ id, title: 'Course', modules: [] })),
 };
 
-// --- CORRECCIÓN CRÍTICA: Nombre de función verifyAccess ---
 export const orderRepositoryMock = {
   verifyAccess: vi.fn(async (userId: string, productId: string) => {
     return {
@@ -111,8 +109,12 @@ export const orderRepositoryMock = {
 
 export const subscriptionRepositoryMock = {
   getCreatorPlanLimits: vi.fn(async () => ({
-    planName: 'Pro',
-    features: { storage_mb: 1024, max_products: 100, custom_fee_percent: 10 },
+    planName: 'Creador Pro',
+    features: {
+      storage_mb: 25600,
+      max_products: 100,
+      custom_fee_percent: 0.07, // 7% como en tus seeds, el Service hará * 100 = 7
+    },
     allowedTypes: ['course', 'digital_download', 'membership'],
     currentStorageBytes: 0,
   })),
@@ -120,14 +122,28 @@ export const subscriptionRepositoryMock = {
 };
 
 export const configRepositoryMock = {
-  getUserLevels: vi.fn(async () => ({ GUEST: 0, USER: 1, CREATOR: 2, STAFF: 50, ADMIN: 99 })),
-  getSetting: vi.fn(async key => (key === 'min_global_affiliate_commission' ? '10' : 'ARS')),
-  getConfigsByCurrency: vi.fn(async () => ({ fee_percent: '0.1' })),
+  // Ajustado a los niveles de tus seeds
+  getUserLevels: vi.fn(async () => ({
+    GUEST: 0,
+    USER: 1,
+    AFFILIATE: 2,
+    CREATOR: 3,
+    STAFF: 10,
+    ADMIN: 99,
+  })),
+
+  // Ajustado al mínimo global de tus seeds (5%)
+  getSetting: vi.fn(async key => {
+    if (key === 'min_global_affiliate_commission') return '5';
+    if (key === 'platform_currency') return 'ARS';
+    return '7';
+  }),
+
+  // Ajustado al decimal de tus seeds (0.10), el Service hará * 100 = 10
+  getConfigsByCurrency: vi.fn(async () => ({ fee_percent: 0.1 })),
 };
 
 // --- SERVICE MOCKS ---
-
-// Mockeamos AccessService porque es lo que usa el controlador de contenido
 export const AccessServiceMock = {
   getProtectedContent: vi.fn(async (_userId, _productId) => ({
     has_structured_content: false,
@@ -136,7 +152,6 @@ export const AccessServiceMock = {
     type: 'course',
   })),
   evaluateGuaranteeStatus: vi.fn().mockResolvedValue(undefined),
-  // Si tu controlador usa getProtectedLesson, añádela también aquí:
   getProtectedLesson: vi.fn(async (_userId, _lessonId) => ({
     id: _lessonId,
     title: 'Lección de prueba',
@@ -145,7 +160,6 @@ export const AccessServiceMock = {
 };
 
 // --- APLICACIÓN DE MOCKS ---
-
 vi.mock('../repositories/user.repository', () => ({ userRepository: userRepositoryMock }));
 vi.mock('../repositories/product.repository', () => ({ productRepository: productRepositoryMock }));
 vi.mock('../repositories/order.repository', () => ({ orderRepository: orderRepositoryMock }));

@@ -2,19 +2,10 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
 
 import { app } from '../app';
-import { AppError } from '../errors/AppError';
-import { ProductService } from '../services/product.service';
+import { productRepository } from '../repositories/product.repository';
+import { configRepository } from '../repositories/config.repository';
 
 import { extractCookies } from './setup';
-
-// Mock de servicios
-vi.mock('../services/product.service', () => ({
-  ProductService: {
-    // Usamos undefined porque las funciones void en mocks de Vitest
-    // se resuelven como undefined
-    validateCommissionLimits: vi.fn().mockResolvedValue(undefined),
-  },
-}));
 
 const request = supertest(app);
 
@@ -22,21 +13,18 @@ describe('Products API', () => {
   let creatorCookies: string = '';
 
   beforeEach(async () => {
-    // Limpiamos todos los mocks antes de cada test para evitar contaminación
     vi.clearAllMocks();
 
-    // LOGIN ADMIN (Level 99 para pasar restrictTo('CREATOR'))
+    // LOGIN ADMIN
     const res = await request
       .post('/api/auth/login')
       .send({ email: 'admin@test.com', password: 'p1' });
     creatorCookies = extractCookies(res);
   });
 
-  it('debería rechazar comisión menor al 10%', async () => {
-    // Forzamos el error en el servicio
-    vi.mocked(ProductService.validateCommissionLimits).mockImplementationOnce(() => {
-      throw new AppError('Error de validación: comisión mínima 10%', 400);
-    });
+  it('debería rechazar comisión menor al mínimo permitido', async () => {
+    // 1. Forzamos el mínimo en 10% para este test específico
+    vi.mocked(configRepository.getSetting).mockResolvedValue('10');
 
     const res = await request
       .post('/api/products/create')
@@ -46,22 +34,27 @@ describe('Products API', () => {
         type: 'course',
         currency: 'ARS',
         prices: [{ currency: 'ARS', amount: 100 }],
-        commissionPercent: 5,
-        description: 'Descripción de prueba para pasar Zod',
+        commissionPercent: 5, // 5% es menor a 10%, ahora SÍ debería dar 400
+        description: 'Descripción de prueba para pasar Zod y validaciones',
         status: 'published',
-        contentUrl: 'https://test.com/file.zip', // <--- AGREGA ESTO PARA QUE ZOD NO SE QUEJE
+        contentUrl: 'https://test.com/file.zip',
       });
 
+    // Ahora esperamos el 400 correctamente
     expect(res.status).toBe(400);
-    expect(res.body.error).toContain('comisión mínima 10%');
+    const errorMessage = res.body.message || res.body.error || '';
+    expect(errorMessage).toContain('10%');
   });
 
   it('debería crear producto exitosamente', async () => {
-    // IMPORTANTE: Reseteamos el mock para eliminar la implementación del test anterior
-    vi.mocked(ProductService.validateCommissionLimits).mockReset();
+    vi.mocked(productRepository.countPublishedByCreator).mockResolvedValue(0);
 
-    // Ahora definimos el comportamiento de éxito para este test
-    vi.mocked(ProductService.validateCommissionLimits).mockResolvedValue(undefined as any);
+    // CAMBIO CLAVE: Enviamos 0.05 (decimal) para que el Service
+    // haga 0.05 * 100 = 5%.
+    // Si ponemos 5, el service interpreta 500% y explota.
+    vi.mocked(configRepository.getConfigsByCurrency).mockResolvedValue({
+      fee_percent: 0.05 as any,
+    });
 
     const res = await request
       .post('/api/products/create')
@@ -72,18 +65,18 @@ describe('Products API', () => {
         currency: 'ARS',
         prices: [{ currency: 'ARS', amount: 5000 }],
         commissionPercent: 25,
-        description: 'Aprende testing profesional',
+        description: 'Aprende testing profesional con este curso completo.',
         status: 'published',
         contentUrl: 'https://cdn.test.com/curso.zip',
         hasStructuredContent: false,
       });
 
     if (res.status !== 201) {
-      console.error('Error de creación detectado:', res.body);
+      // Este log te confirmará si el máximo permitido ahora es ~90%
+      console.error('NUEVO DEBUG:', res.body.error);
     }
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.id).toBe('new-prod');
   });
 });

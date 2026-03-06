@@ -324,27 +324,25 @@ export const subscriptionRepository = {
 
   /**
    * Obtiene de un solo golpe el plan, los tipos permitidos y el uso actual de espacio.
-   * OPTIMIZADO: Usa JOINs y GROUP BY en lugar de subconsultas en el SELECT.
    */
   async getCreatorPlanLimits(userId: string) {
     const schema = config.db?.schema || 'public';
 
+    // Usamos una subconsulta para el almacenamiento para evitar que el JOIN
+    // con plan_allowed_types duplique las filas de productos antes de sumar.
     const query = `
       SELECT 
         us.plan_id,
         pp.name as plan_name,
         pp.features,
-        -- Agregamos los tipos permitidos en un array (usando filter para evitar nulos)
         COALESCE(
           json_agg(DISTINCT pat.product_type_id) FILTER (WHERE pat.product_type_id IS NOT NULL), 
           '[]'
         ) as allowed_types,
-        -- Sumamos el tamaño de los productos del creador
-        COALESCE(SUM(DISTINCT pr.size_bytes), 0) as current_storage_bytes
+        (SELECT COALESCE(SUM(size_bytes), 0) FROM "${schema}".products WHERE creator_id = $1) as current_storage_bytes
       FROM "${schema}".user_subscriptions us
       JOIN "${schema}".platform_plans pp ON us.plan_id = pp.id
       LEFT JOIN "${schema}".plan_allowed_types pat ON pp.id = pat.plan_id
-      LEFT JOIN "${schema}".products pr ON us.user_id = pr.creator_id
       WHERE us.user_id = $1 AND us.status = 'active'
       GROUP BY us.plan_id, pp.name, pp.features;
     `;
@@ -357,14 +355,15 @@ export const subscriptionRepository = {
       const storageBytes = parseInt(row.current_storage_bytes, 10);
 
       return {
+        planId: row.plan_id,
         planName: row.plan_name,
-        features: row.features, // { storage_mb, max_products, custom_fee_percent... }
+        features: row.features,
         allowedTypes: row.allowed_types,
         currentStorageBytes: storageBytes,
         currentStorageMb: parseFloat((storageBytes / (1024 * 1024)).toFixed(2)),
       };
     } catch (error: any) {
-      logger.error({ userId, error: error.message }, 'Error optimizado en getCreatorPlanLimits');
+      logger.error({ userId, error: error.message }, 'Error en getCreatorPlanLimits');
       throw error;
     }
   },

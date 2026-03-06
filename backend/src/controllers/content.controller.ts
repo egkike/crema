@@ -40,82 +40,56 @@ const checkAndIssueCertificate = async (userId: string, productId: string) => {
 export const getProductContent = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
-    const { productId } = req.params;
+    const productId = req.params.productId as string; // Casting para evitar string[]
 
-    // 1. Verificación de identidad y tipo
-    if (!user?.id) {
-      throw new AppError('Usuario no identificado.', 401);
-    }
+    if (!user?.id) throw new AppError('Usuario no identificado.', 401);
 
-    if (typeof productId !== 'string') {
-      throw new AppError('ID de producto no válido.', 400);
-    }
-
-    // 1. Verificar acceso (esto ya valida si el usuario compró el producto)
-    // El AccessService ahora ya internamente llama a evaluateGuaranteeStatus
-    // Esto cubre el caso de Ebooks/Descargables al primer acceso.
+    // 1. Obtener info de acceso y producto
     const accessInfo = await AccessService.getProtectedContent(user.id, productId);
 
-    // 2. Si es contenido estructurado (Cursos), buscamos el árbol completo
+    // 2. CURSOS: Contenido estructurado
     if (accessInfo.has_structured_content) {
       const fullContent = await productRepository.getProductWithNestedContent(productId, user.id);
-
-      // Traemos el cálculo de progreso
       const progress = await productRepository.getUserProductProgress(productId, user.id);
 
       return res.status(200).json({
         success: true,
-        message: 'Acceso concedido a la estructura del curso',
         data: {
           title: fullContent.title,
           type: fullContent.type,
           modules: fullContent.modules || [],
-          progress: progress, // <-- Aquí enviamos { total_lessons, completed_lessons, percent }
+          progress: progress,
         },
       });
     }
 
-    // 3. Lógica original para archivos simples (Ebooks, etc.)
-
-    // CASO A: Link externo
-    if (accessInfo.contentUrl && accessInfo.contentUrl.startsWith('http')) {
-      return res.status(200).json({
-        success: true,
-        message: 'Acceso concedido a link externo',
-        data: accessInfo,
-      });
-    }
-
-    // CASO B: Archivo local (Ebook/ZIP)
-    if (accessInfo.contentUrl && accessInfo.contentUrl.startsWith('/uploads/')) {
-      const relativePath = accessInfo.contentUrl.startsWith('/')
-        ? accessInfo.contentUrl.substring(1)
-        : accessInfo.contentUrl;
-
-      const filePath = path.join(process.cwd(), relativePath);
-
-      if (!fs.existsSync(filePath)) {
-        logger.error({ filePath, productId }, 'Archivo físico no encontrado');
-        throw new AppError('El archivo no existe en el servidor.', 404);
+    // 3. ARCHIVOS SIMPLES (Ebooks/Descargables)
+    if (accessInfo.contentUrl) {
+      // Caso A: URL Externa (S3, Drive, YouTube, etc.)
+      if (accessInfo.contentUrl.startsWith('http')) {
+        return res.status(200).json({
+          success: true,
+          data: { contentUrl: accessInfo.contentUrl },
+        });
       }
 
-      const fileName = path.basename(filePath);
-      const cleanName = fileName.includes('-') ? fileName.split('-').slice(1).join('-') : fileName;
+      // Caso B: Archivo Local
+      const relativePath = accessInfo.contentUrl.replace(/^\/+/, ''); // Limpia barras iniciales
+      const filePath = path.join(process.cwd(), relativePath);
 
-      return res.download(filePath, cleanName);
+      if (fs.existsSync(filePath)) {
+        // En productos digitales, forzamos la descarga con un nombre limpio
+        const fileName = path.basename(filePath);
+        const cleanName = fileName.split('-').slice(1).join('-') || fileName;
+
+        return res.download(filePath, cleanName, err => {
+          if (err) logger.error({ err, filePath }, 'Error al descargar archivo');
+        });
+      }
     }
 
-    // Caso por defecto
-    res.status(200).json({
-      success: true,
-      message: 'Acceso concedido (sin contenido multimedia)',
-      data: accessInfo,
-    });
-  } catch (error: any) {
-    logger.error(
-      { error: error.message, userId: req.user?.id, productId: req.params.productId },
-      'Error al intentar entregar contenido'
-    );
+    throw new AppError('El contenido no está disponible para descarga.', 404);
+  } catch (error) {
     next(error);
   }
 };

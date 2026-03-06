@@ -13,12 +13,14 @@ interface CreateProductBody {
   content_url?: string;
   currency: string;
   title: string;
+  status?: string;
 }
 
 export const checkPlanLimits = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { user } = req;
-    const { type, sizeBytes, content_url, currency } = req.body as CreateProductBody;
+    const { user, params } = req;
+    const { type, sizeBytes, content_url, currency, status } = req.body as CreateProductBody;
+    const productId = params.productId as string;
 
     if (!user || !user.id) {
       throw new AppError('Usuario no autenticado o sesión inválida.', 401);
@@ -50,8 +52,11 @@ export const checkPlanLimits = async (req: Request, res: Response, next: NextFun
     }
 
     const { features, allowedTypes, currentStorageBytes } = planLimits;
-    const storageLimitBytes = Number(features.storage_mb || 0) * 1024 * 1024;
-    const incomingSize = Number(sizeBytes || 0);
+    const storageLimitMB = Number(features.storage_mb || 0);
+    const storageLimitBytes = storageLimitMB * 1024 * 1024;
+
+    // --- Validación proactiva de tamaño mediante Headers ---
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
 
     // 4. VALIDACIÓN: Tipo de Producto
     if (allowedTypes.length > 0 && !allowedTypes.includes(type)) {
@@ -61,26 +66,40 @@ export const checkPlanLimits = async (req: Request, res: Response, next: NextFun
       );
     }
 
-    // 5. VALIDACIÓN: Cantidad de Productos
-    const productsCount = await productRepository.countProductsByCreator(user.id);
-    if (productsCount >= (features.max_products || 0)) {
-      throw new AppError(
-        `Límite alcanzado (${features.max_products} productos). Mejora tu plan para publicar más.`,
-        403
-      );
+    // 5. VALIDACIÓN CRÍTICA: Cantidad de Productos ACTIVOS (Published)
+    if (status === 'published') {
+      let isAlreadyPublished = false;
+
+      // Si es un UPDATE (hay productId), verificamos el estado previo
+      if (productId) {
+        const currentStatus = await productRepository.getProductStatus(productId);
+        isAlreadyPublished = currentStatus === 'published';
+      }
+
+      // Si NO estaba publicado (es nuevo o cambia de draft/archived -> published), validamos cupo
+      if (!isAlreadyPublished) {
+        const publishedCount = await productRepository.countPublishedByCreator(user.id);
+
+        if (publishedCount >= (features.max_products || 0)) {
+          throw new AppError(
+            `Límite de productos publicados alcanzado (${features.max_products}). ` +
+              `Desactiva o archiva un producto existente para poder publicar uno nuevo.`,
+            403
+          );
+        }
+      }
     }
 
     // 6. VALIDACIÓN CRÍTICA: Almacenamiento (La regla del 0 MB)
-    if (storageLimitBytes === 0) {
-      // Si el plan es de 0MB, no puede haber sizeBytes (subida de archivos)
-      if (incomingSize > 0) {
+    if (storageLimitMB === 0) {
+      // Bloqueamos si el header indica que viene un archivo o si se declara un sizeBytes
+      if (contentLength > 50000 || Number(sizeBytes || 0) > 0) {
         throw new AppError(
-          'Tu plan actual no permite el alojamiento de archivos. Por favor, utiliza un link externo o mejora tu plan.',
+          'Tu plan actual no permite el alojamiento de archivos (0 MB). Usa links externos.',
           403
         );
       }
 
-      // Para cursos en plan gratuito, forzamos que el contenido sea un link (YouTube/Vimeo)
       if (type === 'course' && !content_url) {
         throw new AppError(
           'Para cursos en el plan gratuito, debes proporcionar una URL de video externa.',
@@ -88,13 +107,18 @@ export const checkPlanLimits = async (req: Request, res: Response, next: NextFun
         );
       }
     } else {
-      // Si el plan tiene espacio, validamos que no se pase del total
+      // Para planes con espacio (Pro), validamos el tamaño entrante
+      const incomingSize = Number(sizeBytes || 0) || (contentLength > 50000 ? contentLength : 0);
+
       if (currentStorageBytes + incomingSize > storageLimitBytes) {
-        throw new AppError('Espacio de almacenamiento insuficiente en tu plan.', 403);
+        throw new AppError(
+          `Espacio insuficiente. Te quedan ${((storageLimitBytes - currentStorageBytes) / (1024 * 1024)).toFixed(2)} MB.`,
+          403
+        );
       }
     }
 
-    logger.info({ userId: user.id, plan: planLimits.planName, type }, 'Límites verificados');
+    logger.info({ userId: user.id, productId, plan: planLimits.planName, type }, 'Límites verificados');
     next();
   } catch (error) {
     next(error);

@@ -204,6 +204,13 @@ export const productRepository = {
     return rows.map(row => this.mapRowToProduct(row));
   },
 
+  async getProductStatus(productId: string): Promise<string | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `SELECT status FROM "${schema}".products WHERE id = $1`;
+    const { rows } = await pool.query(query, [productId]);
+    return rows[0] ? rows[0].status : null;
+  },
+
   async getProductByIdOrSlug(identifier: string): Promise<Product | null> {
     const schema = config.db?.schema || 'public';
     const query = `
@@ -253,6 +260,14 @@ export const productRepository = {
     const query = `SELECT COUNT(*) FROM "${schema}".products WHERE creator_id = $1`;
     const { rows } = await pool.query(query, [userId]);
     return parseInt(rows[0].count, 10);
+  },
+
+  async countPublishedByCreator(userId: string): Promise<number> {
+    const schema = config.db?.schema || 'public';
+    // Solo contamos los que están en estado 'published'
+    const query = `SELECT COUNT(*)::int as count FROM "${schema}".products WHERE creator_id = $1 AND status = 'published'`;
+    const { rows } = await pool.query(query, [userId]);
+    return rows[0].count;
   },
 
   async updateProduct(id: string, input: Partial<ProductInput>): Promise<Product> {

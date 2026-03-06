@@ -1,3 +1,5 @@
+import slugify from 'slugify';
+
 import { configRepository } from '../repositories/config.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
 import { productRepository, ProductInput } from '../repositories/product.repository';
@@ -11,7 +13,7 @@ export class ProductService {
    * y manejo de contenido estructurado.
    */
   static async create(creatorId: string, data: any) {
-    // 0. Extraer datos con valores por defecto para evitar undefined
+    // 0. Extraer datos
     const {
       title,
       type,
@@ -22,6 +24,7 @@ export class ProductService {
       sizeBytes = 0,
       guaranteeDays,
       modules = [],
+      status = 'published',
     } = data;
 
     // 1. --- VALIDACIÓN DE MONEDA PARA EL CREADOR ---
@@ -35,13 +38,12 @@ export class ProductService {
 
     const userCurrencies = userMethods.map(m => m.currency);
 
-    // 2. Validamos que TODAS las monedas de los precios cargados en el producto
-    //    existan en el perfil del creador.
-    if (prices && Array.isArray(prices)) {
+    // 2. Validar que las monedas del producto existan en el perfil del creador
+    if (prices && Array.isArray(prices) && prices.length > 0) {
       for (const price of prices) {
         if (!userCurrencies.includes(price.currency)) {
           throw new AppError(
-            `No puedes crear un precio en ${price.currency} porque no tienes ese método de cobro configurado.`,
+            `No tienes configurado un método de cobro para la moneda: ${price.currency}.`,
             400
           );
         }
@@ -50,61 +52,53 @@ export class ProductService {
       throw new AppError('El producto debe tener al menos un precio definido.', 400);
     }
 
-    // 3. Validar límites de comisión si se proporcionan
-    if (commissionPercent !== undefined) {
-      await this.validateCommissionLimits(creatorId, commissionPercent);
-    }
+    // 3. Validar límites de comisión (Regla del margen de seguridad)
+    const commToValidate = commissionPercent !== undefined ? Number(commissionPercent) : 0;
+    await this.validateCommissionLimits(creatorId, commToValidate);
 
     // 4. VALIDACIÓN: Integridad del contenido
-    // Si no hay tamaño de archivo (sizeBytes 0) y no hay URL externa, el producto está vacío.
-    if (!sizeBytes && !contentUrl && (!modules || modules.length === 0)) {
+    const isStructured = type === 'course' || (modules && modules.length > 0);
+
+    if (!sizeBytes && !contentUrl && !isStructured) {
       throw new AppError(
-        'Debes subir un archivo o proporcionar una URL de contenido externa.',
+        'El producto no tiene contenido. Sube un archivo, pon una URL o agrega módulos.',
         400
       );
     }
 
-    // 5. Generar Slug básico (puedes usar una librería como 'slugify')
-    const slugBase = title
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/[\s_-]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+    // 5. Generar Slug único usando slugify (consistente con el controlador)
+    const baseSlug = slugify(title, { lower: true, strict: true });
+    const uniqueSlug = `${baseSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // 6. Determinar lógica de contenido
-    // Si el tipo es 'course' o vienen módulos, marcamos como estructurado
-    const isStructured = type === 'course' || (modules && modules.length > 0);
-
-    // 7. Mapear al input del Repositorio
+    // 6. Preparar Input para el Repositorio
     const productInput: ProductInput = {
       creatorId,
       title,
-      slug: `${slugBase}-${Date.now().toString().slice(-4)}`,
+      slug: uniqueSlug,
       type,
       prices,
-      description,
+      description: description || null,
       contentUrl: isStructured ? null : contentUrl,
-      commissionPercent,
-      status: data.status || 'draft',
-      sizeBytes: Number(sizeBytes), // Aseguramos que sea número para el SUM de la DB
-      guaranteeDays,
+      commissionPercent: commToValidate,
+      status: status,
+      sizeBytes: Number(sizeBytes),
+      guaranteeDays: guaranteeDays || null,
       hasStructuredContent: isStructured,
-      modules,
+      modules: modules,
     };
 
     try {
       const newProduct = await productRepository.createProduct(productInput);
       logger.info(
-        { productId: newProduct.id, type: newProduct.type },
-        'Producto creado exitosamente'
+        { productId: newProduct.id, slug: newProduct.slug },
+        'Producto creado exitosamente vía Service'
       );
       return newProduct;
     } catch (error: any) {
-      // Error de violación de unicidad (Slug duplicado)
+      // Error de violación de unicidad (Slug duplicado en DB)
       if (error.code === '23505') {
         throw new AppError(
-          'Ya existe un producto con un título similar. Prueba uno distinto.',
+          'Ya existe un producto con un título muy similar. Intenta variar el nombre.',
           400
         );
       }

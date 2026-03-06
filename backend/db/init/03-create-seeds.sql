@@ -90,23 +90,23 @@ INSERT INTO currency_gateways (currency_code, gateway_id) VALUES
 -- Parámetros de Comisión
 INSERT INTO platform_configs (key, currency, value, description) VALUES 
 -- Reglas para Pesos Argentinos
-('fee_percent', 'ARS', 0.09900000, 'Comisión de plataforma (9.9%)'),
-('fixed_fee_low', 'ARS', 150.00000000, 'Fee fijo para productos <= 22500 ARS'),
-('fixed_fee_high', 'ARS', 750.00000000, 'Fee fijo para productos > 22500 ARS'),
-('price_threshold', 'ARS', 22500.00000000, 'Límite de precio para cambio de fee fijo'),
-('min_payout_amount', 'ARS', 15000.00000000, 'Monto mínimo para solicitar retiro en Pesos'),
+('fee_percent', 'ARS', 0.10000000, 'Comisión de plataforma (10%)'),
+('fixed_fee_low', 'ARS', 300.00000000, 'Fee fijo para productos <= 25000 ARS'),
+('fixed_fee_high', 'ARS', 600.00000000, 'Fee fijo para productos > 25000 ARS'),
+('price_threshold', 'ARS', 25000.00000000, 'Límite de precio para cambio de fee fijo'),
+('min_payout_amount', 'ARS', 25000.00000000, 'Monto mínimo para solicitar retiro en Pesos'),
 ('max_payout_amount', 'ARS', 750000.00, 'Monto máximo por retiro (750 Mil ARS)'),
-('payout_frequency_limit', 'ARS', 1, 'Cantidad de retiros permitidos por Mes'),
+('payout_frequency_limit', 'ARS', 2, 'Cantidad de retiros permitidos por Mes'),
 ('payout_processing_days', 'ARS', 3, 'Días hábiles estimados para procesar el retiro'),
 -- Reglas para USDT
-('fee_percent', 'USDT', 0.09900000, 'Comisión de plataforma (9.9%)'),
-('fixed_fee_low', 'USDT', 0.10000000, 'Fee fijo para productos <= 15 USDT'),
-('fixed_fee_high', 'USDT', 0.50000000, 'Fee fijo para productos > 15 USDT'),
-('price_threshold', 'USDT', 15.00000000, 'Límite de precio para cambio de fee fijo'),
+('fee_percent', 'USDT', 0.10000000, 'Comisión de plataforma (10%)'),
+('fixed_fee_low', 'USDT', 0.20000000, 'Fee fijo para productos <= 20 USDT'),
+('fixed_fee_high', 'USDT', 0.40000000, 'Fee fijo para productos > 20 USDT'),
+('price_threshold', 'USDT', 20.00000000, 'Límite de precio para cambio de fee fijo'),
 ('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en USDT Crypto'),
 ('max_payout_amount', 'USDT', 500.00, 'Monto máximo por retiro (500 USDT)'),
-('payout_frequency_limit', 'USDT', 1, 'Cantidad de retiros permitidos por Mes'),
-('payout_processing_days', 'USDT', 2, 'Días hábiles estimados para procesar el retiro');
+('payout_frequency_limit', 'USDT', 2, 'Cantidad de retiros permitidos por Mes'),
+('payout_processing_days', 'USDT', 3, 'Días hábiles estimados para procesar el retiro');
 
 -- Semillas de Tipos de Productos
 INSERT INTO product_types (id, name) VALUES 
@@ -132,21 +132,21 @@ BEGIN
     -- Plan Inicial: 0 MB de storage. Solo para servicios o enlaces externos.
     INSERT INTO platform_plans (name, level_required, is_free, features)
     VALUES ('Creador Initial', 3, true, '{
-        "max_products": 3, 
+        "max_products": 15, 
         "storage_mb": 0, 
         "allow_file_uploads": false,
         "advanced_stats": false,
-        "custom_fee_percent": 0.099
+        "custom_fee_percent": 0.10
     }') RETURNING id INTO plan_free_id;
 
     -- Plan Pro: 10 GB de storage y todos los beneficios.
     INSERT INTO platform_plans (name, level_required, is_free, features)
     VALUES ('Creador Pro', 3, false, '{
         "max_products": 100, 
-        "storage_mb": 10240, 
+        "storage_mb": 25600, 
         "allow_file_uploads": true,
         "advanced_stats": true,
-        "custom_fee_percent": 0.05
+        "custom_fee_percent": 0.07
     }') RETURNING id INTO plan_pro_id;
 
     -- 3. Definir Tipos Permitidos por Plan
@@ -165,7 +165,7 @@ BEGIN
     INSERT INTO system_settings (key, value, description) 
     VALUES 
     ('default_creator_plan_id', plan_free_id, 'Plan asignado automáticamente al subir a Nivel 3'),
-    ('min_global_affiliate_commission', '10', 'Porcentaje mínimo de comisión que un creador debe ofrecer')
+    ('min_global_affiliate_commission', '5', 'Porcentaje mínimo de comisión que un creador debe ofrecer')
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 END $$;
 
@@ -179,12 +179,12 @@ BEGIN
     IF pro_plan_id IS NOT NULL THEN
         -- Precio en ARS (Nivelado a ~15 USD)
         INSERT INTO plan_prices (plan_id, currency, amount)
-        VALUES (pro_plan_id, 'ARS', 22500.00000000)
+        VALUES (pro_plan_id, 'ARS', 30000.00000000)
         ON CONFLICT (plan_id, currency) DO UPDATE SET amount = EXCLUDED.amount;
 
         -- Precio en USDT (Base)
         INSERT INTO plan_prices (plan_id, currency, amount)
-        VALUES (pro_plan_id, 'USDT', 15.00000000)
+        VALUES (pro_plan_id, 'USDT', 20.00000000)
         ON CONFLICT (plan_id, currency) DO UPDATE SET amount = EXCLUDED.amount;
     END IF;
 END $$;

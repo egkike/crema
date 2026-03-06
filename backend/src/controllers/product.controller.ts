@@ -3,15 +3,12 @@ import path from 'path';
 
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import slugify from 'slugify';
 
-import { productRepository, ProductInput } from '../repositories/product.repository';
-import { subscriptionRepository } from '../repositories/subscription.repository';
+import { productRepository } from '../repositories/product.repository';
 import { ProductService } from '../services/product.service';
 import { AppError } from '../errors/AppError';
 import { createProductSchema } from '../schemas/products.schema';
 import pool from '../db/postgres';
-import logger from '../utils/logger';
 import { config } from '../config/index';
 
 const upsertQuizSchema = z.object({
@@ -28,6 +25,9 @@ const upsertQuizSchema = z.object({
   maxAttempts: z.number().nullable().optional(),
 });
 
+/**
+ * CREAR PRODUCTO: Delegación total al Service
+ */
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
@@ -35,56 +35,19 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
+    // 1. Validar body
     const validatedData = createProductSchema.parse(req.body);
 
-    // 1. Validar Límites con el nuevo método optimizado
-    const planLimits = await subscriptionRepository.getCreatorPlanLimits(user.id);
-    if (!planLimits) throw new AppError('No posees una suscripción activa.', 403);
-
-    const { features, currentStorageBytes } = planLimits;
-    const storageLimitBytes = (features.storage_mb || 0) * 1024 * 1024;
-    const incomingSizeBytes = file ? file.size : 0;
-
-    // Validación estricta para el Plan Inicial (0 MB)
-    if (storageLimitBytes === 0 && file) {
-      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-      throw new AppError(
-        'Tu plan actual no permite el alojamiento de archivos. Usa links externos.',
-        403
-      );
-    }
-
-    // Validación de espacio insuficiente
-    if (currentStorageBytes + incomingSizeBytes > storageLimitBytes) {
-      if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
-      throw new AppError('Espacio insuficiente en tu plan de almacenamiento.', 403);
-    }
-
-    // 2. Preparar Datos Base
-    const requestedComm = validatedData.commissionPercent ?? 0;
-    await ProductService.validateCommissionLimits(user.id, requestedComm);
-
-    const baseSlug = slugify(validatedData.title, { lower: true, strict: true });
-    const uniqueSlug = `${baseSlug}-${Math.floor(100 + Math.random() * 899)}`;
-
-    const productInput: ProductInput = {
-      creatorId: user.id,
-      title: validatedData.title,
-      slug: uniqueSlug,
-      type: validatedData.type,
-      prices: validatedData.prices,
-      description: validatedData.description ?? undefined,
-      contentUrl: validatedData.contentUrl,
-      commissionPercent: requestedComm,
-      status: validatedData.status ?? 'published',
-      sizeBytes: incomingSizeBytes,
-      guaranteeDays: validatedData.guaranteeDays ?? undefined,
+    // 2. Preparar datos para el Service (incluyendo el tamaño real del archivo)
+    const serviceData = {
+      ...validatedData,
+      sizeBytes: file ? file.size : 0,
     };
 
-    // 3. Crear en DB para obtener el ID
-    const product = await productRepository.createProduct(productInput);
+    // 3. Crear mediante Service (valida monedas, comisiones, genera slug e inserta)
+    const product = await ProductService.create(user.id, serviceData);
 
-    // 4. Mover archivo de TEMP a carpeta ORGANIZADA
+    // 4. Mover archivo de TEMP a destino FINAL
     if (file) {
       const relativeFolder = path.join('uploads', user.id, product.id);
       const absoluteFolder = path.join(process.cwd(), relativeFolder);
@@ -96,7 +59,6 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       const finalPath = path.join(absoluteFolder, file.filename);
       fs.renameSync(file.path, finalPath);
 
-      // Normalizamos la ruta para que siempre use "/" (evita errores en Windows)
       const dbRelativeUrl = `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
       await productRepository.updateProduct(product.id, { contentUrl: dbRelativeUrl });
       product.content_url = dbRelativeUrl;
@@ -104,28 +66,111 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     res.status(201).json({ success: true, data: product });
   } catch (error: any) {
-    // LIMPIEZA: Si algo falló (DB, validación), borramos el archivo de la carpeta temp
     if ((req as any).file && fs.existsSync((req as any).file.path)) {
       fs.unlinkSync((req as any).file.path);
-    }
-    if (error instanceof z.ZodError) {
-      const message = error.issues.map(issue => issue.message).join('. ');
-      return next(new AppError(`Error de validación: ${message}`, 400));
     }
     next(error);
   }
 };
 
-export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
+/**
+ * ACTUALIZAR PRODUCTO
+ */
+export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { productId } = req.params;
+    const productId = req.params.productId as string;
+    const { user } = req;
+    const file = (req as any).file;
 
-    // Type Guard: Si no es string, lanzamos error
-    if (typeof productId !== 'string') {
-      throw new AppError('ID de producto no válido.', 400);
+    if (!user) throw new AppError('Usuario no autenticado', 401);
+
+    // 1. Validar propiedad
+    const existingProduct = await productRepository.getProductById(productId);
+    if (!existingProduct) throw new AppError('Producto no encontrado', 404);
+    if (existingProduct.creator_id !== user.id) {
+      throw new AppError('No tienes permiso para editar este producto', 403);
     }
 
+    // 2. Lógica de archivo
+    let finalContentUrl = existingProduct.content_url;
+    let newSizeBytes = existingProduct.size_bytes;
+
+    if (file) {
+      const relativeFolder = path.join('uploads', user.id, productId);
+      const absoluteFolder = path.join(process.cwd(), relativeFolder);
+      if (!fs.existsSync(absoluteFolder)) fs.mkdirSync(absoluteFolder, { recursive: true });
+
+      const finalPath = path.join(absoluteFolder, file.filename);
+      fs.renameSync(file.path, finalPath);
+
+      if (existingProduct.content_url?.startsWith('/uploads/')) {
+        const oldAbsolutePath = path.join(process.cwd(), existingProduct.content_url.substring(1));
+        if (fs.existsSync(oldAbsolutePath)) fs.unlinkSync(oldAbsolutePath);
+      }
+
+      finalContentUrl = `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
+      newSizeBytes = file.size;
+    }
+
+    // 3. Validar comisión si se intenta cambiar
+    if (req.body.commissionPercent !== undefined) {
+      await ProductService.validateCommissionLimits(user.id, Number(req.body.commissionPercent));
+    }
+
+    const productInput = {
+      ...req.body,
+      sizeBytes: newSizeBytes,
+      contentUrl: finalContentUrl,
+    };
+
+    const updated = await productRepository.updateProduct(productId, productInput);
+    res.status(200).json({ success: true, data: updated });
+  } catch (error) {
+    if ((req as any).file && fs.existsSync((req as any).file.path)) {
+      fs.unlinkSync((req as any).file.path);
+    }
+    next(error);
+  }
+};
+
+/**
+ * ELIMINAR PRODUCTO
+ */
+export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const productId = req.params.productId as string;
     const { user } = req;
+
+    if (!user) throw new AppError('Usuario no autenticado', 401);
+
+    const product = await productRepository.getProductById(productId);
+    if (!product) throw new AppError('Producto no encontrado', 404);
+
+    if (product.creator_id !== user.id && user.level < 10) {
+      throw new AppError('No tienes permisos para borrar este producto', 403);
+    }
+
+    await productRepository.deleteProduct(productId);
+
+    const productDir = path.join(process.cwd(), 'uploads', product.creator_id, product.id);
+    if (fs.existsSync(productDir)) {
+      fs.rmSync(productDir, { recursive: true, force: true });
+    }
+
+    res.status(200).json({ success: true, message: 'Producto eliminado.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * OBTENER POR ID / SLUG
+ */
+export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const productId = req.params.productId as string;
+    const { user } = req;
+
     const product = await productRepository.getProductByIdOrSlug(productId);
     if (!product) throw new AppError('Producto no encontrado', 404);
 
@@ -151,9 +196,8 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
 
 export const getMyProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { user } = req; // LIMPIO
+    const { user } = req;
     if (!user) throw new AppError('Usuario no autenticado', 401);
-
     const products = await productRepository.getProductsByCreator(user.id);
     res.status(200).json({ success: true, data: products });
   } catch (error) {
@@ -163,10 +207,8 @@ export const getMyProducts = async (req: Request, res: Response, next: NextFunct
 
 export const getAffiliateMarketplace = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { user } = req; // LIMPIO
+    const { user } = req;
     const products = await productRepository.getPublicProducts();
-
-    // Ahora TS reconoce affiliate_slug gracias al .d.ts
     const affIdentifier = user?.affiliate_slug || user?.id || 'guest';
 
     const data = products.map(p => ({
@@ -183,151 +225,20 @@ export const getAffiliateMarketplace = async (req: Request, res: Response, next:
   }
 };
 
-export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { productId } = req.params;
-    const { user } = req;
-    const file = (req as any).file;
-
-    if (!user) throw new AppError('Usuario no autenticado', 401);
-
-    if (typeof productId !== 'string') {
-      throw new AppError('El ID del producto debe ser un texto válido.', 400);
-    }
-
-    // 1. Validar existencia y propiedad
-    const existingProduct = await productRepository.getProductById(productId);
-    if (!existingProduct) throw new AppError('Producto no encontrado', 404);
-    if (existingProduct.creator_id !== user.id) {
-      throw new AppError('No tienes permiso para editar este producto', 403);
-    }
-
-    // 2. Obtener límites y uso actual en una sola consulta
-    const planLimits = await subscriptionRepository.getCreatorPlanLimits(user.id);
-    if (!planLimits) throw new AppError('No posees una suscripción activa.', 403);
-
-    const { features, currentStorageBytes } = planLimits;
-    const storageLimitBytes = (features.storage_mb || 0) * 1024 * 1024;
-
-    const oldFileSize = existingProduct.size_bytes || 0;
-    const newFileSize = file
-      ? file.size
-      : req.body.sizeBytes
-        ? Number(req.body.sizeBytes)
-        : oldFileSize;
-
-    // 3. Validar: (Uso Actual - Tamaño Viejo + Tamaño Nuevo)
-    if (currentStorageBytes - oldFileSize + newFileSize > storageLimitBytes) {
-      if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
-      throw new AppError('La actualización excede el espacio de tu plan.', 403);
-    }
-
-    // Si el plan es 0MB y están intentando subir un archivo en el update
-    if (storageLimitBytes === 0 && file) {
-      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-      throw new AppError('Tu plan no permite alojamiento de archivos.', 403);
-    }
-
-    // 4. Gestión de archivo nuevo y limpieza del viejo
-    let finalContentUrl = existingProduct.content_url;
-    if (file) {
-      const relativeFolder = path.join('uploads', user.id, productId);
-      const absoluteFolder = path.join(process.cwd(), relativeFolder);
-      if (!fs.existsSync(absoluteFolder)) fs.mkdirSync(absoluteFolder, { recursive: true });
-
-      const finalPath = path.join(absoluteFolder, file.filename);
-      fs.renameSync(file.path, finalPath);
-
-      // Borrar archivo físico anterior si existía
-      if (existingProduct.content_url && existingProduct.content_url.startsWith('/uploads/')) {
-        const oldAbsolutePath = path.join(process.cwd(), existingProduct.content_url.substring(1));
-        if (fs.existsSync(oldAbsolutePath)) fs.unlinkSync(oldAbsolutePath);
-      }
-
-      finalContentUrl = `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
-    }
-
-    const productInput: Partial<ProductInput> = {
-      ...req.body,
-      sizeBytes: newFileSize,
-      contentUrl: finalContentUrl,
-    };
-
-    // Validar comisión si se intenta cambiar
-    if (req.body.commissionPercent !== undefined) {
-      await ProductService.validateCommissionLimits(user.id, Number(req.body.commissionPercent));
-    }
-
-    const updated = await productRepository.updateProduct(productId, productInput);
-
-    res.status(200).json({ success: true, data: updated });
-  } catch (error) {
-    if ((req as any).file && fs.existsSync((req as any).file.path)) {
-      fs.unlinkSync((req as any).file.path);
-    }
-    next(error);
-  }
-};
-
-export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { productId } = req.params;
-    const { user } = req;
-
-    if (!user) throw new AppError('Usuario no autenticado', 401);
-    if (typeof productId !== 'string') throw new AppError('ID no válido', 400);
-
-    // 1. Buscar producto para obtener la URL del archivo antes de borrarlo
-    const product = await productRepository.getProductById(productId);
-    if (!product) throw new AppError('Producto no encontrado', 404);
-
-    // 2. Solo el dueño o un Admin pueden borrar
-    if (product.creator_id !== user.id && user.level < 10) {
-      throw new AppError('No tienes permisos para borrar este producto', 403);
-    }
-
-    // 3. Borrar de la base de datos
-    await productRepository.deleteProduct(productId);
-
-    // Borrar CARPETA del producto completa (más limpio)
-    const productDir = path.join(process.cwd(), 'uploads', product.creator_id, product.id);
-    if (fs.existsSync(productDir)) {
-      fs.rmSync(productDir, { recursive: true, force: true });
-    }
-
-    logger.info({ productId, userId: user.id }, 'Producto eliminado correctamente');
-    res.status(200).json({ success: true, message: 'Producto eliminado y espacio liberado.' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Permite que un usuario (Nivel 2+) se afilie a un producto
- */
 export const joinProductProgram = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { productId } = req.params;
+    const productId = req.params.productId as string;
     const { user } = req;
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
-    if (typeof productId !== 'string') throw new AppError('ID de producto no válido', 400);
-
-    // Llamamos al servicio que ya tiene la lógica de validación de moneda
     await ProductService.joinAffiliateProgram(user.id, productId);
 
-    res.status(200).json({
-      success: true,
-      message: 'Te has afiliado correctamente al producto.',
-    });
+    res.status(200).json({ success: true, message: 'Afiliación exitosa.' });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * Marketplace Filtrado: Solo muestra productos compatibles con las monedas del usuario
- */
 export const getMyAvailableMarketplace = async (
   req: Request,
   res: Response,
@@ -337,16 +248,14 @@ export const getMyAvailableMarketplace = async (
     const { user } = req;
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
-    // Usamos el nuevo método del repositorio que filtra por moneda
     const products = await productRepository.getAvailableForAffiliate(user.id);
-
     const affIdentifier = user.affiliate_slug || user.id;
 
     const data = products.map(p => ({
       id: p.id,
       title: p.title,
       slug: p.slug,
-      prices: p.prices, // Para que el usuario vea en qué moneda se vende
+      prices: p.prices,
       commission: p.affiliate_commission_percent,
       link: `${config.frontendUrl}/p/${p.slug || p.id}?aff=${affIdentifier}`,
     }));
@@ -364,35 +273,23 @@ export const upsertQuiz = async (req: Request, res: Response, next: NextFunction
 
     const validatedData = upsertQuizSchema.parse(req.body);
 
-    // 1. Validar que la lección pertenece a un producto del usuario
-    // Usamos una consulta rápida para verificar propiedad antes de insertar
     const schema = config.db?.schema || 'public';
     const { rows } = await pool.query(
-      `
-      SELECT p.creator_id 
-      FROM "${schema}".product_lessons l
-      JOIN "${schema}".product_modules m ON l.module_id = m.id
-      JOIN "${schema}".products p ON m.product_id = p.id
-      WHERE l.id = $1
-    `,
+      `SELECT p.creator_id FROM "${schema}".product_lessons l
+       JOIN "${schema}".product_modules m ON l.module_id = m.id
+       JOIN "${schema}".products p ON m.product_id = p.id
+       WHERE l.id = $1`,
       [validatedData.lessonId]
     );
 
     if (rows.length === 0) throw new AppError('Lección no encontrada', 404);
-    if (rows[0].creator_id !== user.id) {
-      throw new AppError('No tienes permiso para gestionar este examen', 403);
-    }
+    if (rows[0].creator_id !== user.id) throw new AppError('Sin permisos', 403);
 
-    // 2. Realizar el Upsert en la base de datos
-    // Usamos ON CONFLICT para actualizar si ya existe un quiz para esa lección
     const query = `
       INSERT INTO "${schema}".product_lesson_quizzes (lesson_id, questions, passing_score, max_attempts)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (lesson_id) 
-      DO UPDATE SET 
-        questions = EXCLUDED.questions,
-        passing_score = EXCLUDED.passing_score,
-        max_attempts = EXCLUDED.max_attempts
+      DO UPDATE SET questions = EXCLUDED.questions, passing_score = EXCLUDED.passing_score, max_attempts = EXCLUDED.max_attempts
       RETURNING *;
     `;
 
@@ -403,15 +300,8 @@ export const upsertQuiz = async (req: Request, res: Response, next: NextFunction
       validatedData.maxAttempts ?? null,
     ]);
 
-    res.status(200).json({
-      success: true,
-      message: 'Examen guardado correctamente',
-      data: result.rows[0],
-    });
+    res.status(200).json({ success: true, data: result.rows[0] });
   } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return next(new AppError('Estructura de examen inválida', 400));
-    }
     next(error);
   }
 };
