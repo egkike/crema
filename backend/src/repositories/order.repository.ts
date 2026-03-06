@@ -26,11 +26,16 @@ export interface Order {
   status: string;
   payment_method: string;
   external_reference: string;
-  transaction_id?: string;
+  gateway_fee: number;
+  gateway_tax: number;
+  net_platform_profit: number;
+  transaction_id?: string | undefined;
   commissions_calculated: boolean;
   balance_released: boolean;
   days_of_guarantee_applied: number | null;
   is_guarantee_eligible: boolean;
+  gateway_liquidity_days_applied: number;
+  release_at: Date | null;
   created_at: Date;
   updated_at: Date;
   // Campos agregados por el mapeador o joins
@@ -54,8 +59,13 @@ export const orderRepository = {
       ...row,
       amount: Number(row.amount),
       commission_amount: row.commission_amount ? Number(row.commission_amount) : 0,
+      gateway_fee: row.gateway_fee ? Number(row.gateway_fee) : 0,
+      gateway_tax: row.gateway_tax ? Number(row.gateway_tax) : 0,
+      net_platform_profit: row.net_platform_profit ? Number(row.net_platform_profit) : 0,
       is_guarantee_eligible: row.is_guarantee_eligible ?? true,
       release_date: releaseDate,
+      gateway_liquidity_days_applied: Number(row.gateway_liquidity_days_applied || 0),
+      release_at: row.release_at ? new Date(row.release_at) : null,
       creator_id: row.creator_id || null,
     } as Order;
   },
@@ -126,6 +136,7 @@ export const orderRepository = {
     const entries = Object.entries(data);
     if (entries.length === 0) return this.getByExternalRef(externalReference);
 
+    // Filtramos para asegurar que no intentamos actualizar campos inexistentes o protegidos
     const fields = entries.map(([key], i) => `"${key}" = $${i + 1}`).join(', ');
     const values = entries.map(([, val]) => val);
 

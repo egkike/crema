@@ -126,19 +126,30 @@ export const handleProviderWebhook = async (req: Request, res: Response) => {
       if (!result) return;
 
       if (result.type === 'subscription') {
+        // Formato esperado en externalReference: "SUB:userId:planId"
         const [, userId, planId] = result.externalReference.split(':');
+
         if (result.status === 'authorized' || result.status === 'approved') {
-          await SubscriptionService.handleSubscriptionPayment(userId, planId, result.transactionId);
+          // ENVIAMOS LOS FEES AQUÍ TAMBIÉN
+          await SubscriptionService.handleSubscriptionPayment(
+            userId,
+            planId,
+            result.transactionId,
+            result.gatewayFee,
+            result.gatewayTax
+          );
         } else if (['cancelled', 'expired'].includes(result.status)) {
           await SubscriptionService.cancelSubscription(userId, true);
         }
       } else {
-        // Pago de producto único
+        // Pago de producto único (Ya actualizado)
         await OrderService.processPaymentNotification({
           externalReference: result.externalReference,
           status: result.status,
           transactionId: result.transactionId,
           tempPassword: result.metadata?.temp_password,
+          gatewayFee: result.gatewayFee,
+          gatewayTax: result.gatewayTax,
         });
       }
     } catch (error: any) {

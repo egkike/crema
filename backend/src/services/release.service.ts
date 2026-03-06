@@ -20,7 +20,7 @@ interface ReleaseStats {
 
 export const ReleaseService = {
   /**
-   * Procesa la liberación de saldos pendientes que hayan superado el periodo de garantía.
+   * Procesa la liberación de saldos pendientes que hayan superado el periodo de la Doble Llave.
    */
   async processPendingBalances(
     force: boolean = false,
@@ -34,29 +34,32 @@ export const ReleaseService = {
       releasedToPlatform: {},
     };
 
-    // AJUSTE SAFE-GUARD:
-    // Usamos 'created_at' directamente si existe, ya que el repositorio de órdenes
-    // ahora lo calcula con precisión sumando los días de garantía al 'created_at'.
+    // --- LÓGICA SIMPLIFICADA ---
+    // Ahora solo comparamos la columna release_at contra NOW()
     const findOrdersQuery = `
-      SELECT o.id, o.amount, o.currency, p.creator_id
+      SELECT o.id, o.amount, o.currency, o.release_at, p.creator_id
       FROM "${schema}".orders o
       JOIN "${schema}".products p ON o.product_id = p.id
       WHERE o.status = 'paid' 
       AND o.commissions_calculated = TRUE 
       AND o.balance_released = FALSE
       AND (
-      ${
-        force
-          ? 'TRUE'
-          : `
-      (o.is_guarantee_eligible = FALSE) -- Caso A: Producto sin garantía (Liberar inmediato)
-        OR 
-      ((o.created_at + (o.days_of_guarantee_applied || ' days')::interval) <= NOW()) -- Caso B: Tiempo cumplido
-      `
-      }
-      )
-      ${targetOrderId ? `AND o.id = $1` : ''}
-    `;
+        ${
+          force
+            ? 'TRUE'
+            : `
+          o.release_at <= NOW() -- Caso A: Ya pasó el tiempo de la Doble Llave
+          OR 
+          (
+            o.is_guarantee_eligible = FALSE -- Caso B: Garantía invalidada por consumo
+            AND 
+            (o.created_at + (o.gateway_liquidity_days_applied || ' days')::interval) <= NOW() -- Pero aún respetamos a la pasarela
+          )
+    `
+        }
+  )
+  ${targetOrderId ? `AND o.id = $1` : ''}
+`;
 
     try {
       const { rows: ordersToRelease } = await pool.query(
@@ -68,15 +71,14 @@ export const ReleaseService = {
         return stats;
       }
 
-      logger.info(`Iniciando liberación de ${ordersToRelease.length} órdenes.`);
+      logger.info(`🚀 Iniciando liberación de ${ordersToRelease.length} órdenes.`);
 
-      // 2. Procesamos cada orden con su propia transacción y su propio cliente del pool
       for (const order of ordersToRelease) {
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
 
-          // Bloqueamos la fila de la orden para evitar procesamientos duplicados (FOR UPDATE)
+          // Bloqueo preventivo (SKIP LOCKED para evitar colisiones si hay varios cron corriendo)
           const lockOrder = await client.query(
             `SELECT id FROM "${schema}".orders WHERE id = $1 AND balance_released = FALSE FOR UPDATE SKIP LOCKED`,
             [order.id]
@@ -94,7 +96,6 @@ export const ReleaseService = {
             if (comm.status === 'pending') {
               const amountToRelease = roundToTwo(Number(comm.netAmount));
 
-              // Mueve de pending_balance a available_balance
               await balanceRepository.releaseBalance(
                 comm.userId,
                 amountToRelease,
@@ -117,16 +118,17 @@ export const ReleaseService = {
                 (stats.releasedToUsers[order.currency] || 0) + amountToRelease
               );
 
-              // Notificación asíncrona (fuera de la transacción para no demorar)
               this.notifyUser(comm.userId, amountToRelease, order.currency);
             }
           }
 
-          // B. LIBERACIÓN A PLATAFORMA
+          // B. LIBERACIÓN A PLATAFORMA (Sincronizada con el release_at)
           const platformEarningsQuery = `
             SELECT id, total_amount, tax_amount, variable_amount, fixed_amount 
             FROM "${schema}".platform_earnings 
-            WHERE order_id = $1 AND balance_released = FALSE AND status = 'active'
+            WHERE order_id = $1 
+            AND balance_released = FALSE 
+            AND status = 'active'
             FOR UPDATE;
           `;
           const { rows: pEarnings } = await client.query(platformEarningsQuery, [order.id]);
@@ -135,7 +137,6 @@ export const ReleaseService = {
             const earnings = pEarnings[0];
             const pAmount = roundToTwo(Number(earnings.total_amount));
 
-            // Seguimos usando pAmount para el balance disponible (incluye el impuesto)
             await platformBalanceRepository.ensureBalanceExists(order.currency, client);
             await platformBalanceRepository.releaseBalance(pAmount, order.currency, client);
 
@@ -144,16 +145,6 @@ export const ReleaseService = {
                SET balance_released = TRUE, released_at = CURRENT_TIMESTAMP 
                WHERE id = $1`,
               [earnings.id]
-            );
-
-            // Log informativo más detallado
-            logger.info(
-              {
-                orderId: order.id,
-                netGain: Number(earnings.variable_amount) + Number(earnings.fixed_amount),
-                taxCollected: Number(earnings.tax_amount),
-              },
-              '💰 Ganancia de plataforma liberada'
             );
 
             stats.releasedToPlatform[order.currency] = roundToTwo(
@@ -165,7 +156,9 @@ export const ReleaseService = {
           await commissionRepository.updateStatusByOrder(order.id, 'paid', client);
 
           await client.query(
-            `UPDATE "${schema}".orders SET balance_released = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            `UPDATE "${schema}".orders 
+             SET balance_released = TRUE, updated_at = CURRENT_TIMESTAMP 
+             WHERE id = $1`,
             [order.id]
           );
 
@@ -175,17 +168,17 @@ export const ReleaseService = {
           await client.query('ROLLBACK');
           logger.error(
             { orderId: order.id, error: error.message },
-            'Error liberando orden individual'
+            '💥 Error liberando orden individual'
           );
         } finally {
           client.release();
         }
       }
 
-      logger.info(stats, 'Proceso de liberación finalizado');
+      logger.info(stats, '🏁 Proceso de liberación finalizado');
       return stats;
     } catch (error: any) {
-      logger.error({ error: error.message }, 'Fallo crítico en ReleaseService');
+      logger.error({ error: error.message }, '💥 Fallo crítico en ReleaseService');
       throw error;
     }
   },

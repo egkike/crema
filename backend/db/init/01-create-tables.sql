@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 CREATE TABLE IF NOT EXISTS payment_gateways (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
+    liquidity_delay_days INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE
 );
 
@@ -240,14 +241,24 @@ CREATE TABLE IF NOT EXISTS orders (
     transaction_id TEXT,
     external_reference VARCHAR(255) UNIQUE, -- ID único que nosotros generamos y le enviamos a MP
     gateway_status VARCHAR(50),             -- Para guardar el estado "crudo" que devuelve la pasarela
+    gateway_fee DECIMAL(18,8) DEFAULT 0.00,
+    gateway_tax DECIMAL(18,8) DEFAULT 0.00,
+    net_platform_profit DECIMAL(18,8) DEFAULT 0.00,
     commissions_calculated BOOLEAN DEFAULT FALSE,
     balance_released BOOLEAN DEFAULT FALSE,
     days_of_guarantee_applied INT DEFAULT 7,
     is_guarantee_eligible BOOLEAN DEFAULT TRUE,
+    gateway_liquidity_days_applied INT DEFAULT 0,
+    release_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 COMMENT ON COLUMN orders.is_guarantee_eligible IS 'Se vuelve FALSE si el usuario consume el producto (descarga o progreso > 30%)';
+COMMENT ON COLUMN orders.gateway_fee IS 'Comisión bruta cobrada por la pasarela (ej: Mercado Pago Fee)';
+COMMENT ON COLUMN orders.gateway_tax IS 'Impuestos retenidos por la pasarela (ej: IVA de la comisión)';
+COMMENT ON COLUMN orders.net_platform_profit IS 'Ganancia real de Crema tras restar costos de pasarela e impuestos del fee de plataforma';
+COMMENT ON COLUMN orders.gateway_liquidity_days_applied IS 'Días de retención de la pasarela vigentes al momento del pago.';
+COMMENT ON COLUMN orders.release_at IS 'Fecha definitiva de liberación: MAX(garantía, liquidez pasarela).';
 
 -- Tabla de Comisiones generadas
 CREATE TABLE IF NOT EXISTS commissions (
@@ -309,14 +320,19 @@ CREATE TABLE IF NOT EXISTS platform_earnings (
     service_amount DECIMAL(18,8) DEFAULT 0.00, -- Por si cobras por soporte, etc.
     
     tax_amount DECIMAL(18,8) DEFAULT 0.00,
-    total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior  
+    total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior
+    net_profit DECIMAL(18,8) DEFAULT 0.00,
     status VARCHAR(20) DEFAULT 'active', -- active, paid, refunded
     currency VARCHAR(10) REFERENCES enabled_currencies(code),
     balance_released BOOLEAN DEFAULT FALSE,
     released_at TIMESTAMP WITH TIME ZONE,
+    release_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON COLUMN platform_earnings.net_profit IS 'Monto que queda en la billetera de Crema después de pagar costos operativos de la transacción';
+COMMENT ON COLUMN platform_earnings.release_at IS 'Fecha programada para la liberación (copiada de la orden).';
+COMMENT ON COLUMN platform_earnings.released_at IS 'Fecha real en la que el cron ejecutó la liberación del saldo.';
 
 -- Tabla de "Resumen" de la billetera de la plataforma
 CREATE TABLE IF NOT EXISTS platform_balances (

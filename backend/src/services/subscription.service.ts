@@ -70,12 +70,15 @@ export class SubscriptionService {
   }
 
   /**
-   * Activa o renueva la suscripción en nuestra DB tras el pago exitoso
+   * Activa o renueva la suscripción en nuestra DB tras el pago exitoso.
+   * Ahora recibe gatewayFee y gatewayTax para calcular la ganancia real.
    */
   static async handleSubscriptionPayment(
     userId: string,
     planId: string,
-    gatewaySubscriptionId: string
+    gatewaySubscriptionId: string,
+    gatewayFee: number = 0, // Nuevo: costo de la pasarela
+    gatewayTax: number = 0 // Nuevo: impuestos de la pasarela
   ) {
     // 1. Buscamos el plan entre TODAS las monedas del usuario para no fallar
     const payoutMethods = await payoutMethodRepository.getByUserId(userId);
@@ -97,7 +100,7 @@ export class SubscriptionService {
       throw new Error('Plan no encontrado al procesar pago');
     }
 
-    // 2. Actualizamos la suscripción (Pasando la moneda detectada del plan)
+    // 2. Actualizamos la suscripción en DB
     await subscriptionRepository.upgradeUserPlan(
       userId,
       planId,
@@ -105,12 +108,30 @@ export class SubscriptionService {
       plan.currency
     );
 
-    // 3. Registramos la ganancia en la plataforma
-    await subscriptionRepository.recordSubscriptionEarning(Number(plan.amount), plan.currency);
+    // 3. CÁLCULO FINANCIERO: Ganancia Neta de la Plataforma
+    const grossAmount = Number(plan.amount);
+    // La ganancia real es el total del plan menos lo que nos cobró la pasarela
+    const netProfit = grossAmount - gatewayFee - gatewayTax;
+
+    // 4. Registramos la ganancia en la plataforma (Ahora pasando el desglose)
+    await subscriptionRepository.recordSubscriptionEarning(
+      grossAmount,
+      plan.currency,
+      netProfit,
+      gatewayFee,
+      gatewayTax
+    );
 
     logger.info(
-      { userId, planId, amount: plan.amount, currency: plan.currency },
-      'Suscripción y ganancia registradas con éxito'
+      {
+        userId,
+        planId,
+        gross: grossAmount,
+        net: netProfit,
+        fee: gatewayFee,
+        currency: plan.currency,
+      },
+      '✅ Pago de suscripción y beneficio neto registrados'
     );
   }
 

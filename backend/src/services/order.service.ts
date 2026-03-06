@@ -3,6 +3,7 @@ import { orderRepository, Order } from '../repositories/order.repository';
 import { productRepository } from '../repositories/product.repository';
 import { userRepository } from '../repositories/user.repository';
 import { systemRepository } from '../repositories/system.repository';
+import { gatewayRepository } from '../repositories/gateway.repository';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 
@@ -17,8 +18,10 @@ export class OrderService {
     status: string;
     transactionId?: string;
     tempPassword?: string;
+    gatewayFee?: number | undefined;
+    gatewayTax?: number | undefined;
   }) {
-    const { externalReference, status, transactionId, tempPassword } = data;
+    const { externalReference, status, transactionId, tempPassword, gatewayFee, gatewayTax } = data;
     const order = await orderRepository.getByExternalRef(externalReference);
 
     if (!order) {
@@ -27,7 +30,6 @@ export class OrderService {
     }
 
     const finalStatuses = ['paid', 'approved', 'authorized'];
-    // Si la orden ya está pagada y llega un "approved", simplemente ignoramos.
     if (finalStatuses.includes(order.status)) {
       logger.info(
         { externalReference, status },
@@ -36,20 +38,29 @@ export class OrderService {
       return;
     }
 
-    if (transactionId && order.transaction_id !== transactionId) {
+    // Actualizamos ID de transacción y fees si vienen en el webhook
+    if (transactionId || gatewayFee !== undefined) {
       await orderRepository.updateByExternalRef(externalReference, {
         transaction_id: transactionId,
+        gateway_fee: gatewayFee || 0,
+        gateway_tax: gatewayTax || 0,
       });
     }
 
     if (status === 'approved' || status === 'paid') {
-      await this.completeOrder(order, tempPassword);
+      // Pasamos los fees al método de completado
+      await this.completeOrder(order, tempPassword, gatewayFee, gatewayTax);
     } else if (status === 'refunded' || status === 'cancelled') {
       await RefundService.processRefund(order.id, `Status: ${status}`);
     }
   }
 
-  private static async completeOrder(order: Order, tempPassword?: string) {
+  private static async completeOrder(
+    order: Order,
+    tempPassword?: string,
+    gatewayFee: number = 0,
+    gatewayTax: number = 0
+  ) {
     if (order.status === 'paid' || order.commissions_calculated) {
       return;
     }
@@ -59,7 +70,7 @@ export class OrderService {
     try {
       await client.query('BEGIN');
 
-      // 1. Bloqueo de fila para evitar condiciones de carrera
+      // Bloqueamos la fila de la orden para evitar condiciones de carrera (Race Conditions)
       const lockedOrder = await orderRepository.getById(order.id, client);
 
       if (!lockedOrder || lockedOrder.status === 'paid' || lockedOrder.commissions_calculated) {
@@ -74,26 +85,59 @@ export class OrderService {
         throw new AppError('Datos de producto o comprador no encontrados', 500);
       }
 
-      // 2. Resolver días de garantía
+      // --- 1. LÓGICA DE LA DOBLE LLAVE (GARANTÍA + LIQUIDEZ PASARELA) ---
+
+      // Obtener días de garantía del producto/global
       const guaranteeDays = await systemRepository.resolveGuaranteeDays(product.id);
+
+      // Obtener días de retención de la pasarela desde el nuevo gatewayRepository
+      const gatewayLiquidityDays = await gatewayRepository.getLiquidityDays(
+        lockedOrder.payment_method
+      );
+
+      // Determinamos el delay final (el mayor de ambos)
+      const finalDelayDays = Math.max(guaranteeDays, gatewayLiquidityDays);
+
+      // Calculamos la fecha meta de liberación
+      const releaseAt = new Date();
+      releaseAt.setDate(releaseAt.getDate() + finalDelayDays);
+
+      // --- 2. CÁLCULO DE UTILIDAD NETA (Net Profit) ---
+
+      // platformFee es lo que Crema cobra (comisión variable + fija)
+      const platformFee = Number(lockedOrder.commission_amount || 0);
+      const netPlatformProfit = platformFee - gatewayFee - gatewayTax;
+
+      // --- 3. PERSISTENCIA DE DATOS FINANCIEROS EN LA ORDEN ---
 
       await orderRepository.updateByExternalRef(
         lockedOrder.external_reference,
-        { days_of_guarantee_applied: guaranteeDays },
+        {
+          status: 'paid',
+          days_of_guarantee_applied: guaranteeDays,
+          gateway_liquidity_days_applied: gatewayLiquidityDays,
+          release_at: releaseAt,
+          gateway_fee: gatewayFee,
+          gateway_tax: gatewayTax,
+          net_platform_profit: netPlatformProfit,
+        },
         client
       );
 
-      // 3. Actualizar estado de la orden
-      await orderRepository.updateStatus(lockedOrder.id, 'paid', client);
-
-      // Actualizamos el objeto local para que CommissionService vea la realidad
+      // Actualizamos el objeto en memoria para que CommissionService reciba la data fresca
       lockedOrder.status = 'paid';
       lockedOrder.days_of_guarantee_applied = guaranteeDays;
+      lockedOrder.gateway_liquidity_days_applied = gatewayLiquidityDays;
+      lockedOrder.release_at = releaseAt;
+      lockedOrder.gateway_fee = gatewayFee;
+      lockedOrder.gateway_tax = gatewayTax;
+      lockedOrder.net_platform_profit = netPlatformProfit;
 
-      // 4. Procesar comisiones (Ahora lockedOrder ya dice "paid")
+      // --- 4. PROCESAR COMISIONES ---
+      // IMPORTANTE: CommissionService usará order.release_at para platform_earnings
       await CommissionService.processOrderCommissions(lockedOrder, product, client);
 
-      // 5. Activación de usuario si corresponde
+      // --- 5. ACTIVACIÓN DE USUARIO ---
       if (buyer.active === 0) {
         await userRepository.updUser(
           {
@@ -106,14 +150,15 @@ export class OrderService {
 
       await client.query('COMMIT');
 
-      // --- PROCESOS POST-TRANSACCIÓN (Solo si el COMMIT fue exitoso) ---
+      // --- 6. PROCESOS ASÍNCRONOS / POST-COMMIT ---
 
-      // 6. Liberación inmediata si la garantía es 0
-      if (guaranteeDays === 0) {
+      // Solo disparamos liberación inmediata si el release_at es hoy o ya pasó
+      const now = new Date();
+      if (releaseAt <= now) {
         this.triggerImmediateRelease(lockedOrder.id);
       }
 
-      // 7. Envío de correos según el caso
+      // Notificaciones por Email
       if (tempPassword) {
         await EmailService.sendWelcomePurchaseEmail(
           buyer.email,
@@ -129,7 +174,6 @@ export class OrderService {
         );
       }
 
-      // Buscamos los datos del creador para enviarle su notificación
       const creator = await userRepository.getById(product.creator_id);
       if (creator) {
         await EmailService.sendSaleNotificationEmail(
@@ -140,13 +184,19 @@ export class OrderService {
         );
       }
 
-      logger.info({ orderId: order.id }, '✅ Flujo de venta finalizado');
+      logger.info(
+        {
+          orderId: order.id,
+          netProfit: netPlatformProfit,
+          releaseAt: releaseAt.toISOString(),
+        },
+        '✅ Orden completada: Fondos bloqueados hasta la fecha de liberación'
+      );
     } catch (error: any) {
-      // Rollback explícito en caso de error para liberar bloqueos
       await client.query('ROLLBACK');
       logger.error({ orderId: order.id, error: error.message }, '💥 Error al completar la orden');
+      throw error; // Re-lanzamos para que el webhook sepa que falló
     } finally {
-      // Liberar la conexión al pool siempre
       client.release();
     }
   }

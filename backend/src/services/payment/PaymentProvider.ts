@@ -17,6 +17,8 @@ export interface WebhookResult {
   transactionId: string;
   metadata?: any;
   type: 'payment' | 'subscription';
+  gatewayFee?: number;
+  gatewayTax?: number;
 }
 
 export interface PaymentProvider {

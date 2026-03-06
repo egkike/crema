@@ -12,7 +12,6 @@ import {
 import logger from '../../../utils/logger';
 
 export class MercadoPagoProvider implements PaymentProvider {
-  // Usamos el token de la config, con un fallback por seguridad
   private client = new MercadoPagoConfig({
     accessToken: config.mercadoPago?.accessToken || 'dummy_token',
   });
@@ -26,9 +25,9 @@ export class MercadoPagoProvider implements PaymentProvider {
           {
             id: String(data.product.id),
             title: String(data.product.title),
-            quantity: 1, // El total ya viene calculado en data.amount (price * quantity)
+            quantity: 1,
             unit_price: Number(data.amount),
-            currency_id: data.currency, // Dinámico según la compra
+            currency_id: data.currency,
           },
         ],
         payer: {
@@ -40,11 +39,11 @@ export class MercadoPagoProvider implements PaymentProvider {
         back_urls: {
           success: `${config.frontendUrl}/checkout/success`,
           failure: `${config.frontendUrl}/checkout/error`,
-          pending: `${config.frontendUrl}/checkout/pending`, // Agregado para pagos en efectivo
+          pending: `${config.frontendUrl}/checkout/pending`,
         },
         external_reference: data.externalReference,
         notification_url: `${config.apiBaseUrl}/api/payments/webhook/mercadopago`,
-        statement_descriptor: 'CREMA', // Identificador en el resumen bancario
+        statement_descriptor: 'CREMA',
       },
     });
 
@@ -60,9 +59,7 @@ export class MercadoPagoProvider implements PaymentProvider {
       const refundInstance = new PaymentRefund(this.client);
       await refundInstance.create({
         payment_id: Number(transactionId),
-        body: {
-          amount: amount,
-        },
+        body: { amount: amount },
       });
     } catch (error: any) {
       throw new Error(`Error en Mercado Pago Refund: ${error.message}`);
@@ -106,16 +103,12 @@ export class MercadoPagoProvider implements PaymentProvider {
     });
   }
 
-  /**
-   * Procesa la notificación (Webhook) de Mercado Pago de forma dinámica.
-   * Valida la firma de seguridad y normaliza el resultado para el controlador.
-   */
   async handleWebhook({ body, headers, query }: any): Promise<WebhookResult | null> {
     const { action, type, data } = body;
     const xSignature = headers['x-signature'] as string;
     const xRequestId = headers['x-request-id'] as string;
 
-    // 1. VALIDACIÓN DE SEGURIDAD (HMAC SHA256)
+    // 1. VALIDACIÓN DE SEGURIDAD
     if (config.mercadoPago.webhookSecret && xSignature) {
       try {
         const parts = xSignature.split(',');
@@ -157,9 +150,28 @@ export class MercadoPagoProvider implements PaymentProvider {
       // CASO A: Pago Único
       if (type === 'payment' || (action && action.startsWith('payment.'))) {
         const paymentInstance = new Payment(this.client);
-        // Aquí es donde el simulador fallaba. Al estar en un try/catch,
-        // si el ID no existe, simplemente devolvemos null y no explota el server.
         const payment = await paymentInstance.get({ id: rawId });
+
+        // --- DESGLOSE DE COMISIONES MP ---
+        let gatewayFee = 0;
+        let gatewayTax = 0;
+
+        if (payment.fee_details && Array.isArray(payment.fee_details)) {
+          payment.fee_details.forEach((fee: any) => {
+            // MP clasifica como 'mercadopago_fee' su comisión bruta
+            if (fee.type === 'mercadopago_fee') {
+              gatewayFee += Number(fee.amount || 0);
+            }
+            // Clasifica como 'tax' las retenciones impositivas (ej: IVA)
+            else if (fee.type === 'tax') {
+              gatewayTax += Number(fee.amount || 0);
+            }
+            // Otros cargos (financiamiento, etc) se consideran costo de pasarela
+            else {
+              gatewayFee += Number(fee.amount || 0);
+            }
+          });
+        }
 
         return {
           externalReference: payment.external_reference || '',
@@ -167,6 +179,8 @@ export class MercadoPagoProvider implements PaymentProvider {
           transactionId: String(payment.id),
           metadata: payment.metadata,
           type: 'payment',
+          gatewayFee, // Nuevo: Enviamos el costo operativo
+          gatewayTax, // Nuevo: Enviamos los impuestos retenidos
         };
       }
 
@@ -186,7 +200,6 @@ export class MercadoPagoProvider implements PaymentProvider {
         };
       }
     } catch (error: any) {
-      // Logueamos el error (como el 404 del simulador) pero no relanzamos para no bloquear el flujo
       logger.warn(
         { rawId, error: error.message },
         'No se pudo verificar el recurso en la API de MP'

@@ -77,9 +77,9 @@ ON CONFLICT (code) DO UPDATE SET
     is_active = EXCLUDED.is_active;
 
 -- Configuración de Gateway habilitado para Argentina
-INSERT INTO payment_gateways (id, name) VALUES 
-('mercadopago', 'Mercado Pago'),
-('simulator', 'Pay Simulator');
+INSERT INTO payment_gateways (id, name, liquidity_delay_days) VALUES 
+('mercadopago', 'Mercado Pago', 14),
+('simulator', 'Pay Simulator', 0);
 
 -- Configuración de Moneda y Gateway habilitados para Argentina
 INSERT INTO currency_gateways (currency_code, gateway_id) VALUES

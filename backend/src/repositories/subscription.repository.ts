@@ -260,27 +260,40 @@ export const subscriptionRepository = {
   },
 
   /**
-   * Registra el ingreso por suscripción en las ganancias y balances de la plataforma
+   * Registra el ingreso por suscripción desglosando costos de pasarela y beneficio neto.
    */
-  async recordSubscriptionEarning(amount: number, currency: string): Promise<void> {
+  async recordSubscriptionEarning(
+    amount: number,
+    currency: string,
+    netProfit: number,
+    gatewayFee: number,
+    gatewayTax: number
+  ): Promise<void> {
     const schema = config.db?.schema || 'public';
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
+      // 1. Insertamos en platform_earnings con el desglose completo
       const earningQuery = `
         INSERT INTO "${schema}".platform_earnings (
           subscription_amount,
           total_amount,
+          gateway_fee,
+          gateway_tax,
+          net_profit,
           currency,
           status,
           balance_released,
           released_at
-        ) VALUES ($1, $1, $2, 'active', TRUE, CURRENT_TIMESTAMP);
+        ) VALUES ($1, $1, $3, $4, $5, $2, 'active', TRUE, CURRENT_TIMESTAMP);
       `;
-      await client.query(earningQuery, [amount, currency]);
+      // Usamos el amount como subscription_amount y total_amount
+      await client.query(earningQuery, [amount, currency, gatewayFee, gatewayTax, netProfit]);
 
+      // 2. Actualizamos el balance de la plataforma
+      // IMPORTANTE: Sumamos el netProfit (lo que realmente queda en tu cuenta)
       const balanceQuery = `
         INSERT INTO "${schema}".platform_balances (currency, available_balance)
         VALUES ($1, $2)
@@ -289,12 +302,20 @@ export const subscriptionRepository = {
           available_balance = platform_balances.available_balance + EXCLUDED.available_balance,
           updated_at = CURRENT_TIMESTAMP;
       `;
-      await client.query(balanceQuery, [currency, amount]);
+      await client.query(balanceQuery, [currency, netProfit]);
 
       await client.query('COMMIT');
-    } catch (error) {
+
+      logger.info(
+        { amount, netProfit, gatewayFee, currency },
+        'Contabilidad de suscripción registrada correctamente'
+      );
+    } catch (error: any) {
       await client.query('ROLLBACK');
-      logger.error({ error }, 'Error registrando ganancia de suscripción');
+      logger.error(
+        { error: error.message, amount, currency },
+        'Error registrando ganancia de suscripción con desglose'
+      );
       throw error;
     } finally {
       client.release();
