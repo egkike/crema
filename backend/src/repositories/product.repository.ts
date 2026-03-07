@@ -54,7 +54,7 @@ export interface ProductInput {
   prices: ProductPrice[];
   description?: string | undefined;
   contentUrl?: string | undefined;
-  commissionPercent?: number | undefined;
+  affiliate_commission_percent?: number | undefined;
   status?: string | undefined;
   sizeBytes?: number | undefined;
   guaranteeDays?: number | undefined;
@@ -109,7 +109,7 @@ export const productRepository = {
         input.description ?? null,
         input.type,
         input.contentUrl ?? null,
-        input.commissionPercent ?? 10.0,
+        input.affiliate_commission_percent ?? 5.0,
         input.sizeBytes ?? 0,
         input.status ?? 'draft',
         input.guaranteeDays ?? null,
@@ -288,7 +288,7 @@ export const productRepository = {
         description: 'description',
         type: 'type',
         contentUrl: 'content_url',
-        commissionPercent: 'affiliate_commission_percent',
+        affiliate_commission_percent: 'affiliate_commission_percent',
         sizeBytes: 'size_bytes',
         status: 'status',
         guaranteeDays: 'guarantee_days',

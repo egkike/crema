@@ -98,6 +98,7 @@ INSERT INTO platform_configs (key, currency, value, description) VALUES
 ('max_payout_amount', 'ARS', 750000.00, 'Monto máximo por retiro (750 Mil ARS)'),
 ('payout_frequency_limit', 'ARS', 2, 'Cantidad de retiros permitidos por Mes'),
 ('payout_processing_days', 'ARS', 3, 'Días hábiles estimados para procesar el retiro'),
+('min_product_price_factor', 'ARS', 10.0, 'Factor multiplicador sobre fixed_fee_low para precio mínimo de producto'),
 -- Reglas para USDT
 ('fee_percent', 'USDT', 0.10000000, 'Comisión de plataforma (10%)'),
 ('fixed_fee_low', 'USDT', 0.30000000, 'Fee fijo para productos <= 20 USDT'),
@@ -106,7 +107,8 @@ INSERT INTO platform_configs (key, currency, value, description) VALUES
 ('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en USDT Crypto'),
 ('max_payout_amount', 'USDT', 500.00, 'Monto máximo por retiro (500 USDT)'),
 ('payout_frequency_limit', 'USDT', 2, 'Cantidad de retiros permitidos por Mes'),
-('payout_processing_days', 'USDT', 3, 'Días hábiles estimados para procesar el retiro');
+('payout_processing_days', 'USDT', 3, 'Días hábiles estimados para procesar el retiro'),
+('min_product_price_factor', 'USDT', 10.0, 'Factor multiplicador sobre fixed_fee_low para precio mínimo de producto');
 
 -- Semillas de Tipos de Productos
 INSERT INTO product_types (id, name) VALUES 

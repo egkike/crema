@@ -20,7 +20,7 @@ export class ProductService {
       prices,
       description,
       contentUrl,
-      commissionPercent,
+      affiliate_commission_percent,
       sizeBytes = 0,
       guaranteeDays,
       modules = [],
@@ -38,23 +38,22 @@ export class ProductService {
 
     const userCurrencies = userMethods.map(m => m.currency);
 
-    // 2. Validar que las monedas del producto existan en el perfil del creador
+    // 2. VALIDACIÓN DE PRECIOS (Moneda y Mínimo Factor x10)
     if (prices && Array.isArray(prices) && prices.length > 0) {
-      for (const price of prices) {
-        if (!userCurrencies.includes(price.currency)) {
-          throw new AppError(
-            `No tienes configurado un método de cobro para la moneda: ${price.currency}.`,
-            400
-          );
+      for (const p of prices) {
+        if (!userCurrencies.includes(p.currency)) {
+          throw new AppError(`No tienes método de cobro para: ${p.currency}`, 400);
         }
+        await this.validateMinimumPrice(p.currency, Number(p.amount));
       }
     } else {
       throw new AppError('El producto debe tener al menos un precio definido.', 400);
     }
 
-    // 3. Validar límites de comisión (Regla del margen de seguridad)
-    const commToValidate = commissionPercent !== undefined ? Number(commissionPercent) : 0;
-    await this.validateCommissionLimits(creatorId, commToValidate);
+    // 3. VALIDACIÓN DE COMISIÓN (Usamos la moneda del primer precio como referencia)
+    const commToValidate = affiliate_commission_percent !== undefined ? Number(affiliate_commission_percent) : 0;
+    const referenceCurrency = prices[0].currency;
+    await this.validateCommissionLimits(creatorId, commToValidate, referenceCurrency);
 
     // 4. VALIDACIÓN: Integridad del contenido
     const isStructured = type === 'course' || (modules && modules.length > 0);
@@ -79,7 +78,7 @@ export class ProductService {
       prices,
       description: description || null,
       contentUrl: isStructured ? null : contentUrl,
-      commissionPercent: commToValidate,
+      affiliate_commission_percent: commToValidate,
       status: status,
       sizeBytes: Number(sizeBytes),
       guaranteeDays: guaranteeDays || null,
@@ -107,26 +106,49 @@ export class ProductService {
   }
 
   /**
+   * Protege que el precio no sea inferior al umbral de rentabilidad.
+   */
+  public static async validateMinimumPrice(currency: string, amount: number): Promise<void> {
+    const configs = await configRepository.getConfigsByCurrency(currency);
+
+    const factor = configs?.['min_product_price_factor']
+      ? Number(configs['min_product_price_factor'])
+      : 10;
+    const feeLow = configs?.['fixed_fee_low'] ? Number(configs['fixed_fee_low']) : 450;
+    const minAllowed = feeLow * factor;
+
+    if (amount < minAllowed) {
+      throw new AppError(
+        `El precio en ${currency} ($${amount}) es demasiado bajo. El mínimo es $${minAllowed}.`,
+        400
+      );
+    }
+  }
+
+  /**
    * Valida que el porcentaje de comisión esté dentro de los límites legales y financieros.
    * Evita que la suma de comisiones supere el 100% del valor del producto.
    */
-  static async validateCommissionLimits(creatorId: string, requestedComm: number): Promise<void> {
+  static async validateCommissionLimits(
+    creatorId: string,
+    requestedComm: number,
+    currency: string
+  ): Promise<void> {
     try {
       // 1. Obtener configuraciones base
-      const platformCurrency = await configRepository.getSetting('platform_currency', 'ARS');
-      const platformConfigs = await configRepository.getConfigsByCurrency(platformCurrency);
+      const configs = await configRepository.getConfigsByCurrency(currency);
 
       // 2. Obtener el mínimo global de afiliados (Default 10%)
-      const rawMinComm = await configRepository.getSetting('min_global_affiliate_commission', '10');
-      const minAffiliateComm = Number(rawMinComm);
+      const minAffiliateComm =
+        configs && configs['min_global_affiliate_commission']
+          ? Number(configs['min_global_affiliate_commission'])
+          : 5;
 
       // 3. Obtener el porcentaje de fee de la plataforma
       const subscription = await subscriptionRepository.getCreatorPlanLimits(creatorId);
 
       let platformFeePercent =
-        platformConfigs && platformConfigs['fee_percent']
-          ? Number(platformConfigs['fee_percent']) * 100
-          : 10;
+        configs && configs['fee_percent'] ? Number(configs['fee_percent']) * 100 : 10;
 
       // Si el plan tiene un fee personalizado (ej: 5% en el Plan Pro), lo usamos
       if (subscription?.features?.custom_fee_percent !== undefined) {

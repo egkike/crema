@@ -74,7 +74,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * ACTUALIZAR PRODUCTO
+ * ACTUALIZAR PRODUCTO: Con validaciones de negocio completas
  */
 export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -84,14 +84,35 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
-    // 1. Validar propiedad
+    // 1. Obtener producto actual para referencia
     const existingProduct = await productRepository.getProductById(productId);
     if (!existingProduct) throw new AppError('Producto no encontrado', 404);
     if (existingProduct.creator_id !== user.id) {
       throw new AppError('No tienes permiso para editar este producto', 403);
     }
 
-    // 2. Lógica de archivo
+    // 2. VALIDACIÓN DE PRECIOS (Si se envían nuevos precios)
+    const newPrices = req.body.prices;
+    if (newPrices && Array.isArray(newPrices)) {
+      for (const p of newPrices) {
+        // Invocamos el método estático del Service para validar el factor x10
+        await (ProductService).validateMinimumPrice(p.currency, Number(p.amount));
+      }
+    }
+
+    // 3. VALIDACIÓN DE COMISIÓN
+    if (req.body.commissionPercent !== undefined) {
+      // Determinamos la moneda de referencia (la del body o la que ya tenía el producto)
+      const refCurrency = newPrices ? newPrices[0].currency : existingProduct.prices[0].currency;
+
+      await ProductService.validateCommissionLimits(
+        user.id,
+        Number(req.body.commissionPercent),
+        refCurrency
+      );
+    }
+
+    // 4. Lógica de archivos (Mantenemos tu lógica actual...)
     let finalContentUrl = existingProduct.content_url;
     let newSizeBytes = existingProduct.size_bytes;
 
@@ -110,11 +131,6 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
       finalContentUrl = `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
       newSizeBytes = file.size;
-    }
-
-    // 3. Validar comisión si se intenta cambiar
-    if (req.body.commissionPercent !== undefined) {
-      await ProductService.validateCommissionLimits(user.id, Number(req.body.commissionPercent));
     }
 
     const productInput = {
