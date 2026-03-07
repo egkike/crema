@@ -44,13 +44,13 @@ export class CommissionService {
 
       let calculationBase = totalAmount;
       if (taxConfig && taxConfig.enabled && taxConfig.calculation === 'inside') {
-        const factor = Number(taxConfig.tax_factor || 1);
+        const factor = Number(taxConfig.tax_factor || 1.21);
         calculationBase = roundToTwo(totalAmount / factor);
       }
 
       // --- 2. CÁLCULO DE COMISIÓN DE PLATAFORMA (BRUTA) ---
       const subscription = await subscriptionRepository.getActiveSubscription(product.creator_id);
-      let percentValue = Number(configs['fee_percent'] || 0.099);
+      let percentValue = Number(configs['fee_percent'] || 0.10);
 
       if (subscription?.features?.custom_fee_percent !== undefined) {
         percentValue = Number(subscription.features.custom_fee_percent);
@@ -64,17 +64,21 @@ export class CommissionService {
       const fixedFee = totalAmount <= threshold ? lowFee : highFee;
       const totalPlatformFee = roundToTwo(variableFee + fixedFee);
 
+      // --- 3. REGISTRO DE GANANCIAS DE PLATAFORMA (FINANZAS REALES) ---
       let platformTaxAmount = 0;
+      let platformNetBeforeGateway = totalPlatformFee;
+
+      // Si el IVA es 'inside', extraemos el IVA que Crema debe pagar de su comisión
       if (taxConfig && taxConfig.enabled && taxConfig.calculation === 'inside') {
-        const factor = Number(taxConfig.tax_factor || 1);
-        const netPlatformFee = roundToTwo(totalPlatformFee / factor);
-        platformTaxAmount = roundToTwo(totalPlatformFee - netPlatformFee);
+        const factor = Number(taxConfig.tax_factor || 1.21);
+        platformNetBeforeGateway = roundToTwo(totalPlatformFee / factor);
+        platformTaxAmount = roundToTwo(totalPlatformFee - platformNetBeforeGateway);
       }
 
-      // --- 3. REGISTRO DE GANANCIAS DE PLATAFORMA (FINANZAS REALES) ---
-      // El net_profit es la comisión bruta menos los costos de pasarela.
-      // HERENCIA: Usamos order.release_at para sincronizar la disponibilidad del dinero.
-      const realNetProfit = order.net_platform_profit || 0;
+      // Rentabilidad Real de Crema = (Comisión Bruta sin IVA) - Costos de Pasarela
+      const realNetProfit = roundToTwo(
+        platformNetBeforeGateway - (order.gateway_fee || 0) - (order.gateway_tax || 0)
+      );
 
       await client.query(
         `INSERT INTO "${schema}".platform_earnings 
@@ -88,7 +92,7 @@ export class CommissionService {
           totalPlatformFee,
           realNetProfit,
           orderCurrency,
-          order.release_at, // <--- La fecha calculada por la "Doble Llave"
+          order.release_at,
         ]
       );
 
@@ -179,13 +183,15 @@ export class CommissionService {
       });
 
       // --- 6. FINALIZAR Y ACTUALIZAR ORDEN ---
+      // Aquí guardamos el realNetProfit que acabamos de calcular con precisión
       await client.query(
         `UPDATE "${schema}".orders 
          SET commissions_calculated = TRUE, 
              commission_amount = $1, 
+             net_platform_profit = $2,
              updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $2`,
-        [totalPlatformFee, order.id]
+         WHERE id = $3`,
+        [totalPlatformFee, realNetProfit, order.id]
       );
 
       return { platformFee: totalPlatformFee, creatorNet: creatorNetAmount };

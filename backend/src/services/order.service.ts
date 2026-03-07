@@ -70,7 +70,7 @@ export class OrderService {
     try {
       await client.query('BEGIN');
 
-      // Bloqueamos la fila de la orden para evitar condiciones de carrera (Race Conditions)
+      // Bloqueamos la fila de la orden
       const lockedOrder = await orderRepository.getById(order.id, client);
 
       if (!lockedOrder || lockedOrder.status === 'paid' || lockedOrder.commissions_calculated) {
@@ -85,31 +85,18 @@ export class OrderService {
         throw new AppError('Datos de producto o comprador no encontrados', 500);
       }
 
-      // --- 1. LÓGICA DE LA DOBLE LLAVE (GARANTÍA + LIQUIDEZ PASARELA) ---
-
-      // Obtener días de garantía del producto/global
+      // --- 1. LÓGICA DE LA DOBLE LLAVE (GARANTÍA + LIQUIDEZ) ---
       const guaranteeDays = await systemRepository.resolveGuaranteeDays(product.id);
-
-      // Obtener días de retención de la pasarela desde el nuevo gatewayRepository
       const gatewayLiquidityDays = await gatewayRepository.getLiquidityDays(
         lockedOrder.payment_method
       );
-
-      // Determinamos el delay final (el mayor de ambos)
       const finalDelayDays = Math.max(guaranteeDays, gatewayLiquidityDays);
 
-      // Calculamos la fecha meta de liberación
       const releaseAt = new Date();
       releaseAt.setDate(releaseAt.getDate() + finalDelayDays);
 
-      // --- 2. CÁLCULO DE UTILIDAD NETA (Net Profit) ---
-
-      // platformFee es lo que Crema cobra (comisión variable + fija)
-      const platformFee = Number(lockedOrder.commission_amount || 0);
-      const netPlatformProfit = platformFee - gatewayFee - gatewayTax;
-
-      // --- 3. PERSISTENCIA DE DATOS FINANCIEROS EN LA ORDEN ---
-
+      // --- 2. PERSISTENCIA OPERATIVA EN LA ORDEN ---
+      // Eliminamos el cálculo de netPlatformProfit de aquí, ya que lo hará CommissionService
       await orderRepository.updateByExternalRef(
         lockedOrder.external_reference,
         {
@@ -119,40 +106,33 @@ export class OrderService {
           release_at: releaseAt,
           gateway_fee: gatewayFee,
           gateway_tax: gatewayTax,
-          net_platform_profit: netPlatformProfit,
+          // net_platform_profit se actualizará dentro de CommissionService
         },
         client
       );
 
-      // Actualizamos el objeto en memoria para que CommissionService reciba la data fresca
+      // Sincronizamos objeto en memoria para el siguiente paso
       lockedOrder.status = 'paid';
-      lockedOrder.days_of_guarantee_applied = guaranteeDays;
-      lockedOrder.gateway_liquidity_days_applied = gatewayLiquidityDays;
       lockedOrder.release_at = releaseAt;
       lockedOrder.gateway_fee = gatewayFee;
       lockedOrder.gateway_tax = gatewayTax;
-      lockedOrder.net_platform_profit = netPlatformProfit;
 
-      // --- 4. PROCESAR COMISIONES ---
-      // IMPORTANTE: CommissionService usará order.release_at para platform_earnings
-      await CommissionService.processOrderCommissions(lockedOrder, product, client);
+      // --- 3. PROCESAR COMISIONES (EL CEREBRO FINANCIERO) ---
+      // Pasamos el control a CommissionService para el cálculo de IVA, Fees fijos y Utilidad Real
+      const commissionResult = await CommissionService.processOrderCommissions(
+        lockedOrder,
+        product,
+        client
+      );
 
-      // --- 5. ACTIVACIÓN DE USUARIO ---
+      // --- 4. ACTIVACIÓN DE USUARIO ---
       if (buyer.active === 0) {
-        await userRepository.updUser(
-          {
-            id: buyer.id,
-            input: { active: 1 },
-          },
-          client
-        );
+        await userRepository.updUser({ id: buyer.id, input: { active: 1 } }, client);
       }
 
       await client.query('COMMIT');
 
-      // --- 6. PROCESOS ASÍNCRONOS / POST-COMMIT ---
-
-      // Solo disparamos liberación inmediata si el release_at es hoy o ya pasó
+      // --- 5. PROCESOS POST-COMMIT ---
       const now = new Date();
       if (releaseAt <= now) {
         this.triggerImmediateRelease(lockedOrder.id);
@@ -187,10 +167,10 @@ export class OrderService {
       logger.info(
         {
           orderId: order.id,
-          netProfit: netPlatformProfit,
+          totalPlatformFee: commissionResult?.platformFee,
           releaseAt: releaseAt.toISOString(),
         },
-        '✅ Orden completada: Fondos bloqueados hasta la fecha de liberación'
+        '✅ Orden completada y comisiones distribuidas'
       );
     } catch (error: any) {
       await client.query('ROLLBACK');

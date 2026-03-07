@@ -91,8 +91,8 @@ INSERT INTO currency_gateways (currency_code, gateway_id) VALUES
 INSERT INTO platform_configs (key, currency, value, description) VALUES 
 -- Reglas para Pesos Argentinos
 ('fee_percent', 'ARS', 0.10000000, 'Comisión de plataforma (10%)'),
-('fixed_fee_low', 'ARS', 300.00000000, 'Fee fijo para productos <= 25000 ARS'),
-('fixed_fee_high', 'ARS', 600.00000000, 'Fee fijo para productos > 25000 ARS'),
+('fixed_fee_low', 'ARS', 450.00000000, 'Fee fijo para productos <= 25000 ARS'),
+('fixed_fee_high', 'ARS', 900.00000000, 'Fee fijo para productos > 25000 ARS'),
 ('price_threshold', 'ARS', 25000.00000000, 'Límite de precio para cambio de fee fijo'),
 ('min_payout_amount', 'ARS', 25000.00000000, 'Monto mínimo para solicitar retiro en Pesos'),
 ('max_payout_amount', 'ARS', 750000.00, 'Monto máximo por retiro (750 Mil ARS)'),
@@ -100,8 +100,8 @@ INSERT INTO platform_configs (key, currency, value, description) VALUES
 ('payout_processing_days', 'ARS', 3, 'Días hábiles estimados para procesar el retiro'),
 -- Reglas para USDT
 ('fee_percent', 'USDT', 0.10000000, 'Comisión de plataforma (10%)'),
-('fixed_fee_low', 'USDT', 0.20000000, 'Fee fijo para productos <= 20 USDT'),
-('fixed_fee_high', 'USDT', 0.40000000, 'Fee fijo para productos > 20 USDT'),
+('fixed_fee_low', 'USDT', 0.30000000, 'Fee fijo para productos <= 20 USDT'),
+('fixed_fee_high', 'USDT', 0.60000000, 'Fee fijo para productos > 20 USDT'),
 ('price_threshold', 'USDT', 20.00000000, 'Límite de precio para cambio de fee fijo'),
 ('min_payout_amount', 'USDT', 50.00, 'Monto mínimo para retiro en USDT Crypto'),
 ('max_payout_amount', 'USDT', 500.00, 'Monto máximo por retiro (500 USDT)'),
@@ -146,7 +146,7 @@ BEGIN
         "storage_mb": 25600, 
         "allow_file_uploads": true,
         "advanced_stats": true,
-        "custom_fee_percent": 0.07
+        "custom_fee_percent": 0.08
     }') RETURNING id INTO plan_pro_id;
 
     -- 3. Definir Tipos Permitidos por Plan
