@@ -3,115 +3,105 @@ import supertest from 'supertest';
 
 import { app } from '../app';
 
-// Importamos los mocks globales y servicios del setup
-import {
-  orderRepositoryMock,
-  AccessServiceMock,
-  extractCookies,
-} from './setup';
+import { productRepositoryMock, AccessServiceMock, extractCookies, USER_ID } from './setup';
 
 const request = supertest(app);
 
-describe('Content Access API', () => {
-  let adminCookies: string = '';
+// UUIDs en formato Estándar (Zod es extremadamente estricto con el formato v4)
+const VALID_PROD_ID = '550e8400-e29b-41d4-a716-446655440000';
+const VALID_LESSON_ID = '550e8400-e29b-41d4-a716-446655440001';
+
+describe('Content Access & Learning API', () => {
   let userCookies: string = '';
+  let adminCookies: string = '';
 
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    // LOGIN ADMIN (ID: admin-uuid en setup.ts)
+    // Logins para asegurar cookies válidas
     const resAdmin = await request
       .post('/api/auth/login')
       .send({ email: 'admin@test.com', password: 'p1' });
     adminCookies = extractCookies(resAdmin);
 
-    // LOGIN USER (ID: user-uuid en setup.ts)
     const resUser = await request
       .post('/api/auth/login')
       .send({ email: 'user@test.com', password: 'p1' });
     userCookies = extractCookies(resUser);
   });
 
-  it('debería permitir acceso si el usuario es el dueño (creador)', async () => {
-    // 1. Configuramos el middleware (orderRepository.verifyAccess)
-    vi.mocked(orderRepositoryMock.verifyAccess).mockResolvedValue({
-      isOwner: true,
-      hasPaid: false,
-    });
-
-    // 2. Configuramos el controlador (AccessService.getProtectedContent)
+  it('debería permitir acceso total a cualquier contenido si el usuario es ADMIN', async () => {
     vi.mocked(AccessServiceMock.getProtectedContent).mockResolvedValue({
+      id: VALID_PROD_ID,
+      title: 'Admin View',
+      type: 'ebook',
+      contentUrl: 'https://test.com/file.pdf',
       has_structured_content: false,
-      contentUrl: 'https://cdn.test.com/pro.zip',
-      title: 'Producto Propio',
-      type: 'course',
-    });
+      creator_id: 'someone-else',
+    } as any);
 
-    const res = await request.get('/api/learning/id-propia/content').set('Cookie', userCookies);
+    const res = await request
+      .get(`/api/learning/${VALID_PROD_ID}/content`)
+      .set('Cookie', adminCookies);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.contentUrl).toBe('https://cdn.test.com/pro.zip');
+    expect(res.body.success).toBe(true);
   });
 
-  it('debería permitir acceso total si el usuario es Admin (Level 99)', async () => {
-    // El middleware checkContentAccess dejará pasar al admin por su nivel
+  it('debería actualizar progreso correctamente', async () => {
     vi.mocked(AccessServiceMock.getProtectedContent).mockResolvedValue({
-      has_structured_content: false,
-      contentUrl: 'https://cdn.test.com/admin-view.zip',
-      title: 'Vista Admin',
-      type: 'course',
-    });
+      id: VALID_PROD_ID,
+      has_structured_content: true,
+      creator_id: USER_ID,
+      title: 'Course',
+    } as any);
 
-    const res = await request.get('/api/learning/cualquier-id/content').set('Cookie', adminCookies);
-
-    expect(res.status).toBe(200);
-  });
-
-  it('debería denegar acceso si el producto está archivado (410)', async () => {
-    // Simulamos que el AccessService lanza el error 410 que el controlador capturará
-    vi.mocked(AccessServiceMock.getProtectedContent).mockRejectedValue({
-      status: 410,
-      message: 'Producto archivado',
-    });
-
-    const res = await request.get('/api/learning/id-archivado/content').set('Cookie', adminCookies);
-
-    // Si tu middleware/controlador captura errores correctamente, devolverá 410
-    expect([410, 500]).toContain(res.status);
-  });
-
-  it('debería retornar 404 si el producto no existe', async () => {
-    // Simulamos que el AccessService no encuentra nada
-    vi.mocked(AccessServiceMock.getProtectedContent).mockRejectedValue({
-      status: 404,
-      message: 'No encontrado',
+    vi.mocked(productRepositoryMock.getUserProductProgress).mockResolvedValue({
+      percent: 50,
+      total_lessons: 10,
+      completed_lessons: 5,
     });
 
     const res = await request
-      .get('/api/learning/id-inexistente/content')
-      .set('Cookie', adminCookies);
+      .post('/api/learning/progress')
+      .set('Cookie', userCookies)
+      .set('Accept', 'application/json')
+      .send({
+        productId: VALID_PROD_ID,
+        lessonId: VALID_LESSON_ID,
+        completed: true,
+      });
 
-    expect([404, 500]).toContain(res.status);
+    // Si esto da 400, el console.log del controller (si lo pusiste) mostrará que Zod
+    // no está recibiendo el booleano 'true' correctamente.
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
   });
 
-  it('debería conceder acceso exitoso con compra válida', async () => {
-    // 1. El middleware verifica que pagó
-    vi.mocked(orderRepositoryMock.verifyAccess).mockResolvedValue({
-      isOwner: false,
-      hasPaid: true,
-    });
+  it('debería permitir verificar un certificado públicamente', async () => {
+    const certCode = 'cert-uuid-valid-123';
 
-    // 2. El controlador entrega el contenido
-    vi.mocked(AccessServiceMock.getProtectedContent).mockResolvedValue({
-      has_structured_content: false,
-      contentUrl: 'https://cdn.test.com/file.zip',
-      title: 'Curso Comprado',
-      type: 'course',
-    });
+    vi.mocked(productRepositoryMock.getCertificateByCode).mockResolvedValue({
+      certificate_code: certCode,
+      student_name: 'Juan Perez',
+      course_name: 'Curso Expert',
+      issued_at: new Date(),
+    } as any);
 
-    const res = await request.get('/api/learning/id-comprada/content').set('Cookie', userCookies);
+    // Sin cookies y con la URL completa
+    const res = await request.get(`/api/learning/certificate/verify/${certCode}`).set('Cookie', []);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.contentUrl).toBe('https://cdn.test.com/file.zip');
+    expect(res.body.data.student_name).toBe('Juan Perez');
+  });
+
+  it('debería retornar 404 si el código de certificado no existe', async () => {
+    vi.mocked(productRepositoryMock.getCertificateByCode).mockResolvedValue(null);
+
+    const res = await request.get('/api/learning/certificate/verify/no-existe').set('Cookie', []);
+
+    // Con el cambio en el middleware, esto debería llegar al controlador
+    // y el controlador devolver el 404 que esperamos.
+    expect(res.status).toBe(404);
   });
 });

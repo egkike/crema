@@ -9,6 +9,11 @@ import logger from '../../utils/logger';
  * - Verifica el token y adjunta el usuario en req.user
  */
 export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  // --- EXCLUSIÓN DE RUTAS PÚBLICAS ---
+  if (req.path.includes('/certificate/verify')) {
+    return next();
+  }
+
   // Buscamos en la nueva cookie
   const token = req.cookies.access_token;
 

@@ -1,6 +1,9 @@
 import { vi } from 'vitest';
 import bcrypt from 'bcrypt';
 
+// UUIDs constantes y válidos para pasar validaciones de Zod
+export const ADMIN_ID = '00000000-0000-0000-0000-000000000001';
+export const USER_ID = '00000000-0000-0000-0000-000000000002';
 const MOCK_PASSWORD_HASH = bcrypt.hashSync('p1' + 'test-pepper', 10);
 
 // --- CONFIG MOCK ---
@@ -31,8 +34,8 @@ vi.mock('../config/index', () => ({
 
 export const userRepositoryMock = {
   getUsers: vi.fn(async () => [
-    { id: 'admin-uuid', username: 'admin', level: 99 },
-    { id: 'user-uuid', username: 'kike', level: 3 }, // Ajustado a Nivel 3 (CREATOR en seeds)
+    { id: ADMIN_ID, username: 'admin', level: 99 },
+    { id: USER_ID, username: 'kike', level: 3 },
   ]),
   getUserSessions: vi.fn(async () => [
     { id: 'sess-1', last_active: new Date(), device: 'Test Browser' },
@@ -40,21 +43,21 @@ export const userRepositoryMock = {
   findByCredentials: vi.fn(async (email: string) => {
     const isAdmin = email.includes('admin');
     return {
-      id: isAdmin ? 'admin-uuid' : 'user-uuid',
+      id: isAdmin ? ADMIN_ID : USER_ID,
       email,
-      level: isAdmin ? 99 : 3, // Ajustado a 3
+      level: isAdmin ? 99 : 3,
       active: 1,
       password: MOCK_PASSWORD_HASH,
     };
   }),
   getById: vi.fn(async (id: string) => ({
     id,
-    level: id === 'admin-uuid' ? 99 : 3, // Ajustado a 3
+    level: id === ADMIN_ID ? 99 : 3,
     active: 1,
   })),
   findRefreshToken: vi.fn(async () => ({
     id: 't',
-    user_id: 'admin-uuid',
+    user_id: ADMIN_ID,
     expires_at: new Date(Date.now() + 99999),
   })),
   saveRefreshToken: vi.fn().mockResolvedValue(true),
@@ -64,21 +67,22 @@ export const userRepositoryMock = {
 export const productRepositoryMock = {
   countPublishedByCreator: vi.fn(async () => 0),
   createProduct: vi.fn(async (data: any) => ({
-    id: 'new-prod',
+    id: '00000000-0000-0000-0000-000000000099',
     ...data,
     prices: data.prices || [],
   })),
   getProductById: vi.fn(async (id: string) => ({
     id,
-    creator_id: 'user-uuid',
+    creator_id: USER_ID,
     size_bytes: 100,
     status: 'published',
+    title: 'Test Product',
     type: 'course',
     prices: [{ amount: 5000, currency: 'ARS' }],
   })),
   getProductByIdOrSlug: vi.fn(async (id: string) => ({
     id,
-    creator_id: 'user-uuid',
+    creator_id: USER_ID,
     title: 'Test Product',
     status: 'published',
     type: 'course',
@@ -90,20 +94,54 @@ export const productRepositoryMock = {
   getAvailableForAffiliate: vi.fn().mockResolvedValue([]),
   updateProduct: vi.fn().mockResolvedValue({ id: 'updated-prod' }),
   deleteProduct: vi.fn().mockResolvedValue(true),
+  toggleLessonProgress: vi.fn().mockResolvedValue(undefined),
   getUserProductProgress: vi.fn(async () => ({
     percent: 0,
     total_lessons: 10,
     completed_lessons: 0,
   })),
-  getProductWithNestedContent: vi.fn(async id => ({ id, title: 'Course', modules: [] })),
+  getLessonQuiz: vi.fn(async (lessonId: string) => ({
+    id: 'quiz-123',
+    lesson_id: lessonId,
+    passing_score: 70,
+    questions: [{ id: 1, text: 'Pregunta 1', options: ['A', 'B'], correct: 0 }],
+  })),
+  saveQuizAttempt: vi.fn().mockResolvedValue(undefined),
+  getUserQuizStatus: vi.fn(async () => ({
+    best_score: 0,
+    attempts_count: 0,
+    has_passed: false,
+  })),
+  issueCertificate: vi.fn(async (userId: string, productId: string) => ({
+    id: 'cert-1',
+    user_id: userId,
+    product_id: productId,
+    certificate_code: 'mock-cert-uuid-' + Math.random(),
+    issued_at: new Date(),
+  })),
+  getCertificateByCode: vi.fn().mockResolvedValue(null),
+  getProductWithNestedContent: vi.fn(async id => ({
+    id,
+    title: 'Course Mock',
+    type: 'course',
+    modules: [],
+  })),
 };
 
 export const orderRepositoryMock = {
   verifyAccess: vi.fn(async (userId: string, productId: string) => {
+    // El Admin siempre es dueño, o si el producto es marcado como propio en el test
     return {
-      isOwner: productId === 'id-propia' || userId === 'admin-uuid',
-      hasPaid: productId === 'id-comprada',
+      isOwner: userId === ADMIN_ID || productId.includes('propia'),
+      hasPaid: productId.includes('comprada'),
     };
+  }),
+  invalidateGuarantee: vi.fn().mockResolvedValue(true),
+  getActiveOrderWithBuyer: vi.fn().mockResolvedValue({
+    id: 'order-123',
+    buyer_email: 'user@test.com',
+    buyer_name: 'Test User',
+    is_guarantee_eligible: true,
   }),
 };
 
@@ -113,7 +151,7 @@ export const subscriptionRepositoryMock = {
     features: {
       storage_mb: 25600,
       max_products: 100,
-      custom_fee_percent: 0.07, // 7% como en tus seeds, el Service hará * 100 = 7
+      custom_fee_percent: 0.07,
     },
     allowedTypes: ['course', 'digital_download', 'membership'],
     currentStorageBytes: 0,
@@ -122,7 +160,6 @@ export const subscriptionRepositoryMock = {
 };
 
 export const configRepositoryMock = {
-  // Ajustado a los niveles de tus seeds
   getUserLevels: vi.fn(async () => ({
     GUEST: 0,
     USER: 1,
@@ -131,25 +168,23 @@ export const configRepositoryMock = {
     STAFF: 10,
     ADMIN: 99,
   })),
-
-  // Ajustado al mínimo global de tus seeds (5%)
   getSetting: vi.fn(async key => {
     if (key === 'min_global_affiliate_commission') return '5';
     if (key === 'platform_currency') return 'ARS';
     return '7';
   }),
-
-  // Ajustado al decimal de tus seeds (0.10), el Service hará * 100 = 10
   getConfigsByCurrency: vi.fn(async () => ({ fee_percent: 0.1 })),
 };
 
 // --- SERVICE MOCKS ---
 export const AccessServiceMock = {
   getProtectedContent: vi.fn(async (_userId, _productId) => ({
+    id: _productId,
     has_structured_content: false,
     contentUrl: 'https://cdn.test.com/file.zip',
     title: 'Test Product',
     type: 'course',
+    creator_id: USER_ID,
   })),
   evaluateGuaranteeStatus: vi.fn().mockResolvedValue(undefined),
   getProtectedLesson: vi.fn(async (_userId, _lessonId) => ({
