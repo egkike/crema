@@ -714,13 +714,21 @@ export const productRepository = {
   async getLessonWithAccess(lessonId: string, userId: string): Promise<any | null> {
     const schema = config.db?.schema || 'public';
     const query = `
-    SELECT l.*, p.id as product_id, p.creator_id
+    SELECT 
+      l.*, 
+      p.id as product_id,
+      json_build_object(
+        'creator_id', p.creator_id,
+        'has_structured_content', p.has_structured_content,
+        'type', p.type,
+        'title', p.title
+      ) as product_data
     FROM "${schema}".product_lessons l
     JOIN "${schema}".product_modules m ON l.module_id = m.id
     JOIN "${schema}".products p ON m.product_id = p.id
     LEFT JOIN "${schema}".orders o ON o.product_id = p.id AND o.buyer_id = $2 AND o.status = 'paid'
     WHERE l.id = $1 
-    AND (o.id IS NOT NULL OR p.creator_id = $2); -- Acceso si compró o si es el dueño
+    AND (o.id IS NOT NULL OR p.creator_id = $2);
   `;
 
     const { rows } = await pool.query(query, [lessonId, userId]);

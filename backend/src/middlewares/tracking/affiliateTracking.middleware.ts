@@ -4,31 +4,37 @@ import { userRepository } from '../../repositories/user.repository';
 import logger from '../../utils/logger';
 import { config } from '../../config/index';
 
-/**
- * Middleware para capturar el código de afiliado desde la URL y persistirlo en una cookie.
- * Cuando un usuario entre con un link como crema.com/p/123?aff=ID_AFILIADO, el sistema guarde quién lo recomendó.
- * Se debe aplicar en rutas públicas de productos o landing pages.
- */
 export const affiliateTracking = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { aff } = req.query;
+    // El usuario logueado (si existe) viene inyectado por el auth middleware previo
+    const currentUser = (req as any).user;
 
     if (aff && typeof aff === 'string') {
-      // Buscamos al usuario por su slug
-      const user = await userRepository.findByAffiliateSlug(aff);
+      // 1. Buscamos al afiliado por su slug
+      const affiliate = await userRepository.findByAffiliateSlug(aff);
 
-      if (user) {
+      if (affiliate) {
+        // --- SAFE-GUARD: Evitar Auto-Afiliación ---
+        // Si el que hace clic es el mismo dueño del link, no seteamos cookie
+        if (currentUser && currentUser.id === affiliate.id) {
+          logger.debug({ userId: currentUser.id }, 'Auto-afiliación detectada. Omitiendo cookie.');
+          return next();
+        }
+
         const cookieOptions = {
           httpOnly: true,
           secure: config.nodeEnv === 'production',
           sameSite: 'lax' as const,
           path: '/',
-          maxAge: 30 * 24 * 60 * 60 * 1000,
+          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
         };
 
-        // Guardamos el ID real (UUID), no el slug, para facilitar el trabajo al OrderService
-        res.cookie('affiliate_id', user.id, cookieOptions);
-        logger.debug({ affiliateSlug: aff, userId: user.id }, 'Cookie de afiliado vinculada');
+        res.cookie('affiliate_id', affiliate.id, cookieOptions);
+        logger.debug(
+          { affiliateSlug: aff, affiliateId: affiliate.id },
+          'Cookie de afiliado vinculada'
+        );
       }
     }
     next();

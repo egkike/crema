@@ -2,6 +2,7 @@ import pool from '../db/postgres';
 import { balanceRepository } from '../repositories/balance.repository';
 import { historyRepository } from '../repositories/history.repository';
 import { orderRepository } from '../repositories/order.repository';
+import { productRepository } from '../repositories/product.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { refundRepository } from '../repositories/refund.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
@@ -27,6 +28,28 @@ export class RefundService {
 
       if (!order) throw new AppError('La orden no existe', 404);
       if (order.status === 'refunded') throw new AppError('La orden ya fue reembolsada', 400);
+
+      // --- OBTENER EL PRODUCTO PARA VALIDAR REGLAS ---
+      const product = await productRepository.getProductById(order.product_id);
+      if (!product) throw new AppError('El producto asociado a la orden no existe', 404);
+
+      // --- VALIDACIÓN SAFE-GUARD EN TIEMPO REAL ---
+      if (product.has_structured_content) {
+        // Chequeamos progreso real al milisegundo antes de devolver dinero
+        const progress = await productRepository.getUserProductProgress(
+          order.product_id,
+          order.buyer_id
+        );
+
+        if (progress.percent > 30) {
+          // Si consumió mucho, invalidamos garantía en DB y cancelamos el proceso
+          await orderRepository.invalidateGuarantee(order.id, client);
+          throw new AppError(
+            'Reembolso denegado: El consumo del contenido (30%+) invalida la garantía.',
+            403
+          );
+        }
+      }
 
       // --- VALIDACIÓN SAFE-GUARD ---
       // Si el AccessService invalidó la garantía por consumo/descarga, detenemos aquí.
@@ -141,10 +164,22 @@ export class RefundService {
 
           logger.info({ orderId, gateway: order.payment_method }, 'Reembolso en pasarela OK');
         } catch (gatewayError: any) {
-          logger.error({ error: gatewayError.message }, 'Fallo en pasarela externa');
+          // CAPTURA DETALLADA DEL ERROR EXTERNO
+          const gatewayMessage = gatewayError.message || 'Sin mensaje de error del proveedor';
+
+          logger.error(
+            {
+              orderId,
+              gateway: order.payment_method,
+              error: gatewayMessage,
+            },
+            '❌ Error crítico en pasarela externa durante el reembolso'
+          );
+
+          // Lanzamos un error específico que el Frontend o el Admin Panel puedan identificar
           throw new AppError(
-            `Error en pasarela (${order.payment_method}): ${gatewayError.message}`,
-            400
+            `GATEWAY_ERROR (${order.payment_method}): ${gatewayMessage}. El reembolso no se aplicó en la tarjeta del cliente.`,
+            502 // Bad Gateway: Indica que el error viene de un servicio externo
           );
         }
       }

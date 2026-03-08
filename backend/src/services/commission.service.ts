@@ -104,7 +104,7 @@ export class CommissionService {
       if (order.affiliate_id) {
         const rawMinComm = await configRepository.getSetting(
           'min_global_affiliate_commission',
-          '10'
+          '5'
         );
         const minGlobalComm = Number(rawMinComm);
         const productCommPercent = Number(product.affiliate_commission_percent || 0);

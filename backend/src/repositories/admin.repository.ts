@@ -19,24 +19,29 @@ export const adminRepository = {
 
     const query = `
       SELECT 
-        -- 1. Balance REAL de la Plataforma (Lo que hay hoy - instantáneo)
+        -- 1. Balances instantáneos (Se mantienen igual)
         (SELECT COALESCE(pending_balance, 0) FROM "${schema}".platform_balances WHERE currency = $1) as plat_pending,
         (SELECT COALESCE(available_balance, 0) FROM "${schema}".platform_balances WHERE currency = $1) as plat_available,
         
-        -- 1.1 Desglose de impuestos acumulados (recaudados) en el periodo
-        (SELECT COALESCE(SUM(tax_amount), 0) FROM "${schema}".platform_earnings WHERE currency = $1 ${dateFilter}) as total_tax_collected,
+        -- 1.1 Desglose filtrando REEMBOLSOS (Ajuste Crítico)
+        (SELECT COALESCE(SUM(tax_amount), 0) FROM "${schema}".platform_earnings 
+         WHERE currency = $1 AND status != 'refunded' ${dateFilter}) as total_tax_collected,
+         
+        (SELECT COALESCE(SUM(total_amount), 0) FROM "${schema}".platform_earnings 
+         WHERE currency = $1 AND status != 'refunded' ${dateFilter}) as total_earned_period,
 
-        -- 2. Balances de Usuarios (Lo que se les debe - instantáneo)
+        -- 2. Balances de Usuarios
         (SELECT COALESCE(SUM(pending_balance), 0) FROM "${schema}".user_balances WHERE currency = $1) as users_pending,
         (SELECT COALESCE(SUM(available_balance), 0) FROM "${schema}".user_balances WHERE currency = $1) as users_available,
         
-        -- 3. Retiros de Plataforma (Lo que la empresa ya sacó del sistema en el periodo)
+        -- 3. Retiros de Plataforma
         (SELECT COALESCE(SUM(amount), 0) FROM "${schema}".platform_withdrawals WHERE currency = $1 ${dateFilter}) as total_plat_withdrawn,
 
-        -- 4. Volumen de Órdenes PAID (El ingreso bruto total en el periodo)
-        (SELECT COALESCE(SUM(amount), 0) FROM "${schema}".orders WHERE status = 'paid' AND currency = $1 ${dateFilter}) as total_paid_volume,
+        -- 4. Volumen de Órdenes (Solo las que no fueron devueltas para que la ecuación cierre)
+        (SELECT COALESCE(SUM(amount), 0) FROM "${schema}".orders 
+         WHERE status = 'paid' AND currency = $1 ${dateFilter}) as total_paid_volume,
         
-        -- 5. Conteo de discrepancias
+        -- 5. Conteo de discrepancias (Tu lógica de HAVING ya filtra status != 'refunded', lo cual es excelente)
         (SELECT COUNT(*) FROM (
             SELECT o.id
             FROM "${schema}".orders o
@@ -57,6 +62,7 @@ export const adminRepository = {
     const usersPending = parseFloat(s.users_pending);
     const usersAvailable = parseFloat(s.users_available);
     const taxCollected = parseFloat(s.total_tax_collected || 0);
+    const earnedPeriod = parseFloat(s.total_earned_period || 0);
 
     return {
       currency,
@@ -65,6 +71,7 @@ export const adminRepository = {
         available: platAvailable,
         withdrawnPeriod: platWithdrawn,
         taxCollectedPeriod: taxCollected,
+        totalEarnedInPeriod: earnedPeriod,
         totalEarnedHistorical: platPending + platAvailable + platWithdrawn,
       },
       users: {
@@ -87,7 +94,7 @@ export const adminRepository = {
   },
 
   /**
-   * NUEVO: Libro de Caja (Ledger) de la plataforma consolidado.
+   * Libro de Caja (Ledger) de la plataforma consolidado.
    */
   async getPlatformLedger(
     currency: string = 'ARS',

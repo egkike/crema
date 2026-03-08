@@ -341,13 +341,16 @@ export class PayoutService {
           adminId,
           client
         );
+        // REGISTRO EN HISTORIAL: Descripción más prominente
+        const rejectionReason = adminNotes ? `: ${adminNotes}` : '';
+
         await historyRepository.createRecordWithClient(client, {
           userId: payout.user_id,
           order_id: null,
           amount: payout.amount,
           currency: payout.currency,
           type: 'payout_refund' as any,
-          description: `Reintegro: ${adminNotes}`,
+          description: `RETIRO RECHAZADO${rejectionReason} (Monto reintegrado)`,
         });
         await client.query('COMMIT');
 

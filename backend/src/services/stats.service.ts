@@ -99,33 +99,35 @@ export class StatsService {
   static async getLastSevenDaysSales(userId: string, currency: string = 'ARS') {
     const schema = config.db?.schema || 'public';
     const query = `
-      SELECT 
-        d.date::date as day,
-        -- Sumamos ventas y restamos reembolsos para obtener el NETO diario
-        COALESCE(SUM(
-          CASE 
-            WHEN bh.type IN ('sale_creator', 'sale_affiliate') THEN bh.amount 
-            WHEN bh.type = 'refund' THEN -ABS(bh.amount) -- Aseguramos que el refund reste
-            ELSE 0 
-          END
-        ), 0) as daily_net_income
-      FROM (
-        SELECT CURRENT_DATE - i as date
-        FROM generate_series(0, 6) i
-      ) d
-      LEFT JOIN "${schema}".balance_history bh ON 
-        bh.created_at::date = d.date 
-        AND bh.user_id = $1 
-        AND bh.currency = $2
-      GROUP BY d.date
-      ORDER BY d.date ASC;
-    `;
+    SELECT 
+      d.date::date as day,
+      -- Sumamos ventas brutas por un lado
+      COALESCE(SUM(
+        CASE WHEN bh.type IN ('sale_creator', 'sale_affiliate') THEN bh.amount ELSE 0 END
+      ), 0) as gross_income,
+      -- Sumamos reembolsos (en valor absoluto) por otro
+      COALESCE(SUM(
+        CASE WHEN bh.type = 'refund' THEN ABS(bh.amount) ELSE 0 END
+      ), 0) as total_refunded
+    FROM (
+      SELECT CURRENT_DATE - i as date
+      FROM generate_series(0, 6) i
+    ) d
+    LEFT JOIN "${schema}".balance_history bh ON 
+      bh.created_at::date = d.date 
+      AND bh.user_id = $1 
+      AND bh.currency = $2
+    GROUP BY d.date
+    ORDER BY d.date ASC;
+  `;
 
     try {
       const { rows } = await pool.query(query, [userId, currency]);
       return rows.map(r => ({
         day: r.day,
-        income: Number(r.daily_net_income),
+        income: Number(r.gross_income),
+        refunds: Number(r.total_refunded),
+        net: Number(r.gross_income) - Number(r.total_refunded),
       }));
     } catch (error: any) {
       throw new Error(`Error al obtener gráfico de ventas: ${error.message}`);
@@ -137,22 +139,25 @@ export class StatsService {
    * Ahora recibe filtros de fecha opcionales.
    */
   static async getAdminHealthCheck(currency: string = 'ARS', from?: string, to?: string) {
-    // 1. Obtenemos las estadísticas base pasando las fechas al repositorio
+    // 1. Obtenemos las estadísticas base (ya filtradas por fecha en el repo)
     const stats = await adminRepository.getGlobalFinancialStats(currency, from, to);
 
-    // 2. Detalle de órdenes recientes (para auditoría de garantías)
     const recentOrders = await adminRepository.getReconciliationDetail(currency);
 
-    // Clasificamos órdenes por garantía
     const inGuarantee = recentOrders.filter(o => !o.guarantee_expired && !o.balance_released);
     const waitingRelease = recentOrders.filter(o => o.guarantee_expired && !o.balance_released);
+
+    // Cálculo basado en coherencia temporal
+    // Si hay filtro de fecha, comparamos lo ganado en el periodo vs lo recaudado en el periodo
+    const periodRevenue = stats.platform.totalEarnedInPeriod;
+    const periodTax = stats.platform.taxCollectedPeriod;
 
     return {
       summary: stats,
       taxAuditory: {
-        collectedInPeriod: stats.platform.taxCollectedPeriod,
-        // Tu ganancia real es el total generado menos los impuestos que debes pagar
-        netCompanyRevenue: stats.platform.totalEarnedHistorical - stats.platform.taxCollectedPeriod,
+        collectedInPeriod: periodTax,
+        // Ganancia neta real de la empresa en el periodo consultado
+        netCompanyRevenueInPeriod: periodRevenue - periodTax,
       },
       audit: {
         inGuaranteeOrdersCount: inGuarantee.length,

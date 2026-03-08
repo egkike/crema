@@ -132,6 +132,10 @@ export class AccessService {
       throw new AppError('Acceso denegado o lección no encontrada.', 403);
     }
 
+    // Lanzamos Safe-Guard asíncrono también aquí
+    // El lesson debe traer el product_id y los datos del producto padre (puedes ajustar el repo para esto)
+    this.triggerSafeGuard(userId, lesson.product_id, lesson.product_data);
+
     let finalUrl = lesson.content_url;
 
     // Solo firmamos si es video propio (no embebido externo)
@@ -144,5 +148,16 @@ export class AccessService {
       ...lesson,
       content_url: finalUrl,
     };
+  }
+
+  /**
+   * MÉTODO HELPER: Dispara la evaluación sin bloquear el hilo principal
+   */
+  private static triggerSafeGuard(userId: string, productId: string, product: any) {
+    if (product.creator_id !== userId) {
+      this.evaluateGuaranteeStatus(userId, productId, product).catch(err =>
+        logger.error({ err, userId, productId }, 'Error silencioso en Safe-Guard Centralizado')
+      );
+    }
   }
 }

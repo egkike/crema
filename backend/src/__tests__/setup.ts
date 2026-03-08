@@ -74,7 +74,7 @@ export const productRepositoryMock = {
     size_bytes: 100,
     status: 'published',
     type: 'course',
-    prices: [{ amount: 100, currency: 'ARS' }],
+    prices: [{ amount: 5000, currency: 'ARS' }],
   })),
   getProductByIdOrSlug: vi.fn(async (id: string) => ({
     id,
@@ -82,7 +82,7 @@ export const productRepositoryMock = {
     title: 'Test Product',
     status: 'published',
     type: 'course',
-    prices: [{ amount: 100, currency: 'ARS' }],
+    prices: [{ amount: 5000, currency: 'ARS' }],
     content_url: 'https://cdn.test.com/file.zip',
   })),
   getProductsByCreator: vi.fn().mockResolvedValue([]),

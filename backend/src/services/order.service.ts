@@ -96,26 +96,26 @@ export class OrderService {
       releaseAt.setDate(releaseAt.getDate() + finalDelayDays);
 
       // --- 2. PERSISTENCIA OPERATIVA EN LA ORDEN ---
-      // Eliminamos el cálculo de netPlatformProfit de aquí, ya que lo hará CommissionService
+      // ACTUALIZACIÓN ATÓMICA:
+      // Sincronizamos los fees que vienen del webhook directamente en la DB y en el objeto en memoria
       await orderRepository.updateByExternalRef(
         lockedOrder.external_reference,
         {
           status: 'paid',
+          gateway_fee: gatewayFee, // Viene de la pasarela
+          gateway_tax: gatewayTax, // Viene de la pasarela
           days_of_guarantee_applied: guaranteeDays,
           gateway_liquidity_days_applied: gatewayLiquidityDays,
           release_at: releaseAt,
-          gateway_fee: gatewayFee,
-          gateway_tax: gatewayTax,
-          // net_platform_profit se actualizará dentro de CommissionService
         },
         client
       );
 
-      // Sincronizamos objeto en memoria para el siguiente paso
+      // Actualizamos el objeto en memoria para que CommissionService vea los fees reales
       lockedOrder.status = 'paid';
-      lockedOrder.release_at = releaseAt;
       lockedOrder.gateway_fee = gatewayFee;
       lockedOrder.gateway_tax = gatewayTax;
+      lockedOrder.release_at = releaseAt;
 
       // --- 3. PROCESAR COMISIONES (EL CEREBRO FINANCIERO) ---
       // Pasamos el control a CommissionService para el cálculo de IVA, Fees fijos y Utilidad Real

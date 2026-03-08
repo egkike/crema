@@ -47,7 +47,7 @@ export const createProductSchema = z
     // Permitimos string simple para mayor compatibilidad
     contentUrl: z.string().min(1, 'URL o ID de contenido inválido').optional(),
 
-    commissionPercent: z
+    affiliate_commission_percent: z
       .number()
       .min(0, { message: 'La comisión no puede ser menor que 0%' })
       .max(100, { message: 'La comisión no puede superar el 100%' })
