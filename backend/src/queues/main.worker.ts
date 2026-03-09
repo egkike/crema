@@ -2,6 +2,7 @@ import { Worker, Job } from 'bullmq';
 
 import { redisConnection } from '../config/redis';
 import { ReleaseService } from '../services/release.service';
+import { PayoutService } from '../services/payout.service';
 import { AuthCleanupService } from '../services/auth.cleanup.service';
 import { subscriptionRepository } from '../repositories/subscription.repository';
 import { mainQueue } from '../queues/scheduler';
@@ -77,6 +78,24 @@ export const initMainWorker = () => {
           case 'auth-cleanup': {
             await AuthCleanupService.cleanExpiredTokens();
             logger.info('CRITICAL: Limpieza de tokens completada.');
+            break;
+          }
+
+          case 'liquidity-check': {
+            // Revisa si el balance de la plataforma está por debajo del mínimo
+            const alerts = await PayoutService.checkPlatformLiquidity();
+            if (alerts && alerts.length > 0) {
+              logger.warn({ alerts }, '💰 CRITICAL: Alertas de liquidez detectadas');
+            }
+            break;
+          }
+
+          case 'payout-audit': {
+            // Cuenta retiros pendientes y envía resumen al admin
+            const audit = await PayoutService.notifyAdminPendingPayouts();
+            if (audit.pendingCount > 0) {
+              logger.info({ audit }, '💰 CRITICAL: Auditoría de retiros completada');
+            }
             break;
           }
 

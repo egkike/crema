@@ -4,13 +4,15 @@ import { config } from '../config/index';
 
 export class AuthCleanupService {
   static async cleanExpiredTokens() {
-    const schema = config.db.schema;
+    const schema = config.db?.schema || 'public';
     const client = await pool.connect(); // Solicitamos una conexión dedicada
 
     try {
       const result = await client.query(
         `DELETE FROM "${schema}".refresh_tokens WHERE id IN 
-        (SELECT id FROM "${schema}".refresh_tokens WHERE expires_at < NOW() LIMIT 5000)`
+        (SELECT id FROM "${schema}".refresh_tokens WHERE expires_at < NOW() 
+        FOR UPDATE SKIP LOCKED
+        LIMIT 5000)`
       );
 
       const deletedCount = result.rowCount ?? 0;

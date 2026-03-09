@@ -239,4 +239,28 @@ export const payoutRepository = {
       throw error;
     }
   },
+
+  async countByStatus(status: string): Promise<number> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+    SELECT COUNT(*) as total 
+    FROM "${schema}".payouts 
+    WHERE status = $1
+  `;
+    const { rows } = await pool.query(query, [status]);
+    return parseInt(rows[0].total, 10);
+  },
+
+  async getOldestPending(): Promise<{ id: string; created_at: Date } | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+    SELECT id, created_at 
+    FROM "${schema}".payouts 
+    WHERE status = 'pending' 
+    ORDER BY created_at ASC 
+    LIMIT 1
+  `;
+    const { rows } = await pool.query(query);
+    return rows.length > 0 ? rows[0] : null;
+  },
 };

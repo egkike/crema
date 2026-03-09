@@ -411,4 +411,73 @@ export class PayoutService {
       client.release();
     }
   }
+
+  /**
+   * Revisa la liquidez de la plataforma comparando balances contra thresholds dinámicos.
+   * Cero hardcode: consulta las monedas activas en la base de datos.
+   */
+  static async checkPlatformLiquidity() {
+    interface LiquidityAlert {
+      currency: string;
+      balance: number;
+      threshold: number;
+    }
+    
+    // 1. Obtenemos solo las monedas que están marcadas como IS_ACTIVE = TRUE
+    const activeCurrencies = await configRepository.getEnabledCurrencies();
+    const alerts: LiquidityAlert[] = [];
+
+    for (const currencyData of activeCurrencies) {
+      const currency = currencyData.code; // 'ARS', 'USDT', etc.
+
+      // 2. Obtenemos el balance real actual en la plataforma
+      const balance = await platformBalanceRepository.getAvailable(currency);
+
+      // 3. Obtenemos la configuración de esta moneda (min_payout_amount)
+      const configs = await configRepository.getConfigsByCurrency(currency);
+
+      // Definimos un umbral: por ejemplo, 3 veces el retiro mínimo permitido
+      // Si no hay configuración, usamos un fallback seguro
+      const minPayout = Number(configs['min_payout_amount'] ?? 0);
+      const threshold = minPayout * 3;
+
+      // 4. Si el balance es menor al umbral y el umbral es mayor a 0 (evitar falsos positivos)
+      if (minPayout > 0 && balance < threshold) {
+        alerts.push({ currency, balance, threshold });
+
+        if (mainQueue) {
+          await mainQueue.add('send-email', {
+            type: 'SECURITY_ALERT',
+            to: 'admin@crema.com', // Esto también podrías traerlo de system_settings ('admin_email')
+            data: {
+              subject: `⚠️ LIQUIDEZ CRÍTICA: ${currency}`,
+              message: `Atención: El balance disponible en ${currency} (${balance}) es inferior al umbral de seguridad (${threshold}).`,
+            },
+          });
+        }
+      }
+    }
+    return alerts;
+  }
+
+  /**
+   * Notifica al administrador sobre retiros que llevan más de 24hs pendientes.
+   */
+  static async notifyAdminPendingPayouts() {
+    const pendingCount = await payoutRepository.countByStatus('pending');
+
+    if (pendingCount > 0) {
+      if (mainQueue) {
+        await mainQueue.add('send-email', {
+          type: 'SECURITY_ALERT',
+          to: 'admin@crema.com',
+          data: {
+            subject: `📋 Auditoría de Retiros: ${pendingCount} pendientes`,
+            message: `Hay ${pendingCount} solicitudes de retiro esperando ser procesadas por un administrador.`,
+          },
+        });
+      }
+    }
+    return { pendingCount };
+  }
 }

@@ -227,4 +227,11 @@ export const configRepository = {
       return [];
     }
   },
+
+  async getEnabledCurrencies() {
+    const schema = config.db?.schema || 'public';
+    const query = `SELECT code FROM "${schema}".enabled_currencies WHERE is_active = true`;
+    const { rows } = await pool.query(query);
+    return rows; // Retorna [{code: 'ARS'}, {code: 'USDT'}]
+  },
 };

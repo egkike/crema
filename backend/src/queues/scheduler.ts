@@ -12,9 +12,13 @@ export const initScheduler = async () => {
 
   try {
     const jobs = [
+      // --- TAREAS DE LIMPIEZA DE TABLAS ---
+      { name: 'auth-cleanup', pattern: '0 3 * * *' }, // 03:00 AM
+      // --- TAREAS DE MONITOREO FINANCIERO ---
       { name: 'release-balances', pattern: '*/30 * * * *' }, // Cada 30 min
       { name: 'subscription-check', pattern: '5 0 * * *' }, // 00:05 AM
-      { name: 'auth-cleanup', pattern: '0 3 * * *' }, // 03:00 AM
+      { name: 'liquidity-check', pattern: '0 * * * *' }, // Cada hora (Alerta de saldos bajos)
+      { name: 'payout-audit', pattern: '0 9 * * *' }, // 09:00 AM (Resumen de retiros pendientes)
     ];
 
     // Limpiamos y re-programamos
