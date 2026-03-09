@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS products (
     description TEXT,
     type VARCHAR(50) NOT NULL REFERENCES product_types(id) ON DELETE CASCADE,
     content_url TEXT,
-    affiliate_commission_percent DECIMAL(18,8) DEFAULT 10.00,
+    affiliate_commission_percent DECIMAL(18,8) DEFAULT 5.00,
     slug VARCHAR(100) UNIQUE,
     size_bytes BIGINT DEFAULT 0,
     has_structured_content BOOLEAN DEFAULT FALSE,
@@ -145,6 +145,26 @@ CREATE TABLE IF NOT EXISTS product_prices (
     amount DECIMAL(18,8) NOT NULL CHECK (amount >= 0),
     UNIQUE(product_id, currency) -- Un producto no puede tener dos precios en la misma moneda
 );
+
+-- 1. Tabla de Cupones de descuentos
+CREATE TABLE IF NOT EXISTS product_coupons (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code VARCHAR(20) NOT NULL,
+    discount_percent DECIMAL(18,8) NOT NULL DEFAULT 0.00,
+    max_uses INT NOT NULL DEFAULT 1,
+    current_uses INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Restricciones de Negocio
+    CONSTRAINT check_max_discount CHECK (discount_percent <= 20.00),
+    CONSTRAINT check_positive_uses CHECK (max_uses > 0),
+    UNIQUE(product_id, code)
+);
+COMMENT ON COLUMN product_coupons.discount_percent IS 'Limite estricto de 20% para proteger rentabilidad de afiliados y plataforma';
 
 -- Tabla para organizar el contenido en secciones o módulos (ej: "Introducción", "Módulo Avanzado")
 CREATE TABLE IF NOT EXISTS product_modules (
@@ -232,6 +252,9 @@ CREATE TABLE IF NOT EXISTS orders (
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     affiliate_id UUID REFERENCES users(id) ON DELETE SET NULL,
     amount DECIMAL(18,8) NOT NULL,
+    original_amount DECIMAL(18,8),
+    coupon_id UUID REFERENCES product_coupons(id) ON DELETE SET NULL,
+    discount_applied DECIMAL(18,8) DEFAULT 0.00,
     currency VARCHAR(10) REFERENCES enabled_currencies(code),
     commission_amount DECIMAL(18,8),
     status VARCHAR(50) DEFAULT 'pending' CHECK (

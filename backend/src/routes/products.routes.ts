@@ -14,6 +14,9 @@ const router = Router();
  */
 router.get('/:productId', affiliateTracking, productController.getProductById);
 
+// Endpoint para validar cupón en el checkout (Público)
+router.post('/validate-coupon', productController.validateCouponForCheckout);
+
 // --- RUTAS PROTEGIDAS ---
 router.use(jwtAuthMiddleware);
 
@@ -54,7 +57,29 @@ router.patch(
 );
 
 /**
- * Upsert de Quiz para una lección
+ * 2.2 Eliminar Producto
+ */
+router.delete('/:productId', restrictTo('CREATOR'), productController.deleteProduct);
+
+/**
+ * 3. GESTIÓN DE CUPONES (CREADORES)
+ */
+// Listar cupones de un producto específico
+router.get(
+  '/:productId/coupons', 
+  restrictTo('CREATOR'), 
+  productController.getProductCoupons
+);
+
+// Crear un nuevo cupón
+router.post(
+  '/:productId/coupons', 
+  restrictTo('CREATOR'), 
+  productController.createCoupon
+);
+
+/**
+ * 4. Upsert de Quiz para una lección
  */
 router.post(
   '/quiz/manage',
@@ -63,12 +88,7 @@ router.post(
 );
 
 /**
- * 2.2 Eliminar Producto
- */
-router.delete('/:productId', restrictTo('CREATOR'), productController.deleteProduct);
-
-/**
- * 3. Listar propios (Panel del Creador)
+ * 5. Listar propios (Panel del Creador)
  */
 router.get('/my-products', (req, res, next) => productController.getMyProducts(req, res, next));
 

@@ -5,6 +5,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../errors/AppError';
 import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
+import { couponRepository } from '../repositories/coupon.repository';
 import { userRepository } from '../repositories/user.repository';
 import { configRepository } from '../repositories/config.repository';
 import { OrderService } from '../services/order.service';
@@ -15,7 +16,7 @@ import logger from '../utils/logger';
 export const createPaymentPreference = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Agregamos gatewayId al body, por defecto mercadopago para no romper el frontend actual
-    const { productId, currency, quantity = 1, email, fullname, gatewayId } = req.body;
+    const { productId, currency, quantity = 1, email, fullname, gatewayId, couponCode } = req.body;
 
     // 1. VALIDACIÓN DINÁMICA DE PASARELA SEGÚN MONEDA (Usando tu nuevo método)
     const allowedGateways = await configRepository.getGatewaysByCurrency(currency);
@@ -30,6 +31,45 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
     const price = await productRepository.getPriceByCurrency(productId, currency);
 
     if (!product || !price) throw new AppError('Producto no disponible', 404);
+
+    // --- LÓGICA DE CUPONES ---
+    const priceNumber = Number(price);
+    const quantityNumber = Number(quantity);
+
+    // El precio de lista siempre es el mismo
+    const originalAmount = priceNumber * quantityNumber;
+
+    // Estas sí pueden cambiar si hay un cupón válido
+    let finalAmount = originalAmount;
+    let discountApplied = 0;
+    let validCouponId: string | null = null;
+
+    if (couponCode) {
+      const coupon = await couponRepository.findValidCoupon(productId, couponCode);
+
+      if (!coupon) {
+        throw new AppError('El cupón no es válido, expiró o superó el límite de usos', 400);
+      }
+
+      const floorCheck = await couponRepository.validatePriceFloor(
+        productId,
+        currency,
+        coupon.discount_percent
+      );
+
+      if (!floorCheck || !floorCheck.isValid) {
+        throw new AppError(
+          'El precio resultante es demasiado bajo para las reglas de la plataforma',
+          400
+        );
+      }
+
+      // Reasignamos los valores solo si el cupón pasó las pruebas
+      validCouponId = coupon.id;
+      finalAmount = floorCheck.finalPrice * quantityNumber;
+      discountApplied = (priceNumber - floorCheck.finalPrice) * quantityNumber;
+    }
+    // --- FIN LÓGICA DE CUPONES ---
 
     // ✅ req.user ya está tipado por nuestro express.d.ts
     let buyerId = req.user?.id;
@@ -65,19 +105,22 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
     await orderRepository.create({
       buyerId,
       productId: product.id,
-      amount: Number(price) * Number(quantity),
+      amount: finalAmount,
       currency,
       paymentMethod: gatewayId,
       externalReference,
       status: 'pending',
       affiliateId: affiliateId,
+      originalAmount: originalAmount,
+      discountApplied: discountApplied,
+      couponId: validCouponId,
     });
 
     // 3. USO DE LA FACTORY (Aquí delegamos la complejidad de la pasarela)
     const provider = PaymentProviderFactory.getProvider(gatewayId);
     const paymentResponse = await provider.createPreference({
       product,
-      amount: Number(price) * Number(quantity),
+      amount: finalAmount,
       currency,
       externalReference,
       email: email || req.user?.email || '',

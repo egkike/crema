@@ -7,18 +7,7 @@ import { JwtPayload } from 'jsonwebtoken';
 declare global {
   namespace Express {
     interface Request {
-      user?: {
-        id: string;
-        username: string;
-        email: string;
-        fullname?: string;
-        level: number;
-        active: number;
-        // Agregamos el campo para el marketplace de afiliados
-        affiliate_slug?: string;
-        // Agregamos la fecha de registro o campos de sesión si los necesitas
-        iat?: number;
-      } & Partial<JwtPayload> | undefined;
+      user?: UserPayload;
       rateLimit?: {
         key: string;
         limit: number;
@@ -28,6 +17,19 @@ declare global {
       };
     }
   }
+}
+
+// Definimos el objeto por separado para poder reutilizarlo si fuera necesario
+interface UserPayload extends Partial<JwtPayload> {
+  id: string;
+  username: string;
+  email: string;
+  fullname?: string;
+  level: number;
+  active: number;
+  affiliate_slug?: string;
+  // --- Agregamos esto para la lógica de seguridad ---
+  partial?: boolean;
 }
 
 export {};

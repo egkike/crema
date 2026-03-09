@@ -140,7 +140,7 @@ export class CommissionService {
             amount: affiliateAmount,
             currency: orderCurrency,
             type: 'sale_affiliate' as any,
-            description: `Comisión afiliado: ${product.title}`,
+            description: `Comisión afiliado: ${product.title}${order.discount_applied > 0 ? ' (Cupón aplicado)' : ''}`,
           });
         }
       }
@@ -179,7 +179,7 @@ export class CommissionService {
         amount: creatorNetAmount,
         currency: orderCurrency,
         type: 'sale_creator' as any,
-        description: `Venta directa: ${product.title}`,
+        description: `Venta: ${product.title}${order.discount_applied > 0 ? ` (Dcto: ${order.discount_applied})` : ''}`,
       });
 
       // --- 6. FINALIZAR Y ACTUALIZAR ORDEN ---

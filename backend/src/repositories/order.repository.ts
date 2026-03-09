@@ -13,6 +13,9 @@ export interface CreateOrderDTO {
   status?: string;
   affiliateId?: string | null;
   commissionAmount?: number;
+  originalAmount?: number;
+  discountApplied?: number;
+  couponId?: string | null;
 }
 
 export interface Order {
@@ -23,6 +26,9 @@ export interface Order {
   amount: number;
   currency: string;
   commission_amount: number;
+  original_amount: number | null;
+  discount_applied: number;
+  coupon_id: string | null;
   status: string;
   payment_method: string;
   external_reference: string;
@@ -110,9 +116,10 @@ export const orderRepository = {
     const query = `
       INSERT INTO "${schema}".orders (
         buyer_id, product_id, affiliate_id, amount, currency,
-        commission_amount, status, payment_method, external_reference
+        commission_amount, status, payment_method, external_reference,
+        original_amount, discount_applied, coupon_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *;
     `;
 
@@ -126,6 +133,9 @@ export const orderRepository = {
       data.status || 'pending',
       data.paymentMethod,
       data.externalReference,
+      data.originalAmount || data.amount,
+      data.discountApplied || 0,
+      data.couponId || null,
     ];
 
     const { rows } = await pool.query(query, values);

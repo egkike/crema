@@ -5,6 +5,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 
 import { productRepository } from '../repositories/product.repository';
+import { couponRepository } from '../repositories/coupon.repository';
 import { ProductService } from '../services/product.service';
 import { AppError } from '../errors/AppError';
 import { createProductSchema } from '../schemas/products.schema';
@@ -96,7 +97,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     if (newPrices && Array.isArray(newPrices)) {
       for (const p of newPrices) {
         // Invocamos el método estático del Service para validar el factor x10
-        await (ProductService).validateMinimumPrice(p.currency, Number(p.amount));
+        await ProductService.validateMinimumPrice(p.currency, Number(p.amount));
       }
     }
 
@@ -322,6 +323,105 @@ export const upsertQuiz = async (req: Request, res: Response, next: NextFunction
   }
 };
 
+/**
+ * GESTIÓN DE CUPONES: Crear nuevo cupón
+ */
+export const createCoupon = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const productId = req.params.productId as string;
+    const { user } = req;
+
+    if (!user) throw new AppError('Usuario no autenticado', 401);
+
+    // 1. Validar que el producto existe y pertenece al usuario
+    const product = await productRepository.getProductById(productId);
+    if (!product) throw new AppError('Producto no encontrado', 404);
+    if (product.creator_id !== user.id) {
+      throw new AppError('No tienes permiso para crear cupones en este producto', 403);
+    }
+
+    // 2. Crear cupón (el schema en la ruta ya validó el % max del 20)
+    const coupon = await couponRepository.create({
+      ...req.body,
+      productId,
+      creatorId: user.id,
+    });
+
+    res.status(201).json({ success: true, data: coupon });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * LISTAR CUPONES POR PRODUCTO (Vista Creador)
+ */
+export const getProductCoupons = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const productId = req.params.productId as string;
+    const { user } = req;
+
+    if (!user) throw new AppError('Usuario no autenticado', 401);
+
+    // Verificamos que sea el dueño
+    const product = await productRepository.getProductById(productId);
+    if (!product || product.creator_id !== user.id) {
+      throw new AppError('No autorizado', 403);
+    }
+
+    const coupons = await couponRepository.findByProductId(productId);
+    res.status(200).json({ success: true, data: coupons });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * VALIDAR CUPÓN (Público - Para el Checkout)
+ */
+export const validateCouponForCheckout = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { productId, code, currency } = req.body;
+
+    // 1. Buscar cupón válido (activo, no expirado, con usos disponibles)
+    const coupon = await couponRepository.findValidCoupon(productId, code);
+    if (!coupon) {
+      throw new AppError('El cupón no es válido, expiró o alcanzó su límite de usos', 400);
+    }
+
+    // 2. Validar Price Floor (Suelo de rentabilidad x10)
+    const floorCheck = await couponRepository.validatePriceFloor(
+      productId,
+      currency,
+      coupon.discount_percent
+    );
+
+    if (!floorCheck || !floorCheck.isValid) {
+      throw new AppError(
+        'Este cupón no puede aplicarse debido a restricciones de precio mínimo',
+        400
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        code: coupon.code,
+        discountPercent: coupon.discount_percent,
+        originalPrice: floorCheck.originalPrice,
+        finalPrice: floorCheck.finalPrice,
+        savings: floorCheck.originalPrice - floorCheck.finalPrice,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const productController = {
   createProduct,
   updateProduct,
@@ -332,4 +432,7 @@ export const productController = {
   joinProductProgram,
   getMyAvailableMarketplace,
   upsertQuiz,
+  createCoupon,
+  getProductCoupons,
+  validateCouponForCheckout,
 };
