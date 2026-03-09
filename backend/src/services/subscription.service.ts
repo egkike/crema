@@ -77,13 +77,13 @@ export class SubscriptionService {
     userId: string,
     planId: string,
     gatewaySubscriptionId: string,
-    gatewayFee: number = 0, // Nuevo: costo de la pasarela
-    gatewayTax: number = 0 // Nuevo: impuestos de la pasarela
+    gatewayFee: number = 0,
+    gatewayTax: number = 0
   ) {
-    // 1. Buscamos el plan entre TODAS las monedas del usuario para no fallar
+    // 1. Buscamos el plan y el método de pago para determinar la moneda
     const payoutMethods = await payoutMethodRepository.getByUserId(userId);
-
     let plan: PlatformPlan | null = null;
+
     for (const method of payoutMethods) {
       const foundPlan = await subscriptionRepository.getPlanById(planId, method.currency);
       if (foundPlan) {
@@ -93,14 +93,32 @@ export class SubscriptionService {
     }
 
     if (!plan) {
-      logger.error(
-        { userId, planId },
-        'Plan no encontrado en las monedas del usuario al procesar pago'
-      );
-      throw new Error('Plan no encontrado al procesar pago');
+      throw new Error('Plan no encontrado al procesar pago de suscripción');
     }
 
-    // 2. Actualizamos la suscripción en DB
+    // 2. OBTENER REGLAS FISCALES DINÁMICAS (Evitamos Hardcode)
+    const rules = await configRepository.getCurrencyValidationRules(plan.currency);
+    const taxConfig = rules?.tax_config;
+
+    const grossAmount = Number(plan.amount);
+    let vatAmount = 0;
+    let netAmountBeforeTax = grossAmount;
+
+    // 3. CÁLCULO SI EL IMPUESTO ESTÁ HABILITADO E INCLUIDO (Tax Inside)
+    if (taxConfig && taxConfig.enabled && taxConfig.calculation === 'inside') {
+      const factor = Number(taxConfig.tax_factor || 1.21); // Si no existe, usamos 1.21 por defecto pero desde DB
+
+      // Base Imponible = Total / Factor
+      netAmountBeforeTax = Number((grossAmount / factor).toFixed(2));
+
+      // IVA = Total - Base Imponible
+      vatAmount = Number((grossAmount - netAmountBeforeTax).toFixed(2));
+    }
+
+    // 4. Utilidad Real de Crema = Base Imponible - Gastos de Pasarela
+    const netProfit = Number((netAmountBeforeTax - gatewayFee - gatewayTax).toFixed(2));
+
+    // 5. Actualizamos el plan del usuario
     await subscriptionRepository.upgradeUserPlan(
       userId,
       planId,
@@ -108,30 +126,24 @@ export class SubscriptionService {
       plan.currency
     );
 
-    // 3. CÁLCULO FINANCIERO: Ganancia Neta de la Plataforma
-    const grossAmount = Number(plan.amount);
-    // La ganancia real es el total del plan menos lo que nos cobró la pasarela
-    const netProfit = grossAmount - gatewayFee - gatewayTax;
-
-    // 4. Registramos la ganancia en la plataforma (Ahora pasando el desglose)
+    // 6. Registro financiero en platform_earnings (Suscripciones)
     await subscriptionRepository.recordSubscriptionEarning(
       grossAmount,
       plan.currency,
       netProfit,
       gatewayFee,
-      gatewayTax
+      gatewayTax,
+      vatAmount
     );
 
     logger.info(
       {
         userId,
-        planId,
-        gross: grossAmount,
-        net: netProfit,
-        fee: gatewayFee,
         currency: plan.currency,
+        taxFactor: taxConfig?.tax_factor,
+        netProfit,
       },
-      '✅ Pago de suscripción y beneficio neto registrados'
+      '✅ Suscripción Pro procesada con lógica fiscal dinámica'
     );
   }
 

@@ -260,14 +260,15 @@ export const subscriptionRepository = {
   },
 
   /**
-   * Registra el ingreso por suscripción desglosando costos de pasarela y beneficio neto.
+   * Registra el ingreso por suscripción desglosando costos de pasarela, impuestos (IVA) y beneficio neto.
    */
   async recordSubscriptionEarning(
-    amount: number,
-    currency: string,
-    netProfit: number,
-    gatewayFee: number,
-    gatewayTax: number
+    amount: number, // El total bruto ($30.000)
+    currency: string, // Moneda (ARS, etc)
+    netProfit: number, // Ganancia real de Crema
+    gatewayFee: number, // Comisión pasarela
+    gatewayTax: number, // Impuesto pasarela
+    taxAmount: number // IVA incluido en el plan
   ): Promise<void> {
     const schema = config.db?.schema || 'public';
     const client = await pool.connect();
@@ -275,25 +276,35 @@ export const subscriptionRepository = {
     try {
       await client.query('BEGIN');
 
-      // 1. Insertamos en platform_earnings con el desglose completo
+      // 1. Insertamos en platform_earnings con el desglose FISCAL completo
       const earningQuery = `
         INSERT INTO "${schema}".platform_earnings (
           subscription_amount,
           total_amount,
           gateway_fee,
           gateway_tax,
+          tax_amount,
           net_profit,
           currency,
           status,
           balance_released,
           released_at
-        ) VALUES ($1, $1, $3, $4, $5, $2, 'active', TRUE, CURRENT_TIMESTAMP);
+        ) VALUES ($1, $1, $3, $4, $5, $6, $2, 'active', TRUE, CURRENT_TIMESTAMP);
       `;
-      // Usamos el amount como subscription_amount y total_amount
-      await client.query(earningQuery, [amount, currency, gatewayFee, gatewayTax, netProfit]);
+
+      // Mapeo de parámetros:
+      // $1: amount, $2: currency, $3: gatewayFee, $4: gatewayTax, $5: taxAmount, $6: netProfit
+      await client.query(earningQuery, [
+        amount,
+        currency,
+        gatewayFee,
+        gatewayTax,
+        taxAmount,
+        netProfit,
+      ]);
 
       // 2. Actualizamos el balance de la plataforma
-      // IMPORTANTE: Sumamos el netProfit (lo que realmente queda en tu cuenta)
+      // Sumamos el netProfit (dinero real líquido disponible)
       const balanceQuery = `
         INSERT INTO "${schema}".platform_balances (currency, available_balance)
         VALUES ($1, $2)
@@ -307,14 +318,14 @@ export const subscriptionRepository = {
       await client.query('COMMIT');
 
       logger.info(
-        { amount, netProfit, gatewayFee, currency },
-        'Contabilidad de suscripción registrada correctamente'
+        { amount, netProfit, taxAmount, currency },
+        '✅ Contabilidad de suscripción registrada con IVA incluido'
       );
     } catch (error: any) {
       await client.query('ROLLBACK');
       logger.error(
         { error: error.message, amount, currency },
-        'Error registrando ganancia de suscripción con desglose'
+        '💥 Error registrando ganancia de suscripción en repositorio'
       );
       throw error;
     } finally {
