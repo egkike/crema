@@ -324,30 +324,71 @@ export const upsertQuiz = async (req: Request, res: Response, next: NextFunction
 };
 
 /**
- * GESTIÓN DE CUPONES: Crear nuevo cupón
+ * GESTIÓN DE CUPONES: Crear nuevo cupón con validación de rentabilidad 360°
  */
 export const createCoupon = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const productId = req.params.productId as string;
     const { user } = req;
+    const { code, discountPercent, maxUses, expiresAt } = req.body;
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
     // 1. Validar que el producto existe y pertenece al usuario
+    // Incluimos las monedas para validar el suelo de precio inmediatamente
     const product = await productRepository.getProductById(productId);
+
     if (!product) throw new AppError('Producto no encontrado', 404);
     if (product.creator_id !== user.id) {
       throw new AppError('No tienes permiso para crear cupones en este producto', 403);
     }
 
-    // 2. Crear cupón (el schema en la ruta ya validó el % max del 20)
+    /**
+     * 2. VALIDACIÓN DE RENTABILIDAD (Price Floor)
+     * Verificamos que el descuento no rompa el mínimo en NINGUNA de las monedas
+     * que tiene configuradas el producto.
+     */
+    for (const price of product.prices) {
+      // REGLA 1: Solo productos >= price_threshold ($25.000)
+      const isAboveThreshold = await couponRepository.checkThreshold(productId, price.currency);
+
+      if (!isAboveThreshold) {
+        throw new AppError(
+          `No se pueden crear cupones para este producto. El precio en ${price.currency} debe ser igual o mayor al límite de la plataforma.`,
+          400
+        );
+      }
+
+      // REGLA 2: El precio final no puede romper el piso absoluto ($4.500)
+      const floorCheck = await couponRepository.validatePriceFloor(
+        productId,
+        price.currency,
+        discountPercent
+      );
+
+      if (!floorCheck || !floorCheck.isValid) {
+        throw new AppError(
+          `El descuento dejaría el precio de ${price.currency} por debajo del mínimo de seguridad.`,
+          400
+        );
+      }
+    }
+
+    // 3. Persistencia si todas las monedas pasaron la prueba
     const coupon = await couponRepository.create({
-      ...req.body,
       productId,
       creatorId: user.id,
+      code,
+      discountPercent,
+      maxUses,
+      expiresAt,
     });
 
-    res.status(201).json({ success: true, data: coupon });
+    res.status(201).json({
+      success: true,
+      message: 'Cupón creado exitosamente y validado para todas las monedas.',
+      data: coupon,
+    });
   } catch (error) {
     next(error);
   }

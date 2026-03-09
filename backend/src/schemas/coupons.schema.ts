@@ -13,7 +13,22 @@ export const createCouponSchema = z.object({
       .min(0.01, 'El descuento debe ser mayor a 0')
       .max(20.0, 'El descuento máximo permitido es del 20%'),
     maxUses: z.number().int().positive('Debe permitir al menos 1 uso'),
-    expiresAt: z.string().datetime('Fecha de expiración inválida o formato incorrecto'),
+    expiresAt: z
+      .string()
+      .datetime()
+      .refine(
+        val => {
+          const date = new Date(val);
+          const now = new Date();
+          const limit = new Date();
+          limit.setDate(now.getDate() + 30); // Sumamos 30 días a hoy
+
+          return date > now && date <= limit;
+        },
+        {
+          message: 'La expiración debe ser futura y no mayor a 30 días desde hoy',
+        }
+      ),
   }),
 });
 

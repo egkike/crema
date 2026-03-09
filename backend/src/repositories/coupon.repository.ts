@@ -98,4 +98,18 @@ export const couponRepository = {
     const { rows } = await pool.query(query, [productId]);
     return rows.map(row => this.mapRowToCoupon(row)!);
   },
+
+  async checkThreshold(productId: string, currency: string): Promise<boolean> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+    SELECT pp.amount, pc.value as threshold
+    FROM "${schema}".product_prices pp
+    JOIN "${schema}".platform_configs pc ON pc.currency = pp.currency AND pc.key = 'price_threshold'
+    WHERE pp.product_id = $1 AND pp.currency = $2;
+  `;
+    const { rows } = await pool.query(query, [productId, currency]);
+    if (!rows.length) return false;
+
+    return Number(rows[0].amount) >= Number(rows[0].threshold);
+  },
 };

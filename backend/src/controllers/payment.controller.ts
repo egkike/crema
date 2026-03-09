@@ -45,29 +45,38 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
     let validCouponId: string | null = null;
 
     if (couponCode) {
-      const coupon = await couponRepository.findValidCoupon(productId, couponCode);
+      // REGLA DE NEGOCIO ADICIONAL: Verificar el Threshold antes de aplicar
+      const isAboveThreshold = await couponRepository.checkThreshold(productId, currency);
 
-      if (!coupon) {
-        throw new AppError('El cupón no es válido, expiró o superó el límite de usos', 400);
-      }
+      if (!isAboveThreshold) {
+        // Si el producto no califica para cupones, simplemente ignoramos el cupón
+        // o lanzamos error según prefieras. Para "Auto-apply", mejor ignorar y cobrar precio full.
+        logger.warn(`Intento de uso de cupón en producto bajo el threshold: ${productId}`);
+      } else {
+        const coupon = await couponRepository.findValidCoupon(productId, couponCode);
 
-      const floorCheck = await couponRepository.validatePriceFloor(
-        productId,
-        currency,
-        coupon.discount_percent
-      );
+        if (!coupon) {
+          throw new AppError('El cupón no es válido, expiró o superó el límite de usos', 400);
+        }
 
-      if (!floorCheck || !floorCheck.isValid) {
-        throw new AppError(
-          'El precio resultante es demasiado bajo para las reglas de la plataforma',
-          400
+        const floorCheck = await couponRepository.validatePriceFloor(
+          productId,
+          currency,
+          coupon.discount_percent
         );
-      }
 
-      // Reasignamos los valores solo si el cupón pasó las pruebas
-      validCouponId = coupon.id;
-      finalAmount = floorCheck.finalPrice * quantityNumber;
-      discountApplied = (priceNumber - floorCheck.finalPrice) * quantityNumber;
+        if (!floorCheck || !floorCheck.isValid) {
+          throw new AppError(
+            'El precio resultante es demasiado bajo para las reglas de la plataforma',
+            400
+          );
+        }
+
+        // Reasignamos los valores solo si el cupón pasó las pruebas
+        validCouponId = coupon.id;
+        finalAmount = floorCheck.finalPrice * quantityNumber;
+        discountApplied = (priceNumber - floorCheck.finalPrice) * quantityNumber;
+      }
     }
     // --- FIN LÓGICA DE CUPONES ---
 

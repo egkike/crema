@@ -4,6 +4,7 @@ import { productRepository } from '../repositories/product.repository';
 import { userRepository } from '../repositories/user.repository';
 import { systemRepository } from '../repositories/system.repository';
 import { gatewayRepository } from '../repositories/gateway.repository';
+import { couponRepository } from '../repositories/coupon.repository';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 
@@ -76,6 +77,20 @@ export class OrderService {
       if (!lockedOrder || lockedOrder.status === 'paid' || lockedOrder.commissions_calculated) {
         await client.query('ROLLBACK');
         return;
+      }
+
+      // --- LÓGICA DE INCREMENTO DE USO DE CUPÓN ---
+      if (lockedOrder.coupon_id) {
+        try {
+          await couponRepository.incrementUses(lockedOrder.coupon_id, client);
+          logger.info(
+            { couponId: lockedOrder.coupon_id, orderId: lockedOrder.id },
+            '🎟️ Uso de cupón incrementado'
+          );
+        } catch {
+          // Si el cupón llegó a su límite justo antes de este pago, lanzamos error para Rollback
+          throw new AppError('No se pudo aplicar el cupón: límite de usos alcanzado.', 400);
+        }
       }
 
       const product = await productRepository.getProductById(lockedOrder.product_id);
