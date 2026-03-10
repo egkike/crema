@@ -18,7 +18,9 @@ router.use(restrictTo('ADMIN'));
 router.get('/financial-health', AdminController.getFinancialHealth);
 router.get('/ledger', AdminController.getPlatformLedger);
 router.get('/user-stats/:userId', AdminController.getUserStats);
-router.get('/export/audit', AdminController.downloadFinancialAudit);
+
+// Resumen de retenciones (IVA/IIBB) para gráficos en el Dashboard
+router.get('/retention-summary', AdminController.getRetentionSummary);
 
 /* --- 2. GESTIÓN DE RETIROS (PAYOUTS) --- */
 router.get('/payouts/pending', async (req, res, next) => {
@@ -30,33 +32,7 @@ router.get('/payouts/pending', async (req, res, next) => {
   }
 });
 
-router.patch('/payouts/:id/status', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { status, admin_notes, transaction_receipt } = req.body;
-    const adminId = (req as any).user?.id;
-
-    if (!['completed', 'rejected'].includes(status)) {
-      throw new AppError('Estado no válido. Use completed o rejected', 400);
-    }
-
-    const result = await PayoutService.updatePayoutStatus(
-      id,
-      status,
-      adminId,
-      admin_notes,
-      transaction_receipt
-    );
-
-    res.status(200).json({
-      success: true,
-      message: `El retiro ha sido ${status === 'completed' ? 'marcado como pagado' : 'rechazado'} correctamente.`,
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+router.patch('/payouts/:id/status', AdminController.processPayout);
 
 /**
  * Registro de retiro de fondos de la plataforma (Empresa)
@@ -88,30 +64,33 @@ router.post('/withdraw-platform', async (req, res, next) => {
   }
 });
 
-/* --- 3. REEMBOLSOS Y EXPORTACIONES --- */
+/* --- 3. EXPORTACIONES (REPORTES CSV) --- */
+
+// El reporte clave para el contador de Mendoza (Libro IVA Ventas)
+router.get('/export/tax-report', AdminController.downloadTaxReport);
+
+// Reporte de conciliación (Garantías vs Pagados)
+router.get('/export/audit', AdminController.downloadFinancialAudit);
+
+// Historial de reembolsos
 router.get('/export/refunds', AdminController.downloadRefundsReport);
 
+// Historial de retiros a usuarios
 router.get('/export/payouts', async (req, res, next) => {
   try {
-    // 1. Extracción y VALIDACIÓN CRÍTICA
     const { currency, status, from, to } = req.query;
 
     if (!currency || typeof currency !== 'string') {
       throw new AppError('La moneda (currency) es obligatoria para generar el reporte.', 400);
     }
 
-    // 2. Tipado seguro para los opcionales
     const statusStr = typeof status === 'string' ? status : undefined;
     const fromStr = typeof from === 'string' ? from : undefined;
     const toStr = typeof to === 'string' ? to : undefined;
 
-    // 3. Importación dinámica del servicio
     const { ExportService } = await import('../services/export.service');
-
-    // 4. Llamada al servicio con la moneda validada
     const csv = await ExportService.exportPayoutsToCSV(currency, statusStr, fromStr, toStr);
 
-    // 5. Respuesta con nombre de archivo dinámico
     const dateStr = new Date().toISOString().split('T')[0];
     res.header('Content-Type', 'text/csv');
     res.attachment(`reporte_retiros_${currency.toUpperCase()}_${dateStr}.csv`);

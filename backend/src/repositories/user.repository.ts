@@ -16,6 +16,8 @@ export interface UserBase {
   active: number;
   affiliate_slug: string;
   must_change_password: boolean;
+  tax_id?: string;
+  tax_condition?: 'ri' | 'monotax' | 'exempt' | 'final_consumer';
   createdate: Date;
 }
 
@@ -33,12 +35,16 @@ export interface CreateUserInput {
   password?: string | undefined;
   level?: number;
   active?: number;
+  tax_id?: string;
+  tax_condition?: string;
 }
 
 export interface UpdateUserInput {
   fullname?: string;
   level?: number;
   active?: number;
+  tax_id?: string;
+  tax_condition?: string;
 }
 
 export interface RefreshTokenRow {
@@ -72,7 +78,8 @@ export const userRepository = {
     const query = `
       SELECT id, username, password, email, fullname, level, active, 
              must_change_password, createdate, affiliate_slug,
-             two_factor_secret, two_factor_enabled, two_factor_backup_codes
+             two_factor_secret, two_factor_enabled, two_factor_backup_codes,
+             tax_id, tax_condition
       FROM "${schema}".users 
       WHERE username = $1 OR email = $1
     `;
@@ -85,7 +92,9 @@ export const userRepository = {
    */
   async getById(id: string): Promise<UserBase | null> {
     const schema = config.db?.schema || 'public';
-    const query = `SELECT id, username, email, fullname, level, active, must_change_password, createdate, affiliate_slug
+    const query = `SELECT id, username, email, fullname, level, active, 
+                          must_change_password, createdate, affiliate_slug,
+                          tax_id, tax_condition
                    FROM "${schema}".users WHERE id = $1`;
     const { rows } = await pool.query<UserBase>(query, [id]);
     return rows[0] || null;
@@ -96,7 +105,8 @@ export const userRepository = {
    */
   async getUsers(): Promise<UserBase[]> {
     const schema = config.db?.schema || 'public';
-    const query = `SELECT id, username, email, fullname, level, active, createdate, affiliate_slug, must_change_password 
+    const query = `SELECT id, username, email, fullname, level, active, createdate, affiliate_slug, must_change_password,
+                    tax_id, tax_condition 
                    FROM "${schema}".users ORDER BY createdate DESC`;
     const { rows } = await pool.query<UserBase>(query);
     return rows;
@@ -170,11 +180,22 @@ export const userRepository = {
 
   // --- MÉTODOS DE GESTIÓN DE USUARIO ---
 
+  /**
+   * Crea un usuario incluyendo lógica fiscal inicial.
+   */
   async createUser(input: CreateUserInput) {
     const schema = config.db?.schema || 'public';
-    const { password, email, fullname, level = 1, active = 0, username } = input;
+    const {
+      password,
+      email,
+      fullname,
+      level = 1,
+      active = 0,
+      username,
+      tax_id = null,
+      tax_condition = 'monotax',
+    } = input;
 
-    // LÓGICA DE USERNAME: Prioriza el enviado, de lo contrario genera uno.
     let finalUsername: string;
     if (username && username.trim() !== '') {
       finalUsername = username.toLowerCase().trim();
@@ -184,11 +205,8 @@ export const userRepository = {
       finalUsername = `${baseName}${randomSuffix}`;
     }
 
-    // El slug de afiliado siempre coincide con el username final
     const affiliateSlug = finalUsername;
-
     const mustChangePassword = Number(level) === 1;
-    // Si no hay password (registro manual admin), generamos uno aleatorio temporal
     const rawPassword = password || crypto.randomBytes(12).toString('hex');
     const passwordWithPepper = rawPassword + config.passwordPepper;
     const hash = await bcrypt.hash(passwordWithPepper, 12);
@@ -199,9 +217,10 @@ export const userRepository = {
     const query = `
     INSERT INTO "${schema}".users 
       (username, affiliate_slug, password, email, fullname, level, active, 
-       verification_token, verification_token_expires, must_change_password)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    RETURNING id, username, affiliate_slug, email, fullname, level, active;
+       verification_token, verification_token_expires, must_change_password,
+       tax_id, tax_condition)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    RETURNING id, username, affiliate_slug, email, fullname, level, active, tax_id, tax_condition;
     `;
 
     const { rows } = await pool.query(query, [
@@ -215,6 +234,8 @@ export const userRepository = {
       verificationToken,
       expires,
       mustChangePassword,
+      tax_id,
+      tax_condition,
     ]);
 
     return { ...rows[0], verificationToken };
@@ -232,12 +253,15 @@ export const userRepository = {
     return rows.length > 0;
   },
 
+  /**
+   * Actualiza usuario permitiendo modificar CUIT y Condición frente al IVA.
+   */
   async updUser(
     { id, input }: { id: string; input: UpdateUserInput },
     client?: any
   ): Promise<UserBase | null> {
     const schema = config.db?.schema || 'public';
-    const { fullname, level, active } = input;
+    const { fullname, level, active, tax_id, tax_condition } = input;
     const updates: string[] = [];
     const values: (string | number)[] = [];
     let paramIndex = 1;
@@ -253,6 +277,14 @@ export const userRepository = {
     if (active !== undefined) {
       updates.push(`active = $${paramIndex++}`);
       values.push(active);
+    }
+    if (tax_id !== undefined) {
+      updates.push(`tax_id = $${paramIndex++}`);
+      values.push(tax_id);
+    }
+    if (tax_condition !== undefined) {
+      updates.push(`tax_condition = $${paramIndex++}`);
+      values.push(tax_condition);
     }
 
     if (updates.length === 0) return this.getById(id);

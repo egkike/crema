@@ -34,6 +34,7 @@ export interface Order {
   external_reference: string;
   gateway_fee: number;
   gateway_tax: number;
+  gateway_taxes_detail: Record<string, number>;
   net_platform_profit: number;
   transaction_id?: string | undefined;
   commissions_calculated: boolean;
@@ -69,6 +70,7 @@ export const orderRepository = {
       commission_amount: Number(row.commission_amount || 0),
       gateway_fee: Number(row.gateway_fee || 0),
       gateway_tax: Number(row.gateway_tax || 0),
+      gateway_taxes_detail: row.gateway_taxes_detail || {},
       net_platform_profit: Number(row.net_platform_profit || 0),
       is_guarantee_eligible: Boolean(row.is_guarantee_eligible),
       // release_date es para el frontend, release_at es el valor real de DB
@@ -142,6 +144,10 @@ export const orderRepository = {
     return this.mapRowToOrder(rows[0]);
   },
 
+  /**
+   * Este es el método clave que llamará el Webhook de Mercado Pago.
+   * Ahora permite pasar el desglose de impuestos.
+   */
   async updateByExternalRef(
     externalReference: string,
     data: Partial<Order>,
@@ -151,19 +157,23 @@ export const orderRepository = {
     const entries = Object.entries(data);
     if (entries.length === 0) return this.getByExternalRef(externalReference);
 
-    // Filtramos para asegurar que no intentamos actualizar campos inexistentes o protegidos
+    // Si data contiene gateway_taxes_detail, lo convertimos a string para PostgreSQL
+    const processedValues = entries.map(([key, val]) => {
+      if (key === 'gateway_taxes_detail') return JSON.stringify(val);
+      return val;
+    });
+
     const fields = entries.map(([key], i) => `"${key}" = $${i + 1}`).join(', ');
-    const values = entries.map(([, val]) => val);
 
     const query = `
       UPDATE "${schema}".orders 
       SET ${fields}, updated_at = CURRENT_TIMESTAMP 
-      WHERE external_reference = $${values.length + 1} 
+      WHERE external_reference = $${processedValues.length + 1} 
       RETURNING *;
     `;
 
     const db = client || pool;
-    const { rows } = await db.query(query, [...values, externalReference]);
+    const { rows } = await db.query(query, [...processedValues, externalReference]);
     return this.mapRowToOrder(rows[0]);
   },
 

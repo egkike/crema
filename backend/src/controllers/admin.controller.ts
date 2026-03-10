@@ -20,6 +20,47 @@ export class AdminController {
   }
 
   /**
+   * Descarga el Reporte Fiscal / Libro IVA Ventas (Mendoza 2026)
+   * Cruza CUIT del creador con retenciones desglosadas.
+   */
+  static async downloadTaxReport(req: Request, res: Response) {
+    try {
+      const currency = AdminController.validateCurrency(req.query.currency);
+      const from = typeof req.query.from === 'string' ? req.query.from : undefined;
+      const to = typeof req.query.to === 'string' ? req.query.to : undefined;
+
+      const csv = await ExportService.exportTaxAuditToCSV(currency, from, to);
+
+      const filename = `reporte_fiscal_${currency.toUpperCase()}_${from || 'inicio'}_al_${to || 'hoy'}.csv`;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+
+      return res.send(csv);
+    } catch (error: any) {
+      const status = error instanceof AppError ? error.statusCode : 500;
+      logger.error({ error: error.message }, 'Error al exportar reporte fiscal');
+      return res.status(status).json({ message: error.message || 'Error al generar reporte' });
+    }
+  }
+
+  /**
+   * Obtiene resumen de retenciones por tipo (IVA, IIBB, etc.)
+   * Útil para mostrar gráficos de torta/barras en el Dashboard.
+   */
+  static async getRetentionSummary(req: Request, res: Response) {
+    try {
+      const currency = AdminController.validateCurrency(req.query.currency);
+      const summary = await adminRepository.getRetentionSummary(currency);
+
+      return res.json({ status: 'success', data: summary });
+    } catch (error: any) {
+      const status = error instanceof AppError ? error.statusCode : 500;
+      return res.status(status).json({ message: error.message });
+    }
+  }
+
+  /**
    * Resumen de salud financiera global con soporte de fechas
    */
   static async getFinancialHealth(req: Request, res: Response) {

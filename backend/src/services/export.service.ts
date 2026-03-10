@@ -5,6 +5,51 @@ import { payoutRepository } from '../repositories/payout.repository';
 
 export class ExportService {
   /**
+   * REPORTE FISCAL (Mendoza 2026): Genera el Libro IVA Ventas / Auditoría de Terceros.
+   * Este es el archivo clave para el contador.
+   */
+  static async exportTaxAuditToCSV(currency: string, from?: string, to?: string): Promise<string> {
+    const data = await adminRepository.getTaxAuditReport(currency, from, to);
+
+    // Transformamos la data para "aplanar" el JSONB de impuestos
+    const flattenedData = data.map(row => {
+      const taxes = row.gateway_taxes_detail || {};
+      return {
+        ...row,
+        // Creamos columnas dinámicas para los impuestos más comunes
+        iva_retenido: taxes.iva || 0,
+        iibb_mendoza: taxes.iibb_mendoza || 0,
+        iibb_otras: taxes.iibb_otros || 0,
+        otros_impuestos: taxes.otros || 0,
+        // Formateamos la fecha para Excel
+        sale_date: row.sale_date.toISOString().split('T')[0],
+      };
+    });
+
+    const fields = [
+      { label: 'Fecha Venta', value: 'sale_date' },
+      { label: 'Orden ID', value: 'order_id' },
+      { label: 'Ref. Externa', value: 'external_reference' },
+      { label: 'Creador (Emisor)', value: 'creator_name' },
+      { label: 'CUIT Creador', value: 'creator_cuit' },
+      { label: 'Condición Fiscal', value: 'creator_tax_condition' },
+      { label: 'Monto Total Bruto', value: 'total_order_amount' },
+      { label: 'Comisión Pasarela (Fee)', value: 'gateway_fee' },
+      { label: 'Retención IVA', value: 'iva_retenido' },
+      { label: 'Retención IIBB Mza', value: 'iibb_mendoza' },
+      { label: 'Total Impuestos Pasarela', value: 'total_gateway_tax' },
+      { label: 'Comisión Crema (Bruta)', value: 'platform_gross_commission' },
+      { label: 'IVA Comisión Crema', value: 'platform_tax_share' },
+      { label: 'Ganancia Neta Crema', value: 'platform_net_commission' },
+      { label: 'Moneda', value: 'currency' },
+      { label: 'Estado', value: 'order_status' },
+    ];
+
+    const parser = new Parser({ fields });
+    return parser.parse(flattenedData);
+  }
+
+  /**
    * REPORTE MAESTRO: Genera el CSV del Libro Mayor para Cierre Contable.
    * Cruza Ingresos (Ventas) y Egresos (Retiros de Plataforma) con desglose impositivo.
    */
@@ -13,12 +58,11 @@ export class ExportService {
     from: string,
     to: string
   ): Promise<string> {
-    // Obtenemos los movimientos del periodo usando tu lógica de adminRepository
     const ledgerEntries = await adminRepository.getPlatformLedger(currency, from, to);
 
     const fields = [
       { label: 'Fecha', value: 'created_at' },
-      { label: 'Tipo de Movimiento', value: 'entry_type' }, // INCOME o EXPENSE
+      { label: 'Tipo de Movimiento', value: 'entry_type' },
       { label: 'Descripción', value: 'description' },
       { label: 'Monto Bruto', value: 'amount' },
       { label: 'Impuesto Retenido (Tax)', value: 'tax_amount' },

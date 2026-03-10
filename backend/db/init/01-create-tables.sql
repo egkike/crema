@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
     level INT DEFAULT 1 NOT NULL,
     active INT DEFAULT 0 NOT NULL,
     affiliate_slug VARCHAR(50) UNIQUE,
+    tax_id VARCHAR(11), -- CUIT/CUIL sin guiones
+    tax_condition VARCHAR(50) DEFAULT 'monotax', -- 'ri', 'monotax', 'exempt'
     must_change_password BOOLEAN DEFAULT FALSE NOT NULL,
     verification_token TEXT,
     verification_token_expires TIMESTAMP WITH TIME ZONE,
@@ -260,12 +262,13 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(50) DEFAULT 'pending' CHECK (
         status IN ('pending', 'paid', 'refunded')
     ),
-    payment_method VARCHAR(50),            -- 'mercadopago', 'crypto', etc.
+    payment_method VARCHAR(50),              -- 'mercadopago', 'crypto', etc.
     transaction_id TEXT,
-    external_reference VARCHAR(255) UNIQUE, -- ID único que nosotros generamos y le enviamos a MP
-    gateway_status VARCHAR(50),             -- Para guardar el estado "crudo" que devuelve la pasarela
+    external_reference VARCHAR(255) UNIQUE,  -- ID único que nosotros generamos y le enviamos a MP
+    gateway_status VARCHAR(50),              -- Para guardar el estado "crudo" que devuelve la pasarela
     gateway_fee DECIMAL(18,8) DEFAULT 0.00,
     gateway_tax DECIMAL(18,8) DEFAULT 0.00,
+    gateway_taxes_detail JSONB DEFAULT '{}', -- { "iibb_mendoza": 15.5, "iva_retencion": 10.2, "ganancias": 5.0 }
     net_platform_profit DECIMAL(18,8) DEFAULT 0.00,
     commissions_calculated BOOLEAN DEFAULT FALSE,
     balance_released BOOLEAN DEFAULT FALSE,
@@ -345,6 +348,7 @@ CREATE TABLE IF NOT EXISTS platform_earnings (
     tax_amount DECIMAL(18,8) DEFAULT 0.00,
     total_amount DECIMAL(18,8) NOT NULL, -- La suma de todo lo anterior
     net_profit DECIMAL(18,8) DEFAULT 0.00,
+    creator_tax_id VARCHAR(11),
     status VARCHAR(20) DEFAULT 'active', -- active, paid, refunded
     currency VARCHAR(10) REFERENCES enabled_currencies(code),
     balance_released BOOLEAN DEFAULT FALSE,

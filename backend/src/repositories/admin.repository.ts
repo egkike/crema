@@ -162,6 +162,82 @@ export const adminRepository = {
   },
 
   /**
+   * REPORTE MAESTRO DE AUDITORÍA FISCAL (Mendoza 2026)
+   * Une órdenes, ganancias de plataforma y datos de creadores para el Libro IVA.
+   */
+  async getTaxAuditReport(currency: string, from?: string, to?: string) {
+    const schema = config.db?.schema || 'public';
+    const params: any[] = [currency];
+
+    let dateFilter = '';
+    if (from && to) {
+      dateFilter = `AND o.created_at >= $2 AND o.created_at <= ($3::date + interval '1 day')`;
+      params.push(from, to);
+    }
+
+    const query = `
+      SELECT 
+        o.id as order_id,
+        o.external_reference,
+        o.created_at as sale_date,
+        o.amount as total_order_amount,
+        o.currency,
+        o.gateway_fee,
+        o.gateway_tax as total_gateway_tax,
+        o.gateway_taxes_detail, -- El JSONB con IVA/IIBB desglosado
+        
+        -- Datos del Creador (Emisor real del servicio)
+        u.fullname as creator_name,
+        u.tax_id as creator_cuit,
+        u.tax_condition as creator_tax_condition,
+
+        -- Ganancia de la Plataforma
+        pe.total_amount as platform_gross_commission,
+        pe.tax_amount as platform_tax_share,
+        (pe.total_amount - pe.tax_amount) as platform_net_commission,
+        
+        -- Status para auditoría
+        o.status as order_status
+      FROM "${schema}".orders o
+      JOIN "${schema}".products p ON o.product_id = p.id
+      JOIN "${schema}".users u ON p.creator_id = u.id
+      LEFT JOIN "${schema}".platform_earnings pe ON o.id = pe.order_id
+      WHERE o.currency = $1 AND o.status = 'paid' ${dateFilter}
+      ORDER BY o.created_at DESC
+    `;
+
+    const { rows } = await pool.query(query, params);
+
+    return rows.map(row => ({
+      ...row,
+      total_order_amount: Number(row.total_order_amount),
+      gateway_fee: Number(row.gateway_fee),
+      total_gateway_tax: Number(row.total_gateway_tax),
+      platform_gross_commission: Number(row.platform_gross_commission),
+      platform_tax_share: Number(row.platform_tax_share),
+      platform_net_commission: Number(row.platform_net_commission),
+    }));
+  },
+
+  /**
+   * Dashboard de Retenciones (Resumen rápido para el Admin)
+   */
+  async getRetentionSummary(currency: string) {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT 
+        key as tax_type,
+        SUM(value::numeric) as total_amount
+      FROM "${schema}".orders o,
+      jsonb_each_text(o.gateway_taxes_detail) 
+      WHERE o.status = 'paid' AND o.currency = $1
+      GROUP BY key;
+    `;
+    const { rows } = await pool.query(query, [currency]);
+    return rows;
+  },
+
+  /**
    * Detalle de órdenes para conciliación (Paid vs Garantía)
    */
   async getReconciliationDetail(currency: string) {
