@@ -72,7 +72,7 @@ router.post('/withdraw-platform', async (req, res, next) => {
 
     const result = await PayoutService.requestPlatformPayout(
       Number(amount),
-      currency || 'ARS',
+      currency,
       description || 'Retiro de ganancias',
       transaction_receipt,
       adminId
@@ -93,15 +93,29 @@ router.get('/export/refunds', AdminController.downloadRefundsReport);
 
 router.get('/export/payouts', async (req, res, next) => {
   try {
-    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-    const from = typeof req.query.from === 'string' ? req.query.from : undefined;
-    const to = typeof req.query.to === 'string' ? req.query.to : undefined;
+    // 1. Extracción y VALIDACIÓN CRÍTICA
+    const { currency, status, from, to } = req.query;
 
+    if (!currency || typeof currency !== 'string') {
+      throw new AppError('La moneda (currency) es obligatoria para generar el reporte.', 400);
+    }
+
+    // 2. Tipado seguro para los opcionales
+    const statusStr = typeof status === 'string' ? status : undefined;
+    const fromStr = typeof from === 'string' ? from : undefined;
+    const toStr = typeof to === 'string' ? to : undefined;
+
+    // 3. Importación dinámica del servicio
     const { ExportService } = await import('../services/export.service');
-    const csv = await ExportService.exportPayoutsToCSV(status, from, to);
 
+    // 4. Llamada al servicio con la moneda validada
+    const csv = await ExportService.exportPayoutsToCSV(currency, statusStr, fromStr, toStr);
+
+    // 5. Respuesta con nombre de archivo dinámico
+    const dateStr = new Date().toISOString().split('T')[0];
     res.header('Content-Type', 'text/csv');
-    res.attachment(`reporte_retiros_${new Date().toISOString().split('T')[0]}.csv`);
+    res.attachment(`reporte_retiros_${currency.toUpperCase()}_${dateStr}.csv`);
+
     return res.send(csv);
   } catch (error) {
     next(error);

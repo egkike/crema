@@ -5,10 +5,38 @@ import { payoutRepository } from '../repositories/payout.repository';
 
 export class ExportService {
   /**
+   * REPORTE MAESTRO: Genera el CSV del Libro Mayor para Cierre Contable.
+   * Cruza Ingresos (Ventas) y Egresos (Retiros de Plataforma) con desglose impositivo.
+   */
+  static async exportMonthlyLedgerToCSV(
+    currency: string,
+    from: string,
+    to: string
+  ): Promise<string> {
+    // Obtenemos los movimientos del periodo usando tu lógica de adminRepository
+    const ledgerEntries = await adminRepository.getPlatformLedger(currency, from, to);
+
+    const fields = [
+      { label: 'Fecha', value: 'created_at' },
+      { label: 'Tipo de Movimiento', value: 'entry_type' }, // INCOME o EXPENSE
+      { label: 'Descripción', value: 'description' },
+      { label: 'Monto Bruto', value: 'amount' },
+      { label: 'Impuesto Retenido (Tax)', value: 'tax_amount' },
+      { label: 'Ganancia Neta Crema', value: 'net_gain' },
+      { label: 'Moneda', value: 'currency' },
+      { label: 'Admin Responsable', value: 'admin_name' },
+      { label: 'Comprobante/Recibo', value: 'transaction_receipt' },
+    ];
+
+    const parser = new Parser({ fields });
+    return parser.parse(ledgerEntries);
+  }
+
+  /**
    * Genera un CSV con el historial de reembolsos
    */
-  static async exportRefundsToCSV(): Promise<string> {
-    const refunds = await adminRepository.getRecentRefunds(1000); // Exportamos hasta los últimos 1000
+  static async exportRefundsToCSV(currency: string): Promise<string> {
+    const refunds = await adminRepository.getRecentRefunds(currency, 1000); // Exportamos hasta los últimos 1000
 
     const fields = [
       { label: 'ID Reembolso', value: 'id' },
@@ -29,12 +57,13 @@ export class ExportService {
    * Genera un CSV con los retiros (payouts) para contabilidad
    */
   static async exportPayoutsToCSV(
+    currency: string,
     status?: string,
     startDate?: string,
     endDate?: string
   ): Promise<string> {
     // Usamos el nuevo método con filtros
-    const payouts = await payoutRepository.getForExport(status, startDate, endDate);
+    const payouts = await payoutRepository.getForExport(currency, status, startDate, endDate);
 
     const fields = [
       { label: 'Fecha Solicitud', value: 'created_at' },
@@ -53,7 +82,7 @@ export class ExportService {
     return parser.parse(payouts);
   }
 
-  static async exportFinancialAuditCSV(currency: string = 'ARS'): Promise<string> {
+  static async exportFinancialAuditCSV(currency: string): Promise<string> {
     const data = await adminRepository.getReconciliationDetail(currency);
 
     const fields = [

@@ -10,24 +10,30 @@ import { AppError } from '../errors/AppError';
 
 export class AdminController {
   /**
+   * Helper para validar moneda obligatoria
+   */
+  private static validateCurrency(currency: any): string {
+    if (!currency || typeof currency !== 'string') {
+      throw new AppError('La moneda (currency) es obligatoria para esta consulta.', 400);
+    }
+    return currency;
+  }
+
+  /**
    * Resumen de salud financiera global con soporte de fechas
    */
   static async getFinancialHealth(req: Request, res: Response) {
     try {
-      const currency = typeof req.query.currency === 'string' ? req.query.currency : 'ARS';
+      const currency = AdminController.validateCurrency(req.query.currency);
       const from = typeof req.query.from === 'string' ? req.query.from : undefined;
       const to = typeof req.query.to === 'string' ? req.query.to : undefined;
 
-      // Importante: Asegúrate de que StatsService.getAdminHealthCheck reciba estos 3 parámetros
       const healthReport = await StatsService.getAdminHealthCheck(currency, from, to);
 
-      return res.json({
-        status: 'success',
-        data: healthReport,
-      });
+      return res.json({ status: 'success', data: healthReport });
     } catch (error: any) {
-      logger.error({ error: error.message }, 'Error en getFinancialHealth');
-      return res.status(500).json({ message: 'Error al obtener el reporte de salud' });
+      const status = error instanceof AppError ? error.statusCode : 500;
+      return res.status(status).json({ message: error.message });
     }
   }
 
@@ -36,19 +42,16 @@ export class AdminController {
    */
   static async getPlatformLedger(req: Request, res: Response) {
     try {
-      const currency = typeof req.query.currency === 'string' ? req.query.currency : 'ARS';
+      const currency = AdminController.validateCurrency(req.query.currency);
       const from = typeof req.query.from === 'string' ? req.query.from : undefined;
       const to = typeof req.query.to === 'string' ? req.query.to : undefined;
 
       const ledger = await adminRepository.getPlatformLedger(currency, from, to);
 
-      return res.json({
-        status: 'success',
-        data: ledger,
-      });
+      return res.json({ status: 'success', data: ledger });
     } catch (error: any) {
-      logger.error({ error: error.message }, 'Error en getPlatformLedger');
-      return res.status(500).json({ message: 'Error al obtener el libro de caja' });
+      const status = error instanceof AppError ? error.statusCode : 500;
+      return res.status(status).json({ message: error.message });
     }
   }
 
@@ -57,19 +60,20 @@ export class AdminController {
    */
   static async downloadFinancialAudit(req: Request, res: Response) {
     try {
-      const currency = typeof req.query.currency === 'string' ? req.query.currency : 'ARS';
+      const currency = AdminController.validateCurrency(req.query.currency);
       const csv = await ExportService.exportFinancialAuditCSV(currency);
 
+      const dateStr = new Date().toISOString().split('T')[0];
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename=auditoria_financiera_${currency}_${new Date().toISOString().split('T')[0]}.csv`
+        `attachment; filename=auditoria_financiera_${currency.toUpperCase()}_${dateStr}.csv`
       );
 
       return res.send(csv);
     } catch (error: any) {
-      logger.error({ error: error.message }, 'Error al exportar auditoría');
-      return res.status(500).json({ message: 'Error al generar el archivo CSV' });
+      const status = error instanceof AppError ? error.statusCode : 500;
+      return res.status(status).json({ message: error.message });
     }
   }
 
@@ -78,15 +82,24 @@ export class AdminController {
    */
   static async downloadRefundsReport(req: Request, res: Response) {
     try {
-      const csv = await ExportService.exportRefundsToCSV();
+      // 1. Validamos la moneda (usando tu helper estricto)
+      const currency = AdminController.validateCurrency(req.query.currency);
 
+      // 2. Se la pasamos al ExportService
+      const csv = await ExportService.exportRefundsToCSV(currency);
+
+      const dateStr = new Date().toISOString().split('T')[0];
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename=reporte_reembolsos.csv');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=reporte_reembolsos_${currency.toUpperCase()}_${dateStr}.csv`
+      );
 
       return res.send(csv);
     } catch (error: any) {
+      const status = error instanceof AppError ? error.statusCode : 500;
       logger.error({ error: error.message }, 'Error al exportar reembolsos');
-      return res.status(500).json({ message: 'Error al generar reporte de reembolsos' });
+      return res.status(status).json({ message: error.message || 'Error al generar reporte' });
     }
   }
 
@@ -95,11 +108,19 @@ export class AdminController {
    */
   static async getUserStats(req: Request, res: Response) {
     try {
-      const userId = req.params.userId as string;
-      const currency = typeof req.query.currency === 'string' ? req.query.currency : 'ARS';
+      // 1. Extraemos y validamos el userId (debe ser un string único)
+      const userIdParam = req.params.userId;
 
-      if (!userId) throw new AppError('ID de usuario requerido', 400);
+      if (!userIdParam || typeof userIdParam !== 'string') {
+        throw new AppError('ID de usuario requerido y debe ser un texto válido', 400);
+      }
 
+      const userId: string = userIdParam;
+
+      // 2. Usamos el helper para la moneda (que ya devuelve string)
+      const currency = AdminController.validateCurrency(req.query.currency);
+
+      // 3. Ahora ambos argumentos son estrictamente 'string'
       const stats = await StatsService.getCreatorStats(userId, currency);
 
       return res.json({
@@ -108,7 +129,8 @@ export class AdminController {
       });
     } catch (error: any) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      return res.status(status).json({ message: error.message });
+      logger.error({ error: error.message }, 'Error al exportar estadística del creador');
+      return res.status(status).json({ message: error.message || 'Error al generar reporte' });
     }
   }
 
@@ -142,7 +164,7 @@ export class AdminController {
       const { status, adminNotes, transactionReceipt } = req.body;
       const adminId = req.user?.id;
       if (!adminId) throw new AppError('Sesión de administrador no válida', 401);
-      
+
       if (!['completed', 'rejected'].includes(status)) {
         throw new AppError('Estado no válido', 400);
       }

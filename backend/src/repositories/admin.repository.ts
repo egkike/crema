@@ -6,7 +6,7 @@ export const adminRepository = {
    * Obtiene la salud financiera global, detecta discrepancias y trackea retiros de plataforma.
    * Ahora soporta filtros opcionales de fecha.
    */
-  async getGlobalFinancialStats(currency: string = 'ARS', from?: string, to?: string) {
+  async getGlobalFinancialStats(currency: string, from?: string, to?: string) {
     const schema = config.db?.schema || 'public';
     const params: any[] = [currency];
 
@@ -88,7 +88,7 @@ export const adminRepository = {
           Math.abs(
             parseFloat(s.total_paid_volume) -
               (platPending + platAvailable + usersPending + usersAvailable + platWithdrawn)
-          ) < 1,
+          ) < 0.01,
       },
     };
   },
@@ -96,12 +96,7 @@ export const adminRepository = {
   /**
    * Libro de Caja (Ledger) de la plataforma consolidado.
    */
-  async getPlatformLedger(
-    currency: string = 'ARS',
-    from?: string,
-    to?: string,
-    limit: number = 100
-  ) {
+  async getPlatformLedger(currency: string, from?: string, to?: string, limit: number = 100) {
     const schema = config.db?.schema || 'public';
     const params: any[] = [currency];
 
@@ -113,15 +108,23 @@ export const adminRepository = {
 
     const query = `
       SELECT * FROM (
-        -- INGRESOS (Ajustado para mostrar Neto e Impuesto)
+        -- 1. INGRESOS (VENTAS + SUSCRIPCIONES)
+        -- Usamos CASE para distinguir el origen dentro de la misma tabla
         SELECT 
           id, 
-          'INCOME' as entry_type, 
+          CASE 
+            WHEN order_id IS NOT NULL THEN 'SALE_COMMISSION'
+            ELSE 'SUBSCRIPTION'
+          END as entry_type, 
           total_amount as amount, 
-          tax_amount, -- <--- columna de impuestos
-          (variable_amount + fixed_amount) as net_gain, -- <--- Calculamos ganancia neta
+          tax_amount, 
+          -- Para suscripciones, la ganancia es el net_profit que guardas en el repo
+          COALESCE(net_profit, (variable_amount + fixed_amount)) as net_gain, 
           currency, 
-          'Comisión por venta - Orden: ' || order_id as description, 
+          CASE 
+            WHEN order_id IS NOT NULL THEN 'Venta - Orden: ' || order_id
+            ELSE 'Pago Suscripción Plataforma'
+          END as description, 
           created_at,
           NULL as transaction_receipt, NULL as admin_name
         FROM "${schema}".platform_earnings
@@ -129,28 +132,39 @@ export const adminRepository = {
         
         UNION ALL
 
-        -- EGRESOS
+        -- 2. EGRESOS (RETIROS DE LA EMPRESA)
         SELECT 
-          w.id, 'EXPENSE' as entry_type, -w.amount as amount, w.currency, 
+          w.id, 
+          'PLATFORM_WITHDRAWAL' as entry_type, 
+          -w.amount as amount, 
+          0 as tax_amount,
+          -w.amount as net_gain,
+          w.currency, 
           w.description, w.created_at, w.transaction_receipt, u.fullname as admin_name
         FROM "${schema}".platform_withdrawals w
         JOIN "${schema}".users u ON w.admin_id = u.id
         WHERE w.currency = $1 ${dateFilter}
       ) as ledger
       ORDER BY created_at DESC
-      LIMIT ${from ? 'ALL' : '$' + (params.length + 1)};
+      ${from ? '' : 'LIMIT $' + (params.length + 1)};
     `;
 
     if (!from) params.push(limit);
 
     const { rows } = await pool.query(query, params);
-    return rows;
+
+    return rows.map(row => ({
+      ...row,
+      amount: Number(row.amount),
+      tax_amount: Number(row.tax_amount || 0),
+      net_gain: Number(row.net_gain),
+    }));
   },
 
   /**
    * Detalle de órdenes para conciliación (Paid vs Garantía)
    */
-  async getReconciliationDetail(currency: string = 'ARS') {
+  async getReconciliationDetail(currency: string) {
     const schema = config.db?.schema || 'public';
     const query = `
       SELECT 
@@ -167,19 +181,28 @@ export const adminRepository = {
   },
 
   /**
-   * Obtiene lista de reembolsos para auditoría administrativa
+   * Obtiene lista de reembolsos filtrados por moneda para auditoría administrativa
    */
-  async getRecentRefunds(limit: number = 50) {
+  async getRecentRefunds(currency: string, limit: number = 50) {
     const schema = config.db?.schema || 'public';
+
+    // Filtramos por la moneda de la orden original asociada al reembolso
     const query = `
-      SELECT r.*, o.external_reference, u.email as buyer_email
+      SELECT 
+        r.*, 
+        o.external_reference, 
+        o.currency,
+        u.email as buyer_email
       FROM "${schema}".refunds r
       JOIN "${schema}".orders o ON r.order_id = o.id
       JOIN "${schema}".users u ON r.buyer_id = u.id
+      WHERE o.currency = $1
       ORDER BY r.created_at DESC
-      LIMIT $1
+      LIMIT $2
     `;
-    const { rows } = await pool.query(query, [limit]);
+
+    // Pasamos ambos parámetros: moneda y límite
+    const { rows } = await pool.query(query, [currency, limit]);
     return rows;
   },
 

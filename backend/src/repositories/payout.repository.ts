@@ -160,17 +160,24 @@ export const payoutRepository = {
   },
 
   /**
-   * Obtiene retiros con filtros de estado y rango de fechas para exportación CSV
+   * Obtiene retiros con filtros de moneda (obligatorio), estado y fechas.
    */
-  async getForExport(status?: string, startDate?: string, endDate?: string): Promise<Payout[]> {
+  async getForExport(
+    currency: string,
+    status?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<Payout[]> {
     const schema = config.db?.schema || 'public';
+
+    // Iniciamos la query filtrando por moneda desde el inicio
     let query = `
       SELECT p.*, u.email, u.fullname 
       FROM "${schema}".payouts p
       JOIN "${schema}".users u ON p.user_id = u.id
-      WHERE 1=1
+      WHERE p.currency = $1
     `;
-    const values: any[] = [];
+    const values: any[] = [currency];
 
     if (status) {
       values.push(status);
@@ -186,10 +193,9 @@ export const payoutRepository = {
 
     try {
       const { rows } = await pool.query(query, values);
-      // Usamos mapRow para asegurar que 'amount' sea Number
       return rows.map(row => this.mapRow(row) as Payout);
     } catch (error: any) {
-      logger.error({ error: error.message }, 'DB Error: getForExport failed');
+      logger.error({ error: error.message, currency }, 'DB Error: getForExport failed');
       throw error;
     }
   },
