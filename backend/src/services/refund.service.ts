@@ -111,13 +111,14 @@ export class RefundService {
 
       // 3. REVERTIR GANANCIAS DE LA PLATAFORMA
       const pEarningsQuery = `
-        SELECT total_amount, tax_amount FROM "${schema}".platform_earnings 
+        SELECT total_amount, tax_amount, net_profit 
+        FROM "${schema}".platform_earnings 
         WHERE order_id = $1 AND status = 'active' FOR UPDATE;
       `;
       const { rows: pEarnings } = await client.query(pEarningsQuery, [orderId]);
 
       if (pEarnings.length > 0) {
-        // IMPORTANTE: Usar la misma lógica de redondeo que en CommissionService
+        // Usamos total_amount porque es lo que entró al balance pendiente (incluye el tax retenido)
         const platformAmountToDeduct = roundToTwo(Number(pEarnings[0].total_amount));
 
         await platformBalanceRepository.deductFromPending(
@@ -126,14 +127,21 @@ export class RefundService {
           client
         );
 
+        // Actualizamos explícitamente a 'refunded'
         await client.query(
-          `UPDATE "${schema}".platform_earnings SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE order_id = $1`,
+          `UPDATE "${schema}".platform_earnings 
+           SET status = 'refunded', updated_at = CURRENT_TIMESTAMP 
+           WHERE order_id = $1`,
           [orderId]
         );
 
         logger.info(
-          { orderId, taxAnulled: pEarnings[0].tax_amount },
-          'Impuestos y comisiones revertidos en plataforma'
+          {
+            orderId,
+            taxReversed: pEarnings[0].tax_amount,
+            netProfitLost: pEarnings[0].net_profit,
+          },
+          'Auditoría: Impuestos y ganancias de plataforma anulados por reembolso'
         );
       }
 

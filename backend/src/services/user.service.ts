@@ -4,6 +4,7 @@ import { subscriptionRepository } from '../repositories/subscription.repository'
 import { configRepository } from '../repositories/config.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
+import { SpecialValidators } from '../utils/validators.util';
 
 import { EmailService } from './email.service';
 
@@ -36,29 +37,42 @@ export class UserService {
 
     // 4. Validación obligatoria de Datos de Cobro (Payout Methods)
     // Para ser Afiliado (2) o Creador (3), necesitamos saber dónde pagarle.
+    // --- VALIDACIÓN FISCAL Y BANCARIA ---
     if (targetLevel >= levels.AFFILIATE) {
       if (!payoutData || !payoutData.currency || !payoutData.type || !payoutData.data) {
         throw new AppError(
-          'Para subir de nivel es obligatorio configurar tu primer método de retiro (Banco o Crypto).',
+          'Es obligatorio configurar tu método de retiro para subir de nivel.',
           400
         );
       }
 
+      const currency = payoutData.currency.toUpperCase();
+      const validators = SpecialValidators[currency];
+
+      if (validators) {
+        // 1. Validar CUIT/Tax ID si la moneda tiene validador (ARS)
+        if (validators.tax_id && payoutData.data.tax_id) {
+          if (!validators.tax_id(payoutData.data.tax_id)) {
+            throw new AppError(
+              `El CUIT/CUIL '${payoutData.data.tax_id}' no es válido.`,
+              400
+            );
+          }
+        }
+
+        // 2. Validar CBU si es transferencia bancaria en ARS
+        if (payoutData.type === 'BANK' && validators.cbu && payoutData.data.account_number) {
+          if (!validators.cbu(payoutData.data.account_number)) {
+            throw new AppError('El CBU ingresado no tiene un formato válido.', 400);
+          }
+        }
+      }
+
       try {
-        // Guardamos el método de cobro inicial
-        await payoutMethodRepository.upsert(
-          userId,
-          payoutData.currency,
-          payoutData.type,
-          payoutData.data
-        );
-        logger.info(
-          { userId, currency: payoutData.currency },
-          'Método de cobro registrado durante upgrade'
-        );
+        await payoutMethodRepository.upsert(userId, currency, payoutData.type, payoutData.data);
       } catch (error: any) {
         logger.error({ userId, error: error.message }, 'Error guardando payout_method en upgrade');
-        throw new AppError('Error al guardar los datos de cobro. Inténtalo de nuevo.', 500);
+        throw new AppError('Error al guardar los datos de cobro.', 500);
       }
     }
 

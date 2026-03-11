@@ -10,7 +10,6 @@ export const adminRepository = {
     const schema = config.db?.schema || 'public';
     const params: any[] = [currency];
 
-    // Filtro dinámico para fechas aplicado a volumen y retiros
     let dateFilter = '';
     if (from && to) {
       dateFilter = `AND created_at >= $2 AND created_at <= ($3::date + interval '1 day')`;
@@ -19,29 +18,33 @@ export const adminRepository = {
 
     const query = `
       SELECT 
-        -- 1. Balances instantáneos (Se mantienen igual)
+        -- 1. Balances instantáneos Plataforma
         (SELECT COALESCE(pending_balance, 0) FROM "${schema}".platform_balances WHERE currency = $1) as plat_pending,
         (SELECT COALESCE(available_balance, 0) FROM "${schema}".platform_balances WHERE currency = $1) as plat_available,
         
-        -- 1.1 Desglose filtrando REEMBOLSOS (Ajuste Crítico)
+        -- 2. Volumen de Suscripciones (Ingreso directo plataforma, sin order_id)
+        (SELECT COALESCE(SUM(total_amount), 0) FROM "${schema}".platform_earnings 
+         WHERE currency = $1 AND order_id IS NULL AND status != 'refunded' ${dateFilter}) as total_subscriptions_volume,
+
+        -- 3. Métricas de Ganancias (Desglose para Dashboard)
         (SELECT COALESCE(SUM(tax_amount), 0) FROM "${schema}".platform_earnings 
          WHERE currency = $1 AND status != 'refunded' ${dateFilter}) as total_tax_collected,
          
         (SELECT COALESCE(SUM(total_amount), 0) FROM "${schema}".platform_earnings 
          WHERE currency = $1 AND status != 'refunded' ${dateFilter}) as total_earned_period,
 
-        -- 2. Balances de Usuarios
+        -- 4. Balances de Usuarios
         (SELECT COALESCE(SUM(pending_balance), 0) FROM "${schema}".user_balances WHERE currency = $1) as users_pending,
         (SELECT COALESCE(SUM(available_balance), 0) FROM "${schema}".user_balances WHERE currency = $1) as users_available,
         
-        -- 3. Retiros de Plataforma
+        -- 5. Retiros de Plataforma (Egresos Empresa)
         (SELECT COALESCE(SUM(amount), 0) FROM "${schema}".platform_withdrawals WHERE currency = $1 ${dateFilter}) as total_plat_withdrawn,
 
-        -- 4. Volumen de Órdenes (Solo las que no fueron devueltas para que la ecuación cierre)
+        -- 6. Volumen de Órdenes (Ventas de Creadores)
         (SELECT COALESCE(SUM(amount), 0) FROM "${schema}".orders 
-         WHERE status = 'paid' AND currency = $1 ${dateFilter}) as total_paid_volume,
+         WHERE status = 'paid' AND currency = $1 ${dateFilter}) as total_orders_volume,
         
-        -- 5. Conteo de discrepancias (Tu lógica de HAVING ya filtra status != 'refunded', lo cual es excelente)
+        -- 7. Conteo de discrepancias
         (SELECT COUNT(*) FROM (
             SELECT o.id
             FROM "${schema}".orders o
@@ -61,8 +64,13 @@ export const adminRepository = {
     const platWithdrawn = parseFloat(s.total_plat_withdrawn);
     const usersPending = parseFloat(s.users_pending);
     const usersAvailable = parseFloat(s.users_available);
-    const taxCollected = parseFloat(s.total_tax_collected || 0);
-    const earnedPeriod = parseFloat(s.total_earned_period || 0);
+    const subscriptionsVolume = parseFloat(s.total_subscriptions_volume);
+    const ordersVolume = parseFloat(s.total_orders_volume);
+
+    // Ecuación Maestra de Integridad
+    const totalInflow = ordersVolume + subscriptionsVolume;
+    const totalAccountability =
+      platPending + platAvailable + usersPending + usersAvailable + platWithdrawn;
 
     return {
       currency,
@@ -70,8 +78,9 @@ export const adminRepository = {
         pending: platPending,
         available: platAvailable,
         withdrawnPeriod: platWithdrawn,
-        taxCollectedPeriod: taxCollected,
-        totalEarnedInPeriod: earnedPeriod,
+        taxCollectedPeriod: parseFloat(s.total_tax_collected || 0),
+        totalEarnedInPeriod: parseFloat(s.total_earned_period || 0),
+        subscriptionsVolume, // Para saber cuánto entró por planes
         totalEarnedHistorical: platPending + platAvailable + platWithdrawn,
       },
       users: {
@@ -80,15 +89,11 @@ export const adminRepository = {
         totalInSystem: usersPending + usersAvailable,
       },
       systemIntegrity: {
-        totalPaidVolume: parseFloat(s.total_paid_volume),
-        totalAccountability:
-          platPending + platAvailable + usersPending + usersAvailable + platWithdrawn,
+        totalOrdersVolume: ordersVolume,
+        totalInflow, // Órdenes + Suscripciones
+        totalAccountability, // Balances + Retiros
         discrepanciesCount: parseInt(s.discrepancies_count),
-        isHealthy:
-          Math.abs(
-            parseFloat(s.total_paid_volume) -
-              (platPending + platAvailable + usersPending + usersAvailable + platWithdrawn)
-          ) < 0.01,
+        isHealthy: Math.abs(totalInflow - totalAccountability) < 0.01,
       },
     };
   },
