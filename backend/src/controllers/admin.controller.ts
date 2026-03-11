@@ -5,6 +5,7 @@ import { ExportService } from '../services/export.service';
 import { PayoutService } from '../services/payout.service';
 import { adminRepository } from '../repositories/admin.repository';
 import { payoutRepository } from '../repositories/payout.repository';
+import { systemRepository } from '../repositories/system.repository';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 
@@ -222,6 +223,80 @@ export class AdminController {
     } catch (error: any) {
       const status = error instanceof AppError ? error.statusCode : 500;
       return res.status(status).json({ message: error.message });
+    }
+  }
+
+  /**
+   * Carga un log de actividad I+D para auditoría LEC.
+   * Vincula horas de desarrollo con un commit real de Git.
+   */
+  static async logRDActivity(req: Request, res: Response) {
+    try {
+      const { projectId, developerId, hoursSpent, taskDescription, codeCommitRef } = req.body;
+
+      // Validaciones básicas
+      if (!projectId || !developerId || !hoursSpent) {
+        throw new AppError('Datos de proyecto, desarrollador y horas son obligatorios.', 400);
+      }
+
+      const log = await adminRepository.createRDLog({
+        projectId,
+        developerId,
+        hoursSpent: Number(hoursSpent),
+        taskDescription,
+        codeCommitRef,
+      });
+
+      return res.status(201).json({
+        status: 'success',
+        message: 'Actividad de I+D registrada correctamente.',
+        data: log,
+      });
+    } catch (error: any) {
+      const status = error instanceof AppError ? error.statusCode : 500;
+      return res.status(status).json({ message: error.message });
+    }
+  }
+
+  /**
+   * Obtiene el estado de cumplimiento del 3% (I+D vs Facturación).
+   * Este es el "semáforo" para el ingreso al Régimen Nacional.
+   */
+  static async getLECCertificationStatus(req: Request, res: Response) {
+    try {
+      const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+      const year = parseInt(req.query.year as string) || new Date().getFullYear();
+
+      // Obtenemos el costo hora desde system_settings (ej: 'internal_dev_hourly_rate')
+      const hourlyRateStr = await systemRepository.getSetting('internal_dev_hourly_rate', '30000');
+      const hourlyRate = parseFloat(hourlyRateStr);
+
+      const metrics = await adminRepository.getLECMetrics(month, year, hourlyRate);
+
+      return res.json({
+        status: 'success',
+        data: {
+          ...metrics,
+          targetRatio: 3.0,
+          isCompliant: metrics.complianceRatio >= 3.0,
+          currency: 'ARS', // La ley nacional se evalúa sobre base imponible local
+        },
+      });
+    } catch (error: any) {
+      const status = error instanceof AppError ? error.statusCode : 500;
+      return res.status(status).json({ message: error.message });
+    }
+  }
+
+  /**
+   * Lista proyectos de innovación para el selector del panel.
+   */
+  static async getRDProjects(req: Request, res: Response) {
+    try {
+      const projects = await adminRepository.getRDProjects();
+      return res.json({ status: 'success', data: projects });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
     }
   }
 }

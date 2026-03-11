@@ -302,4 +302,75 @@ export const adminRepository = {
     const { rows } = await pool.query(query, [limit]);
     return rows;
   },
+
+  // --- MÉTODOS DE CUMPLIMIENTO LEY ECONOMÍA DEL CONOCIMIENTO (LEC) ---
+
+  /**
+   * Registra un log de actividad I+D para justificar el 3% de inversión.
+   */
+  async createRDLog(data: {
+    projectId: string;
+    developerId: string;
+    hoursSpent: number;
+    taskDescription: string;
+    codeCommitRef: string;
+  }) {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      INSERT INTO "${schema}".lec_rd_logs 
+      (project_id, developer_id, hours_spent, task_description, code_commit_ref)
+      VALUES ($1, $2, $3, $4, $5) 
+      RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [
+      data.projectId,
+      data.developerId,
+      data.hoursSpent,
+      data.taskDescription,
+      data.codeCommitRef,
+    ]);
+    return rows[0];
+  },
+
+  /**
+   * Obtiene la métrica de inversión en I+D vs Facturación de la plataforma.
+   */
+  async getLECMetrics(month: number, year: number, hourlyRate: number) {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT 
+        -- Total de horas invertidas en el periodo
+        (SELECT COALESCE(SUM(hours_spent), 0) FROM "${schema}".lec_rd_logs 
+         WHERE EXTRACT(MONTH FROM created_at) = $1 AND EXTRACT(YEAR FROM created_at) = $2) as total_rd_hours,
+        
+        -- Facturación total de la plataforma (Comisiones + Suscripciones)
+        (SELECT COALESCE(SUM(total_amount), 0) FROM "${schema}".platform_earnings 
+         WHERE EXTRACT(MONTH FROM created_at) = $1 AND EXTRACT(YEAR FROM created_at) = $2 AND status != 'refunded') as total_revenue;
+    `;
+    const { rows } = await pool.query(query, [month, year]);
+    const res = rows[0];
+
+    const totalHours = parseFloat(res.total_rd_hours);
+    const revenue = parseFloat(res.total_revenue);
+    const investmentValue = totalHours * hourlyRate;
+
+    return {
+      period: `${month}/${year}`,
+      totalHours,
+      investmentValue,
+      revenue,
+      complianceRatio: revenue > 0 ? (investmentValue / revenue) * 100 : 0,
+    };
+  },
+
+  /**
+   * Lista los proyectos de innovación activos.
+   */
+  async getRDProjects() {
+    const schema = config.db?.schema || 'public';
+    const { rows } = await pool.query(
+      `SELECT * FROM "${schema}".lec_rd_projects WHERE is_active = TRUE ORDER BY start_date DESC`
+    );
+    return rows;
+  },
 };

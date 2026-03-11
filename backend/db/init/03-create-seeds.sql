@@ -7,12 +7,33 @@ INSERT INTO users (username, password, email, fullname, level, active, must_chan
 ('admin_crema', '$2b$12$7OR1Xy6A2.hqaskZjOizle13AcMRLUVBH//NKR40MyeQJx4//CeSq', 'admin@crema.com', 'Super Administrador Crema', 99, 1, false)
 ON CONFLICT (username) DO NOTHING;
 
--- Configuración de Moneda y Días de garantia del sistema
+-- Configuración de Moneda, Días de garantia, Niveles de usuario y Valor Hora para I+D (Ley Economía del Conocimiento)
 INSERT INTO system_settings (key, value, description) VALUES 
 ('platform_currency', 'ARS', 'Moneda principal de operación'),
 ('days_of_guarantee', '7', 'Días de espera para liberar el saldo tras una compra'),
-('user_levels', '{"GUEST": 0, "USER": 1, "AFFILIATE": 2, "CREATOR": 3, "STAFF": 10, "ADMIN": 99}', 'Mapeo de niveles de permisos y roles')
+('user_levels', '{"GUEST": 0, "USER": 1, "AFFILIATE": 2, "CREATOR": 3, "STAFF": 10, "ADMIN": 99}', 'Mapeo de niveles de permisos y roles'),
+(
+    'internal_dev_hourly_rate', 
+    '30000', 
+    'Valor hora promedio de desarrollo para el cálculo de inversión en I+D (Fase 3 LEC).'
+)
 ON CONFLICT (key) DO NOTHING;
+
+-- Proyectos Iniciales de Innovación (Para tener categorías donde cargar horas)
+INSERT INTO lec_rd_projects (project_name, category, description, start_date) 
+VALUES 
+(
+    'Arquitectura de Streaming con Cifrado JWE', 
+    'desarrollo_experimental', 
+    'Investigación y desarrollo de un sistema de entrega de video con rotación de llaves para evitar piratería.', 
+    '2026-01-01'
+),
+(
+    'Motor de Conciliación Impositiva Automatizada', 
+    'innovacion_procesos', 
+    'Desarrollo de algoritmos para el desglose automático de retenciones de IIBB Mendoza y CUITs.', 
+    '2026-02-15'
+) ON CONFLICT DO NOTHING;
 
 -- Configuración de Moneda habilitada para Argentina y Cripto con Reglas de Validación Dinámicas
 INSERT INTO enabled_currencies (code, name, symbol, is_active, required_payout_fields, validation_rules) 

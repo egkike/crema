@@ -100,6 +100,28 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabla de Proyectos de Innovación
+CREATE TABLE IF NOT EXISTS lec_rd_projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_name VARCHAR(100) NOT NULL, -- Ej: "Algoritmo de Streaming Anti-Piratería"
+    category VARCHAR(50) CHECK (category IN ('investigacion_basica', 'desarrollo_experimental', 'innovacion_procesos')),
+    description TEXT,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Tabla de Logs de Proyectos de Innovación
+CREATE TABLE IF NOT EXISTS lec_rd_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES lec_rd_projects(id),
+    developer_id UUID REFERENCES users(id),
+    hours_spent DECIMAL(5,2) NOT NULL,
+    task_description TEXT,
+    code_commit_ref TEXT, -- Link al commit de GitHub como evidencia técnica
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Tabla para parámetros globales del sistema
 CREATE TABLE IF NOT EXISTS platform_configs (
     key VARCHAR(50) NOT NULL,

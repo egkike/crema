@@ -141,4 +141,44 @@ export class ExportService {
     const parser = new Parser({ fields });
     return parser.parse(data);
   }
+
+  /**
+   * REPORTE LEC (I+D): Genera el reporte de inversión en conocimiento.
+   * Cruza horas cargadas, proyectos y valor hora para justificar el beneficio fiscal.
+   */
+  static async exportLECAuditCSV(month: number, year: number): Promise<string> {
+    const { systemRepository } = await import('../repositories/system.repository');
+
+    // 1. Obtenemos métricas y valor hora
+    const hourlyRateStr = await systemRepository.getSetting('internal_dev_hourly_rate', '30000');
+    const hourlyRate = parseFloat(hourlyRateStr);
+    const metrics = await adminRepository.getLECMetrics(month, year, hourlyRate);
+
+    // 2. Aquí podrías obtener el detalle de logs si lo necesitas,
+    // pero para el reporte ejecutivo de cumplimiento:
+    const summaryData = [
+      {
+        periodo: `${month}/${year}`,
+        total_horas: metrics.totalHours,
+        valor_hora_ars: hourlyRate,
+        inversion_total_ars: metrics.investmentValue,
+        facturacion_plataforma_ars: metrics.revenue,
+        ratio_cumplimiento: `${metrics.complianceRatio.toFixed(2)}%`,
+        estado_lec: metrics.complianceRatio >= 3 ? 'CUMPLE' : 'PENDIENTE',
+      },
+    ];
+
+    const fields = [
+      { label: 'Período', value: 'periodo' },
+      { label: 'Horas I+D', value: 'total_horas' },
+      { label: 'Valor Hora (ARS)', value: 'valor_hora_ars' },
+      { label: 'Inversión Valuada (ARS)', value: 'inversion_total_ars' },
+      { label: 'Facturación Bruta (ARS)', value: 'facturacion_plataforma_ars' },
+      { label: 'Ratio s/ Facturación', value: 'ratio_cumplimiento' },
+      { label: 'Estado Ley 27.506', value: 'estado_lec' },
+    ];
+
+    const parser = new Parser({ fields });
+    return parser.parse(summaryData);
+  }
 }

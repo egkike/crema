@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller';
 import { payoutRepository } from '../repositories/payout.repository';
 import { PayoutService } from '../services/payout.service';
+import { ExportService } from '../services/export.service';
 import { AppError } from '../errors/AppError';
 
 import { jwtAuthMiddleware } from './../middlewares/auth/jwt.middleware';
@@ -64,7 +65,27 @@ router.post('/withdraw-platform', async (req, res, next) => {
   }
 });
 
-/* --- 3. EXPORTACIONES (REPORTES CSV) --- */
+/* --- 3. CUMPLIMIENTO LEY ECONOMÍA DEL CONOCIMIENTO (LEC) --- */
+
+/**
+ * Proyectos de Innovación: Listado para selectores del panel
+ */
+router.get('/lec/projects', AdminController.getRDProjects);
+
+/**
+ * Registro de Logs de I+D: 
+ * Aquí es donde el admin vincula horas de desarrollo con commits para la auditoría nacional.
+ */
+router.post('/lec/rd-logs', AdminController.logRDActivity);
+
+/**
+ * Reporte de Certificación: 
+ * El "semáforo" que calcula: (Horas I+D * Valor Hora) / Facturación Bruta.
+ * Debe dar >= 3% para cumplir la ley.
+ */
+router.get('/lec/compliance-status', AdminController.getLECCertificationStatus);
+
+/* --- 4. EXPORTACIONES (REPORTES CSV) --- */
 
 // El reporte clave para el contador de Mendoza (Libro IVA Ventas)
 router.get('/export/tax-report', AdminController.downloadTaxReport);
@@ -88,13 +109,28 @@ router.get('/export/payouts', async (req, res, next) => {
     const fromStr = typeof from === 'string' ? from : undefined;
     const toStr = typeof to === 'string' ? to : undefined;
 
-    const { ExportService } = await import('../services/export.service');
     const csv = await ExportService.exportPayoutsToCSV(currency, statusStr, fromStr, toStr);
 
     const dateStr = new Date().toISOString().split('T')[0];
     res.header('Content-Type', 'text/csv');
     res.attachment(`reporte_retiros_${currency.toUpperCase()}_${dateStr}.csv`);
 
+    return res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// LEC(I+D)	Justificación del beneficio fiscal (3% inversión).
+router.get('/export/lec-report', async (req, res, next) => {
+  try {
+    const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+
+    const csv = await ExportService.exportLECAuditCSV(month, year);
+
+    res.header('Content-Type', 'text/csv');
+    res.attachment(`cumplimiento_LEC_${month}_${year}.csv`);
     return res.send(csv);
   } catch (error) {
     next(error);
