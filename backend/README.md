@@ -1,15 +1,22 @@
 # Crema API Core 🍦
 
-**Crema** es una infraestructura integral para el ecosistema de e-learning, diseñada para ofrecer seguridad avanzada a creadores y una experiencia fluida para afiliados. Destaca por su sistema **Safe-Guard** y su integración nativa con streaming profesional mediante Mux Video.
+**Crema** es el motor de infraestructura para la economía de los creadores, permitiendo la comercialización, protección y escalabilidad de info-productos (Cursos, E-books, Audiolibros, Podcasts, Membresías y Software-Accesos) bajo normativas globales de transparencia financiera.
 
 [![Node](https://img.shields.io/badge/node-20+-blue)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10+-orange)](https://pnpm.io/)
 [![Database](https://img.shields.io/badge/PostgreSQL-18-blue)](https://www.postgresql.org/)
 [![Queue](https://img.shields.io/badge/BullMQ-Redis-red)](https://docs.bullmq.io/)
+[![LEC](https://img.shields.io/badge/Ley_Economía_del_Conocimiento-Cumplimiento-green)](https://www.argentina.gob.ar/servicio/inscribirse-al-regimen-de-la-ley-de-economia-del-conocimiento)
 
 ---
 
 ## 🚀 Funcionalidades Destacadas
+
+### ⚖️ Auditoría y Cumplimiento (LEC)
+Implementado en `src/repositories/admin.repository.ts` y gestionado mediante `platform_earnings`, este módulo permite a la empresa operar bajo la **Ley 27.506**:
+- **Trazabilidad de Inversión (I+D):** Registro automatizado de logs de desarrollo (`lec_rd_logs`) vinculados a commits de GitHub para auditoría técnica.
+- **Cálculo de Ratio de Inversión:** Sistema de "Semáforo" en tiempo real que valida que la inversión en I+D supere el **3%** de la facturación bruta.
+- **Libro IVA Ventas:** Exportación de reportes fiscales cruzando datos de creadores (CUIT, condición fiscal) con retenciones de pasarelas.
 
 ### 🛡️ Safe-Guard (Protección Antifraude)
 Implementado en `src/services/access.service.ts`, este sistema protege la propiedad intelectual del creador:
@@ -21,9 +28,11 @@ Integración con **Mux Video** (vía `src/utils/streaming.util.ts`) para preveni
 - **Firmas RS256:** Generación de tokens dinámicos para URLs de video con tiempo de expiración configurable.
 - **Protección HLS:** El contenido se sirve en fragmentos cifrados, impidiendo la descarga directa del archivo fuente original.
 
-### 💳 Sistema de Pagos y Comisiones
+### 💳 Motor Financiero y Comisiones
 - **Multi-pasarela:** Arquitectura basada en el patrón *Factory* (`PaymentProviderFactory.ts`) preparada para Mercado Pago y futuros proveedores.
-- **Gestión de Balances:** Lógica interna para separar saldo pendiente (en garantía), disponible (para retiro) y liberado (`balance.repository.ts`).
+- **Gestión de Balances:** Separación atómica de saldos: *Pendiente* (en garantía), *Disponible* (para retiro) y *Plataforma*.
+- **Double-Lock Release:** Sistema de liberación de fondos basado en la mayor latencia entre la garantía del producto y la liquidez de la pasarela.
+- **Platform Earnings:** Registro detallado de utilidad neta, cargos fijos, variables e impuestos (IVA Inside) por cada transacción.
 - **Afiliación:** Tracking de referidos mediante `affiliateTracking.middleware.ts` y reparto automático de comisiones parametrizables por producto.
 
 ### 🎓 Motor de Aprendizaje (LMS)
@@ -56,7 +65,7 @@ src/
 ├── middlewares/    # Seguridad y Negocio: Safe-Guard, Role, PlanLimits, Tracking.
 ├── utils/          # Herramientas: Streaming (Mux), JWT, Logger (Pino), Rounder.
 ├── schemas/        # Esquemas de validación Zod.
-└── db/             # Conexión a Postgres y scripts de inicialización.
+└── db/             # Conexión a base de datos Postgres.
 ```
 
 ---
