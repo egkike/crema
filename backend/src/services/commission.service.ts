@@ -4,6 +4,7 @@ import { balanceRepository } from '../repositories/balance.repository';
 import { historyRepository } from '../repositories/history.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
+import { platformEarningsRepository } from '../repositories/platform_earnings.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
 import { Order } from '../repositories/order.repository';
 import { AppError } from '../errors/AppError';
@@ -50,7 +51,7 @@ export class CommissionService {
 
       // --- 2. CÁLCULO DE COMISIÓN DE PLATAFORMA (BRUTA) ---
       const subscription = await subscriptionRepository.getActiveSubscription(product.creator_id);
-      let percentValue = Number(configs['fee_percent'] || 0.10);
+      let percentValue = Number(configs['fee_percent'] || 0.1);
 
       if (subscription?.features?.custom_fee_percent !== undefined) {
         percentValue = Number(subscription.features.custom_fee_percent);
@@ -80,20 +81,26 @@ export class CommissionService {
         platformNetBeforeGateway - (order.gateway_fee || 0) - (order.gateway_tax || 0)
       );
 
-      await client.query(
-        `INSERT INTO "${schema}".platform_earnings 
-        (order_id, variable_amount, fixed_amount, tax_amount, total_amount, net_profit, currency, status, balance_released, release_at) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', FALSE, $8)`,
-        [
-          order.id,
-          variableFee,
-          fixedFee,
-          platformTaxAmount,
-          totalPlatformFee,
-          realNetProfit,
-          orderCurrency,
-          order.release_at,
-        ]
+      // Validamos que exista la fecha de liberación
+      if (!order.release_at) {
+        throw new AppError(
+          'No se puede registrar la ganancia: Falta fecha de liberación de la orden.',
+          500
+        );
+      }
+
+      await platformEarningsRepository.recordEarning(
+        {
+          orderId: order.id,
+          variableAmount: variableFee,
+          fixedAmount: fixedFee,
+          taxAmount: platformTaxAmount,
+          totalAmount: totalPlatformFee,
+          netProfit: realNetProfit,
+          currency: orderCurrency,
+          releaseAt: order.release_at,
+        },
+        client
       );
 
       // Sumamos la comisión bruta al balance pendiente de la plataforma
