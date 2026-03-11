@@ -6,7 +6,7 @@
 [![pnpm](https://img.shields.io/badge/pnpm-10+-orange)](https://pnpm.io/)
 [![Database](https://img.shields.io/badge/PostgreSQL-18-blue)](https://www.postgresql.org/)
 [![Queue](https://img.shields.io/badge/BullMQ-Redis-red)](https://docs.bullmq.io/)
-[![LEC](https://img.shields.io/badge/Ley_Economía_del_Conocimiento-Cumplimiento-green)](https://www.argentina.gob.ar/servicio/inscribirse-al-regimen-de-la-ley-de-economia-del-conocimiento)
+[![LEC](https://img.shields.io/badge/Ley_Economía_del_Conocimiento-Cumplimiento-green)](https://www.argentina.gob.ar/servicio/acceder-los-beneficios-del-regimen-de-promocion-de-la-economia-del-conocimiento)
 
 ---
 
