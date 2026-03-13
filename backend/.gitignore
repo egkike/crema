@@ -32,12 +32,17 @@ pnpm-debug.log*
 *.sublime-workspace
 .DS_Store
 Thumbs.db
+.agents/
+.gga
+AGENTS*.*
+skills*.*
 
 # Tests y cobertura
 coverage/
 .nyc_output/
 test-results/
 vitest-report/
+utils/dev/*
 
 # Archivos temporales y caché
 *.swp
@@ -54,6 +59,7 @@ uploads/* # Si guardas archivos localmente
 !uploads/.gitkeep   # Permite que la carpeta exista pero vacía
 *.tmp
 *.bak
+DOCUMENTACION.md
 
 # PostgreSQL / bases de datos locales (por si exportas dumps)
 *.sql.dump
