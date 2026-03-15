@@ -27,6 +27,9 @@ jobs:
 
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
+      with:
+        # Especificamos la versión 10 usada localmente
+        version: 10
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -46,6 +49,8 @@ jobs:
       run: pnpm test
       env:
         NODE_ENV: test
+        # Seteamos esto para evitar el warning de deprecación de Node 20 en los runners
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         SECRET_JWT_KEY: 'test-secret-super-largo-para-tests'
         SECRET_REFRESH_JWT_KEY: 'test-secret-refresh-super-largo-para-tests'
         PASSWORD_PEPPER: 'test-pepper'
