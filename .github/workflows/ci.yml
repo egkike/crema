@@ -1,27 +1,40 @@
-name: CI - Lint, Test & Build
+name: Crema CI - Backend
 
 on:
   push:
     branches: [ master ]
+    # El CI solo corre si hay cambios en backend o shared
+    paths:
+      - 'backend/**'
+      - 'shared/**'
   pull_request:
     branches: [ master ]
+    paths:
+      - 'backend/**'
 
 jobs:
-  build:
+  backend-qa:
     runs-on: ubuntu-latest
+    
+    # Configuramos que todos los 'run' se ejecuten dentro de la carpeta backend
+    defaults:
+      run:
+        working-directory: backend
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4  # Sin 'version: latest' → usa la de package.json
+      uses: pnpm/action-setup@v4
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 22
         cache: 'pnpm'
+        # Indicamos dónde está el lockfile para el cache
+        cache-dependency-path: backend/pnpm-lock.yaml
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile

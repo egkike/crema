@@ -1,30 +1,44 @@
-# Archivos de sistema y OS
+# --- GENERAL ---
+node_modules/
+.pnpm-store/
+.pnpm-debug.log
 .DS_Store
 Thumbs.db
-*.log
-*.tmp
-*.txt
-
-# Editor / IDE
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
 
-# Dependencias y builds de frontend (cuando lo agregues)
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+# --- ENTORNO Y SECRETOS (CRÍTICO) ---
+.env
+.env.*
+!.env.example
+
+# --- BACKEND ESPECÍFICO ---
+backend/dist/
+backend/build/
+backend/coverage/
+backend/vitest-report/
+backend/backend-data/
+# Ignorar utilidades de test que no deben ir al repo
+backend/src/utils/dev/*
+
+# --- FRONTEND (PREVENTIVO) ---
+frontend/.next/
+frontend/out/
 frontend/build/
 
-# Archivos sensibles o locales en raíz
-.env.local
-.env.*.local
+# --- DATOS Y LOGS ---
+postgres-data/
+pgdata/
+*.sql.dump
+*.dump
+logs/
+!logs/.gitkeep
+uploads/*
+!uploads/.gitkeep
 
-# Cachés y temporales generales
-.cache/
-tmp/
-temp/
-
-# Ignorar todo dentro de carpetas vacías si usás .gitkeep
-!.gitkeep
+# --- OTROS ---
+*.tmp
+*.bak
+*.http
+.eslintcache
+tsconfig.tsbuildinfo

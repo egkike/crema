@@ -32,10 +32,6 @@ pnpm-debug.log*
 *.sublime-workspace
 .DS_Store
 Thumbs.db
-.agents/
-.gga
-AGENTS*.*
-skills*.*
 
 # Tests y cobertura
 coverage/
