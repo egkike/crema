@@ -38,7 +38,7 @@ coverage/
 .nyc_output/
 test-results/
 vitest-report/
-utils/dev/*
+utils/dev/
 
 # Archivos temporales y caché
 *.swp
@@ -50,7 +50,6 @@ utils/dev/*
 *.cache
 .eslintcache
 .prettierrc.cache
-test.*
 uploads/* # Si guardas archivos localmente
 !uploads/.gitkeep   # Permite que la carpeta exista pero vacía
 *.tmp
