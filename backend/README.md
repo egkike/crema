@@ -1,8 +1,9 @@
 # Crema API Core 🍦
 
-**Crema** es el motor de infraestructura para la economía de los creadores, permitiendo la comercialización, protección y escalabilidad de info-productos (Cursos, E-books, Audiolibros, Podcasts, Membresías y Software-Accesos) bajo normativas globales de transparencia financiera.
+**Crema** es el motor de infraestructura para la economía de los creadores, permitiendo la comercialización, protección y escalabilidad de info-productos bajo normativas de transparencia financiera.
 
 [![Node](https://img.shields.io/badge/node-20+-blue)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue)](https://www.typescriptlang.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10+-orange)](https://pnpm.io/)
 [![Database](https://img.shields.io/badge/PostgreSQL-18-blue)](https://www.postgresql.org/)
 [![Queue](https://img.shields.io/badge/BullMQ-Redis-red)](https://docs.bullmq.io/)
@@ -10,105 +11,185 @@
 
 ---
 
-## 🚀 Funcionalidades Destacadas
+## 🚀 Endpoints de la API
 
-### ⚖️ Auditoría y Cumplimiento (LEC)
-Implementado en `src/repositories/admin.repository.ts` y gestionado mediante `platform_earnings`, este módulo permite a la empresa operar bajo la **Ley 27.506**:
-- **Trazabilidad de Inversión (I+D):** Registro automatizado de logs de desarrollo (`lec_rd_logs`) vinculados a commits de GitHub para auditoría técnica.
-- **Cálculo de Ratio de Inversión:** Sistema de "Semáforo" en tiempo real que valida que la inversión en I+D supere el **3%** de la facturación bruta.
-- **Libro IVA Ventas:** Exportación de reportes fiscales cruzando datos de creadores (CUIT, condición fiscal) con retenciones de pasarelas.
+### Autenticación
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Registro de usuario |
+| POST | `/api/auth/login` | Inicio de sesión |
+| POST | `/api/auth/refresh` | Refresh tokens |
+| POST | `/api/auth/logout` | Cerrar sesión |
+| POST | `/api/auth/forgot-password` | Solicitar recuperación |
+| POST | `/api/auth/reset-password` | Resetear contraseña |
+| POST | `/api/auth/2fa/setup` | Configurar 2FA |
+| POST | `/api/auth/2fa/verify` | Verificar 2FA |
+| GET | `/api/auth/sessions` | Ver sesiones activas |
 
-### 🛡️ Safe-Guard (Protección Antifraude)
-Implementado en `src/services/access.service.ts`, este sistema protege la propiedad intelectual del creador:
-- **Validación de Garantía:** Invalida automáticamente la posibilidad de reembolso si el progreso del curso supera el **30%** o si se accede a un producto descargable (Ebooks/Software).
-- **Control de Acceso:** Middleware especializado (`checkAccess.middleware.ts`) que verifica la propiedad, autoría o compra antes de servir cualquier contenido protegido.
+### Usuarios
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/users/me` | Perfil del usuario |
+| PATCH | `/api/users/me` | Actualizar perfil |
+| DELETE | `/api/users/me` | Eliminar cuenta |
 
-### 🎥 Streaming de Video Seguro
-Integración con **Mux Video** (vía `src/utils/streaming.util.ts`) para prevenir la piratería:
-- **Firmas RS256:** Generación de tokens dinámicos para URLs de video con tiempo de expiración configurable.
-- **Protección HLS:** El contenido se sirve en fragmentos cifrados, impidiendo la descarga directa del archivo fuente original.
+### Productos
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/products/:id` | Ver producto |
+| POST | `/api/products/create` | Crear producto |
+| PATCH | `/api/products/:id` | Actualizar producto |
+| DELETE | `/api/products/:id` | Eliminar producto |
+| GET | `/api/products/my-products` | Productos propios |
+| POST | `/api/products/validate-coupon` | Validar cupón |
 
-### 💳 Motor Financiero y Comisiones
-- **Multi-pasarela:** Arquitectura basada en el patrón *Factory* (`PaymentProviderFactory.ts`) preparada para Mercado Pago y futuros proveedores.
-- **Gestión de Balances:** Separación atómica de saldos: *Pendiente* (en garantía), *Disponible* (para retiro) y *Plataforma*.
-- **Double-Lock Release:** Sistema de liberación de fondos basado en la mayor latencia entre la garantía del producto y la liquidez de la pasarela.
-- **Platform Earnings:** Registro detallado de utilidad neta, cargos fijos, variables e impuestos (IVA Inside) por cada transacción.
-- **Afiliación:** Tracking de referidos mediante `affiliateTracking.middleware.ts` y reparto automático de comisiones parametrizables por producto.
+### Pagos
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/payments/checkout/create` | Crear preferencia |
+| POST | `/api/payments/webhook/:gateway` | Webhook de pago |
+| POST | `/api/payments/subscribe/:planId` | Suscribirse |
 
-### 🎓 Motor de Aprendizaje (LMS)
-- **Progreso en tiempo real:** Registro detallado de lecciones, módulos y seguimiento de completitud.
-- **Quizzes:** Calificación automática de exámenes con registro de intentos y puntajes.
-- **Certificación:** Emisión automática de certificados con código único de verificación (UUID) al alcanzar el 100% del progreso.
+### Learning (LMS)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/learning/my-dashboard` | Dashboard del estudiante |
+| GET | `/api/learning/:productId/content` | Contenido del curso |
+| POST | `/api/learning/progress` | Actualizar progreso |
+| POST | `/api/learning/quiz/submit` | Enviar quiz |
+| GET | `/api/learning/certificate/verify/:code` | Verificar certificado |
+
+### Balance
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/balances/me` | Mi balance |
+| GET | `/api/balances/stats` | Estadísticas |
+| GET | `/api/balances/history` | Historial |
+
+### Payouts
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/payouts` | Solicitar retiro |
+| GET | `/api/payouts/me` | Mis retiros |
+| DELETE | `/api/payouts/:id` | Cancelar retiro |
+
+### Afiliados
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/affiliates/my-portfolio` | Mi portfolio |
+| POST | `/api/affiliates/portfolio/:id/join` | Unirse a programa |
+| DELETE | `/api/affiliates/portfolio/:id` | Abandonar programa |
+
+### Admin
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/admin/financial-health` | Salud financiera |
+| GET | `/api/admin/ledger` | Libro mayor |
+| GET | `/api/admin/lec/compliance-status` | Estado LEC |
+| GET | `/api/admin/export/tax-report` | Reporte fiscal |
 
 ---
 
 ## 🛠️ Stack Tecnológico
 
-- **Core:** Node.js v20+ con Express v5 (Manejo nativo de promesas).
-- **Lenguaje:** TypeScript v5.9+.
-- **Build Tool:** Esbuild (Compilación ultrarrápida).
-- **Base de Datos:** PostgreSQL con Pool de conexiones nativo (`pg`).
-- **Procesamiento Asíncrono:** BullMQ con Redis para colas de emails, limpieza de tokens y tareas programadas.
-- **Seguridad:** JWT (Access + Refresh Tokens con rotación), Helmet, Rate Limiting y 2FA (otplib).
-- **Validación:** Zod para esquemas de datos e integridad de entrada.
+- **Runtime**: Node.js 20+ con Express 5
+- **Lenguaje**: TypeScript 5.9+
+- **Build**: esbuild
+- **DB**: PostgreSQL 18 con driver `pg`
+- **Colas**: BullMQ + Redis
+- **Auth**: JWT + Refresh Tokens + 2FA
+- **Validación**: Zod
+- **Logging**: Pino
 
 ---
 
-## 📁 Estructura del Proyecto
+## 📁 Estructura
 
-```text
+```
 src/
-├── controllers/    # Controladores: admin, affiliate, balance, payout, product, etc.
-├── repositories/   # Capa de persistencia: Consultas SQL puras (Patrón Repository).
-├── services/       # Lógica de negocio: auth, commission, release, payment, etc.
-├── queues/         # Procesamiento en segundo plano con BullMQ (Workers/Schedulers).
-├── middlewares/    # Seguridad y Negocio: Safe-Guard, Role, PlanLimits, Tracking.
-├── utils/          # Herramientas: Streaming (Mux), JWT, Logger (Pino), Rounder.
-├── schemas/        # Esquemas de validación Zod.
-└── db/             # Conexión a base de datos Postgres.
+├── controllers/      # Request/Response
+├── repositories/    # SQL queries
+├── services/        # Lógica de negocio
+├── middlewares/     # Auth, validation, etc.
+├── routes/         # Endpoints
+├── schemas/         # Zod validation
+├── queues/         # BullMQ workers
+├── utils/          # Helpers
+├── config/         # Configuración
+└── errors/         # Custom errors
 ```
 
 ---
 
-## ⚙️ Configuración Rápida
+## ⚙️ Configuración
 
-1- Instalación:
+### Variables de Entorno
 
-```Bash
-pnpm install
+```env
+# Database
+DATABASE_URL=postgresql://...
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# JWT
+SECRET_JWT_KEY=...
+SECRET_REFRESH_JWT_KEY=...
+
+# Mercado Pago
+MERCADO_PAGO_ACCESS_TOKEN=...
+
+# Mux
+MUX_SIGNING_KEY=...
 ```
 
-2- Variables de Entorno:
-Crea un archivo `.env` basándote en los requerimientos del sistema:
+### Comandos
 
-- PostgreSQL: Credenciales de acceso a la DB.
-
-- Redis: Host y puerto para BullMQ.
-
-- Mercado Pago: Access Tokens para la pasarela.
-
-- Mux: Signing Keys e IDs para el streaming seguro.
-
-3- Ejecución:
-
-```Bash
-pnpm dev   # Desarrollo con tsx watch
-pnpm build # Compilación para producción con esbuild
-pnpm start # Ejecución de la build generada
-```
-
----
-
-## 🧪 Testing y Calidad
-
-El proyecto utiliza Vitest para garantizar la integridad de los flujos críticos:
-
-```Bash
-pnpm test          # Ejecutar suite de pruebas
-pnpm test:coverage # Reporte de cobertura de código
-pnpm lint          # Verificación de estilos y errores de sintaxis
+```bash
+pnpm dev          # Desarrollo
+pnpm build        # Build producción
+pnpm test         # Tests
+pnpm lint         # Lint
+pnpm typecheck    # Tipos
 ```
 
 ---
 
-Diseñado por Kike Garcia para el ecosistema de creadores y afiliados de Crema. 🍦
+## 🛡️ Seguridad
+
+### Implementado
+- ✅ JWT en cookies HttpOnly
+- ✅ Rate limiting por endpoint
+- ✅ Helmet security headers
+- ✅ CORS configurado
+- ✅ 2FA opcional
+- ✅ Password hashing con bcrypt + pepper
+- ✅ Validación de inputs con Zod
+
+### Consideraciones
+- Tokens JWT expiran en 15 min (access) y 7 días (refresh)
+- Rate limiting: 5 login attempts / 15 min
+- 2FA usa TOTP (Google Authenticator, etc.)
+
+---
+
+## 🧪 Testing
+
+```bash
+pnpm test              # Tests unitarios
+pnpm test:coverage     # Coverage
+pnpm test:ci           # Tests en Docker
+```
+
+---
+
+## 📚 Documentación
+
+- [Documentación completa](../docs/)
+- [Swagger UI](http://localhost:3000/api-docs) (desarrollo)
+- [Guía de desarrollo](../docs/development/setup.md)
+
+---
+
+*Diseñado por Kike Garcia - 2026*
