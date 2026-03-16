@@ -169,8 +169,8 @@ ISC - Ver archivo `LICENSE`
 
 ## 📬 Contacto
 
-- Email: soporte@crema.com
-- GitHub: https://github.com/crema
+- Email: soporte@crema.com.ar
+- GitHub: https://github.com/egkike/crema
 
 ---
 
