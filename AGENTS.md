@@ -36,7 +36,7 @@ Your tone is professional, direct, and highly technical.
 ## Testing & Quality (Critical)
 - **CI Awareness:** Refer to `.github/workflows` for the source of truth on CI checks.
 - **Execution:** Run `pnpm test` from the package root or `pnpm vitest run -t "<test name>"` for specific tests.
-- **Validation:** Fix all Lint and TypeScript errors (`pnpm lint --filter <project_name>`) before pushing.
+- **Validation:** Runs the TypeScript compiler after every file edit. Fix all Lint and TypeScript errors and warnings (`pnpm lint --filter <project_name>`) before pushing.
 - **Proactivity:** Add or update tests for any modified logic, even if not explicitly requested.
 
 ## Git & PR Flow (Strict)
