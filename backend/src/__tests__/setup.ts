@@ -1,10 +1,188 @@
 import { vi } from 'vitest';
 import bcrypt from 'bcrypt';
 
+// ============================================
+// MOCKS GLOBALES
+// ============================================
+
 // UUIDs constantes y válidos para pasar validaciones de Zod
 export const ADMIN_ID = '00000000-0000-0000-0000-000000000001';
 export const USER_ID = '00000000-0000-0000-0000-000000000002';
+export const CREATOR_ID = '00000000-0000-0000-0000-000000000003';
+export const AFFILIATE_ID = '00000000-0000-0000-0000-000000000004';
+export const PRODUCT_ID = '00000000-0000-0000-0000-000000000099';
+export const ORDER_ID = '00000000-0000-0000-0000-000000000101';
+
 const MOCK_PASSWORD_HASH = bcrypt.hashSync('p1' + 'test-pepper', 10);
+
+// ============================================
+// TYPES - Typed Mocks for Services Tests
+// ============================================
+
+export interface MockUser {
+  id: string;
+  email: string;
+  username: string;
+  level: number;
+  active: number;
+  password?: string;
+  created_at?: Date;
+}
+
+export interface MockProduct {
+  id: string;
+  creator_id: string;
+  title: string;
+  type: 'course' | 'ebook' | 'digital_download' | 'membership' | 'podcast' | 'software';
+  status: 'draft' | 'published' | 'archived';
+  prices: Array<{ amount: number; currency: string }>;
+  content_url?: string;
+  size_bytes?: number;
+  is_downloadable?: boolean;
+}
+
+export interface MockOrder {
+  id: string;
+  buyer_id: string;
+  product_id: string;
+  total_amount: number;
+  currency: string;
+  status: 'pending' | 'approved' | 'rejected' | 'refunded';
+  is_guarantee_eligible: boolean;
+  created_at: Date;
+}
+
+export interface MockBalance {
+  id: string;
+  user_id: string;
+  available: number;
+  pending: number;
+  currency: string;
+}
+
+export interface MockPayout {
+  id: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'processing' | 'completed' | 'rejected' | 'cancelled';
+  created_at: Date;
+}
+
+export interface MockCommission {
+  id: string;
+  order_id: string;
+  recipient_id: string;
+  amount: number;
+  currency: string;
+  type: 'affiliate' | 'platform';
+  status: 'pending' | 'released' | 'cancelled';
+}
+
+export interface MockAffiliateRate {
+  affiliate_id: string;
+  product_id: string;
+  rate_percent: number;
+}
+
+// ============================================
+// HELPER FUNCTIONS - Mock Factories
+// ============================================
+
+export const createMockUser = (overrides: Partial<MockUser> = {}): MockUser => ({
+  id: USER_ID,
+  email: 'test@test.com',
+  username: 'testuser',
+  level: 1,
+  active: 1,
+  password: MOCK_PASSWORD_HASH,
+  ...overrides,
+});
+
+export const createMockCreator = (overrides: Partial<MockUser> = {}): MockUser => ({
+  id: CREATOR_ID,
+  email: 'creator@test.com',
+  username: 'creator',
+  level: 3,
+  active: 1,
+  password: MOCK_PASSWORD_HASH,
+  ...overrides,
+});
+
+export const createMockAdmin = (overrides: Partial<MockUser> = {}): MockUser => ({
+  id: ADMIN_ID,
+  email: 'admin@test.com',
+  username: 'admin',
+  level: 99,
+  active: 1,
+  password: MOCK_PASSWORD_HASH,
+  ...overrides,
+});
+
+export const createMockProduct = (overrides: Partial<MockProduct> = {}): MockProduct => ({
+  id: PRODUCT_ID,
+  creator_id: CREATOR_ID,
+  title: 'Test Product',
+  type: 'course',
+  status: 'published',
+  prices: [{ amount: 5000, currency: 'ARS' }],
+  size_bytes: 1024,
+  is_downloadable: false,
+  ...overrides,
+});
+
+export const createMockDownloadableProduct = (overrides: Partial<MockProduct> = {}): MockProduct => ({
+  ...createMockProduct({ type: 'digital_download', is_downloadable: true, ...overrides }),
+});
+
+export const createMockOrder = (overrides: Partial<MockOrder> = {}): MockOrder => ({
+  id: ORDER_ID,
+  buyer_id: USER_ID,
+  product_id: PRODUCT_ID,
+  total_amount: 5000,
+  currency: 'ARS',
+  status: 'approved',
+  is_guarantee_eligible: true,
+  created_at: new Date(),
+  ...overrides,
+});
+
+export const createMockBalance = (overrides: Partial<MockBalance> = {}): MockBalance => ({
+  id: 'balance-1',
+  user_id: USER_ID,
+  available: 1000,
+  pending: 500,
+  currency: 'ARS',
+  ...overrides,
+});
+
+export const createMockPayout = (overrides: Partial<MockPayout> = {}): MockPayout => ({
+  id: 'payout-1',
+  user_id: USER_ID,
+  amount: 1000,
+  currency: 'ARS',
+  status: 'pending',
+  created_at: new Date(),
+  ...overrides,
+});
+
+export const createMockCommission = (overrides: Partial<MockCommission> = {}): MockCommission => ({
+  id: 'commission-1',
+  order_id: ORDER_ID,
+  recipient_id: AFFILIATE_ID,
+  amount: 1500,
+  currency: 'ARS',
+  type: 'affiliate',
+  status: 'pending',
+  ...overrides,
+});
+
+export const createMockAffiliateRate = (overrides: Partial<MockAffiliateRate> = {}): MockAffiliateRate => ({
+  affiliate_id: AFFILIATE_ID,
+  product_id: PRODUCT_ID,
+  rate_percent: 30,
+  ...overrides,
+});
 
 // --- CONFIG MOCK ---
 vi.mock('../config/index', () => ({
@@ -66,26 +244,26 @@ export const userRepositoryMock = {
 
 export const productRepositoryMock = {
   countPublishedByCreator: vi.fn(async () => 0),
-  createProduct: vi.fn(async (data: any) => ({
-    id: '00000000-0000-0000-0000-000000000099',
+  createProduct: vi.fn(async (data: Partial<MockProduct>) => ({
+    id: PRODUCT_ID,
     ...data,
     prices: data.prices || [],
   })),
   getProductById: vi.fn(async (id: string) => ({
     id,
-    creator_id: USER_ID,
+    creator_id: CREATOR_ID,
     size_bytes: 100,
-    status: 'published',
+    status: 'published' as const,
     title: 'Test Product',
-    type: 'course',
+    type: 'course' as const,
     prices: [{ amount: 5000, currency: 'ARS' }],
   })),
   getProductByIdOrSlug: vi.fn(async (id: string) => ({
     id,
-    creator_id: USER_ID,
+    creator_id: CREATOR_ID,
     title: 'Test Product',
-    status: 'published',
-    type: 'course',
+    status: 'published' as const,
+    type: 'course' as const,
     prices: [{ amount: 5000, currency: 'ARS' }],
     content_url: 'https://cdn.test.com/file.zip',
   })),
@@ -208,6 +386,47 @@ vi.mock('../repositories/payout_method.repository', () => ({
 
 vi.mock('../services/access.service', () => ({ AccessService: AccessServiceMock }));
 
+// --- MOCKS FOR REFUNDSERVICE ---
+export const balanceRepositoryMock = {
+  deductPendingEarnings: vi.fn().mockResolvedValue(true),
+  addPendingBalance: vi.fn().mockResolvedValue(true),
+};
+
+export const commissionRepositoryMock = {
+  getByOrderId: vi.fn().mockResolvedValue([]),
+  create: vi.fn().mockResolvedValue({ id: 'comm-1' }),
+  updateStatusByOrder: vi.fn().mockResolvedValue(true),
+};
+
+export const historyRepositoryMock = {
+  createRecordWithClient: vi.fn().mockResolvedValue(true),
+  createRecord: vi.fn().mockResolvedValue(true),
+};
+
+export const refundRepositoryMock = {
+  create: vi.fn().mockResolvedValue({ id: 'refund-1' }),
+};
+
+export const platformBalanceRepositoryMock = {
+  addToPending: vi.fn().mockResolvedValue(true),
+  deductFromPending: vi.fn().mockResolvedValue(true),
+};
+
+vi.mock('../repositories/balance.repository', () => ({ balanceRepository: balanceRepositoryMock }));
+vi.mock('../repositories/commission.repository', () => ({ commissionRepository: commissionRepositoryMock }));
+vi.mock('../repositories/history.repository', () => ({ historyRepository: historyRepositoryMock }));
+vi.mock('../repositories/refund.repository', () => ({ refundRepository: refundRepositoryMock }));
+vi.mock('../repositories/platform_balance.repository', () => ({ platformBalanceRepository: platformBalanceRepositoryMock }));
+
+vi.mock('../services/payment/PaymentProviderFactory', () => ({
+  PaymentProviderFactory: {
+    getProvider: vi.fn().mockReturnValue({
+      refund: vi.fn().mockResolvedValue(true),
+      createPayment: vi.fn().mockResolvedValue({ id: 'payment-1' }),
+    }),
+  },
+}));
+
 // --- RESTO DE MOCKS (DB, LOGS, ETC) ---
 const dbResponse = { rows: [], rowCount: 0 };
 vi.mock('../db/postgres', () => ({
@@ -223,7 +442,10 @@ vi.mock('../utils/logger', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
-export const extractCookies = (res: any) => {
-  const cookies = res.headers['set-cookie'] || [];
+export const extractCookies = (res: { headers: Record<string, string | string[] | undefined> }) => {
+  const cookies = res.headers['set-cookie'];
+  if (!Array.isArray(cookies)) {
+    return '';
+  }
   return cookies.map((c: string) => c.split(';')[0]).join('; ');
 };

@@ -182,6 +182,22 @@ pnpm test:coverage     # Coverage
 pnpm test:ci           # Tests en Docker
 ```
 
+### Cobertura de Tests (actual)
+
+| Métrica | Porcentaje |
+|---------|------------|
+| Statements | ~27% |
+| Functions | ~32% |
+| Lines | ~27% |
+
+**Total: 157 tests unitarios**
+
+### Archivos de Test
+
+- **Rutas**: auth, users, products, content, quiz, balance, payouts, payments, refunds, affiliates, admin, products-routes
+- **Servicios**: auth, user, product, payment, payout, order, commission, refund, release, access, subscription, payout_method, email, twoFactor, simulator-provider
+- **Setup**: setup.ts (mocks globales), vitest.setup.ts
+
 ---
 
 ## 📚 Documentación

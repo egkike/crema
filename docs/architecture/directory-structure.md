@@ -161,13 +161,36 @@ src/
 │   └── postgres.ts        # Conexión pg
 │
 ├── __tests__/             # Tests unitarios
-│   ├── auth.test.ts
-│   ├── users.test.ts
-│   ├── products.test.ts
-│   ├── content.test.ts
-│   ├── quiz.test.ts
-│   ├── setup.ts
-│   └── vitest.setup.ts
+│   ├── auth.test.ts        # Tests de autenticación
+│   ├── users.test.ts       # Tests de usuarios
+│   ├── products.test.ts    # Tests de productos
+│   ├── content.test.ts     # Tests de contenido
+│   ├── quiz.test.ts        # Tests de quizzes
+│   ├── balance.test.ts    # Tests de balance
+│   ├── payouts.test.ts     # Tests de retiros
+│   ├── payments.test.ts    # Tests de pagos
+│   ├── refunds.test.ts     # Tests de reembolsos
+│   ├── affiliates.test.ts  # Tests de afiliados
+│   ├── admin.test.ts       # Tests de admin
+│   ├── products-routes.test.ts # Tests de rutas de productos
+│   ├── services/           # Tests de servicios
+│   │   ├── auth.service.test.ts
+│   │   ├── user.service.test.ts
+│   │   ├── product.service.test.ts
+│   │   ├── payment.service.test.ts
+│   │   ├── payout.service.test.ts
+│   │   ├── order.service.test.ts
+│   │   ├── commission.service.test.ts
+│   │   ├── refund.service.test.ts
+│   │   ├── release.service.test.ts
+│   │   ├── access.service.test.ts
+│   │   ├── subscription.service.test.ts
+│   │   ├── payout_method.service.test.ts
+│   │   ├── email.service.test.ts
+│   │   ├── twoFactor.service.test.ts
+│   │   └── simulator.provider.test.ts
+│   ├── setup.ts            # Mocks globales
+│   └── vitest.setup.ts    # Configuración Vitest
 │
 ├── app.ts                 # Configuración Express
 ├── index.ts               # Entry point
