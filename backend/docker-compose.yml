@@ -36,6 +36,9 @@ services:
     environment:
       # Forzamos a que use la ruta estándar de Docker
       - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      # Mapeo de puerto PostgreSQL al host
+      - "5432:5432"
     volumes:
       # Mapeamos nuestra carpeta local a esa misma ruta interna
       - ./postgres-data:/var/lib/postgresql/data/pgdata   # Persistencia de la base de datos
