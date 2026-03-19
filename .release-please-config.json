@@ -1,0 +1,24 @@
+{
+  "packages": {
+    "backend": {
+      "release-type": "node",
+      "package-name": "crema-backend",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true
+    },
+    "frontend-main": {
+      "release-type": "node",
+      "package-name": "crema-app-public",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true
+    },
+    "frontend-admin": {
+      "release-type": "node",
+      "package-name": "crema-admin-panel",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true
+    }
+  },
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}

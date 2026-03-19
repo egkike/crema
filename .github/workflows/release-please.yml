@@ -1,0 +1,28 @@
+name: release-please
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          # Token por defecto de GitHub con permisos de escritura
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Archivos de control para Monorepo
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Post-Release Actions
+        if: ${{ steps.release.outputs.releases_created }}
+        run: |
+          echo "Se han liberado nuevas versiones en el Monorepo Crema."
