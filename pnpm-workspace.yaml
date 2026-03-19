@@ -1,0 +1,5 @@
+packages:
+  - 'backend'
+  - 'frontend-main'
+  - 'frontend-admin'
+  - 'shared'

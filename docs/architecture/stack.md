@@ -62,11 +62,17 @@
 
 ## Frontend (Próximamente)
 
-| Tecnología | Propósito |
-|------------|-----------|
-| **Astro** | Framework web con soporte React |
-| **React** | Componentes interactivos |
-| **Tailwind CSS** | Estilos |
+### Frontend Main
+- **Astro** + **React** - Interfaz principal para usuarios
+- **Tailwind CSS** - Estilos
+
+### Frontend Admin
+- **Astro** + **React** - Panel de administración
+- **Tailwind CSS** - Estilos
+
+### Stack Compartido
+- **TypeScript** - Tipado estático
+- **TanStack Query** - Gestión de estado servidor
 
 ## Herramientas de Desarrollo
 

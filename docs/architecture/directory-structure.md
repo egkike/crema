@@ -28,11 +28,10 @@ crema/
 │   ├── uploads/            # Archivos subidos temporalmente
 │   └── tests/              # Tests de integración
 │
-├── frontend/               # Interfaz (próximamente)
-│
-├── shared/                 # Tipos y utils compartidos
-│
-└── docs/                   # Documentación
+├── frontend-main/              # Frontend principal (Astro + React)
+├── frontend-admin/             # Panel de administración (Astro + React)
+├── shared/                     # Tipos y utils compartidos entre frontends
+└── docs/                      # Documentación
 ```
 
 ## Backend - Detalle de src/

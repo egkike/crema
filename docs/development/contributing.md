@@ -223,7 +223,8 @@ Ejemplos:
 | Paquete | Descripción |
 |---------|-------------|
 | `backend` | API REST |
-| `frontend` | Interfaz (próximamente) |
+| `frontend-main` | Frontend principal (próximamente) |
+| `frontend-admin` | Panel de administración (próximamente) |
 
 ---
 

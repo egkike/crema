@@ -69,9 +69,10 @@ Crema centraliza todas estas necesidades en una sola plataforma, permitiendo que
 ```
 crema/
 ├── backend/           # API REST (Node.js + TypeScript)
-├── frontend/          # Interfaz (próximamente)
-├── shared/           # Tipos y utilitários compartidos
-└── docs/             # Documentación
+├── frontend-main/    # Frontend principal (próximamente)
+├── frontend-admin/   # Panel de administración (próximamente)
+├── shared/          # Tipos y utilitários compartidos
+└── docs/           # Documentación
 ```
 
 ## Siguientes Pasos

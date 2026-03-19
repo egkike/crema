@@ -21,10 +21,19 @@ backend/backend-data/
 # Ignorar utilidades de test que no deben ir al repo
 backend/src/utils/dev/*
 
-# --- FRONTEND (PREVENTIVO) ---
-frontend/.next/
-frontend/out/
-frontend/build/
+# --- FRONTEND MAIN (PREVENTIVO) ---
+frontend-main/.next/
+frontend-main/out/
+frontend-main/build/
+
+# --- FRONTEND ADMIN (PREVENTIVO) ---
+frontend-admin/.next/
+frontend-admin/out/
+frontend-admin/build/
+
+# --- SHARED (PREVENTIVO) ---
+shared/dist/
+shared/build/
 
 # --- DATOS Y LOGS ---
 postgres-data/

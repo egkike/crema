@@ -11,7 +11,8 @@ Plataforma all-in-one para creadores y emprendedores.
 | Componente | Estado | Descripción |
 |------------|--------|-------------|
 | **Backend API** | ✅ Completo | API REST con todas las funcionalidades core |
-| **Frontend** | ❌ Pendiente | Interfaz en desarrollo |
+| **Frontend Main** | ❌ Pendiente | Interfaz principal |
+| **Frontend Admin** | ❌ Pendiente | Panel de administración |
 | **Documentación** | 🔄 En Progreso | Documentación en desarrollo |
 
 ---
@@ -80,16 +81,16 @@ Plataforma all-in-one para creadores y emprendedores.
 crema/
 ├── backend/              # API REST (Node.js + TypeScript)
 │   ├── src/
-│   │   ├── controllers/ # Controladores
+│   │   ├── controllers/  # Controladores
 │   │   ├── services/    # Lógica de negocio
 │   │   ├── repositories/# Abstracción de DB
-│   │   ├── middlewares/ # Auth, validation, etc.
 │   │   ├── routes/      # Endpoints
 │   │   └── utils/       # Helpers
 │   └── db/              # Scripts SQL
-├── frontend/            # Interfaz (próximamente)
-├── shared/              # Tipos compartidos
-└── docs/               # Documentación
+├── frontend-main/        # Frontend principal (próximamente)
+├── frontend-admin/       # Panel de administración (próximamente)
+├── shared/               # Tipos y utilerías compartidas
+└── docs/                 # Documentación
 ```
 
 ---
