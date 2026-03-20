@@ -309,14 +309,34 @@ Basado en proyecciones oficiales del REM BCRA:
 
 ### Punto de Equilibrio
 
+**Cálculo de Costos Mensuales (Año 1):**
+
+| Tipo de Costo | Anual | Mensual |
+|--------------|-------|---------|
+| **Infraestructura** | $774,000 | $64,500 |
+| **Fijos (Contabilidad + Dominio)** | $1,905,000 | $158,750 |
+| **Total Costos Mensuales** | **$2,679,000** | **$223,250** |
+
+**Break-even:**
+
 | Concepto | Valor |
 |----------|-------|
-| **Costos Fijos Año 1** | $2,679,000 ARS |
-| **Ingreso Pro/mes** | 30 × $30,000 = $900,000 ARS |
-| **Usuarios Pro para break-even** | **3 usuarios** |
-| **Tiempo para break-even** | **Mes 1** |
+| **Ingreso por usuario Pro** | $30,000 ARS/mes |
+| **Usuarios Pro para break-even** | **8 usuarios** ( $223,250 ÷ $30,000 ) |
+| **Tiempo para break-even** | **Mes 1** (si hay 8+ Pro activos) |
 
-> **Con solo 3 usuarios Pro, los costos están cubiertos. Toda transacción adicional es ganancia pura.**
+> **Con 8 usuarios Pro, los costos operativos están cubiertos. Con 30 usuarios Pro (meta Año 1), hay un margen de ~$676,750/mes de ganancia antes de comisiones por transacciones.**
+
+### Análisis Adicional: Break-even Solo con Suscripciones
+
+Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con usuarios):
+
+| Concepto | Valor |
+|----------|-------|
+| **Costos fijos mensuales** | $158,750 ARS/mes |
+| **Break-even (solo fijos)** | **6 usuarios Pro** |
+
+> **Nota**: La infraestructura escala con usuarios Pro, por lo que los costos reales de break-even son 8 usuarios. Las comisiones por transacciones (8-10% de ventas) son ingreso adicional puro desde el primer usuario.
 
 ### Utilidad Neta Ajustada por Inflación (LEC 14%)
 
@@ -441,7 +461,7 @@ Basado en proyecciones oficiales del REM BCRA:
 
 | Variable | Valor | Importancia |
 |----------|-------|-------------|
-| **Break-even** | 3 usuarios Pro | 🔑 Muy bajo riesgo |
+| **Break-even** | 8 usuarios Pro | 🔑 Muy bajo riesgo |
 | **Margen por usuario Pro** | ~$28,000 ARS/mes (93%) | 🔑 Alta rentabilidad |
 | **Inflación promedio (5 años)** | ~12%/año | ✅ Tendencia decreciente |
 | **Inflación 2026** | 26.1% | Fuente: REM BCRA |
@@ -466,7 +486,7 @@ Basado en proyecciones oficiales del REM BCRA:
 2. **Comisiones escalan con inflación**: Al ser %, se ajustan automáticamente
 3. **Costos fijos decrecientes**: Inflación proyectada en baja (26%→5%)
 4. **LEC reduce impuestos**: 14% vs 35% = ~60% ahorro en Ganancias
-5. **Break-even inmediato**: Solo 3 Pro users cubren todos los costos
+5. **Break-even rápido**: Solo 8 Pro users cubren todos los costos operativos
 
 ### Inversión Inicial Requerida
 
@@ -484,7 +504,8 @@ Basado en proyecciones oficiales del REM BCRA:
 | Aumento costos Mux | Baja | Medio | Alternativa Cloudflare 4x más barato |
 | Regulación crypto | Baja | Alto | USDT opcional, ARS principal |
 | Devaluación >proyección | Media | Medio | Revenue en ARS, costos fijos en USD |
-| Inflación >26%持久 | Baja | Medio | Ajustar precios suscripción anualmente |
+| Inflación >26% sostenida | Baja | Medio | Ajustar precios suscripción anualmente |
+| No alcanzar 8 Pro users | Media | Alto | Marketing,试用期gratuito, features Pro
 
 ---
 
