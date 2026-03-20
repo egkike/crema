@@ -43,7 +43,7 @@ master (production-ready)
 
 ### Conventional Commits
 
-Usamos el formato de commits convencionales:
+Usamos el formato de commits convencionales para integración con Release-Please:
 
 ```
 <tipo>(<alcance>): <descripción>
@@ -53,29 +53,45 @@ Usamos el formato de commits convencionales:
 [footer]
 ```
 
-### Tipos
+### Tipos (Monorepo)
 
-| Tipo | Descripción |
-|------|-------------|
-| `feat` | Nueva funcionalidad |
-| `fix` | Bug fix |
-| `docs` | Documentación |
-| `style` | Formateo (sin cambio de lógica) |
-| `refactor` | Refactorización |
-| `test` | Tests |
-| `chore` | Mantenimiento general |
+| Tipo | Descripción | Version Bump |
+|------|-------------|--------------|
+| `feat` | Nueva funcionalidad | **Minor** |
+| `fix` | Bug fix | **Patch** |
+| `perf` | Mejora de performance | **Patch** |
+| `feat!` | Breaking change | **Major** |
+| `docs` | Documentación | No release |
+| `style` | Formateo | No release |
+| `refactor` | Refactorización | No release |
+| `test` | Tests | No release |
+| `chore` | Mantenimiento | No release |
+
+### Alcances por Paquete
+
+| Paquete | Scope | Ejemplo |
+|---------|-------|---------|
+| Backend | `backend` | `feat(backend): agregar login con Google` |
+| Frontend Main | `frontend-main` | `fix(frontend-main): corregir botón de logout` |
+| Frontend Admin | `frontend-admin` | `feat(frontend-admin): agregar dashboard` |
 
 ### Ejemplos
 
 ```bash
-# Feature
-git commit -m "feat(auth): agregar login con Google"
+# Backend - Nueva funcionalidad
+git commit -m "feat(backend): agregar endpoint de métricas"
 
-# Bugfix
-git commit -m "fix(payments): corregir error en webhook de MP"
+# Backend - Bugfix  
+git commit -m "fix(backend): corregir validación de webhook de MP"
 
-# Docs
-git commit -m "docs: actualizar README con nuevas instrucciones"
+# Frontend Main - Feature
+git commit -m "feat(frontend-main): agregar página de checkout"
+
+# Frontend Admin - Fix
+git commit -m "fix(frontend-admin): corregir tabla de payouts"
+
+# Breaking change
+git commit -m "feat(backend)!: cambiar formato de JWT"
 ```
 
 ### Reglas
@@ -200,31 +216,84 @@ pnpm build
 
 ---
 
-## Estructura de Commits en este Proyecto
+## Deploy (Producción)
 
-### Formato por Paquete
+El deploy se realiza automáticamente a través de Railway cuando se hace merge a `main`.
 
-Agregar prefijo del paquete afectado:
+### Plataforma
+
+- **Hosting**: Railway (PaaS)
+- **Database**: PostgreSQL (managed)
+- **Cache**: Redis (managed)
+- **Deploy**: Automático desde GitHub
+
+### Configuración
+
+Ver [Estrategia de Deploy](./deploy-strategy.md) para más detalles.
+
+### Environments
+
+| Environment | Branch | URL |
+|-------------|--------|-----|
+| Producción | `main` | api.tu-dominio.com |
+| Staging | `develop` (futuro) | staging.tu-dominio.com |
+
+---
+
+## Versionado y Releases
+
+### Sistema de Versionado
+
+El proyecto usa [SemVer](https://semver.org/):
 
 ```
-[<paquete>] <tipo>: descripción
+MAJOR.MINOR.PATCH
+1.0.0
+ ↑  ↑  ↑
+ │  │  └── Patch: bug fixes
+ │  └────── Minor: nuevas funcionalidades
+ └───────── Major: breaking changes
 ```
 
-Ejemplos:
+### Release Automático (Release-Please)
+
+El proyecto usa [Release-Please](https://github.com/googleapis/release-please) para automatizar releases:
+
+- Se ejecuta en cada push a `master`
+- Genera `CHANGELOG.md` automáticamente
+- Crea GitHub Releases
+- Bump de versión según conventional commits
+
+### Workflow de Release
+
 ```
-[api-auth] feat: agregar login con 2FA
-[payments] fix: corregir webhook de MP
-[lms] refactor: mejorar query de progreso
-[backend] docs: actualizar README
+Push a master
+    │
+    ▼
+Release-Please detecta commits
+    │
+    ├── feat: → minor bump
+    ├── fix: → patch bump
+    └── feat!: → major bump
+    │
+    ▼
+Genera CHANGELOG.md + GitHub Release
 ```
 
-### Paquetes del Monorepo
+### Archivos de Configuración
 
-| Paquete | Descripción |
-|---------|-------------|
-| `backend` | API REST |
-| `frontend-main` | Frontend principal (próximamente) |
-| `frontend-admin` | Panel de administración (próximamente) |
+| Archivo | Propósito |
+|---------|-----------|
+| `.release-please-config.json` | Config de paquetes y behavior |
+| `.release-please-manifest.json` | Versiones actuales de cada paquete |
+
+### Paquetes Versionados
+
+| Paquete | Nombre npm | Versión Inicial |
+|---------|------------|-----------------|
+| `backend` | `crema-backend` | 1.0.0 |
+| `frontend-main` | `crema-app-public` | 0.1.0 |
+| `frontend-admin` | `crema-admin-panel` | 0.1.0 |
 
 ---
 

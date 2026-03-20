@@ -80,6 +80,7 @@ crema/
 - [Setup Local](./development/setup.md) - Configura tu entorno de desarrollo
 - [Arquitectura](./architecture/overview.md) - Aprende sobre la arquitectura del sistema
 - [API](./api/index.md) - Explora los endpoints disponibles
+- [Estrategia de Deploy](./development/deploy-strategy.md) - Plan de deploy en Railway (para cuando el proyecto esté completo)
 
 ---
 
