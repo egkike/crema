@@ -162,7 +162,7 @@ BEGIN
         "custom_fee_percent": 0.10
     }') RETURNING id INTO plan_free_id;
 
-    -- Plan Pro: 10 GB de storage y todos los beneficios.
+    -- Plan Pro: 25 GB de storage y todos los beneficios.
     INSERT INTO platform_plans (name, level_required, is_free, features)
     VALUES ('Creador Pro', 3, false, '{
         "max_products": 100, 

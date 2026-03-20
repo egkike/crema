@@ -92,13 +92,17 @@
 
 ### Recursos Técnicos Estimados
 
-| Recurso | Año 1 | Año 2 | Año 3 |
-|---------|-------|-------|-------|
+**Nota importante**: El Plan Pro incluye 25 GB de storage POR CREADOR. El storage total escala con la cantidad de usuarios Pro activos.
+
+| Recurso | Año 1 (30 Pro) | Año 2 (150 Pro) | Año 3 (450 Pro) |
+|---------|----------------|-----------------|-----------------|
 | **RAM** | 1-2 GB | 2-4 GB | 4-8 GB |
 | **CPU** | 1 vCPU | 2 vCPU | 2-4 vCPU |
-| **Storage (Archivos)** | 25 GB | 50 GB | 100 GB |
+| **Storage (Archivos)** | ~375 GB | ~1,875 GB | ~5,625 GB |
 | **PostgreSQL** | 5-10 GB | 20-40 GB | 50-100 GB |
 | **Redis** | 0.5 GB | 1 GB | 2 GB |
+
+**Asunción**: ~50% de uso promedio del storage (12.5 GB/usuario). Con 100% de uso, multiplicar por 2.
 
 ### Latencia desde Mendoza
 
@@ -115,35 +119,50 @@ Mendoza → Europa: ~200-250ms
 
 ## Costos Estimados
 
-### Railway: Desglose por Servicio
+**⚠️ Actualización Crítica**: El storage escala con usuarios Pro. Railway NFS cobra ~$0.15/GB/mes. Considerar alternativa S3/Backblaze para archivos de usuarios (~$0.006/GB/mes).
+
+### Railway: Desglose por Servicio (compute + managed services)
 
 | Servicio | Año 1 | Año 2 | Año 3 |
 |----------|--------|--------|--------|
 | **Web Service (API)** | $5-8/mes | $15-20/mes | $30-40/mes |
 | **PostgreSQL** | $5-8/mes | $15-20/mes | $30-40/mes |
 | **Redis** | $3-5/mes | $5-8/mes | $10-15/mes |
-| **Storage (NFS)** | $2-5/mes | $10-15/mes | $20-30/mes |
+| **Storage NFS (Railway)** | $0-5/mes | $0-5/mes | $0-5/mes |
 | **Egress (Bandwidth)** | $2-5/mes | $5-10/mes | $10-20/mes |
-| **Total/mes** | **$17-31** | **$50-73** | **$100-145** |
+| **Total/mes Compute** | **$15-26** | **$40-53** | **$80-105** |
 
-### Resumen de Costos 3 Años
+### Storage Externo (S3/Backblaze B2) - Recomendado
 
-| Período | Costo/mes | Costo/año |
-|---------|-----------|-----------|
-| **Año 1** | $17-31 USD | ~$300-400 USD |
-| **Año 2** | $50-73 USD | ~$700-900 USD |
-| **Año 3** | $100-145 USD | ~$1,400-1,800 USD |
-| **Total 3 años** | - | **~$2,400-3,100 USD** |
+| Servicio | Año 1 (~375 GB) | Año 2 (~1,875 GB) | Año 3 (~5,625 GB) |
+|----------|-----------------|-------------------|-------------------|
+| **Backblaze B2** | ~$2-3/mes | ~$11-12/mes | ~$34/mes |
+| **o S3 Standard** | ~$9/mes | ~$45/mes | ~$135/mes |
+
+### Resumen de Costos 3 Años (Backblaze B2 recomendado)
+
+| Período | Costo Compute/mes | Costo Storage/mes | Total/mes |
+|---------|-------------------|-------------------|-----------|
+| **Año 1** | $15-26 | $2-3 | **$17-29** |
+| **Año 2** | $40-53 | $11-12 | **$51-65** |
+| **Año 3** | $80-105 | $34 | **$114-139** |
+
+| Período | Costo/año |
+|---------|-----------|
+| **Año 1** | ~$300-350 USD |
+| **Año 2** | ~$700-800 USD |
+| **Año 3** | ~$1,500-1,700 USD |
+| **Total 3 años** | **~$2,500-2,850 USD** |
 
 ### Relación Costo vs Ingresos
 
 | Año | Costo Hosting/mes | Ingresos Pro/mes | % Hosting |
 |-----|-------------------|-------------------|-----------|
-| **Año 1** | $17-31 | $600 | 3-5% |
-| **Año 2** | $50-73 | $3.000 | 1.7-2.4% |
-| **Año 3** | $100-145 | $9.000 | 1.1-1.6% |
+| **Año 1** | $17-29 | $600 | 3-5% |
+| **Año 2** | $51-65 | $3.000 | 1.7-2.2% |
+| **Año 3** | $114-139 | $9.000 | 1.3-1.5% |
 
-**Conclusión**: El hosting representa entre 1-5% de los ingresos según el año. Railway es altamente rentable.
+**Conclusión**: El hosting representa entre 1-5% de los ingresos según el año. Usando Backblaze B2 para storage, Railway sigue siendo altamente rentable.
 
 ---
 
