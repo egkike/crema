@@ -505,7 +505,7 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 | Regulación crypto | Baja | Alto | USDT opcional, ARS principal |
 | Devaluación >proyección | Media | Medio | Revenue en ARS, costos fijos en USD |
 | Inflación >26% sostenida | Baja | Medio | Ajustar precios suscripción anualmente |
-| No alcanzar 8 Pro users | Media | Alto | Marketing,试用期gratuito, features Pro
+| No alcanzar 8 Pro users | Media | Alto | Marketing, promosiones, features Pro
 
 ---
 
