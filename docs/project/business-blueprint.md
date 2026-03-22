@@ -196,44 +196,53 @@ netProfitCrema = platformFee - gatewayFee (en base imponible)
 
 | Ítem | Mensual Base | Anual Base 2026 | Inflación Proyectada |
 |------|--------------|-----------------|---------------------|
-| **Dominio (.com.ar)** | - | $15,000 | 26.1% (2026) → 5% (2030) |
-| **Contabilidad (Mendoza)** | $120,000 | $1,440,000 | 26.1% (2026) → 5% (2030) |
-| **Gastos apertura** | - | $450,000 | (una vez) |
+| **Dominio (.com.ar)** | ~$1,250 | $15,000 | 26.1% (2026) → 5% (2030) |
+| **Contabilidad (Mendoza)** | $150,000-200,000 | $1,800,000-2,400,000 | 26.1% (2026) → 5% (2030) |
+| **Gastos apertura** | - | $263,000-563,000 | (una vez) |
+
+> **📋 Detalle de costos de apertura (investigación Marzo 2026):**
+> - Tasa inscripción SAS (RNP Mendoza): ~$46,220 ARS
+> - Reserva denominación: ~$2,000 ARS
+> - Publicación edictos: ~$15,000 ARS
+> - Honorarios contador constitución: $200,000-500,000 ARS (según complejidad)
+> - Sellos: **EXENTO** según Ley 9.271 Mendoza (actividad de software)
+> 
+> **📊 Fuentes:** Aranceles RNP Mendoza 2026, CPCE Mendoza (Res. 2245), Honorarios sugeridos 2026
 
 ### Proyección Costos Fijos con Inflación (ARS)
 
-Basado en proyecciones oficiales del REM BCRA:
+Basado en proyecciones oficiales del REM BCRA (con valores corregidos de contabilidad):
 
 | Ítem | Año 1 (26.1%) | Año 2 (12.7%) | Año 3 (9.5%) | Año 4 (~7%) | Año 5 (~5%) |
 |------|---------------|----------------|---------------|-------------|-------------|
 | **Dominio** | $15K | $17K | $18K | $20K | $21K |
-| **Contabilidad** | $1.44M | $1.62M | $1.78M | $1.90M | $2.00M |
-| **Apertura** | $450K | - | - | - | - |
-| **Total Fijos** | **$1.91M** | **$1.64M** | **$1.80M** | **$1.92M** | **$2.02M** | |
+| **Contabilidad** | $1.80M-2.40M | $2.03M-2.70M | $2.22M-2.96M | $2.38M-3.17M | $2.50M-3.33M |
+| **Apertura** | $263K-563K | - | - | - | - |
+| **Total Fijos** | **$2.08M-2.98M** | **$2.05M-2.72M** | **$2.24M-2.98M** | **$2.40M-3.19M** | **$2.52M-3.35M** |
 
 ### Costos Totales en ARS (Infraestructura + Fijos)
 
 | Período | Infra (USD→ARS) | Fijos Inflados | Total ARS | Total USD |
 |---------|-----------------|----------------|-----------|-----------|
-| **Año 1** | $774K | $1,905K | **$2,679K** | $1,786 |
-| **Año 2** | $2,765K | $1,640K | **$4,405K** | $2,447 |
-| **Año 3** | $8,342K | $1,800K | **$10,142K** | $4,610 |
-| **Año 4** | $20,342K | $1,920K | **$22,262K** | $8,562 |
-| **Año 5** | $46,260K | $2,020K | **$48,280K** | $16,093 |
+| **Año 1** | $774K | $2,08M-2,98M | **$2,854K-3,754K** | $1,903-2,503 |
+| **Año 2** | $2,765K | $2,05M-2,72M | **$4,815K-5,485K** | $2,534-2,887 |
+| **Año 3** | $8,342K | $2,24M-2,98M | **$10,582K-11,322K** | $5,039-5,391 |
+| **Año 4** | $20,342K | $2,40M-3,19M | **$22,742K-23,532K** | $8,747-9,052 |
+| **Año 5** | $46,260K | $2,52M-3,35M | **$48,780K-49,610K** | $20,325-20,671 |
 
 > **Nota**: Los costos USD se mantienen constantes. El tipo de cambio afecta la conversión ARS→USD pero no los costos reales en dólares.
 
 ### Conclusión Financiera: Costos
 
-| Métrica | Valor |
-|---------|-------|
-| **Costo por usuario Pro (Año 1)** | $2,150 ARS/mes ($43 ÷ 30) |
-| **Costo por usuario Pro (Año 5)** | $1,928 ARS/mes ($3,855K ÷ 2,000) |
-| **% Infra/Ingresos (Año 1)** | 3.7% (sobre suscripciones) |
-| **% Infra/Ingresos (Año 5)** | 8.6% (sobre suscripciones) |
-| **Inflación promedio (5 años)** | ~12% (vs 29% estimado) |
-| **Reducción costos fijos 5 años** | ~94% menos que sin desinflación |
-| **Escalabilidad** | ✅ Costs scale slower than revenue |
+| Métrica | Valor (mínimo) | Valor (máximo) |
+|---------|----------------|----------------|
+| **Costo por usuario Pro (Año 1)** | $1,900 ARS/mes | $2,500 ARS/mes |
+| **Costo por usuario Pro (Año 5)** | $1,828 ARS/mes | $1,855 ARS/mes |
+| **% Infra/Ingresos (Año 1)** | 3.2-4.2% | (sobre suscripciones) |
+| **% Infra/Ingresos (Año 5)** | 8.1-8.3% | (sobre suscripciones) |
+| **Inflación promedio (5 años)** | ~12% (vs 29% estimado) | - |
+| **Reducción costos fijos 5 años** | ~94% menos que sin desinflación | - |
+| **Escalabilidad** | ✅ Costs scale slower than revenue | - |
 
 ---
 
@@ -314,53 +323,54 @@ Basado en proyecciones oficiales del REM BCRA:
 | Tipo de Costo | Anual | Mensual |
 |--------------|-------|---------|
 | **Infraestructura** | $774,000 | $64,500 |
-| **Fijos (Contabilidad + Dominio)** | $1,905,000 | $158,750 |
-| **Total Costos Mensuales** | **$2,679,000** | **$223,250** |
+| **Fijos (Contabilidad + Dominio)** | $1,800,000-2,400,000 | $150,000-200,000 |
+| **Total Costos Mensuales** | **$2,574,000-3,174,000** | **$214,500-264,500** |
 
 **Break-even:**
 
-| Concepto | Valor |
-|----------|-------|
-| **Ingreso por usuario Pro** | $30,000 ARS/mes |
-| **Usuarios Pro para break-even** | **8 usuarios** ( $223,250 ÷ $30,000 ) |
-| **Tiempo para break-even** | **Mes 1** (si hay 8+ Pro activos) |
+| Concepto | Valor (mínimo) | Valor (máximo) |
+|----------|----------------|----------------|
+| **Ingreso por usuario Pro** | $30,000 ARS/mes | $30,000 ARS/mes |
+| **Usuarios Pro para break-even** | **8 usuarios** ($214,500 ÷ $30,000) | **9 usuarios** ($264,500 ÷ $30,000) |
+| **Tiempo para break-even** | **Mes 1** (si hay 8-9+ Pro activos) | - |
 
-> **Con 8 usuarios Pro, los costos operativos están cubiertos. Con 30 usuarios Pro (meta Año 1), hay un margen de ~$676,750/mes de ganancia antes de comisiones por transacciones.**
+> **Con 8-9 usuarios Pro, los costos operativos están cubiertos. Con 30 usuarios Pro (meta Año 1), hay un margen de ~$635,500-745,500/mes de ganancia antes de comisiones por transacciones.**
 
 ### Análisis Adicional: Break-even Solo con Suscripciones
 
 Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con usuarios):
 
-| Concepto | Valor |
-|----------|-------|
-| **Costos fijos mensuales** | $158,750 ARS/mes |
-| **Break-even (solo fijos)** | **6 usuarios Pro** |
+| Concepto | Valor (mínimo) | Valor (máximo) |
+|----------|----------------|----------------|
+| **Costos fijos mensuales** | $151,250 ARS/mes | $201,250 ARS/mes |
+| **Break-even (solo fijos)** | **6 usuarios Pro** | **7 usuarios Pro** |
 
-> **Nota**: La infraestructura escala con usuarios Pro, por lo que los costos reales de break-even son 8 usuarios. Las comisiones por transacciones (8-10% de ventas) son ingreso adicional puro desde el primer usuario.
+> **Nota**: La infraestructura escala con usuarios Pro, por lo que los costos reales de break-even son 8-9 usuarios. Las comisiones por transacciones (8-10% de ventas) son ingreso adicional puro desde el primer usuario.
 
 ### Utilidad Neta Ajustada por Inflación (LEC 14%)
 
 > **Inflación proyectada**: Basada en REM BCRA Feb 2026 (26.1% 2026, 12.7% 2027, 9.5% 2028, ~7% 2029, ~5% 2030)
+> **Nota**: Costos totales incluyen contabilidad corregida ($150,000-200,000/mes)
 
 **Escenario A ($45k ticket):**
 
 | Año | GMV (ARS) | GMV (USD) | Margen (9.6%) | Suscrip. | Costos Totales | Utilidad Neta (ARS) | Utilidad Neta (USD) | % Rentabilidad |
 |------|-----------|-----------|----------------|----------|----------------|--------------------|--------------------|----------------|
-| 1 | $108M | $72K | $10.37M | $10.8M | $2.68M | **$16.4M** | $10.9K | **74%** |
-| 2 | $540M | $284K | $51.8M | $54M | $4.41M | **$87.4M** | $46K | **83%** |
-| 3 | $1.62B | $771K | $155.5M | $162M | $10.14M | **$265.1M** | $126K | **84%** |
-| 4 | $3.6B | $1.6M | $345.6M | $360M | $22.26M | **$591M** | $263K | **84%** |
-| 5 | $7.2B | $3M | $691.2M | $720M | $48.28M | **$1,160M** | $483K | **82%** |
+| 1 | $108M | $72K | $10.37M | $10.8M | $2.85-3.75M | **$15.3-17.3M** | $10.2-11.5K | **70-74%** |
+| 2 | $540M | $284K | $51.8M | $54M | $4.82-5.49M | **$86.0-87.0M** | $45.3-45.8K | **81-82%** |
+| 3 | $1.62B | $771K | $155.5M | $162M | $10.58-11.32M | **$264-266M** | $126-127K | **83-84%** |
+| 4 | $3.6B | $1.6M | $345.6M | $360M | $22.74-23.53M | **$590-591M** | $262-263K | **84%** |
+| 5 | $7.2B | $3M | $691.2M | $720M | $48.78-49.61M | **$1,159-1,160M** | $483-483K | **82-83%** |
 
 **Escenario B ($22.5k ticket):**
 
 | Año | GMV (ARS) | GMV (USD) | Margen (9.6%) | Suscrip. | Costos Totales | Utilidad Neta (ARS) | Utilidad Neta (USD) | % Rentabilidad |
 |------|-----------|-----------|----------------|----------|----------------|--------------------|--------------------|----------------|
-| 1 | $54M | $36K | $5.2M | $10.8M | $2.68M | **$12.2M** | $8.1K | **76%** |
-| 2 | $270M | $142K | $25.9M | $54M | $4.41M | **$65.8M** | $34.6K | **82%** |
-| 3 | $810M | $386K | $77.8M | $162M | $10.14M | **$198.2M** | $94K | **82%** |
-| 4 | $1.8B | $800K | $172.8M | $360M | $22.26M | **$441M** | $196K | **83%** |
-| 5 | $3.6B | $1.5M | $345.6M | $720M | $48.28M | **$895M** | $373K | **84%** |
+| 1 | $54M | $36K | $5.2M | $10.8M | $2.85-3.75M | **$11.1-13.1M** | $7.4-8.7K | **72-76%** |
+| 2 | $270M | $142K | $25.9M | $54M | $4.82-5.49M | **$64.4-65.4M** | $33.9-34.4K | **81-82%** |
+| 3 | $810M | $386K | $77.8M | $162M | $10.58-11.32M | **$197-198M** | $94-94K | **82-83%** |
+| 4 | $1.8B | $800K | $172.8M | $360M | $22.74-23.53M | **$440-441M** | $195-196K | **83%** |
+| 5 | $3.6B | $1.5M | $345.6M | $720M | $48.78-49.61M | **$894-895M** | $373-373K | **83-84%** |
 
 ### Comparativa de Escenarios
 
@@ -441,7 +451,7 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 | **Churn Pro** | Lost Pro / Total | <5% | <3% | <2% |
 | **LTV** | MRR × 1/Churn | $216K | $540K | $1.8M |
 | **CAC** | Mktg / Nuevos | $0 | $0 | $0 |
-| **Burn Rate** | Costos mensuales | $223K/mes | $900K/mes | $4.15M/mes |
+| **Burn Rate** | Costos mensuales | $215-265K/mes | $882-944K/mes | $4.07-4.13M/mes |
 | **Runway** | Caja / Burn | N/A | N/A | N/A |
 
 ### Conclusión: KPIs
@@ -449,7 +459,7 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 | Métrica | Año 1 | Año 3 | Año 5 |
 |---------|-------|-------|-------|
 | **MRR Growth** | Base | 15x | 67x |
-| **Margen Operativo** | 74% | 83% | 82% |
+| **Margen Operativo** | 70-76% | 82-83% | 82-83% |
 | **LTV:CAC Ratio** | ∞ | ∞ | ∞ |
 | **Escalabilidad** | ✅ | ✅ | ✅ |
 
@@ -461,12 +471,13 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 
 | Variable | Valor | Importancia |
 |----------|-------|-------------|
-| **Break-even** | 8 usuarios Pro | 🔑 Muy bajo riesgo |
+| **Break-even** | 8-9 usuarios Pro | 🔑 Muy bajo riesgo |
 | **Margen por usuario Pro** | ~$28,000 ARS/mes (93%) | 🔑 Alta rentabilidad |
 | **Inflación promedio (5 años)** | ~12%/año | ✅ Tendencia decreciente |
 | **Inflación 2026** | 26.1% | Fuente: REM BCRA |
 | **Inflación objetivo 2030** | ~5% | Extrapolación REM |
 | **Costo MP** | 1.49% + IVA | ✅ Bajo con 30 días |
+| **Costo contabilidad** | $150,000-200,000/mes | Verificado 2026 Mendoza |
 
 ### Métricas Financieras Finales (5 años)
 
@@ -474,10 +485,10 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 |---------|-------------------|----------------------|
 | **GMV Acumulado** | $13.07B ARS | $6.53B ARS |
 | **GMV Acumulado (USD)** | $5.73M USD | $2.89M USD |
-| **Utilidad Neta 5 años** | $2,120M ARS | $1,612M ARS |
-| **Utilidad Neta 5 años (USD)** | $1,039K USD | $706K USD |
-| **ROI vs costos totales** | ~3,100% | ~2,400% |
-| **Rentabilidad promedio** | 81% | 81% |
+| **Utilidad Neta 5 años** | $2,118-2,120M ARS | $1,606-1,612M ARS |
+| **Utilidad Neta 5 años (USD)** | $1,030-1,039K USD | $699-706K USD |
+| **ROI vs costos totales** | ~2,900-3,100% | ~2,200-2,400% |
+| **Rentabilidad promedio** | 80-81% | 80-81% |
 | **Break-even** | Mes 1 | Mes 1 |
 
 ### Drivers de Valor
@@ -492,9 +503,9 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 
 | Ítem | Valor (ARS) | Valor (USD) |
 |------|-------------|-------------|
-| Gastos apertura (SAS, tasas) | $450,000 | $300 |
-| Reserva costs 2 meses | $2,680,000 | $1,787 |
-| **Total** | **$3,130,000** | **~$2,087** |
+| Gastos apertura (SAS, tasas, honorarios) | $263,000-563,000 | $175-375 |
+| Reserva costs 2 meses | $2,574,000-3,174,000 | $1,716-2,116 |
+| **Total** | **$2,837,000-3,737,000** | **~$1,891-2,491** |
 
 ### Riesgos y Mitigaciones
 
@@ -532,6 +543,20 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 | Expectativas de mercado BCRA | Calcular Sueldo | Marzo 2026 |
 | Tipo de cambio 2027: $1,947 | LatinFocus Infobae | Dic 2025 |
 
+### Costos Contables y Legales (Investigación Marzo 2026)
+
+| Concepto | Valor | Fuente |
+|----------|-------|--------|
+| **Tasa inscripción SAS (RNP Mendoza)** | ~$46,220 ARS | Aranceles RNP Mendoza 2026 |
+| **Reserva denominación** | ~$2,000 ARS | Aranceles RNP Mendoza |
+| **Publicación edictos** | ~$15,000 ARS | Boletín Oficial Mendoza |
+| **Honorarios contador constitución** | $200,000-500,000 ARS | CPCE Mendoza (complejidad) |
+| **Sellos SAS software** | **EXENTO** | Ley 9.271 Mendoza |
+| **Contabilidad mensual SAS (media)** | $150,000-200,000 ARS/mes | Estudios Mendoza 2026 |
+| **Valor hora profesional Mendoza** | $25,800-47,900 ARS | CPCE Mendoza Res. 2245 |
+| **Recategorización monotributo Mendoza** | $88,950 (único) | iProfesional Enero 2026 |
+| **Controles mensuales Mendoza** | $26,200-52,300 ARS | iProfesional Enero 2026 |
+
 ### Configuraciones Técnicas
 
 | Config | Archivo | Valor |
@@ -550,4 +575,4 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 
 *Documento preparado para el proyecto Crema - Marzo 2026*
 *Este documento debe ser revisado trimestralmente según la evolución del tipo de cambio e inflación.*
-*Última actualización de fuentes: Marzo 2026 (REM BCRA Feb 2026)*
+*Última actualización: Marzo 2026 - Costos contables verificados investigación propia*
