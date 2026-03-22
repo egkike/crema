@@ -272,6 +272,8 @@ Mendoza → Europa: ~200-250ms
 | **Cloudflare Stream** | Alternativa a Mux | ❌ | ✅ ~$0.005/GB |
 | **SMTP (Resend/SendGrid)** | Email transaccional | ✅ 100/día gratis | ✅ ~$20/mes |
 | **Mercado Pago** | Pasarela de pagos ARS | ✅ ~1.49% + IVA | ✅ ~1.49% + IVA |
+| **OpenAI (GPT-4o-mini)** | AI Features | ❌ | ✅ ~$0.000225/pregunta |
+| **pgvector (PostgreSQL)** | Vector storage para Memory | ✅ | ✅ Incluido en infraestructura |
 
 **Costo de Streaming (solo usuarios Pro)**:
 | Pro Users | Videos/mes | GB/mes | Costo Mux | Costo Cloudflare |
@@ -295,24 +297,24 @@ Mendoza → Europa: ~200-250ms
   - Creador recibe: $30,000 - $3,379.34 - $447 = **$26,173.66 ARS**
 - El `liquidity_delay_days = 30` significa que el dinero queda retenido 30 días antes de disponible para retiro
 
-### Resumen de Costos 5 Años (Backblaze B2 + Mux)
+### Resumen de Costos 5 Años (Backblaze B2 + Mux + AI)
 
-| Período | Compute | Storage | Streaming (Mux) | SMTP | Total/mes USD |
-|---------|---------|---------|-----------------|------|---------------|
-| **Año 1** (30 Pro) | $15-26 | $2-3 | $15-20 | $0-5 | **$32-54** |
-| **Año 2** (150 Pro) | $40-53 | $11-12 | $50-60 | $10-20 | **$111-145** |
-| **Año 3** (450 Pro) | $80-105 | $34 | $150-200 | $10-20 | **$274-359** |
-| **Año 4** (1,000 Pro) | $150-200 | $75 | $350-450 | $20-30 | **$595-710** |
-| **Año 5** (2,000 Pro) | $250-350 | $150 | $700-900 | $30-40 | **$1,130-1,440** |
+| Período | Compute | Storage | Streaming (Mux) | SMTP | AI (OpenAI) | Total/mes USD |
+|---------|---------|---------|-----------------|------|-------------|---------------|
+| **Año 1** (30 Pro) | $15-26 | $2-3 | $15-20 | $0-5 | ~$0.20 | **$32-54** |
+| **Año 2** (150 Pro) | $40-53 | $11-12 | $50-60 | $10-20 | ~$1.00 | **$112-146** |
+| **Año 3** (450 Pro) | $80-105 | $34 | $150-200 | $10-20 | ~$3.00 | **$277-362** |
+| **Año 4** (1,000 Pro) | $150-200 | $75 | $350-450 | $20-30 | ~$6.75 | **$602-717** |
+| **Año 5** (2,000 Pro) | $250-350 | $150 | $700-900 | $30-40 | ~$13.50 | **$1,144-1,454** |
 
 | Período | Costo/año (USD) |
 |---------|-----------------|
 | **Año 1** | ~$400-650 |
-| **Año 2** | ~$1,300-1,700 |
-| **Año 3** | ~$3,300-4,300 |
-| **Año 4** | ~$7,100-8,500 |
-| **Año 5** | ~$13,600-17,300 |
-| **Total 5 años** | **~$25,700-33,450** |
+| **Año 2** | ~$1,300-1,750 |
+| **Año 3** | ~$3,300-4,350 |
+| **Año 4** | ~$7,200-8,600 |
+| **Año 5** | ~$13,700-17,450 |
+| **Total 5 años** | **~$25,900-33,800** |
 
 ### Relación Costo vs Ingresos (Infraestructura)
 
@@ -426,8 +428,9 @@ Port = 3000
 ```
 Proyecto Crema
 ├── API (Web Service) ──────► puerto 3000
-├── PostgreSQL ──────────────► Variable: DATABASE_URL
-└── Redis ──────────────────► Variable: REDIS_URL
+├── PostgreSQL ──────────────► Variable: DATABASE_URL (incluye pgvector)
+├── Redis ──────────────────► Variable: REDIS_URL
+└── Crema Memory MCP ───────► servicio de contexto AI
 ```
 
 #### 2.4 Configurar Variables
@@ -445,6 +448,11 @@ PASSWORD_PEPPER=<generar>
 FRONTEND_URL=https://tu-dominio.com
 API_BASE_URL=https://api.tu-dominio.com
 MERCADOPAGO_ACCESS_TOKEN=<token-prod>
+
+# OpenAI (AI Features)
+OPENAI_API_KEY=<tu-openai-api-key>
+OPENAI_MODEL=gpt-4o-mini
+CREMA_MEMORY_ENABLED=true
 ```
 
 **PostgreSQL:**
@@ -582,6 +590,9 @@ router.get('/health', (req, res) => {
 | `API_BASE_URL` | URL de la API | `https://api.crema.com` |
 | `MERCADOPAGO_ACCESS_TOKEN` | Token MP producción | `APP_USR-...` |
 | `MERCADOPAGO_WEBHOOK_SECRET` | Webhook secret | `sha256=...` |
+| `OPENAI_API_KEY` | API key OpenAI | `sk-...` |
+| `OPENAI_MODEL` | Modelo a usar | `gpt-4o-mini` |
+| `CREMA_MEMORY_ENABLED` | Habilitar Memory AI | `true` |
 
 ### Scripts Útiles
 

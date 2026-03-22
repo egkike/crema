@@ -246,6 +246,87 @@ Basado en proyecciones oficiales del REM BCRA (con valores corregidos de contabi
 
 ---
 
+## 4.5 Costos de AI
+
+> Basado en [`docs/project/PRD-Crema-Interaccion-Analytics.md`](./PRD-Crema-Interaccion-Analytics.md)
+
+### Features de AI Implementadas
+
+| Feature | Descripción | Costo Base |
+|---------|-------------|------------|
+| **Crema Memory Service** | PostgreSQL + pgvector para contexto conversacional | Infrastructure |
+| **Q&A Agent** | Auto-respuesta con contexto del creador | ~$0.000225/preunta |
+| **Reports Agent** | AI triage para reportes | ~$0.000225/reporte |
+| **Insights AI Agent** | NL → SQL → dashboards | ~$0.000225/consulta |
+| **Tutor AI** | Asistente de cursos | ~$0.000225/pregunta |
+
+### Proveedor de AI
+
+| Proveedor | Modelo | Costo Input | Costo Output |
+|-----------|--------|-------------|--------------|
+| **OpenAI** | GPT-4o-mini | $0.15/1M tokens | $0.60/1M tokens |
+
+### Optimización con Crema Memory
+
+| Escenario | Tokens/Pregunta | Costo/Pregunta | Ahorro |
+|-----------|-----------------|----------------|--------|
+| **Sin Memory** | ~3,100 tokens | ~$0.00186 | - |
+| **Con Memory** | ~500-800 tokens | ~$0.000225 | **~75%** |
+
+> **Nota**: El contexto del creador (productos, cursos, estadísticas) se almacena en pgvector y se retrievea antes de cada consulta, reduciendo drásticamente los tokens de input.
+
+### Costo por Pregunta de AI
+
+| Componente | Tokens | Costo Unitario | Costo |
+|------------|--------|----------------|-------|
+| **Input** | 700 tokens | $0.15/1M | $0.000105 |
+| **Output** | 200 tokens | $0.60/1M | $0.00012 |
+| **Total por pregunta** | 900 tokens | - | **~$0.000225** |
+
+### Modelo de Créditos (Revenue Stream)
+
+| Paquete | Créditos | Precio ARS | Precio USD | Costo OpenAI | Margen |
+|---------|----------|------------|------------|--------------|--------|
+| **Básico** | 500 | $4,000 | $2 | ~$0.11 | ~96% |
+| **Standard** | 2,000 | $14,000 | $7 | ~$0.45 | ~96% |
+| **Pro** | 5,000 | $30,000 | $15 | ~$1.13 | ~93% |
+
+> **Nota**: Los créditos no expiran. 1 crédito = 1 pregunta de AI (promedio).
+
+### Costos de AI Mensuales por Usuario
+
+**Asunción: 30 preguntas/usuario/mes (paquete Standard)**
+
+| Usuarios Pro | Preguntas/mes | Costo AI (USD/mes) |
+|-------------|---------------|-------------------|
+| 30 Pro | 900 | ~$0.20 |
+| 150 Pro | 4,500 | ~$1.00 |
+| 450 Pro | 13,500 | ~$3.00 |
+| 1,000 Pro | 30,000 | ~$6.75 |
+| 2,000 Pro | 60,000 | ~$13.50 |
+
+### Impacto en Costos de Infraestructura
+
+| Año | Pro Users | Costo Infra (USD) | Costo AI (USD) | Total Variable | AI % del Total |
+|-----|-----------|-------------------|----------------|----------------|----------------|
+| 1 | 30 | $32-54 | ~$0.20 | $32-54 | <1% |
+| 2 | 150 | $111-145 | ~$1.00 | $112-146 | <1% |
+| 3 | 450 | $274-359 | ~$3.00 | $277-362 | <1% |
+| 4 | 1,000 | $595-710 | ~$6.75 | $602-717 | <1% |
+| 5 | 2,000 | $1,130-1,440 | ~$13.50 | $1,144-1,454 | <1% |
+
+### Revenue Potencial de AI
+
+| Paquete | Precio USD | Costo AI (Tahun) | Usuarios hipotéticos | Revenue USD | Margen |
+|---------|------------|------------------|----------------------|-------------|--------|
+| Basic | $2 | ~$0.11 | 100 | $200 | ~95% |
+| Standard | $7 | ~$0.45 | 50 | $350 | ~94% |
+| Pro | $15 | ~$1.13 | 20 | $300 | ~92% |
+
+> **Conclusión**: Los costos de AI son despreciables (<1% del total) y generan un margen ~95% sobre la venta de créditos.
+
+---
+
 ## 5. Proyecciones de Crecimiento
 
 ### Premisas
@@ -269,23 +350,23 @@ Basado en proyecciones oficiales del REM BCRA (con valores corregidos de contabi
 
 ### Escenario A: Ticket Promedio $45,000 ARS
 
-| Año | Pro (30%) | GMV Anual (ARS) | Tipo Cambio | GMV Anual (USD) | Ingreso Suscrip. (ARS) | Ingreso Suscrip. (USD) |
-|-----|-----------|------------------|-------------|-----------------|------------------------|------------------------|
-| 1 | 30 | $108,000,000 | $1,500 | $72,000 | $10,800,000 | $7,200 |
-| 2 | 150 | $540,000,000 | $1,900 | $284,211 | $54,000,000 | $28,421 |
-| 3 | 450 | $1,620,000,000 | $2,100 | $771,429 | $162,000,000 | $77,143 |
-| 4 | 1,000 | $3,600,000,000 | $2,250 | $1,600,000 | $360,000,000 | $160,000 |
-| 5 | 2,000 | $7,200,000,000 | $2,400 | $3,000,000 | $720,000,000 | $300,000 |
+| Año | Pro (30%) | GMV Anual (ARS) | Tipo Cambio | GMV Anual (USD) | Ingreso Suscrip. (ARS) | Ingreso Suscrip. (USD) | Ingreso AI (USD) |
+|-----|-----------|------------------|-------------|-----------------|------------------------|------------------------|------------------|
+| 1 | 30 | $108,000,000 | $1,500 | $72,000 | $10,800,000 | $7,200 | ~$200 |
+| 2 | 150 | $540,000,000 | $1,900 | $284,211 | $54,000,000 | $28,421 | ~$1,000 |
+| 3 | 450 | $1,620,000,000 | $2,100 | $771,429 | $162,000,000 | $77,143 | ~$3,000 |
+| 4 | 1,000 | $3,600,000,000 | $2,250 | $1,600,000 | $360,000,000 | $160,000 | ~$6,750 |
+| 5 | 2,000 | $7,200,000,000 | $2,400 | $3,000,000 | $720,000,000 | $300,000 | ~$13,500 |
 
 ### Escenario B: Ticket Promedio $22,500 ARS
 
-| Año | Pro (30%) | GMV Anual (ARS) | Tipo Cambio | GMV Anual (USD) | Ingreso Suscrip. (ARS) | Ingreso Suscrip. (USD) |
-|-----|-----------|------------------|-------------|-----------------|------------------------|------------------------|
-| 1 | 30 | $54,000,000 | $1,500 | $36,000 | $10,800,000 | $7,200 |
-| 2 | 150 | $270,000,000 | $1,900 | $142,105 | $54,000,000 | $28,421 |
-| 3 | 450 | $810,000,000 | $2,100 | $385,714 | $162,000,000 | $77,143 |
-| 4 | 1,000 | $1,800,000,000 | $2,250 | $800,000 | $360,000,000 | $160,000 |
-| 5 | 2,000 | $3,600,000,000 | $2,400 | $1,500,000 | $720,000,000 | $300,000 |
+| Año | Pro (30%) | GMV Anual (ARS) | Tipo Cambio | GMV Anual (USD) | Ingreso Suscrip. (ARS) | Ingreso Suscrip. (USD) | Ingreso AI (USD) |
+|-----|-----------|------------------|-------------|-----------------|------------------------|------------------------|------------------|
+| 1 | 30 | $54,000,000 | $1,500 | $36,000 | $10,800,000 | $7,200 | ~$200 |
+| 2 | 150 | $270,000,000 | $1,900 | $142,105 | $54,000,000 | $28,421 | ~$1,000 |
+| 3 | 450 | $810,000,000 | $2,100 | $385,714 | $162,000,000 | $77,143 | ~$3,000 |
+| 4 | 1,000 | $1,800,000,000 | $2,250 | $800,000 | $360,000,000 | $160,000 | ~$6,750 |
+| 5 | 2,000 | $3,600,000,000 | $2,400 | $1,500,000 | $720,000,000 | $300,000 | ~$13,500 |
 
 ---
 
@@ -323,18 +404,20 @@ Basado en proyecciones oficiales del REM BCRA (con valores corregidos de contabi
 | Tipo de Costo | Anual | Mensual |
 |--------------|-------|---------|
 | **Infraestructura** | $774,000 | $64,500 |
+| **Costos AI** | ~$2,400 | ~$200 |
 | **Fijos (Contabilidad + Dominio)** | $1,800,000-2,400,000 | $150,000-200,000 |
-| **Total Costos Mensuales** | **$2,574,000-3,174,000** | **$214,500-264,500** |
+| **Total Costos Mensuales** | **$2,576,400-3,176,400** | **$214,700-264,700** |
 
 **Break-even:**
 
 | Concepto | Valor (mínimo) | Valor (máximo) |
 |----------|----------------|----------------|
 | **Ingreso por usuario Pro** | $30,000 ARS/mes | $30,000 ARS/mes |
-| **Usuarios Pro para break-even** | **8 usuarios** ($214,500 ÷ $30,000) | **9 usuarios** ($264,500 ÷ $30,000) |
+| **Usuarios Pro para break-even** | **8 usuarios** ($214,700 ÷ $30,000) | **9 usuarios** ($264,700 ÷ $30,000) |
 | **Tiempo para break-even** | **Mes 1** (si hay 8-9+ Pro activos) | - |
 
-> **Con 8-9 usuarios Pro, los costos operativos están cubiertos. Con 30 usuarios Pro (meta Año 1), hay un margen de ~$635,500-745,500/mes de ganancia antes de comisiones por transacciones.**
+> **Con 8-9 usuarios Pro, los costos operativos están cubiertos. Con 30 usuarios Pro (meta Año 1), hay un margen de ~$635,300-745,300/mes de ganancia antes de comisiones por transacciones.**
+> **Nota**: Los costos AI (~$200/mes Año 1) son <1% del total y no afectan el break-even significativamente.
 
 ### Análisis Adicional: Break-even Solo con Suscripciones
 
@@ -452,6 +535,7 @@ Si consideramos **solo costos fijos** (excluyendo infraestructura que escala con
 | **LTV** | MRR × 1/Churn | $216K | $540K | $1.8M |
 | **CAC** | Mktg / Nuevos | $0 | $0 | $0 |
 | **Burn Rate** | Costos mensuales | $215-265K/mes | $882-944K/mes | $4.07-4.13M/mes |
+| **AI Revenue** | Créditos vendidos | ~$200/mes | ~$3,000/mes | ~$13,500/mes |
 | **Runway** | Caja / Burn | N/A | N/A | N/A |
 
 ### Conclusión: KPIs
