@@ -9,6 +9,7 @@
 
 1. [Resumen Ejecutivo](#resumen-ejecutivo)
 2. [Análisis Comparativo](#análisis-comparativo)
+   - [Alternativa: DonWeb Cloud Server](#alternativa-donweb-cloud-server)
 3. [Planes y Comisiones](#planes-y-comisiones)
 4. [Proyecciones de Crecimiento](#proyecciones-de-crecimiento)
 5. [Costos Estimados](#costos-estimados)
@@ -68,6 +69,63 @@
 | **AWS EC2** | Complejidad alta, requiere DevOps |
 | **Fly.io** | Curva Docker más alta |
 | **VPS Propio** | Mantenimiento manual, 0 horas disponibles |
+
+### Alternativa: DonWeb Cloud Server (Argentina)
+
+> **Nota**: DonWeb es una alternativa a considerar para reducir costos a largo plazo o cuando se necesite factura en ARS.
+
+| Aspecto | DonWeb | Railway | Ganador |
+|---------|--------|---------|---------|
+| **Precio base** | ~$2.85 USD/mes | ~$5 USD/mes | 🏆 DonWeb |
+| **Factura ARS** | ✅ Sí | ❌ No | 🏆 DonWeb |
+| **Deploy** | SSH manual | Git push | 🏆 Railway |
+| **DB + Redis** | Self-hosted | Incluido | 🏆 Railway |
+| **Auto-scaling** | ❌ No | ✅ Sí | 🏆 Railway |
+| **Latencia Argentina** | ~1-5ms | ~40-50ms | 🏆 DonWeb |
+| **DX** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 🏆 Railway |
+
+#### Costos Comparados (Año 1: 30 Pro)
+
+| Provider | Costo Infraestructura/mes | Notas |
+|----------|---------------------------|-------|
+| **Railway** | $15-26 USD | Todo incluido, deploy automático |
+| **DonWeb** | ~$10-15 USD | VPS + self-managed DB/Redis |
+| **Híbrido** | ~$10 USD + $3 USD | Railway (API) + DonWeb (storage) |
+
+#### Ventajas DonWeb
+
+- ✅ Factura en pesos argentinos (deducción de impuestos)
+- ✅ Menor latencia para usuarios argentinos (~1-5ms vs ~40-50ms)
+- ✅ Datos en Argentina (privacidad, cumplimiento legal)
+- ✅ Soporte 24/7 en español
+- ✅ Precio más bajo para recursos básicos
+
+#### Desventajas DonWeb
+
+- ❌ Deploy manual (SSH, configuración de servidor)
+- ❌ Self-managed PostgreSQL y Redis
+- ❌ No hay auto-scaling
+- ❌ Más tiempo de setup y mantenimiento
+
+#### Cuándo Migrar a DonWeb
+
+Considerar DonWeb cuando:
+1. El proyecto esté maduro y estabilizado
+2. Se necesite factura en ARS para deducir impuestos
+3. Se quiera minimizar costos a largo plazo
+4. Se tenga capacidad para gestionar infraestructura
+
+#### Alternativa Híbrida Recomendada (óptimo)
+
+| Servicio | Provider | Costo |
+|----------|----------|-------|
+| Backend API | Railway | ~$10-15 USD/mes |
+| Database | Railway PostgreSQL | Incluido |
+| Redis | Railway Redis | Incluido |
+| Storage archivos | DonWeb + Backblaze B2 | ~$3-5 USD/mes |
+| Dominio | DonWeb (.com.ar) | ~$500 ARS/año |
+
+**Costo total**: ~$13-20 USD/mes + dominio ARS
 
 ---
 
