@@ -3,6 +3,9 @@ import { Router, Request, Response } from 'express';
 import { aiCreditService } from '../services/ai/credits.service';
 import { memoryService } from '../services/ai/memory.service';
 import { qaService } from '../services/ai/qa.service';
+import { reviewService } from '../services/ai/review.service';
+import { reportService } from '../services/ai/denunciation.service';
+import { qaAgentService, analyticsService, tutorService, insightsService } from '../services/ai/phases-5-7.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { AppError } from '../errors/AppError';
 import type { UserPayload } from '../types/express';
@@ -494,6 +497,718 @@ router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, async (req: A
     res.json({
       success: true,
       data: { message: 'FAQs reordered successfully' },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+// ============================================
+// Review Routes
+// ============================================
+
+/**
+ * GET /api/ai/products/:productId/reviews
+ * Get reviews for a product (public)
+ */
+router.get('/products/:productId/reviews', async (req: Request, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const includeUnpublished = req.query.include_unpublished === 'true';
+
+    const { reviews, total, avgRating } = await reviewService.getReviews(productId, includeUnpublished, limit, offset);
+
+    res.json({
+      success: true,
+      data: {
+        reviews,
+        total,
+        avg_rating: avgRating,
+        limit,
+        offset,
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/products/:productId/reviews
+ * Create a review (authenticated)
+ */
+router.post('/products/:productId/reviews', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+    const userId = req.user!.id;
+    const { rating, title, content } = req.body;
+
+    if (!rating || !content) {
+      throw new AppError('rating and content are required', 400);
+    }
+
+    if (rating < 1 || rating > 5) {
+      throw new AppError('rating must be between 1 and 5', 400);
+    }
+
+    const result = await reviewService.createReview(productId, userId, rating, content, title);
+
+    res.status(201).json({
+      success: true,
+      data: { review: result },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * PUT /api/ai/reviews/:reviewId
+ * Update a review
+ */
+router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reviewId = toString(req.params.reviewId);
+    const { rating, title, content, is_published } = req.body;
+
+    const result = await reviewService.updateReview(reviewId, {
+      rating,
+      title,
+      content,
+      isPublished: is_published,
+    });
+
+    res.json({
+      success: true,
+      data: { review: result },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * DELETE /api/ai/reviews/:reviewId
+ * Delete a review
+ */
+router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reviewId = toString(req.params.reviewId);
+
+    const deleted = await reviewService.deleteReview(reviewId);
+
+    res.json({
+      success: true,
+      data: { deleted },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/reviews/:reviewId/vote
+ * Vote on a review
+ */
+router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reviewId = toString(req.params.reviewId);
+    const userId = req.user!.id;
+    const { vote_type } = req.body;
+
+    if (!vote_type || !['helpful', 'not_helpful'].includes(vote_type)) {
+      throw new AppError('vote_type must be "helpful" or "not_helpful"', 400);
+    }
+
+    const result = await reviewService.voteReview(reviewId, userId, vote_type);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * DELETE /api/ai/reviews/:reviewId/vote
+ * Remove vote from a review
+ */
+router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reviewId = toString(req.params.reviewId);
+    const userId = req.user!.id;
+
+    const result = await reviewService.removeVote(reviewId, userId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/products/:productId/reviews/settings
+ * Get review settings for a product
+ */
+router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+
+    const settings = await reviewService.getSettings(productId);
+
+    res.json({
+      success: true,
+      data: { settings },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * PUT /api/ai/products/:productId/reviews/settings
+ * Update review settings for a product
+ */
+router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+    const { allow_reviews, require_verified_purchase, auto_publish, min_rating, max_rating } = req.body;
+
+    const result = await reviewService.updateSettings(productId, {
+      allowReviews: allow_reviews,
+      requireVerifiedPurchase: require_verified_purchase,
+      autoPublish: auto_publish,
+      minRating: min_rating,
+      maxRating: max_rating,
+    });
+
+    res.json({
+      success: true,
+      data: { settings: result },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/products/:productId/reviews/distribution
+ * Get rating distribution for a product
+ */
+router.get('/products/:productId/reviews/distribution', async (req: Request, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+
+    const distribution = await reviewService.getRatingDistribution(productId);
+
+    res.json({
+      success: true,
+      data: { distribution },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+// ============================================
+// Report Routes (Denunciations)
+// ============================================
+
+/**
+ * GET /api/ai/reports/reasons?contentType=product
+ * Get available report reasons for a content type
+ */
+router.get('/reports/reasons', async (req: Request, res: Response) => {
+  try {
+    const contentType = req.query.contentType as string;
+
+    if (!contentType) {
+      throw new AppError('contentType query parameter is required', 400);
+    }
+
+    const reasons = await reportService.getReasons(contentType);
+
+    res.json({
+      success: true,
+      data: { reasons },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/reports
+ * Create a new report (authenticated)
+ */
+router.post('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reporterId = req.user!.id;
+    const { content_type, content_id, reason_code, description } = req.body;
+
+    if (!content_type || !content_id || !reason_code) {
+      throw new AppError('content_type, content_id, and reason_code are required', 400);
+    }
+
+    const result = await reportService.createReport(reporterId, content_type, content_id, reason_code, description);
+
+    res.status(201).json({
+      success: true,
+      data: { report: result },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/reports
+ * Get reports (admin)
+ */
+router.get('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const status = req.query.status as string;
+    const contentType = req.query.content_type as string;
+
+    const { reports, total } = await reportService.getReports(
+      { status, contentType },
+      limit,
+      offset
+    );
+
+    res.json({
+      success: true,
+      data: {
+        reports,
+        total,
+        limit,
+        offset,
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/reports/:reportId
+ * Get a single report by ID (admin)
+ */
+router.get('/reports/:reportId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reportId = toString(req.params.reportId);
+
+    const report = await reportService.getReportById(reportId);
+    if (!report) {
+      throw new AppError('Report no encontrado', 404);
+    }
+
+    const actions = await reportService.getActions(reportId);
+
+    res.json({
+      success: true,
+      data: { report, actions },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * PUT /api/ai/reports/:reportId/resolve
+ * Resolve a report (admin)
+ */
+router.put('/reports/:reportId/resolve', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reportId = toString(req.params.reportId);
+    const resolvedBy = req.user!.id;
+    const { status, resolution_notes } = req.body;
+
+    if (!status || !['pending', 'investigating', 'resolved', 'rejected'].includes(status)) {
+      throw new AppError('status is required and must be valid', 400);
+    }
+
+    const result = await reportService.resolveReport(reportId, status, resolvedBy, resolution_notes);
+
+    res.json({
+      success: true,
+      data: { report: result },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/reports/:reportId/actions
+ * Apply action to a report (admin)
+ */
+router.post('/reports/:reportId/actions', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reportId = toString(req.params.reportId);
+    const performedBy = req.user!.id;
+    const { action_type, notes } = req.body;
+
+    if (!action_type) {
+      throw new AppError('action_type is required', 400);
+    }
+
+    const validActions = ['warning', 'suspend', 'ban', 'delete_content', 'hide_content', 'no_action'];
+    if (!validActions.includes(action_type)) {
+      throw new AppError(`action_type must be one of: ${validActions.join(', ')}`, 400);
+    }
+
+    const result = await reportService.applyAction(reportId, action_type, performedBy, notes);
+
+    res.json({
+      success: true,
+      data: { action: result },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/content/policies
+ * Get content policies (public)
+ */
+router.get('/content/policies', async (req: Request, res: Response) => {
+  try {
+    const contentType = req.query.content_type as string | undefined;
+
+    const policies = await reportService.getPolicies(contentType);
+
+    res.json({
+      success: true,
+      data: { policies },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+// ============================================
+// Phase 5: AI Agents Routes
+// ============================================
+
+/**
+ * GET /api/ai/products/:productId/qa-agent/config
+ * Get QA agent config for a product
+ */
+router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+
+    const config = await qaAgentService.getConfig(productId);
+
+    res.json({
+      success: true,
+      data: { config },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * PUT /api/ai/products/:productId/qa-agent/config
+ * Update QA agent config for a product
+ */
+router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+    const { is_enabled, model, system_prompt, temperature, max_tokens, use_memory, use_faqs } = req.body;
+
+    const config = await qaAgentService.updateConfig(productId, {
+      isEnabled: is_enabled,
+      model,
+      systemPrompt: system_prompt,
+      temperature,
+      maxTokens: max_tokens,
+      useMemory: use_memory,
+      useFaqs: use_faqs,
+    });
+
+    res.json({
+      success: true,
+      data: { config },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/agents/qa/chat
+ * Chat with QA agent
+ */
+router.post('/agents/qa/chat', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { product_id, message } = req.body;
+
+    if (!product_id || !message) {
+      throw new AppError('product_id and message are required', 400);
+    }
+
+    const result = await qaAgentService.chat(product_id, userId, message);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/agents/conversations
+ * Get user's conversations
+ */
+router.get('/agents/conversations', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const agentType = req.query.agent_type as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    const conversations = await qaAgentService.getUserConversations(userId, agentType, limit);
+
+    res.json({
+      success: true,
+      data: { conversations },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/agents/conversations/:conversationId
+ * Get a conversation with messages
+ */
+router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const conversationId = toString(req.params.conversationId);
+
+    const result = await qaAgentService.getConversation(conversationId);
+    if (!result) {
+      throw new AppError('Conversación no encontrada', 404);
+    }
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+// ============================================
+// Phase 6: Analytics Dashboard Routes
+// ============================================
+
+/**
+ * GET /api/ai/analytics/dashboard
+ * Get dashboard metrics for creator
+ */
+router.get('/analytics/dashboard', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const startDate = req.query.start_date ? new Date(req.query.start_date as string) : undefined;
+    const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
+
+    const metrics = await analyticsService.getDashboardMetrics(userId, startDate, endDate);
+
+    res.json({
+      success: true,
+      data: metrics,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+// ============================================
+// Phase 7: Advanced AI Routes (Tutor + Insights)
+// ============================================
+
+/**
+ * GET /api/ai/products/:productId/tutor/config
+ * Get tutor config for a product
+ */
+router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+
+    const config = await tutorService.getConfig(productId);
+
+    res.json({
+      success: true,
+      data: { config },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * PUT /api/ai/products/:productId/tutor/config
+ * Update tutor config for a product
+ */
+router.put('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+    const { is_enabled, model, system_prompt, temperature, max_tokens } = req.body;
+
+    await tutorService.updateConfig(productId, {
+      isEnabled: is_enabled,
+      model,
+      systemPrompt: system_prompt,
+      temperature,
+      maxTokens: max_tokens,
+    });
+
+    res.json({
+      success: true,
+      data: { message: 'Tutor config updated' },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/products/:productId/tutor/insights
+ * Get insights for a user/product
+ */
+router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+    const userId = req.user!.id;
+
+    const result = await tutorService.getInsights(userId, productId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * GET /api/ai/insights/dashboards
+ * Get user's insight dashboards
+ */
+router.get('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const result = await insightsService.getDashboards(userId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/insights/dashboards
+ * Create an insight dashboard
+ */
+router.post('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { name, description } = req.body;
+
+    if (!name) {
+      throw new AppError('name is required', 400);
+    }
+
+    const result = await insightsService.createDashboard(userId, name, description);
+
+    res.status(201).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * PUT /api/ai/insights/dashboards/:dashboardId
+ * Update an insight dashboard
+ */
+router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const dashboardId = toString(req.params.dashboardId);
+    const { name, description, config } = req.body;
+
+    await insightsService.updateDashboard(dashboardId, { name, description, config });
+
+    res.json({
+      success: true,
+      data: { message: 'Dashboard updated' },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * DELETE /api/ai/insights/dashboards/:dashboardId
+ * Delete an insight dashboard
+ */
+router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const dashboardId = toString(req.params.dashboardId);
+
+    const deleted = await insightsService.deleteDashboard(dashboardId);
+
+    res.json({
+      success: true,
+      data: { deleted },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/insights/query
+ * Query data with AI
+ */
+router.post('/insights/query', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { query } = req.body;
+
+    if (!query) {
+      throw new AppError('query is required', 400);
+    }
+
+    const result = await insightsService.query(userId, query);
+
+    res.json({
+      success: true,
+      data: result,
     });
   } catch (error: any) {
     throw new AppError(error.message, 500);
