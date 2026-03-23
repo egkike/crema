@@ -11,6 +11,16 @@ export interface SubscriptionData {
   email: string;
 }
 
+export interface CreditPreferenceData {
+  packageId: string;
+  packageName: string;
+  credits: number;
+  amount: number;
+  currency: string;
+  userId: string;
+  email: string;
+}
+
 export interface WebhookResult {
   externalReference: string;
   status: string;
@@ -33,6 +43,9 @@ export interface PaymentProvider {
 
   // Método para suscripciones
   createSubscription?(data: SubscriptionData): Promise<PaymentResponse>;
+
+  // Método para créditos AI
+  createCreditPreference?(data: CreditPreferenceData): Promise<PaymentResponse>;
 
   cancelSubscription?(subscriptionId: string): Promise<void>;
 

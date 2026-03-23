@@ -11,6 +11,8 @@ import { aiLimiter, aiChatLimiter } from '../middlewares/rateLimit/rateLimit';
 import { AppError } from '../errors/AppError';
 import type { UserPayload } from '../types/express';
 import type { EmbeddingSourceType } from '../types/ai.types';
+import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
+import { configRepository } from '../repositories/config.repository';
 
 const router = Router();
 
@@ -69,24 +71,94 @@ router.get('/credits/packages', async (_req: Request, res: Response) => {
 
 /**
  * POST /api/ai/credits/purchase
- * Purchase a credit package
+ * Purchase a credit package - initiates payment flow
  */
 router.post('/credits/purchase', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { packageId } = req.body;
+    const { packageId, currency = 'ARS', gatewayId } = req.body;
 
     if (!packageId) {
       throw new AppError('Package ID is required', 400);
     }
 
-    const result = await aiCreditService.purchasePackage(userId, packageId);
+    // Get package details
+    const pkg = await aiCreditService.getPackageById(packageId);
+    
+    if (!pkg) {
+      throw new AppError('Credit package not found', 404);
+    }
+
+    if (!pkg.is_active) {
+      throw new AppError('This credit package is not available', 400);
+    }
+
+    // Determine price based on currency (supports ARS, USD, USDT, etc.)
+    // Default to ARS price if currency not matched, prefer USDT over USD if available
+    let price: number;
+    if (currency === 'ARS') {
+      price = pkg.price_ars ?? 0;
+    } else if (['USD', 'USDT'].includes(currency)) {
+      price = pkg.price_usd ?? 0;
+    } else {
+      price = pkg.price_ars ?? pkg.price_usd ?? 0;
+    }
+    
+    if (!price || price <= 0) {
+      throw new AppError('Package price not available for this currency', 400);
+    }
+
+    // Get available gateways for this currency and determine which to use
+    const allowedGateways = await configRepository.getGatewaysByCurrency(currency);
+    
+    if (allowedGateways.length === 0) {
+      throw new AppError(`No payment gateways available for currency ${currency}`, 400);
+    }
+
+    // Use provided gatewayId if valid, otherwise use default for currency
+    let selectedGateway: string;
+    if (gatewayId) {
+      if (!allowedGateways.some(g => g.id === gatewayId)) {
+        throw new AppError(`Gateway ${gatewayId} not available for currency ${currency}`, 400);
+      }
+      selectedGateway = gatewayId;
+    } else {
+      // Use default gateway for this currency
+      const defaultGateway = allowedGateways.find(g => g.is_default) || allowedGateways[0];
+      selectedGateway = defaultGateway.id;
+    }
+
+    // Create payment preference
+    const provider = PaymentProviderFactory.getProvider(selectedGateway);
+    
+    const creditData = {
+      packageId: pkg.id,
+      packageName: pkg.name,
+      credits: pkg.credits,
+      amount: price,
+      currency,
+      userId,
+      email: req.user!.email,
+    };
+
+    // Check if provider supports credit preferences
+    if (!('createCreditPreference' in provider) || !provider.createCreditPreference) {
+      throw new AppError('Payment gateway does not support credit purchases', 400);
+    }
+
+    const paymentResponse = await provider.createCreditPreference(creditData);
 
     res.json({
       success: true,
       data: {
-        new_balance: result.newBalance,
-        transaction: result.transaction,
+        init_point: paymentResponse.initPoint,
+        package: {
+          id: pkg.id,
+          name: pkg.name,
+          credits: pkg.credits,
+          price,
+          currency,
+        },
       },
     });
   } catch (error: any) {

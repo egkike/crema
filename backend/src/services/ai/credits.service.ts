@@ -143,6 +143,48 @@ export class AICreditService {
   }
 
   /**
+   * Get package by ID
+   */
+  async getPackageById(packageId: string): Promise<AICreditPackage | null> {
+    return creditsRepository.getPackageById(packageId);
+  }
+
+  /**
+   * Confirm a credit purchase after payment verification
+   * Called from webhook handler when payment is approved
+   */
+  async confirmPurchase(
+    userId: string,
+    packageId: string,
+    transactionId: string
+  ): Promise<{ success: boolean; newBalance: number }> {
+    // Get package details
+    const pkg = await creditsRepository.getPackageById(packageId);
+    
+    if (!pkg) {
+      throw new AppError('Credit package not found', 404);
+    }
+
+    if (!pkg.is_active) {
+      throw new AppError('This credit package is no longer available', 400);
+    }
+
+    // Add credits to user
+    const credit = await this.addCredits(
+      userId,
+      pkg.credits,
+      `Purchase: ${pkg.name} (${pkg.credits} credits) - TX: ${transactionId}`
+    );
+
+    logger.info({ userId, packageId, credits: pkg.credits, transactionId }, 'Credit purchase confirmed');
+
+    return {
+      success: true,
+      newBalance: credit.balance,
+    };
+  }
+
+  /**
    * Get user's credit transactions
    */
   async getTransactions(

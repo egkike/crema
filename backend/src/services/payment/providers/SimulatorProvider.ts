@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-import { PaymentProvider, PaymentResponse, SubscriptionData, WebhookResult } from '../PaymentProvider';
+import { PaymentProvider, PaymentResponse, SubscriptionData, WebhookResult, CreditPreferenceData } from '../PaymentProvider';
 import { config } from '../../../config';
 
 export class SimulatorProvider implements PaymentProvider {
@@ -24,6 +24,15 @@ export class SimulatorProvider implements PaymentProvider {
     // En el simulador simplemente logueamos la acción
     console.info(`[SIMULATOR] Suscripción cancelada exitosamente: ${subscriptionId}`);
     return Promise.resolve();
+  }
+
+  async createCreditPreference(data: CreditPreferenceData): Promise<PaymentResponse> {
+    // Formato: CREDITS:{userId}:{packageId}:{timestamp}
+    const externalReference = `CREDITS:${data.userId}:${data.packageId}:${Date.now()}`;
+    
+    const url = `${config.frontendUrl}/simulator/pay?ref=${encodeURIComponent(externalReference)}&amount=${data.amount}&currency=${data.currency}&credits=${data.credits}`;
+
+    return { initPoint: url };
   }
 
   async refund(transactionId: string, amount: number): Promise<void> {

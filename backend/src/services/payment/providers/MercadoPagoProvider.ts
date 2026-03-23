@@ -8,6 +8,7 @@ import {
   PaymentResponse,
   SubscriptionData,
   WebhookResult,
+  CreditPreferenceData,
 } from '../PaymentProvider';
 import logger from '../../../utils/logger';
 
@@ -93,6 +94,50 @@ export class MercadoPagoProvider implements PaymentProvider {
       initPoint: response.init_point,
       providerReference: response.id,
     };
+  }
+
+  async createCreditPreference(data: CreditPreferenceData): Promise<PaymentResponse> {
+    const preference = new Preference(this.client);
+
+    // Formato: CREDITS:{userId}:{packageId}:{timestamp}
+    const externalReference = `CREDITS:${data.userId}:${data.packageId}:${Date.now()}`;
+
+    const response = await preference.create({
+      body: {
+        items: [
+          {
+            id: `credits-${data.packageId}`,
+            title: data.packageName,
+            description: `${data.credits} Créditos AI`,
+            quantity: 1,
+            unit_price: Number(data.amount),
+            currency_id: data.currency,
+          },
+        ],
+        payer: {
+          email: data.email,
+        },
+        metadata: {
+          userId: data.userId,
+          packageId: data.packageId,
+          credits: data.credits,
+        },
+        back_urls: {
+          success: `${config.frontendUrl}/ai/credits/success`,
+          failure: `${config.frontendUrl}/ai/credits/error`,
+          pending: `${config.frontendUrl}/ai/credits/pending`,
+        },
+        external_reference: externalReference,
+        notification_url: `${config.apiBaseUrl}/api/payments/webhook/mercadopago`,
+        statement_descriptor: 'CREMA CREDITS',
+      },
+    });
+
+    if (!response.init_point) {
+      throw new Error('No se pudo obtener el init_point de Mercado Pago');
+    }
+
+    return { initPoint: response.init_point };
   }
 
   async cancelSubscription(subscriptionId: string): Promise<void> {

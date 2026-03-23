@@ -11,6 +11,7 @@ import { configRepository } from '../repositories/config.repository';
 import { OrderService } from '../services/order.service';
 import { SubscriptionService } from '../services/subscription.service';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
+import { aiCreditService } from '../services/ai/credits.service';
 import logger from '../utils/logger';
 
 export const createPaymentPreference = async (req: Request, res: Response, next: NextFunction) => {
@@ -192,6 +193,18 @@ export const handleProviderWebhook = async (req: Request, res: Response) => {
           );
         } else if (['cancelled', 'expired'].includes(result.status)) {
           await SubscriptionService.cancelSubscription(userId, true);
+        }
+      } else if (result.externalReference.startsWith('CREDITS:')) {
+        // Formato: CREDITS:{userId}:{packageId}:{timestamp}
+        const parts = result.externalReference.split(':');
+        const userId = parts[1];
+        const packageId = parts[2];
+
+        if (result.status === 'approved') {
+          await aiCreditService.confirmPurchase(userId, packageId, result.transactionId);
+          logger.info({ userId, packageId, transactionId: result.transactionId }, 'Credit purchase confirmed via webhook');
+        } else {
+          logger.warn({ userId, packageId, status: result.status }, 'Credit payment not approved');
         }
       } else {
         // Pago de producto único (Ya actualizado)
