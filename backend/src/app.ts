@@ -21,6 +21,7 @@ import payoutRoutes from './routes/payout.routes';
 import adminRoutes from './routes/admin.routes';
 import payoutMethodRoutes from './routes/payout_method.routes';
 import affiliateRoutes from './routes/affiliate.routes';
+import aiRoutes from './routes/ai.routes';
 
 const app = express();
 
@@ -134,6 +135,7 @@ app.use('/api/payouts', payoutRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payout-methods', payoutMethodRoutes);
 app.use('/api/affiliates', affiliateRoutes);
+app.use('/api/ai', aiRoutes);
 
 // --- SWAGGER DOCS ---
 if (config.nodeEnv !== 'production') {

@@ -43,6 +43,7 @@ const envSchema = z.object({
   MUX_SIGNING_KEY: z.string().min(1),
   MAX_GLOBAL_UPLOAD_SIZE_MB: z.coerce.number().default(100),
   FORCE_RELEASE_ON_STARTUP: z.boolean().default(false),
+  OPENAI_API_KEY: z.string().optional().default(''),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -152,6 +153,9 @@ export const config = {
   storage: {
     maxGlobalSizeMb: env.MAX_GLOBAL_UPLOAD_SIZE_MB,
     maxGlobalSizeBytes: Number(process.env.MAX_GLOBAL_SIZE_BYTES) || 100 * 1024 * 1024, // 100MB por defecto
+  },
+  openai: {
+    apiKey: env.OPENAI_API_KEY,
   },
 } as const;
 

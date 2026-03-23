@@ -43,5 +43,23 @@ export type {
   AuthenticatedRequest,
 } from './express';
 
+// AI types
+export type {
+  AICredit,
+  AICreditPackage,
+  AICreditTransaction,
+  EmbeddingSourceType,
+  AIEmbedding,
+  EmbeddingSearchResult,
+  GetCreditBalanceResponse,
+  PurchaseCreditPackageRequest,
+  PurchaseCreditPackageResponse,
+  CreditTransactionListResponse,
+  CreditPackageListResponse,
+  CreateEmbeddingRequest,
+  SemanticSearchRequest,
+  SemanticSearchResponse,
+} from './ai.types';
+
 // Re-export PoolClient type from pg
 export type { PoolClient } from 'pg';
