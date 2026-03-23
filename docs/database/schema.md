@@ -439,3 +439,342 @@ Logs de desarrollo I+D.
 
 - [Políticas de Migraciones](./migrations.md)
 - [Features: Compliance](../../features/compliance.md)
+
+---
+
+## Tablas de AI Features (v1.2 - Marzo 2026)
+
+> ⚠️ Estas tablas fueron implementadas en el backend. Requieren extensión `pgvector` instalada.
+
+### AI Credits System
+
+#### ai_credits
+Créditos prepagos para features de IA.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `user_id` | UUID | No | FK → users.id |
+| `balance` | INT | No | Créditos disponibles |
+| `expires_at` | TIMESTAMP | No | Fecha de expiración |
+| `created_at` | TIMESTAMP | No | |
+| `updated_at` | TIMESTAMP | No | |
+
+#### ai_credit_transactions
+Historial de transacciones de créditos.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `user_id` | UUID | No | FK → users.id |
+| `amount` | INT | No | Cantidad (+ compra, - uso) |
+| `type` | VARCHAR(20) | No | purchase, usage, refund, bonus |
+| `description` | TEXT | Sí | Descripción |
+| `reference_id` | UUID | Sí | Referencia opcional |
+| `created_at` | TIMESTAMP | No | |
+
+#### ai_credit_packages
+Paquetes de créditos disponibles.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `name` | VARCHAR(100) | No | Starter, Professional, Enterprise |
+| `credits` | INT | No | Créditos incluidos |
+| `price_usd` | DECIMAL(18,8) | No | Precio en USD |
+| `price_ars` | DECIMAL(18,8) | Sí | Precio en ARS |
+| `is_active` | BOOLEAN | No | |
+
+---
+
+### Crema Memory Service (Embeddings)
+
+#### ai_embeddings
+Tabla unificada de embeddings para búsqueda semántica.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `user_id` | UUID | Sí | FK → users.id |
+| `source_type` | VARCHAR(50) | No | lesson, faq, policy, qa, review, insight |
+| `source_id` | UUID | No | ID del objeto original |
+| `content` | TEXT | No | Texto original |
+| `embedding` | vector(1536) | Sí | Embedding de pgvector |
+| `metadata` | JSONB | Sí | Metadatos específicos por tipo |
+| `created_at` | TIMESTAMP | No | |
+
+> 📝 **Nota**: Require índice IVFFlat para búsqueda de similitud coseno.
+
+---
+
+### Q&A System
+
+#### product_questions
+Preguntas de usuarios sobre productos.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `product_id` | UUID | No | FK → products.id |
+| `user_id` | UUID | No | FK → users.id |
+| `question` | TEXT | No | Pregunta |
+| `answer` | TEXT | Sí | Respuesta del creador |
+| `answered_by` | UUID | Sí | FK → users.id (creator) |
+| `answered_at` | TIMESTAMP | Sí | |
+| `is_published` | BOOLEAN | No | Visible en producto |
+| `is_ai_generated` | BOOLEAN | No | Generada por IA |
+| `created_at` | TIMESTAMP | No | |
+| `updated_at` | TIMESTAMP | No | |
+
+#### question_votes
+Votos de utilidad en preguntas.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `question_id` | UUID | No | FK → product_questions.id |
+| `user_id` | UUID | No | FK → users.id |
+| `vote_type` | VARCHAR(10) | No | helpful, not_helpful |
+
+#### product_faqs
+FAQs predefinidas por el creador.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `product_id` | UUID | No | FK → products.id |
+| `question` | VARCHAR(500) | No | Pregunta |
+| `answer` | TEXT | No | Respuesta |
+| `sort_order` | INT | No | Orden de显示 |
+| `is_active` | BOOLEAN | No | |
+| `created_at` | TIMESTAMP | No | |
+| `updated_at` | TIMESTAMP | No | |
+
+---
+
+### Reviews/Ratings
+
+#### product_reviews
+Reviews de compradores.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `product_id` | UUID | No | FK → products.id |
+| `user_id` | UUID | No | FK → users.id |
+| `rating` | INT | No | 1-5 estrellas |
+| `title` | VARCHAR(200) | Sí | Título de la review |
+| `content` | TEXT | No | Contenido |
+| `is_verified_purchase` | BOOLEAN | No | Verificación de compra |
+| `is_published` | BOOLEAN | No | Visible |
+| `is_ai_generated` | BOOLEAN | No | Generada por IA |
+| `created_at` | TIMESTAMP | No | |
+| `updated_at` | TIMESTAMP | No | |
+
+#### review_votes
+Votos útiles en reviews.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `review_id` | UUID | No | FK → product_reviews.id |
+| `user_id` | UUID | No | FK → users.id |
+| `vote_type` | VARCHAR(10) | No | helpful, not_helpful |
+
+#### product_review_settings
+Configuración de reviews por producto.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `product_id` | UUID | No | FK → products.id |
+| `allow_reviews` | BOOLEAN | No | Permitir reviews |
+| `require_verified_purchase` | BOOLEAN | No | Require compra verificada |
+| `auto_publish` | BOOLEAN | No | Auto-publicar |
+| `min_rating` | INT | No | Rating mínimo |
+| `max_rating` | INT | No | Rating máximo |
+
+---
+
+### Denunciations
+
+#### reports
+Denuncias de contenido.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `reporter_id` | UUID | No | FK → users.id |
+| `content_type` | VARCHAR(50) | No | product, review, question, etc. |
+| `content_id` | UUID | No | ID del contenido reportado |
+| `reason_code` | VARCHAR(50) | No | Código del motivo |
+| `description` | TEXT | Sí | Descripción |
+| `status` | VARCHAR(20) | No | pending, investigating, resolved, rejected |
+| `resolved_by` | UUID | Sí | FK → users.id (admin) |
+| `resolved_at` | TIMESTAMP | Sí | |
+| `resolution_notes` | TEXT | Sí | |
+| `created_at` | TIMESTAMP | No | |
+| `updated_at` | TIMESTAMP | No | |
+
+#### report_reasons
+Catálogo de motivos de denuncia.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `content_type` | VARCHAR(50) | No | Tipo de contenido |
+| `code` | VARCHAR(50) | No | Código único |
+| `label_es` | VARCHAR(100) | No | Etiqueta español |
+| `label_en` | VARCHAR(100) | No | Etiqueta inglés |
+| `severity` | VARCHAR(20) | No | low, medium, high, critical |
+| `is_active` | BOOLEAN | No | |
+
+#### report_actions
+Acciones tomadas sobre denuncias.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `report_id` | UUID | No | FK → reports.id |
+| `action_type` | VARCHAR(50) | No | warning, suspend, ban, delete_content, etc. |
+| `performed_by` | UUID | No | FK → users.id |
+| `notes` | TEXT | Sí | |
+| `created_at` | TIMESTAMP | No | |
+
+#### content_policies
+Políticas de contenido visibles a usuarios.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `title_es` | VARCHAR(200) | No | Título español |
+| `title_en` | VARCHAR(200) | No | Título inglés |
+| `content_es` | TEXT | No | Contenido español |
+| `content_en` | TEXT | No | Contenido inglés |
+| `content_type` | VARCHAR(50) | No | general, review, product, etc. |
+| `is_active` | BOOLEAN | No | |
+| `sort_order` | INT | No | |
+| `created_at` | TIMESTAMP | No | |
+| `updated_at` | TIMESTAMP | No | |
+
+---
+
+### AI Agents
+
+#### product_qa_agent_config
+Configuración del agente Q&A por producto.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `product_id` | UUID | No | FK → products.id |
+| `is_enabled` | BOOLEAN | No | Agente habilitado |
+| `model` | VARCHAR(50) | No | gpt-4, etc. |
+| `system_prompt` | TEXT | Sí | Prompt personalizado |
+| `temperature` | FLOAT | No | 0-2 |
+| `max_tokens` | INT | No | |
+| `use_memory` | BOOLEAN | No | Usar embeddings |
+| `use_faqs` | BOOLEAN | No | Usar FAQs |
+
+#### agent_conversations
+Conversaciones con agentes IA.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `agent_type` | VARCHAR(50) | No | qa, tutor, insights |
+| `product_id` | UUID | Sí | FK → products.id |
+| `user_id` | UUID | No | FK → users.id |
+| `status` | VARCHAR(20) | No | active, completed, archived |
+| `metadata` | JSONB | Sí | |
+| `created_at` | TIMESTAMP | No | |
+| `updated_at` | TIMESTAMP | No | |
+
+#### agent_messages
+Mensajes de conversaciones.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `conversation_id` | UUID | No | FK → agent_conversations.id |
+| `role` | VARCHAR(20) | No | user, assistant, system |
+| `content` | TEXT | No | |
+| `tokens_used` | INT | No | |
+| `created_at` | TIMESTAMP | No | |
+
+---
+
+### Analytics Dashboard
+
+#### creator_daily_metrics
+Métricas diarias agregadas por creador.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `creator_id` | UUID | No | FK → users.id |
+| `date` | DATE | No | |
+| `total_sales` | INT | No | |
+| `total_revenue` | DECIMAL(18,8) | No | |
+| `total_commissions` | DECIMAL(18,8) | No | |
+| `new_customers` | INT | No | |
+| `active_customers` | INT | No | |
+| `product_views` | INT | No | |
+| `conversion_rate` | FLOAT | No | |
+| `ai_credits_used` | INT | No | |
+
+---
+
+### Advanced AI (Tutor + Insights)
+
+#### product_tutor_config
+Configuración del Tutor AI por producto.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `product_id` | UUID | No | FK → products.id |
+| `is_enabled` | BOOLEAN | No | |
+| `model` | VARCHAR(50) | No | |
+| `system_prompt` | TEXT | Sí | |
+| `temperature` | FLOAT | No | |
+| `max_tokens` | INT | No | |
+
+#### tutor_insights
+Insights generados por el Tutor.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `user_id` | UUID | No | FK → users.id |
+| `product_id` | UUID | No | FK → products.id |
+| `insight_type` | VARCHAR(50) | No | progress, recommendation, etc. |
+| `content` | TEXT | No | |
+| `is_read` | BOOLEAN | No | |
+| `created_at` | TIMESTAMP | No | |
+
+#### creator_dashboards
+Dashboards guardados por creadores.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `creator_id` | UUID | No | FK → users.id |
+| `name` | VARCHAR(100) | No | |
+| `description` | TEXT | Sí | |
+| `config` | JSONB | No | Configuración del dashboard |
+| `is_default` | BOOLEAN | No | Dashboard por defecto |
+| `created_at` | TIMESTAMP | No | |
+| `updated_at` | TIMESTAMP | No | |
+
+#### insights_history
+Historial de queries de insights.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `user_id` | UUID | No | FK → users.id |
+| `query` | TEXT | No | Query en lenguaje natural |
+| `sql_generated` | TEXT | Sí | SQL generado por IA |
+| `results` | JSONB | Sí | Resultados |
+| `created_at` | TIMESTAMP | No | |

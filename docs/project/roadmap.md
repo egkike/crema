@@ -4,9 +4,10 @@
 
 | Componente | Estado | Notas |
 |------------|--------|-------|
-| Backend API | ✅ Completo | ~90% de funcionalidades implementadas |
+| Backend API | ✅ Completo | ~95% de funcionalidades implementadas |
 | Frontend | ❌ Pendiente | Por desarrollar |
-| Documentación | 🔄 En Progreso | SDD en curso |
+| AI Features Backend | ✅ Completo | Phases 1-7 implementadas |
+| AI Features Frontend | ❌ Pendiente | UI components por desarrollar |
 
 ---
 
@@ -32,7 +33,67 @@
 
 ---
 
-## Fase 2: Frontend (Pendiente)
+## Fase 2: AI Features - Backend (Completado) ⭐
+
+### Phase 1: Foundation (Memory + Credits) ✅
+- [x] pgvector extensión instalada
+- [x] Tablas: ai_embeddings, ai_credits, ai_credit_transactions, ai_credit_packages
+- [x] Repositories: credits.repository.ts, memory.repository.ts
+- [x] Services: credits.service.ts, memory.service.ts, embedding.service.ts
+- [x] API endpoints para gestión de créditos
+- [ ] Integración con MercadoPago webhooks (pendiente)
+
+### Phase 2: Q&A System ✅
+- [x] Tablas: product_questions, question_votes, product_faqs
+- [x] Repository: qa.repository.ts
+- [x] Service: qa.service.ts
+- [x] API endpoints completos
+- [ ] UI FAQ en frontend (pendiente)
+
+### Phase 3: Reviews/Ratings ✅
+- [x] Tablas: product_reviews, review_votes, product_review_settings
+- [x] Repository: review.repository.ts
+- [x] Service: review.service.ts
+- [x] API endpoints completos
+- [ ] UI Reviews en frontend (pendiente)
+
+### Phase 4: Denunciations ✅
+- [x] Tablas: reports, report_reasons, report_actions, content_policies
+- [x] Repository: denomination.repository.ts
+- [x] Service: denomination.service.ts
+- [x] API endpoints completos
+- [x] Políticas de contenido precargadas
+- [ ] Fund retention logic (pendiente)
+- [ ] UI Denunciations en frontend (pendiente)
+
+### Phase 5: AI Agents (Basic) ✅
+- [x] Tablas: product_qa_agent_config, agent_conversations, agent_messages
+- [x] Service: qaAgentService en phases-5-7.service.ts
+- [x] API endpoints para chat y configuración
+- [ ] LLM Integration real (pendiente)
+
+### Phase 6: Analytics Dashboard ✅
+- [x] Tablas: creator_daily_metrics
+- [x] Service: analyticsService en phases-5-7.service.ts
+- [x] API endpoints para métricas
+- [ ] Metrics aggregation job (pendiente)
+
+### Phase 7: Advanced AI (Tutor + Insights) ✅
+- [x] Tablas: product_tutor_config, tutor_insights, creator_dashboards, insights_history
+- [x] Services: tutorService, insightsService en phases-5-7.service.ts
+- [x] API endpoints completos
+- [ ] UI Tutor + Insights en frontend (pendiente)
+
+### Phase 8: Testing + Integration (Pendiente)
+- [ ] Unit tests para AI services
+- [ ] Integration tests para AI routes
+- [ ] E2E tests
+- [ ] Rate limiting middleware
+- [ ] Swagger documentation
+
+---
+
+## Fase 3: Frontend (Pendiente)
 
 ### Planificado
 - [ ] Interfaz de usuario (Astro + React)
@@ -42,18 +103,19 @@
 - [ ] Player de video
 - [ ] Portal de estudiante (LMS)
 - [ ] Panel de administración
+- [ ] **UI AI Features** (FAQ, Reviews, Denunciations, Tutor, Insights)
 
 ---
 
-## Fase 3: Funcionalidades Avanzadas (Planificado)
+## Fase 3: Funcionalidades Avanzadas (Parcialmente Completado)
 
 ### Sistema de Membresías
 - [ ] Suscripciones recurrentes
 - [ ] Acceso a contenido por nivel
 - [ ] Renovación automática
 
-### Comunidad
-- [ ] Reviews/Ratings de productos
+### Comunidad ✅ (Parcial)
+- [x] Reviews/Ratings de productos (Backend completo, Frontend pendiente)
 - [ ] Comentarios en lecciones
 - [ ] Foro de estudiantes
 
@@ -62,10 +124,10 @@
 - [ ] Sequences automatizadas
 - [ ] Landing pages
 
-### Analytics
-- [ ] Dashboard de métricas avanzado
+### Analytics ✅ (Backend completo, Frontend pendiente)
+- [x] Dashboard de métricas avanzado (Backend)
 - [ ] Heatmaps de estudiantes
-- [ ] Reports de conversión
+- [x] Reports de conversión (Backend)
 
 ---
 
@@ -121,9 +183,9 @@
 
 ```
 2026
-├── Q1: Frontend v1 (Dashboard + Checkout)
-├── Q2: Frontend v2 (LMS + Player)
-├── Q3: Funcionalidades avanzadas
+├── Q1: Backend Core + AI Features Backend ⭐ (Completado)
+├── Q2: Frontend v1 (Dashboard + Checkout + AI UI)
+├── Q3: Frontend v2 (LMS + Player + AI Features)
 └── Q4: Escalabilidad + Marketplace
 ```
 
