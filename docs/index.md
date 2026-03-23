@@ -39,6 +39,16 @@ Crema centraliza todas estas necesidades en una sola plataforma, permitiendo que
 7. **Gestión de Ganancias** - Saldos pendientes, disponibles, de plataforma
 8. **Cumplimiento Fiscal** - Ley de Economía del Conocimiento (Argentina)
 
+### Funcionalidades AI (v1.2) ⭐
+1. **Crema Memory Service** - Búsqueda semántica con pgvector
+2. **Q&A con IA** - Auto-respuesta de preguntas + FAQs
+3. **Reviews/Ratings** - Sistema de calificación con votos útiles
+4. **Denunciations** - Sistema de reportes con políticas de contenido
+5. **AI Agents** - Agente Q&A entrenable por producto
+6. **Analytics Dashboard** - Métricas diarias de creadores
+7. **Tutor AI** - Asistente inteligente para estudiantes
+8. **Insights AI** - Consultas en lenguaje natural a datos
+
 ## Para quién es?
 
 ### Creadores de Contenido
@@ -57,10 +67,11 @@ Crema centraliza todas estas necesidades en una sola plataforma, permitiendo que
 ## Stack Tecnológico
 
 - **Backend**: Node.js 20+ con Express 5 y TypeScript
-- **Base de Datos**: PostgreSQL 18
+- **Base de Datos**: PostgreSQL 18 + pgvector (búsqueda semántica)
 - **Colas**: BullMQ con Redis
 - **Pagos**: Mercado Pago
 - **Video**: Mux Video / Cloudflare Stream
+- **AI**: OpenAI GPT-4o-mini + Embeddings
 - **Testing**: Vitest
 - **Build**: esbuild
 

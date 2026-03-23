@@ -10,9 +10,11 @@ Plataforma all-in-one para creadores y emprendedores.
 
 | Componente | Estado | Descripción |
 |------------|--------|-------------|
-| **Backend API** | ✅ Completo | API REST con todas las funcionalidades core |
+| **Backend API Core** | ✅ Completo | API REST con todas las funcionalidades core |
+| **AI Features Backend** | ✅ Completo | Phases 1-7 implementadas (Memory, Q&A, Reviews, Denunciations, Agents, Analytics, Tutor) |
 | **Frontend Main** | ❌ Pendiente | Interfaz principal |
 | **Frontend Admin** | ❌ Pendiente | Panel de administración |
+| **AI Features Frontend** | ❌ Pendiente | UI para AI features |
 | **Documentación** | 🔄 En Progreso | Documentación en desarrollo |
 
 ---
@@ -23,16 +25,19 @@ Plataforma all-in-one para creadores y emprendedores.
 [![pnpm](https://img.shields.io/badge/pnpm-10+-orange)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue)](https://www.typescriptlang.org/)
 [![Database](https://img.shields.io/badge/PostgreSQL-18-blue)](https://www.postgresql.org/)
+[![VectorDB](https://img.shields.io/badge/pgvector-0.8-blue)](https://github.com/pgvector/pgvector)
 [![Queue](https://img.shields.io/badge/BullMQ-Redis-red)](https://docs.bullmq.io/)
+[![AI](https://img.shields.io/badge/OpenAI-GPT--4-orange)](https://openai.com/)
 [![LEC](https://img.shields.io/badge/Ley_Economía_del_Conocimiento-Cumplimiento-green)](https://www.argentina.gob.ar/servicio/acceder-los-beneficios-del-regimen-de-promocion-de-la-economia-del-conocimiento)
 
 ### Backend
 - Node.js 20+ con Express 5
 - TypeScript 5.9+
-- PostgreSQL 18
+- PostgreSQL 18 + pgvector (búsqueda semántica)
 - Redis + BullMQ
 - JWT (Access + Refresh Tokens)
 - Mercado Pago
+- OpenAI GPT-4o-mini (embeddings + chat)
 
 ---
 
@@ -73,6 +78,17 @@ Plataforma all-in-one para creadores y emprendedores.
 - ✅ Cloudflare Stream
 - ✅ Signed URLs (protección contra piratería)
 
+### AI Features (v1.2) ⭐
+- ✅ **Crema Memory Service** - Búsqueda semántica con pgvector (vector(1536))
+- ✅ **Sistema de Créditos** - Créditos prepagos para features AI
+- ✅ **Q&A con IA** - Auto-respuesta de preguntas + FAQs
+- ✅ **Reviews/Ratings** - Sistema de calificación con votos útiles
+- ✅ **Denunciations** - Sistema de reportes con políticas de contenido
+- ✅ **AI Agents** - Agente Q&A entrenable por producto
+- ✅ **Analytics Dashboard** - Métricas diarias de creadores
+- ✅ **Tutor AI** - Asistente inteligente para estudiantes
+- ✅ **Insights AI** - Consultas en lenguaje natural a datos
+
 ---
 
 ## 📁 Estructura del Proyecto
@@ -106,7 +122,7 @@ crema/
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/crema/crema.git
+git clone https://github.com/egkike/crema.git
 cd crema
 
 # Instalar dependencias

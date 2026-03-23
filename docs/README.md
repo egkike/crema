@@ -39,6 +39,7 @@ Bienvenido a la documentación oficial de **Crema** - Plataforma all-in-one para
 - [LMS (Learning Management System)](./features/lms.md)
 - [Cumplimiento Fiscal (LEC)](./features/compliance.md)
 - [Safe-Guard (Anti-Fraude)](./features/safeguard.md)
+- [AI Features](./project/PRD-Crema-Interaccion-Analytics.md) ⭐ Nuevo
 
 ### Desarrollo
 - [Setup Local](./development/setup.md)
@@ -51,19 +52,30 @@ Bienvenido a la documentación oficial de **Crema** - Plataforma all-in-one para
 
 ---
 
-## Estado del Proyecto
+## Estado del Proyecto (Marzo 2026)
 
-| Componente | Estado |
-|------------|--------|
-| Backend API | ✅ Completo |
-| Frontend | ❌ Por desarrollar |
-| Documentación | 🔄 En desarrollo |
+| Componente | Estado | Notas |
+|------------|--------|-------|
+| Backend API Core | ✅ Completo | ~95% funcionalidades |
+| AI Features Backend | ✅ Completo | Phases 1-7 implementadas |
+| Frontend | ❌ Pendiente | Por desarrollar |
+| AI Features Frontend | ❌ Pendiente | Por desarrollar |
+
+### AI Features Implementadas
+
+- **Phase 1**: Memory Service (pgvector) + Credits System
+- **Phase 2**: Q&A System + FAQs
+- **Phase 3**: Reviews/Ratings
+- **Phase 4**: Denunciations + Content Policies
+- **Phase 5**: AI Agents (QA)
+- **Phase 6**: Analytics Dashboard
+- **Phase 7**: Tutor AI + Insights
 
 ## Recursos Externos
 
-- [Repositorio GitHub](https://github.com/crema)
-- [Swagger/OpenAPI Docs](/api-docs)
-- [Soporte](soporte@crema.com)
+- [Repositorio GitHub](https://github.com/egkike/crema)
+- [Swagger/OpenAPI Docs](/api-docs) - En backend running
+- [PRD: AI Features](./project/PRD-Crema-Interaccion-Analytics.md)
 
 ---
 
