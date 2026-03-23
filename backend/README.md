@@ -6,7 +6,9 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue)](https://www.typescriptlang.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10+-orange)](https://pnpm.io/)
 [![Database](https://img.shields.io/badge/PostgreSQL-18-blue)](https://www.postgresql.org/)
+[![VectorDB](https://img.shields.io/badge/pgvector-0.8-blue)](https://github.com/pgvector/pgvector)
 [![Queue](https://img.shields.io/badge/BullMQ-Redis-red)](https://docs.bullmq.io/)
+[![AI](https://img.shields.io/badge/OpenAI-GPT--4-orange)](https://openai.com/)
 [![LEC](https://img.shields.io/badge/Ley_Economía_del_Conocimiento-Cumplimiento-green)](https://www.argentina.gob.ar/servicio/acceder-los-beneficios-del-regimen-de-promocion-de-la-economia-del-conocimiento)
 
 ---
@@ -88,6 +90,90 @@
 | GET | `/api/admin/lec/compliance-status` | Estado LEC |
 | GET | `/api/admin/export/tax-report` | Reporte fiscal |
 
+### AI Features ⭐ (v1.2)
+#### Créditos
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/credits` | Mi saldo de créditos |
+| GET | `/api/ai/credits/packages` | Paquetes disponibles |
+| POST | `/api/ai/credits/purchase` | Comprar créditos |
+| GET | `/api/ai/credits/transactions` | Historial de transacciones |
+
+#### Embeddings (Memory)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/ai/embeddings` | Crear embedding |
+| GET | `/api/ai/embeddings/search` | Búsqueda semántica |
+| DELETE | `/api/ai/embeddings/:sourceType/:sourceId` | Eliminar embedding |
+
+#### Q&A
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/products/:productId/questions` | Ver preguntas |
+| POST | `/api/ai/products/:productId/questions` | Hacer pregunta |
+| PUT | `/api/ai/questions/:questionId/answer` | Responder pregunta |
+| PUT | `/api/ai/questions/:questionId/publish` | Publicar/ocultar |
+| DELETE | `/api/ai/questions/:questionId` | Eliminar pregunta |
+| POST | `/api/ai/questions/:questionId/vote` | Votar pregunta |
+
+#### FAQs
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/products/:productId/faqs` | Ver FAQs |
+| POST | `/api/ai/products/:productId/faqs` | Crear FAQ |
+| PUT | `/api/ai/faqs/:faqId` | Actualizar FAQ |
+| DELETE | `/api/ai/faqs/:faqId` | Eliminar FAQ |
+| PUT | `/api/ai/products/:productId/faqs/reorder` | Reordenar FAQs |
+
+#### Reviews
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/products/:productId/reviews` | Ver reviews |
+| POST | `/api/ai/products/:productId/reviews` | Crear review |
+| PUT | `/api/ai/reviews/:reviewId` | Actualizar review |
+| DELETE | `/api/ai/reviews/:reviewId` | Eliminar review |
+| POST | `/api/ai/reviews/:reviewId/vote` | Votar review |
+| GET | `/api/ai/products/:productId/reviews/settings` | Configuración |
+| PUT | `/api/ai/products/:productId/reviews/settings` | Actualizar config |
+| GET | `/api/ai/products/:productId/reviews/distribution` | Distribución ratings |
+
+#### Denunciations
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/reports/reasons` | Motivos de denuncia |
+| POST | `/api/ai/reports` | Crear denuncia |
+| GET | `/api/ai/reports` | Listar denuncias (admin) |
+| GET | `/api/ai/reports/:reportId` | Ver denuncia |
+| PUT | `/api/ai/reports/:reportId/resolve` | Resolver denuncia |
+| POST | `/api/ai/reports/:reportId/actions` | Aplicar acción |
+| GET | `/api/ai/content/policies` | Políticas de contenido |
+
+#### AI Agents
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/products/:productId/qa-agent/config` | Ver config |
+| PUT | `/api/ai/products/:productId/qa-agent/config` | Actualizar config |
+| POST | `/api/ai/agents/qa/chat` | Chatear con agente |
+| GET | `/api/ai/agents/conversations` | Mis conversaciones |
+| GET | `/api/ai/agents/conversations/:id` | Ver conversación |
+
+#### Analytics
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/analytics/dashboard` | Métricas del dashboard |
+
+#### Tutor + Insights
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/products/:productId/tutor/config` | Ver config Tutor |
+| PUT | `/api/ai/products/:productId/tutor/config` | Actualizar config |
+| GET | `/api/ai/products/:productId/tutor/insights` | Ver insights |
+| GET | `/api/ai/insights/dashboards` | Mis dashboards |
+| POST | `/api/ai/insights/dashboards` | Crear dashboard |
+| PUT | `/api/ai/insights/dashboards/:id` | Actualizar dashboard |
+| DELETE | `/api/ai/insights/dashboards/:id` | Eliminar dashboard |
+| POST | `/api/ai/insights/query` | Query con IA |
+
 ---
 
 ## 🛠️ Stack Tecnológico
@@ -95,8 +181,9 @@
 - **Runtime**: Node.js 20+ con Express 5
 - **Lenguaje**: TypeScript 5.9+
 - **Build**: esbuild
-- **DB**: PostgreSQL 18 con driver `pg`
+- **DB**: PostgreSQL 18 con pgvector (búsqueda semántica)
 - **Colas**: BullMQ + Redis
+- **AI**: OpenAI GPT-4o-mini + text-embedding-3-small
 - **Auth**: JWT + Refresh Tokens + 2FA
 - **Validación**: Zod
 - **Logging**: Pino
@@ -109,15 +196,55 @@
 src/
 ├── controllers/      # Request/Response
 ├── repositories/    # SQL queries
-├── services/        # Lógica de negocio
+│   └── ai/         # AI repositories (credits, memory, qa, review, denomination)
+├── services/       # Lógica de negocio
+│   └── ai/         # AI services (credits, memory, embedding, qa, review, denomination, phases-5-7)
 ├── middlewares/     # Auth, validation, etc.
 ├── routes/         # Endpoints
+│   └── ai.routes.ts # AI endpoints
 ├── schemas/         # Zod validation
 ├── queues/         # BullMQ workers
 ├── utils/          # Helpers
 ├── config/         # Configuración
-└── errors/         # Custom errors
+├── errors/         # Custom errors
+└── types/          # TypeScript types
+    └── ai.types.ts # AI types
 ```
+
+---
+
+## 🤖 AI Features
+
+El backend incluye un sistema completo de AI Features basado en créditos prepagos:
+
+### Servicios AI
+- **credits.service.ts** - Gestión de créditos prepagos
+- **memory.service.ts** - Crema Memory Service (embeddings + pgvector)
+- **embedding.service.ts** - Generación de embeddings con OpenAI
+- **qa.service.ts** - Sistema de Q&A con votos
+- **review.service.ts** - Sistema de reviews/ratings
+- **denunciation.service.ts** - Sistema de reportes
+- **phases-5-7.service.ts** - AI Agents, Analytics, Tutor, Insights
+
+### Repositories AI
+- **credits.repository.ts** - CRUD de créditos
+- **memory.repository.ts** - Embeddings con búsqueda vectorial
+- **qa.repository.ts** - Q&A + FAQs
+- **review.repository.ts** - Reviews + Votes + Settings
+- **denomination.repository.ts** - Reports + Reasons + Actions
+
+### Tablas AI (21 tablas)
+- ai_credits, ai_credit_transactions, ai_credit_packages
+- ai_embeddings (con pgvector vector(1536))
+- product_questions, question_votes, product_faqs
+- product_reviews, review_votes, product_review_settings
+- reports, report_reasons, report_actions, content_policies
+- product_qa_agent_config, agent_conversations, agent_messages
+- creator_daily_metrics
+- product_tutor_config, tutor_insights
+- creator_dashboards, insights_history
+
+> ⚠️ **Nota**: Require extensión `pgvector` instalada en PostgreSQL.
 
 ---
 
@@ -142,6 +269,10 @@ MERCADO_PAGO_ACCESS_TOKEN=...
 
 # Mux
 MUX_SIGNING_KEY=...
+
+# OpenAI (AI Features)
+OPENAI_API_KEY=...
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 ### Comandos
