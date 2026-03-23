@@ -57,3 +57,45 @@ INSERT INTO ai_credit_packages (name, credits, price_usd, price_ars) VALUES
     ('Professional', 2000, 7.00, 7000.00),
     ('Enterprise', 5000, 15.00, 15000.00)
 ON CONFLICT DO NOTHING;
+
+-- =============================================================================
+-- Phase 2: Q&A System Tables
+-- =============================================================================
+
+-- 2.1 Product Questions Table
+CREATE TABLE IF NOT EXISTS product_questions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    question TEXT NOT NULL,
+    answer TEXT,
+    answered_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    answered_at TIMESTAMP WITH TIME ZONE,
+    is_published BOOLEAN DEFAULT TRUE,
+    is_ai_generated BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2.2 Question Votes Table
+CREATE TABLE IF NOT EXISTS question_votes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    question_id UUID NOT NULL REFERENCES product_questions(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('helpful', 'not_helpful')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(question_id, user_id)
+);
+
+-- 2.3 Product FAQs Table (managed by creators)
+CREATE TABLE IF NOT EXISTS product_faqs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    question VARCHAR(500) NOT NULL,
+    answer TEXT NOT NULL,
+    sort_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(product_id, question)
+);

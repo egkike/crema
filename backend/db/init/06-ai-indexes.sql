@@ -27,3 +27,21 @@ CREATE INDEX IF NOT EXISTS idx_ai_credit_transactions_type ON ai_credit_transact
 
 -- Indexes for ai_credit_packages
 CREATE INDEX IF NOT EXISTS idx_ai_credit_packages_active ON ai_credit_packages(is_active);
+
+-- =============================================================================
+-- Phase 2: Q&A System Indexes
+-- =============================================================================
+
+-- Indexes for product_questions
+CREATE INDEX IF NOT EXISTS idx_product_questions_product ON product_questions(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_questions_user ON product_questions(user_id);
+CREATE INDEX IF NOT EXISTS idx_product_questions_created ON product_questions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_product_questions_published ON product_questions(is_published, created_at DESC);
+
+-- Indexes for question_votes
+CREATE INDEX IF NOT EXISTS idx_question_votes_question ON question_votes(question_id);
+CREATE INDEX IF NOT EXISTS idx_question_votes_user ON question_votes(user_id);
+
+-- Indexes for product_faqs
+CREATE INDEX IF NOT EXISTS idx_product_faqs_product ON product_faqs(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_faqs_active ON product_faqs(is_active, sort_order);
