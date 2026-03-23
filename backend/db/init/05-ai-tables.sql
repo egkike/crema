@@ -2,18 +2,17 @@
 -- AI Features: Memory + Credits Foundation
 -- Phase 1: Foundation (Memory + Credits)
 
--- NOTA: pgvector no está disponible en el contenedor actual
--- Usamos FLOAT[] como workaround temporal hasta instalar pgvector
--- La tabla usa embedding como array de 1536 floats (compatible con text-embedding-3-small)
+-- IMPORTANTE: Asegurarse de que pgvector esté instalado:
+-- CREATE EXTENSION IF NOT EXISTS vector;
 
--- 2. AI Embeddings Table (for semantic search) - usando FLOAT[] en lugar de vector
+-- 2. AI Embeddings Table (for semantic search) - usando vector(1536) de pgvector
 CREATE TABLE IF NOT EXISTS ai_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     source_type VARCHAR(50) NOT NULL CHECK (source_type IN ('lesson', 'faq', 'policy', 'qa', 'review', 'insight', 'saved_dashboard')),
     source_id UUID NOT NULL,
     content TEXT NOT NULL,
-    embedding FLOAT[] DEFAULT '{}',
+    embedding vector(1536),
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(source_type, source_id)
