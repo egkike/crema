@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 
 import { verifyToken } from '../../utils/jwt.util';
+import { UserPayload } from '../../types/express';
 import logger from '../../utils/logger';
 
 /**
@@ -53,7 +54,8 @@ export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunctio
   }
 
   // ASIGNACIÓN LIMPIA: TS ya sabe que req.user existe por express.d.ts
-  req.user = user as typeof req.user;
+  // Using type assertion since we validated the user exists
+  req.user = user as UserPayload;
 
   // Validación de Primer Login y 2FA (Flag Partial)
   if (user.partial) {
@@ -98,13 +100,16 @@ export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunctio
  * - Si hay token, valida y pone al usuario en req.user.
  * - Si NO hay token o es inválido, deja pasar la petición (req.user será null).
  */
-export const optionalJwtAuth = (req: Request, res: Response, next: NextFunction) => {
+export const optionalJwtAuth = (req: Request, _res: Response, next: NextFunction) => {
   const token = req.cookies.access_token;
   if (!token) {
-    req.user = undefined; // En lugar de null, para coincidir con el "?" de la interfaz
+    // Don't set req.user at all if there's no token (optional property)
     return next();
   }
   const user = verifyToken(token);
-  req.user = user ? (user as typeof req.user) : undefined;
+  // user can be undefined when token is invalid, so we need the ternary
+  if (user) {
+    req.user = user as UserPayload;
+  }
   next();
 };

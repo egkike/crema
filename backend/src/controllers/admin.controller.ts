@@ -291,7 +291,7 @@ export class AdminController {
   /**
    * Lista proyectos de innovación para el selector del panel.
    */
-  static async getRDProjects(req: Request, res: Response) {
+  static async getRDProjects(_req: Request, res: Response) {
     try {
       const projects = await adminRepository.getRDProjects();
       return res.json({ status: 'success', data: projects });

@@ -42,7 +42,8 @@ export class AuthService {
         const defaultPlanId = await configRepository.getSetting('default_creator_plan_id');
 
         if (defaultPlanId && defaultPlanId.trim() !== '') {
-          await subscriptionRepository.createInitialSubscription(newUser.id, defaultPlanId);
+          // Default to ARS currency for new creator subscriptions
+          await subscriptionRepository.createInitialSubscription(newUser.id, defaultPlanId, 'ARS');
           logger.info(
             { userId: newUser.id, planId: defaultPlanId },
             'Suscripción gratuita de creador asignada automáticamente'

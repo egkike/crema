@@ -99,7 +99,9 @@ app.use(
 );
 
 // --- RUTAS DE SALUD ---
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', async (_req: Request, res: Response) => {
+  // Basic health check - returns simple status
+  // Extended health checks can be added in separate endpoints
   res.status(200).json({
     success: true,
     status: 'ok',
@@ -109,7 +111,7 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({ message: 'Crema Backend - Online 🚀' });
 });
 
@@ -139,7 +141,7 @@ if (config.nodeEnv !== 'production') {
 }
 
 // --- ERROR HANDLING ---
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use((_req: Request, _res: Response, next: NextFunction) => {
   next(new AppError('Ruta no encontrada', 404));
 });
 

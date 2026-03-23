@@ -16,7 +16,7 @@ interface CreateProductBody {
   status?: string;
 }
 
-export const checkPlanLimits = async (req: Request, res: Response, next: NextFunction) => {
+export const checkPlanLimits = async (req: Request, _res: Response, next: NextFunction) => {
   try {
     const { user, params } = req;
     const { type, sizeBytes, content_url, currency, status } = req.body as CreateProductBody;

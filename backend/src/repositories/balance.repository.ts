@@ -1,3 +1,5 @@
+import type { PoolClient } from 'pg';
+
 import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
@@ -15,7 +17,7 @@ export const balanceRepository = {
    * Suma al balance pendiente y total ganado.
    * Si no existe la fila para ese usuario/moneda, la crea (Upsert).
    */
-  async addPendingBalance(userId: string, amount: number, currency: string, client?: any) {
+  async addPendingBalance(userId: string, amount: number, currency: string, client?: PoolClient) {
     const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".user_balances (user_id, total_earned, pending_balance, currency)
@@ -51,7 +53,7 @@ export const balanceRepository = {
   /**
    * Pasa dinero de pendiente a disponible (Fin de periodo de garantía).
    */
-  async releaseBalance(userId: string, amount: number, currency: string, client?: any) {
+  async releaseBalance(userId: string, amount: number, currency: string, client?: PoolClient) {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".user_balances 
@@ -83,7 +85,7 @@ export const balanceRepository = {
   /**
    * Deduce saldo del disponible (Payouts/Retiros).
    */
-  async subtractAvailableBalance(userId: string, amount: number, currency: string, client?: any) {
+  async subtractAvailableBalance(userId: string, amount: number, currency: string, client?: PoolClient) {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".user_balances 
@@ -117,7 +119,7 @@ export const balanceRepository = {
   /**
    * Deduce del pendiente (Refunds/Devoluciones).
    */
-  async deductPendingEarnings(userId: string, amount: number, currency: string, client?: any) {
+  async deductPendingEarnings(userId: string, amount: number, currency: string, client?: PoolClient) {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".user_balances 
@@ -151,7 +153,7 @@ export const balanceRepository = {
   /**
    * Suma directamente al disponible (Ajustes manuales o devoluciones de payouts).
    */
-  async addAvailableBalance(userId: string, amount: number, currency: string, client?: any) {
+  async addAvailableBalance(userId: string, amount: number, currency: string, client?: PoolClient) {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".user_balances 

@@ -1,3 +1,5 @@
+import type { PoolClient } from 'pg';
+
 import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
@@ -24,7 +26,7 @@ export const refundRepository = {
    * Crea un reembolso y actualiza el estado de las tablas financieras.
    * IMPORTANTE: Se recomienda pasar un 'client' para ejecutar esto dentro de una transacción.
    */
-  async create(data: RefundData, client?: any) {
+  async create(data: RefundData, client?: PoolClient) {
     const schema = config.db?.schema || 'public';
     const db = client || pool;
 

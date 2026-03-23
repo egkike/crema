@@ -2,6 +2,7 @@
 // (como req.user después de validar el JWT).
 // Después de crear este archivo, TypeScript ya no se quejará cuando escribas req.user?.id en tus middlewares o controladores.
 
+import type { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 
 declare global {
@@ -19,8 +20,11 @@ declare global {
   }
 }
 
-// Definimos el objeto por separado para poder reutilizarlo si fuera necesario
-interface UserPayload extends Partial<JwtPayload> {
+/**
+ * User payload extracted from JWT token.
+ * This interface is used to type the `req.user` property after JWT validation.
+ */
+export interface UserPayload extends Partial<JwtPayload> {
   id: string;
   username: string;
   email: string;
@@ -28,8 +32,22 @@ interface UserPayload extends Partial<JwtPayload> {
   level: number;
   active: number;
   affiliate_slug?: string;
-  // --- Agregamos esto para la lógica de seguridad ---
+  // Used for partial authentication flows
   partial?: boolean;
 }
 
-export {};
+/**
+ * Express Request with authenticated user.
+ * Use this type instead of Request when you need to access req.user.
+ * Note: user is optional to match Express's Request interface behavior
+ */
+export interface AuthenticatedRequest extends Request {
+  user: UserPayload;
+  rateLimit?: {
+    key: string;
+    limit: number;
+    current: number;
+    remaining: number;
+    resetTime: Date;
+  };
+}

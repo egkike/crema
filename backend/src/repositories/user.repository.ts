@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 
+import type { PoolClient } from 'pg';
 import bcrypt from 'bcrypt';
 
 import pool from '../db/postgres';
@@ -258,7 +259,7 @@ export const userRepository = {
    */
   async updUser(
     { id, input }: { id: string; input: UpdateUserInput },
-    client?: any
+    client?: PoolClient
   ): Promise<UserBase | null> {
     const schema = config.db?.schema || 'public';
     const { fullname, level, active, tax_id, tax_condition } = input;

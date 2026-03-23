@@ -63,8 +63,9 @@ const testProduct = (overrides: Record<string, unknown> = {}) => ({
 }) as any;
 
 // Mock the database client
-const mockClient = {
+const mockClient: any = {
   query: vi.fn(),
+  release: vi.fn(),
 };
 
 // Mock repositories

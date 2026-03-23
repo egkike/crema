@@ -1,3 +1,5 @@
+import type { PoolClient } from 'pg';
+
 import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
@@ -48,7 +50,7 @@ export const commissionRepository = {
    * Crea un registro de comisión persistente.
    * Soporta transacciones externas pasando el 'client'.
    */
-  async create(data: CreateCommissionDTO, client?: any) {
+  async create(data: CreateCommissionDTO, client?: PoolClient) {
     const schema = config.db?.schema || 'public';
     const query = `
       INSERT INTO "${schema}".commissions (
@@ -85,7 +87,7 @@ export const commissionRepository = {
   /**
    * Actualiza el estado de las comisiones (ej: de 'pending' a 'paid' o 'refunded')
    */
-  async updateStatusByOrder(orderId: string, newStatus: string, client?: any) {
+  async updateStatusByOrder(orderId: string, newStatus: string, client?: PoolClient) {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".commissions 

@@ -21,7 +21,7 @@ export const loginLimiter = rateLimit({
     const user = (req as any).user;
     return user?.id || ipKeyGenerator(req as any);
   },
-  handler: (req, res, next, options) => {
+  handler: (req, res, _next, options) => {
     logger.warn({ key: (req as any).rateLimit?.key, ip: req.ip }, 'Límite de login alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
@@ -43,7 +43,7 @@ export const refreshLimiter = rateLimit({
     const user = (req as any).user;
     return user?.id || ipKeyGenerator(req as any);
   },
-  handler: (req, res, next, options) => {
+  handler: (req, res, _next, options) => {
     logger.warn({ key: (req as any).rateLimit?.key, ip: req.ip }, 'Límite de refresh alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },

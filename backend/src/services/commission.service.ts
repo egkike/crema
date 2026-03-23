@@ -1,13 +1,17 @@
+import type { PoolClient } from 'pg';
+
 import { config } from '../config/index';
-import { configRepository } from '../repositories/config.repository';
+import pool from '../db/postgres';
+import { AppError } from '../errors/AppError';
 import { balanceRepository } from '../repositories/balance.repository';
-import { historyRepository } from '../repositories/history.repository';
 import { commissionRepository } from '../repositories/commission.repository';
+import { configRepository } from '../repositories/config.repository';
+import { historyRepository } from '../repositories/history.repository';
+import { Order } from '../repositories/order.repository';
+import { Product } from '../repositories/product.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
 import { platformEarningsRepository } from '../repositories/platform_earnings.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
-import { Order } from '../repositories/order.repository';
-import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 import { roundToTwo } from '../utils/rounder.util';
 
@@ -15,8 +19,22 @@ export class CommissionService {
   /**
    * Reparte el dinero de una orden entre Plataforma, Creador y Afiliado.
    * Hereda el release_at de la orden para platform_earnings.
+   * @param order - The order to process
+   * @param product - The product associated with the order
+   * @param client - Optional transaction client. If not provided, creates own connection.
    */
-  static async processOrderCommissions(order: Order, product: any, client: any) {
+  static async processOrderCommissions(
+    order: Order,
+    product: Product,
+    client?: PoolClient
+  ) {
+    // If no client provided, create own connection
+    let ownClient: PoolClient | undefined;
+    if (!client) {
+      ownClient = await pool.connect();
+      client = ownClient;
+    }
+
     const schema = config.db?.schema || 'public';
 
     // Evitar doble procesamiento
@@ -205,6 +223,11 @@ export class CommissionService {
     } catch (error: any) {
       logger.error({ error: error.message, orderId: order.id }, '💥 Error en CommissionService');
       throw error instanceof AppError ? error : new AppError('Error al procesar comisiones', 500);
+    } finally {
+      // Release client if we created it
+      if (ownClient) {
+        ownClient.release();
+      }
     }
   }
 }

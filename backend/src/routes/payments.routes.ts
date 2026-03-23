@@ -18,7 +18,10 @@ router.post('/webhook/:gatewayId', PaymentController.handleProviderWebhook);
 router.post('/subscribe/:planId', jwtAuthMiddleware, async (req, res, next) => {
   try {
     const planId = req.params.planId as string;
-    const user = (req as any).user;
+    const user = req.user;
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
     const userEmail = String(user.email);
 
     // 1. Obtenemos el gatewayId del body, o por defecto 'mercadopago'
@@ -44,7 +47,10 @@ router.post('/subscribe/:planId', jwtAuthMiddleware, async (req, res, next) => {
  */
 router.post('/subscription/cancel', jwtAuthMiddleware, async (req, res, next) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
     const result = await SubscriptionService.cancelSubscription(user.id);
     res.json({ success: true, data: result });
   } catch (error) {

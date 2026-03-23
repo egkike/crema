@@ -1,3 +1,5 @@
+import type { PoolClient } from 'pg';
+
 import pool from '../db/postgres';
 import { config } from '../config/index';
 
@@ -83,7 +85,7 @@ export const couponRepository = {
     };
   },
 
-  async incrementUses(couponId: string, client?: any): Promise<void> {
+  async incrementUses(couponId: string, client?: PoolClient): Promise<void> {
     const db = client || pool;
     const schema = config.db?.schema || 'public';
     await db.query(

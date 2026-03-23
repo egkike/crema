@@ -16,7 +16,7 @@ export type UserRole = 'GUEST' | 'USER' | 'AFFILIATE' | 'CREATOR' | 'STAFF' | 'A
  */
 export const restrictTo = (roleName: UserRole) => {
   // Retornamos una función async porque necesitamos esperar a la DB/Caché
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       const { user } = req;
 

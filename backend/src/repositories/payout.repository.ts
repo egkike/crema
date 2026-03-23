@@ -1,3 +1,5 @@
+import type { PoolClient } from 'pg';
+
 import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
@@ -81,7 +83,7 @@ export const payoutRepository = {
     adminNotes: string | null = null,
     transactionReceipt: string | null = null,
     adminId: string | null = null,
-    client?: any
+    client?: PoolClient
   ): Promise<Payout | null> {
     const schema = config.db?.schema || 'public';
     const db = client || pool;

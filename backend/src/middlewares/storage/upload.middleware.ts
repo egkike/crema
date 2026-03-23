@@ -6,13 +6,13 @@ import multer from 'multer';
 import { config } from '../../config/index';
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, _file, cb) => {
     // Carpeta temporal para validación
     const tempPath = path.join(process.cwd(), 'uploads', 'temp');
     if (!fs.existsSync(tempPath)) fs.mkdirSync(tempPath, { recursive: true });
     cb(null, tempPath);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     // Nombre único para evitar colisiones en temp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     cb(null, uniqueSuffix + '-' + file.originalname);

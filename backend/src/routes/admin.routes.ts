@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 
 import { AdminController } from '../controllers/admin.controller';
 import { payoutRepository } from '../repositories/payout.repository';
@@ -24,7 +24,7 @@ router.get('/user-stats/:userId', AdminController.getUserStats);
 router.get('/retention-summary', AdminController.getRetentionSummary);
 
 /* --- 2. GESTIÓN DE RETIROS (PAYOUTS) --- */
-router.get('/payouts/pending', async (req, res, next) => {
+router.get('/payouts/pending', async (_req, res, next) => {
   try {
     const payouts = await payoutRepository.getByStatus('pending');
     res.status(200).json({ success: true, data: payouts });
@@ -38,13 +38,17 @@ router.patch('/payouts/:id/status', AdminController.processPayout);
 /**
  * Registro de retiro de fondos de la plataforma (Empresa)
  */
-router.post('/withdraw-platform', async (req, res, next) => {
+router.post('/withdraw-platform', async (req: Request & { user?: { id: string } }, res: Response, next: NextFunction) => {
   try {
     const { amount, currency, description, transaction_receipt } = req.body;
-    const adminId = (req as any).user?.id;
+    const adminId = req.user?.id;
 
     if (!amount || !transaction_receipt) {
       throw new AppError('Monto y comprobante son obligatorios', 400);
+    }
+
+    if (!adminId) {
+      throw new AppError('Admin no autenticado', 401);
     }
 
     const result = await PayoutService.requestPlatformPayout(

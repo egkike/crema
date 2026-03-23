@@ -1,3 +1,5 @@
+import type { PoolClient } from 'pg';
+
 import pool from '../db/postgres';
 import { config } from '../config/index';
 
@@ -100,7 +102,7 @@ export const orderRepository = {
    * Inactiva la elegibilidad de reembolso por consumo.
    * El WHERE asegura que si ya era FALSE, el RETURNING no devuelva nada (Idempotencia).
    */
-  async invalidateGuarantee(orderId: string, client?: any): Promise<Order | null> {
+  async invalidateGuarantee(orderId: string, client?: PoolClient): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const db = client || pool;
     const query = `
@@ -151,7 +153,7 @@ export const orderRepository = {
   async updateByExternalRef(
     externalReference: string,
     data: Partial<Order>,
-    client?: any
+    client?: PoolClient
   ): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const entries = Object.entries(data);
@@ -184,7 +186,7 @@ export const orderRepository = {
     return this.mapRowToOrder(rows[0]);
   },
 
-  async updateStatus(orderId: string, status: string, client?: any): Promise<Order | null> {
+  async updateStatus(orderId: string, status: string, client?: PoolClient): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const query = `
       UPDATE "${schema}".orders 
@@ -237,7 +239,7 @@ export const orderRepository = {
     };
   },
 
-  async getById(orderId: string, client?: any): Promise<Order | null> {
+  async getById(orderId: string, client?: PoolClient): Promise<Order | null> {
     const schema = config.db?.schema || 'public';
     const db = client || pool;
     const lockClause = client ? 'FOR UPDATE' : '';

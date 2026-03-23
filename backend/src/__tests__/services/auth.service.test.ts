@@ -126,7 +126,8 @@ describe('AuthService', () => {
 
       expect(subscriptionRepository.createInitialSubscription).toHaveBeenCalledWith(
         USER_ID,
-        'plan-pro'
+        'plan-pro',
+        'ARS'
       );
     });
 

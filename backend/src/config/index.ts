@@ -42,6 +42,7 @@ const envSchema = z.object({
   MUX_SIGNING_KEY_ID: z.string().min(1),
   MUX_SIGNING_KEY: z.string().min(1),
   MAX_GLOBAL_UPLOAD_SIZE_MB: z.coerce.number().default(100),
+  FORCE_RELEASE_ON_STARTUP: z.boolean().default(false),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -83,8 +84,12 @@ if (!parsedEnv.success && !isTest) {
   process.exit(1);
 }
 
-// Usamos los datos validados o el rawData si falló en test
-const env = parsedEnv.success ? parsedEnv.data : (rawData as any);
+// Use validated data or provide safe fallback
+// In test mode with invalid config, we use the parsedEnv.data which may have issues
+// but this maintains backward compatibility for tests
+const env = parsedEnv.success 
+  ? parsedEnv.data 
+  : rawData as unknown as z.infer<typeof envSchema>;
 
 export const config = {
   port: env.PORT,

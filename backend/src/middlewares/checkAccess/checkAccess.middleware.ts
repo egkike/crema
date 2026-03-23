@@ -5,7 +5,7 @@ import { configRepository } from '../../repositories/config.repository';
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 
-export const checkContentAccess = async (req: Request, res: Response, next: NextFunction) => {
+export const checkContentAccess = async (req: Request, _res: Response, next: NextFunction) => {
   try {
     const { user } = req;
     const { productId } = req.params;

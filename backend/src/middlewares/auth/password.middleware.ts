@@ -7,7 +7,7 @@ import { AppError } from '../../errors/AppError';
  * Bloquea el acceso a cualquier ruta si el token es 'partial',
  * permitiendo únicamente la ruta de cambio de contraseña.
  */
-export const enforceFullAuth = (req: Request, res: Response, next: NextFunction) => {
+export const enforceFullAuth = (req: Request, _res: Response, next: NextFunction) => {
   // Hacemos el cast a 'any' para evitar el error de tipos de TS
   const user = (req as any).user;
 
