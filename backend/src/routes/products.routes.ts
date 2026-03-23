@@ -10,6 +10,18 @@ import { upload } from '../middlewares/storage/upload.middleware';
 const router = Router();
 
 /**
+ * RUTAS ESTÁTICAS PROTEGIDAS (definir ANTES de rutas dinámicas con parámetros)
+ */
+// Marketplace Filtrado (requiere auth)
+router.get('/marketplace/compatible', jwtAuthMiddleware, productController.getMyAvailableMarketplace);
+
+// Listar propios (Panel del Creador) (requiere auth)
+router.get('/my-products', jwtAuthMiddleware, (req, res, next) => productController.getMyProducts(req, res, next));
+
+// Quiz management (requiere auth + rol CREATOR)
+router.post('/quiz/manage', jwtAuthMiddleware, restrictTo('CREATOR'), productController.upsertQuiz);
+
+/**
  * 1. RUTA PÚBLICA: Ver producto y Tracking
  */
 router.get('/:productId', affiliateTracking, productController.getProductById);
@@ -19,11 +31,6 @@ router.post('/validate-coupon', productController.validateCouponForCheckout);
 
 // --- RUTAS PROTEGIDAS ---
 router.use(jwtAuthMiddleware);
-
-/**
- * Marketplace Filtrado
- */
-router.get('/marketplace/compatible', productController.getMyAvailableMarketplace);
 
 /**
  * Unirse como Afiliado
@@ -77,19 +84,5 @@ router.post(
   restrictTo('CREATOR'), 
   productController.createCoupon
 );
-
-/**
- * 4. Upsert de Quiz para una lección
- */
-router.post(
-  '/quiz/manage',
-  restrictTo('CREATOR'),
-  productController.upsertQuiz
-);
-
-/**
- * 5. Listar propios (Panel del Creador)
- */
-router.get('/my-products', (req, res, next) => productController.getMyProducts(req, res, next));
 
 export default router;
