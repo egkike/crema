@@ -60,3 +60,45 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Rate limiter específico para endpoints de AI (más restrictivo)
+// Los operaciones de AI son más costosas computacionalmente
+export const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 30, // máximo 30 peticiones por minuto por usuario
+  message: {
+    success: false,
+    error: 'Límite de peticiones de AI alcanzado. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => {
+    const user = (req as any).user;
+    return user?.id || ipKeyGenerator(req as any);
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: (req as any).rateLimit?.key, path: req.path }, 'Límite de AI alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
+// Rate limiter aún más restrictivo para operaciones de chat/generación
+// Estas operaciones usan créditos y son las más costosas
+export const aiChatLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 10, // máximo 10 chats por minuto por usuario
+  message: {
+    success: false,
+    error: 'Límite de chats con IA alcanzado. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => {
+    const user = (req as any).user;
+    return user?.id || ipKeyGenerator(req as any);
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: (req as any).rateLimit?.key, path: req.path }, 'Límite de chat AI alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});

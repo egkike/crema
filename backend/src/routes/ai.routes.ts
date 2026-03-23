@@ -7,6 +7,7 @@ import { reviewService } from '../services/ai/review.service';
 import { reportService } from '../services/ai/denunciation.service';
 import { qaAgentService, analyticsService, tutorService, insightsService } from '../services/ai/phases-5-7.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
+import { aiLimiter, aiChatLimiter } from '../middlewares/rateLimit/rateLimit';
 import { AppError } from '../errors/AppError';
 import type { UserPayload } from '../types/express';
 import type { EmbeddingSourceType } from '../types/ai.types';
@@ -155,9 +156,9 @@ router.post('/embeddings', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
 
 /**
  * GET /api/ai/embeddings/search
- * Semantic search across embeddings
+ * Semantic search across embeddings (rate limited)
  */
-router.get('/embeddings/search', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { query, limit, sourceTypes } = req.query;
@@ -950,9 +951,9 @@ router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
 
 /**
  * POST /api/ai/agents/qa/chat
- * Chat with QA agent
+ * Chat with QA agent (uses credits - rate limited)
  */
-router.post('/agents/qa/chat', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { product_id, message } = req.body;
@@ -1021,9 +1022,9 @@ router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (re
 
 /**
  * GET /api/ai/analytics/dashboard
- * Get dashboard metrics for creator
+ * Get dashboard metrics for creator (rate limited)
  */
-router.get('/analytics/dashboard', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const startDate = req.query.start_date ? new Date(req.query.start_date as string) : undefined;
@@ -1193,9 +1194,9 @@ router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req
 
 /**
  * POST /api/ai/insights/query
- * Query data with AI
+ * Query data with AI (rate limited - uses credits)
  */
-router.post('/insights/query', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { query } = req.body;
