@@ -51,11 +51,11 @@ CREATE TABLE IF NOT EXISTS ai_credit_packages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default credit packages
+-- Insert default credit packages (from PRD v1.2)
 INSERT INTO ai_credit_packages (name, credits, price_usd, price_ars) VALUES 
-    ('Starter', 500, 2.00, 2000.00),
-    ('Professional', 2000, 7.00, 7000.00),
-    ('Enterprise', 5000, 15.00, 15000.00)
+    ('Básico', 500, 2.00, 4000.00),
+    ('Standard', 2000, 7.00, 14000.00),
+    ('Pro', 5000, 15.00, 30000.00)
 ON CONFLICT DO NOTHING;
 
 -- =============================================================================

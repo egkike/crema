@@ -159,6 +159,104 @@ export class MemoryService {
   async countBySourceType(sourceType: EmbeddingSourceType): Promise<number> {
     return memoryRepository.countBySourceType(sourceType);
   }
+
+  /**
+   * Check if content needs re-embedding (content changed)
+   * Returns true if no existing embedding or content hash changed
+   */
+  async needsReembed(
+    sourceType: EmbeddingSourceType,
+    sourceId: string,
+    newContent: string
+  ): Promise<boolean> {
+    // Generate simple hash of content
+    const contentHash = this.hashContent(newContent);
+    
+    // Get existing embedding
+    const existing = await memoryRepository.getBySource(sourceType, sourceId);
+    
+    // Need reembed if no existing or hash changed
+    if (!existing) {
+      return true;
+    }
+    
+    // Check if content hash in metadata matches
+    const existingHash = existing.metadata?.contentHash as string | undefined;
+    return existingHash !== contentHash;
+  }
+
+  /**
+   * Embed content with automatic content hash tracking
+   * Only creates if content changed or doesn't exist
+   */
+  async embed(params: {
+    type: EmbeddingSourceType;
+    id: string;
+    content: string;
+    title?: string;
+    metadata?: Record<string, unknown>;
+    productId?: string;
+    creatorId?: string;
+  }): Promise<AIEmbedding | null> {
+    // Check if needs re-embedding
+    const shouldEmbed = await this.needsReembed(params.type, params.id, params.content);
+    
+    if (!shouldEmbed) {
+      logger.debug({ type: params.type, id: params.id }, 'Content unchanged, skipping embed');
+      return null;
+    }
+    
+    // Check if embedding service is configured
+    if (!embeddingService.isConfigured()) {
+      logger.warn('Embedding service not configured, skipping embed');
+      return null;
+    }
+
+    // Generate embedding
+    const embedding = await embeddingService.generateEmbedding(params.content);
+    
+    // Prepare metadata with content hash
+    const metadata = {
+      ...params.metadata,
+      contentHash: this.hashContent(params.content),
+      title: params.title,
+    };
+
+    // Try to update existing or create new
+    const existing = await memoryRepository.getBySource(params.type, params.id);
+    
+    if (existing) {
+      // Update
+      await memoryRepository.updateEmbedding(params.id, params.type, params.content, embedding, metadata);
+      logger.info({ type: params.type, id: params.id }, 'Embedding updated');
+    } else {
+      // Create
+      await memoryRepository.createEmbedding(
+        params.creatorId || null,
+        params.type,
+        params.id,
+        params.content,
+        embedding,
+        metadata
+      );
+      logger.info({ type: params.type, id: params.id }, 'Embedding created');
+    }
+
+    return memoryRepository.getBySource(params.type, params.id);
+  }
+
+  /**
+   * Simple hash function for content comparison
+   */
+  private hashContent(content: string): string {
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString(16);
+  }
 }
 
 export const memoryService = new MemoryService();

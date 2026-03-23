@@ -97,6 +97,33 @@ export const memoryRepository = {
   },
 
   /**
+   * Update embedding content and vector
+   */
+  async updateEmbedding(
+    sourceId: string,
+    sourceType: EmbeddingSourceType,
+    content: string,
+    embedding: number[],
+    metadata: Record<string, unknown>
+  ): Promise<void> {
+    const query = `
+      UPDATE "${schema}".ai_embeddings
+      SET content = $1, 
+          embedding = $2,
+          metadata = $3,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE source_type = $4 AND source_id = $5
+    `;
+    await pool.query(query, [
+      content,
+      `[${embedding.join(',')}]`,
+      JSON.stringify(metadata),
+      sourceType,
+      sourceId,
+    ]);
+  },
+
+  /**
    * Delete all embeddings for a user
    */
   async deleteByUser(userId: string): Promise<number> {
