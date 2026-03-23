@@ -126,7 +126,6 @@ if (config.nodeEnv !== 'test') {
 // --- DEFINICIÓN DE RUTAS ---
 app.use('/api/payments', paymentsRouter);
 app.use('/api/auth', authRoutes);
-app.use('/api', userRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/learning', learningRoutes);
 app.use('/api/balances', balanceRoutes);
@@ -136,6 +135,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payout-methods', payoutMethodRoutes);
 app.use('/api/affiliates', affiliateRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api', userRoutes); // ← AL FINAL, como catch-all
 
 // --- SWAGGER DOCS ---
 if (config.nodeEnv !== 'production') {
