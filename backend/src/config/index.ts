@@ -46,7 +46,7 @@ const envSchema = z.object({
   // --- AI Configuration ---
   OPENAI_API_KEY: z.string().optional().default(''),
   OLLAMA_BASE_URL: z.string().optional().default(''),
-  USE_OLLAMA: z.boolean().optional(),
+  USE_OLLAMA: z.coerce.boolean().optional(),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
