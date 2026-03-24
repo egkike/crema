@@ -43,7 +43,10 @@ const envSchema = z.object({
   MUX_SIGNING_KEY: z.string().min(1),
   MAX_GLOBAL_UPLOAD_SIZE_MB: z.coerce.number().default(100),
   FORCE_RELEASE_ON_STARTUP: z.boolean().default(false),
+  // --- AI Configuration ---
   OPENAI_API_KEY: z.string().optional().default(''),
+  OLLAMA_BASE_URL: z.string().optional().default(''),
+  USE_OLLAMA: z.boolean().optional(),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -152,10 +155,19 @@ export const config = {
   passwordPepper: process.env.PASSWORD_PEPPER || 'dev_pepper_fallback_local',
   storage: {
     maxGlobalSizeMb: env.MAX_GLOBAL_UPLOAD_SIZE_MB,
-    maxGlobalSizeBytes: Number(process.env.MAX_GLOBAL_SIZE_BYTES) || 100 * 1024 * 1024, // 100MB por defecto
+    maxGlobalSizeBytes: Number(process.env.MAX_GLOBAL_SIZE_BYTES) || 100 * 102 * 1024, // 100MB por defecto
   },
-  openai: {
-    apiKey: env.OPENAI_API_KEY,
+  ai: {
+    // OpenAI Configuration
+    openaiApiKey: env.OPENAI_API_KEY || '',
+    // Ollama Configuration
+    ollamaBaseUrl: env.OLLAMA_BASE_URL || 'http://localhost:11434',
+    ollamaEnabled: env.USE_OLLAMA === true,
+    // Default models
+    defaultEmbeddingModel: 'text-embedding-3-small',
+    defaultChatModel: 'gpt-4o-mini',
+    defaultOllamaChatModel: 'qwen2.5:3b',
+    defaultOllamaEmbeddingModel: 'nomic-embed-text',
   },
 } as const;
 

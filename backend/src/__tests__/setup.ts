@@ -205,6 +205,15 @@ vi.mock('../config/index', () => ({
     apiBaseUrl: 'http://localhost:3000',
     frontendUrl: 'http://localhost:5173',
     daysOfGuarantee: 7,
+    ai: {
+      openaiApiKey: '',
+      ollamaBaseUrl: 'http://localhost:11434',
+      ollamaEnabled: false,
+      defaultEmbeddingModel: 'text-embedding-3-small',
+      defaultChatModel: 'gpt-4o-mini',
+      defaultOllamaChatModel: 'qwen2.5:3b',
+      defaultOllamaEmbeddingModel: 'nomic-embed-text',
+    },
   },
 }));
 

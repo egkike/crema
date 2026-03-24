@@ -10,8 +10,21 @@ import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 
 import { aiCreditService } from './credits.service';
+import { llmService } from './llm.service';
 
 const schema = config.db?.schema || 'public';
+
+// Default system prompt for QA Agent
+const DEFAULT_QA_SYSTEM_PROMPT = `Eres un asistente de IA especializado en ayudar a usuarios con preguntas sobre productos digitales.
+Tu rol es responder preguntas de manera clara, útil y amigable basándote únicamente en la información del contexto proporcionado.
+
+INSTRUCCIONES:
+1. Responde ONLY usando la información del contexto proporcionado
+2. Si no tienes información suficiente, indica que no puedes responder esa pregunta específica
+3. Usa un tono profesional pero amigable
+4. Sé conciso pero completo en tus respuestas
+5. Si la pregunta está fuera del alcance del producto, redirige al usuario
+`;
 
 // Types
 interface QAAgentConfig {
@@ -279,19 +292,33 @@ export const qaAgentService = {
       context += '\n\nFAQs:\n' + faqs.rows.map(f => `P: ${f.question}\nR: ${f.answer}`).join('\n\n');
     }
 
-    // Build system prompt (placeholder - will be used when LLM is integrated)
-    // Note: system_prompt from config will be used when LLM integration is complete
+    // Build system prompt
+    const systemPrompt = config.system_prompt || DEFAULT_QA_SYSTEM_PROMPT;
 
-    // TODO: Call actual LLM here (placeholder response)
-    const response = `Gracias por tu pregunta: "${message}". 
+    // Build messages for LLM
+    const messages = llmService.buildPrompt(systemPrompt, context, message);
 
-Esta es una respuesta del agente QA. Para completar la integración con el LLM (OpenAI GPT-4), necesitas:
+    // Call LLM
+    let llmResponse;
+    try {
+      llmResponse = await llmService.chat({
+        messages,
+        temperature: config.temperature,
+        maxTokens: config.max_tokens,
+      });
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'LLM call failed, falling back to placeholder');
+      llmResponse = {
+        content: `Gracias por tu pregunta: "${message}". 
 
-1. Configurar OPENAI_API_KEY en .env
-2. Implementar la llamada al LLM en qa-agent.service.ts
-3. Agregar el costo en créditos por cada interacción
+抱歉, hubo un problema al generar la respuesta. Pero acá está la información del contexto que recuperamos:
 
-Contexto recuperado: ${context.substring(0, 200)}...`;
+${context.substring(0, 500)}...`,
+        model: llmService.getProvider(),
+      };
+    }
+
+    const response = llmResponse.content;
 
     // Save assistant message
     await this.addMessage(conversationId, 'assistant', response, message.length / 4);

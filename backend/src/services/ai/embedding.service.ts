@@ -8,12 +8,12 @@
 import { config } from '../../config/index';
 import logger from '../../utils/logger';
 
-const EMBEDDING_MODEL = 'text-embedding-3-small';
+const EMBEDDING_MODEL = config.ai.defaultEmbeddingModel;
 const EMBEDDING_DIMENSIONS = 1536;
 
-// Alternative: Ollama local model (free, no API key needed)
-const OLLAMA_MODEL = 'nomic-embed-text';
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+// Ollama configuration from centralized config
+const OLLAMA_MODEL = config.ai.defaultOllamaEmbeddingModel;
+const OLLAMA_BASE_URL = config.ai.ollamaBaseUrl;
 
 interface OpenAIEmbeddingResponse {
   data: Array<{
@@ -35,13 +35,13 @@ export class EmbeddingService {
   private provider: EmbeddingProvider = 'openai';
 
   constructor() {
-    this.apiKey = config.openai?.apiKey || '';
+    this.apiKey = config.ai.openaiApiKey;
     
     // Auto-detect provider based on available config
     if (this.apiKey) {
       this.provider = 'openai';
       logger.info('Using OpenAI for embeddings');
-    } else if (process.env.OLLAMA_BASE_URL || process.env.USE_OLLAMA === 'true') {
+    } else if (config.ai.ollamaEnabled || config.ai.ollamaBaseUrl) {
       this.provider = 'ollama';
       logger.info('Using Ollama for embeddings');
     } else {
