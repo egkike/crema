@@ -5,7 +5,7 @@ import { memoryService } from '../services/ai/memory.service';
 import { qaService } from '../services/ai/qa.service';
 import { reviewService } from '../services/ai/review.service';
 import { reportService } from '../services/ai/denunciation.service';
-import { qaAgentService, analyticsService, tutorService, insightsService } from '../services/ai/phases-5-7.service';
+import { qaAgentService, analyticsService, tutorService, insightsService } from '../services/ai/agents.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { aiLimiter, aiChatLimiter } from '../middlewares/rateLimit/rateLimit';
 import { AppError } from '../errors/AppError';
@@ -1172,6 +1172,35 @@ router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req:
     const userId = req.user!.id;
 
     const result = await tutorService.getInsights(userId, productId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    throw new AppError(error.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/products/:productId/tutor/chat
+ * Chat with Tutor AI
+ */
+router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const productId = toString(req.params.productId);
+    const userId = req.user!.id;
+    const { message } = req.body;
+
+    if (!message || typeof message !== 'string') {
+      throw new AppError('El mensaje es requerido', 400);
+    }
+
+    if (message.length > 2000) {
+      throw new AppError('El mensaje es demasiado largo (máximo 2000 caracteres)', 400);
+    }
+
+    const result = await tutorService.chat(productId, userId, message);
 
     res.json({
       success: true,

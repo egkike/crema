@@ -26,6 +26,25 @@ INSTRUCCIONES:
 5. Si la pregunta está fuera del alcance del producto, redirige al usuario
 `;
 
+// Default system prompt for Tutor AI
+const DEFAULT_TUTOR_SYSTEM_PROMPT = `Eres un tutor personal de un curso online. Tu rol es ayudar al estudiante a entender el contenido del curso, resolver dudas, y guiarlo a través del aprendizaje.
+
+INSTRUCCIONES:
+1. Responde usando ONLY el contenido de las lecciones del curso proporcionado en el contexto
+2. Si el estudiante tiene dudas técnicas específicas del contenido, ayúdalo a resolverlas
+3. Usa un tono paciente, amigable y motivador
+4. Si no sabes la respuesta, sé honesto y sugiere que contacte al creador del curso
+5. Puedes dar ejemplos del contenido para ilustrar conceptos
+6. Ayudas al estudiante a.progress en su aprendizaje
+
+LIMITACIONES:
+- No inventes información que no esté en las lecciones
+- No des consejos fuera del alcance del curso
+- No reemplaces la interacción humana si el estudiante necesita ayuda personalizada
+
+Contexto de las lecciones del curso:
+{lesson_context}`;
+
 // Types
 interface QAAgentConfig {
   id: string;
@@ -536,6 +555,80 @@ export const tutorService = {
         createdAt: r.created_at,
       })),
     };
+  },
+
+  /**
+   * Chat with Tutor AI - generates response using lesson content
+   */
+  async chat(productId: string, userId: string, message: string): Promise<{ response: string; conversationId: string }> {
+    // Get config
+    const config = await this.getConfig(productId);
+    if (!config || !config.isEnabled) {
+      throw new AppError('Tutor no está habilitado para este producto', 400);
+    }
+
+    // Check credits
+    const cost = aiCreditService.getOperationCost('search');
+    const credits = await aiCreditService.getBalance(userId);
+    if (!credits || credits.balance < cost) {
+      throw new AppError('Créditos insuficientes', 402);
+    }
+
+    // Use credits
+    await aiCreditService.useCredits(userId, cost, `Tutor chat`);
+
+    // Get lesson content for context
+    const lessonsQuery = `
+      SELECT l.title, l.content, m.title as module_title
+      FROM "${schema}".lessons l
+      JOIN "${schema}".modules m ON l.module_id = m.id
+      WHERE m.product_id = $1 AND l.is_free = true OR m.product_id = $1
+      ORDER BY m.sort_order, l.sort_order
+      LIMIT 20
+    `;
+    const { rows: lessons } = await pool.query<{ title: string; content: string; module_title: string }>(
+      lessonsQuery,
+      [productId]
+    );
+
+    // Build context from lessons
+    const lessonContext = lessons
+      .map(l => `Módulo: ${l.module_title}\nLección: ${l.title}\nContenido: ${l.content.substring(0, 1000)}`)
+      .join('\n\n---\n\n');
+
+    // Build system prompt
+    const systemPrompt = (config.systemPrompt || DEFAULT_TUTOR_SYSTEM_PROMPT).replace(
+      '{lesson_context}',
+      lessonContext || 'No hay contenido de lecciones disponible.'
+    );
+
+    // Build messages for LLM
+    const messages = llmService.buildPrompt(systemPrompt, '', message);
+
+    // Call LLM
+    let llmResponse;
+    try {
+      llmResponse = await llmService.chat({
+        messages,
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+      });
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'LLM call failed for Tutor');
+      llmResponse = {
+        content: `Gracias por tu pregunta: "${message}". 
+
+抱歉, houve un problema al generar la respuesta. Pero aquí está información de las lecciones que recuperamos:
+
+${lessonContext.substring(0, 500)}...`,
+        model: llmService.getProvider(),
+      };
+    }
+
+    const response = llmResponse.content;
+
+    logger.info({ productId, userId }, 'Tutor response generated');
+    return { response, conversationId: productId };
   },
 };
 
