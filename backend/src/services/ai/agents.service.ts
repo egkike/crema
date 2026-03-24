@@ -330,7 +330,7 @@ export const qaAgentService = {
       llmResponse = {
         content: `Gracias por tu pregunta: "${message}". 
 
-抱歉, hubo un problema al generar la respuesta. Pero acá está la información del contexto que recuperamos:
+Lo sentimos, hubo un problema al generar la respuesta. Pero aca esta la informacion del contexto que recuperamos:
 
 ${context.substring(0, 500)}...`,
         model: llmService.getProvider(),
@@ -618,7 +618,7 @@ export const tutorService = {
       llmResponse = {
         content: `Gracias por tu pregunta: "${message}". 
 
-抱歉, houve un problema al generar la respuesta. Pero aquí está información de las lecciones que recuperamos:
+Lo sentimos, hubo un problema al generar la respuesta. Pero aqui esta informacion de las lecciones que recuperamos:
 
 ${lessonContext.substring(0, 500)}...`,
         model: llmService.getProvider(),
@@ -720,29 +720,141 @@ export const insightsService = {
   },
 
   /**
-   * Query data with AI (placeholder - requires LLM integration)
+   * Query data with AI - converts natural language to SQL and executes
    */
   async query(userId: string, naturalLanguageQuery: string): Promise<{
     sql: string | null;
     results: unknown;
   }> {
-    // TODO: Use LLM to convert natural language to SQL
-    // For now, return placeholder
-    
     logger.info({ userId, query: naturalLanguageQuery }, 'Insights query requested');
 
-    // Save to history
-    await pool.query(
-      `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
-      [userId, naturalLanguageQuery, null, JSON.stringify({ message: 'Placeholder - requires LLM integration' })]
+    // Database schema for context
+    const dbSchema = `
+Tablas disponibles:
+- orders: id, buyer_id, product_id, total_amount, currency, status, created_at
+- products: id, creator_id, title, type, status, prices (JSON), created_at
+- users: id, email, username, level, created_at
+- commissions: id, order_id, recipient_id, amount, currency, type, status, created_at
+- product_reviews: id, product_id, user_id, rating, content, created_at
+- product_questions: id, product_id, user_id, question, answer, created_at
+- balances: id, user_id, available, pending, currency
+
+Precios en orders.total_amount (entero, ejemplo: 5000 = $50.00)
+Fechas en orders.created_at (timestamp)
+
+Esquema del usuario actual: {schema}
+`;
+
+    // Get user's products for context
+    const userProductsQuery = `
+      SELECT id, title, type FROM "{schema}".products 
+      WHERE creator_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `;
+    const { rows: userProducts } = await pool.query<{ id: string; title: string; type: string }>(
+      userProductsQuery.replace('{schema}', schema),
+      [userId]
     );
 
-    return {
-      sql: null,
-      results: {
-        message: 'Esta funcionalidad requiere integración con LLM para convertir lenguaje natural a SQL.',
-        query: naturalLanguageQuery,
-      },
-    };
+    const userSchema = userProducts.length > 0 
+      ? `El usuario es creador de ${userProducts.length} productos: ${userProducts.map(p => `${p.title} (${p.type})`).join(', ')}`
+      : 'El usuario no tiene productos creados';
+
+    // Build prompt for SQL generation
+    const sqlPrompt = `Eres un asistente que convierte preguntas de negocio en consultas SQL.
+Responde SOLO con JSON, sin texto adicional.
+
+Pregunta: "${naturalLanguageQuery}"
+
+${dbSchema.replace('{schema}', userSchema)}
+
+Responde en JSON con este formato:
+{
+  "sql": "SELECT ... FROM orders WHERE ...",
+  "explanation": "Breve explicación de qué hace la consulta"
+}
+
+REGLAS:
+1. USA SOLO las tablas listadas arriba
+2. Los resultados deben ser DEL PROPIO USUARIO (filtra por creator_id o buyer_id)
+3. Convierte precios: si la pregunta es en pesos, divide por 100
+4. Fechas: usa DATE_TRUNC('month', created_at) para agrupar por mes
+5. NO uses INSERT, UPDATE, DELETE - solo SELECT
+6. Limita resultados a máximo 100 filas`;
+
+    try {
+      const llmResponse = await llmService.chat({
+        messages: [
+          { role: 'system', content: sqlPrompt },
+          { role: 'user', content: naturalLanguageQuery }
+        ],
+        temperature: 0.2,
+        maxTokens: 500,
+      });
+
+      // Parse SQL from response
+      let generatedSql = '';
+      try {
+        const jsonMatch = llmResponse.content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          generatedSql = parsed.sql || '';
+        }
+      } catch {
+        // Try to extract SQL directly
+        const sqlMatch = llmResponse.content.match(/(SELECT[\s\S]+)/i);
+        if (sqlMatch) {
+          generatedSql = sqlMatch[1].trim();
+        }
+      }
+
+      if (!generatedSql) {
+        throw new Error('No se pudo generar SQL válido');
+      }
+
+      // Execute SQL safely
+      let sqlResults: unknown[] = [];
+      try {
+        // Add safety limits
+        const safeSql = generatedSql
+          .replace(/;.*$/g, '') // Remove any trailing commands
+          .replace(/\bLIMIT\s+\d+/gi, 'LIMIT 100') // Force limit
+          .replace(/\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER)\b/gi, ''); // Remove dangerous commands
+
+        const { rows } = await pool.query(safeSql);
+        sqlResults = rows;
+      } catch (sqlError: any) {
+        logger.error({ error: sqlError.message, sql: generatedSql }, 'SQL execution failed');
+        sqlResults = [{ error: 'Error al ejecutar la consulta', details: sqlError.message }];
+      }
+
+      // Save to history
+      await pool.query(
+        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
+        [userId, naturalLanguageQuery, generatedSql, JSON.stringify(sqlResults)]
+      );
+
+      return {
+        sql: generatedSql,
+        results: sqlResults,
+      };
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'Insights query failed');
+      
+      // Save failed query to history
+      await pool.query(
+        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [userId, naturalLanguageQuery, null, JSON.stringify([]), false, error.message]
+      );
+
+      return {
+        sql: null,
+        results: {
+          error: 'No se pudo procesar la consulta',
+          message: error.message,
+        },
+      };
+    }
   },
 };
