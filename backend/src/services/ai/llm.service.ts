@@ -1,6 +1,6 @@
 /**
  * LLM Service
- * Unified interface for LLM providers (OpenAI, Ollama)
+ * Unified interface for LLM providers (OpenAI, Ollama, Anthropic, Gemini)
  * Supports chat completions for AI agents
  */
 
@@ -11,7 +11,7 @@ import logger from '../../utils/logger';
 // Types
 // ============================================================================
 
-export type LLMProvider = 'openai' | 'ollama' | 'simulator';
+export type LLMProvider = 'openai' | 'ollama' | 'anthropic' | 'gemini' | 'simulator';
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -39,32 +39,39 @@ export interface LLMResponse {
 // Configuration (from centralized config)
 // ============================================================================
 
-const OPENAI_MODEL = config.ai.defaultChatModel;
+const OPENAI_MODEL = config.ai.openaiModel;
 const OLLAMA_MODEL = config.ai.defaultOllamaChatModel;
 const OLLAMA_BASE_URL = config.ai.ollamaBaseUrl;
+const ANTHROPIC_MODEL = config.ai.anthropicModel;
+const GEMINI_MODEL = config.ai.geminiModel;
 
 // ============================================================================
 // LLM Service Class
 // ============================================================================
 
 export class LLMService {
-  private apiKey: string;
   private provider: LLMProvider;
-  private baseUrl = 'https://api.openai.com/v1';
 
   constructor() {
-    this.apiKey = config.ai.openaiApiKey;
+    // Use provider from config, with fallback to auto-detect
+    this.provider = config.ai.provider;
     
-    // Auto-detect provider based on available config
-    if (this.apiKey) {
-      this.provider = 'openai';
-      logger.info('LLM Service: Using OpenAI');
-    } else if (config.ai.ollamaEnabled || config.ai.ollamaBaseUrl) {
-      this.provider = 'ollama';
-      logger.info(`LLM Service: Using Ollama at ${OLLAMA_BASE_URL}`);
-    } else {
-      this.provider = 'simulator';
-      logger.warn('LLM Service: No provider configured - using simulator (not for production)');
+    // Log provider selection
+    switch (this.provider) {
+      case 'openai':
+        logger.info('LLM Service: Using OpenAI');
+        break;
+      case 'ollama':
+        logger.info(`LLM Service: Using Ollama at ${OLLAMA_BASE_URL}`);
+        break;
+      case 'anthropic':
+        logger.info(`LLM Service: Using Anthropic (${ANTHROPIC_MODEL})`);
+        break;
+      case 'gemini':
+        logger.info(`LLM Service: Using Gemini (${GEMINI_MODEL})`);
+        break;
+      default:
+        logger.warn('LLM Service: Using simulator (not for production)');
     }
   }
 
@@ -72,7 +79,7 @@ export class LLMService {
    * Check if LLM service is properly configured for production use
    */
   isConfigured(): boolean {
-    return this.provider === 'openai' || this.provider === 'ollama';
+    return ['openai', 'ollama', 'anthropic', 'gemini'].includes(this.provider);
   }
 
   /**
@@ -91,6 +98,10 @@ export class LLMService {
         return this.openAIChat(request);
       case 'ollama':
         return this.ollamaChat(request);
+      case 'anthropic':
+        return this.anthropicChat(request);
+      case 'gemini':
+        return this.geminiChat(request);
       case 'simulator':
         return this.simulatorChat(request);
       default:
@@ -103,18 +114,19 @@ export class LLMService {
   // ============================================================================
 
   private async openAIChat(request: LLMRequest): Promise<LLMResponse> {
-    if (!this.apiKey) {
+    const apiKey = config.ai.openaiApiKey;
+    if (!apiKey) {
       throw new Error('OpenAI API key not configured');
     }
 
     const model = request.model || OPENAI_MODEL;
 
     try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           model,
@@ -215,6 +227,148 @@ export class LLMService {
       };
     } catch (error: any) {
       logger.error({ error: error.message }, 'Failed to generate Ollama chat response');
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // Anthropic (Claude) Implementation
+  // ============================================================================
+
+  private async anthropicChat(request: LLMRequest): Promise<LLMResponse> {
+    const apiKey = config.ai.anthropicApiKey;
+    if (!apiKey) {
+      throw new Error('Anthropic API key not configured');
+    }
+
+    const model = request.model || ANTHROPIC_MODEL;
+
+    try {
+      // Convert messages to Anthropic format
+      const anthropicMessages = request.messages
+        .filter(msg => msg.role !== 'system')
+        .map(msg => ({
+          role: msg.role === 'assistant' ? 'assistant' : 'user',
+          content: msg.content,
+        }));
+
+      // Get system prompt if exists
+      const systemPrompt = request.messages.find(m => m.role === 'system')?.content || '';
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: request.maxTokens || 1024,
+          temperature: request.temperature ?? 0.7,
+          system: systemPrompt,
+          messages: anthropicMessages,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        logger.error({ status: response.status, error }, 'Anthropic chat API error');
+        throw new Error(`Anthropic API error: ${response.status}`);
+      }
+
+      const data = await response.json() as {
+        content: Array<{ text: string }>;
+        usage: { input_tokens: number; output_tokens: number };
+      };
+
+      const content = data.content[0]?.text || '';
+      const usage = data.usage;
+
+      return {
+        content,
+        model,
+        usage: {
+          promptTokens: usage.input_tokens,
+          completionTokens: usage.output_tokens,
+          totalTokens: usage.input_tokens + usage.output_tokens,
+        },
+      };
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'Failed to generate Anthropic chat response');
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // Google Gemini Implementation
+  // ============================================================================
+
+  private async geminiChat(request: LLMRequest): Promise<LLMResponse> {
+    const apiKey = config.ai.geminiApiKey;
+    if (!apiKey) {
+      throw new Error('Gemini API key not configured');
+    }
+
+    const model = request.model || GEMINI_MODEL;
+
+    try {
+      // Convert messages to Gemini format
+      const contents = request.messages
+        .filter(msg => msg.role !== 'system')
+        .map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }],
+        }));
+
+      // Get system instruction if exists
+      const systemInstruction = request.messages.find(m => m.role === 'system')?.content || '';
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+            contents,
+            generationConfig: {
+              temperature: request.temperature ?? 0.7,
+              maxOutputTokens: request.maxTokens || 1024,
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.text();
+        logger.error({ status: response.status, error }, 'Gemini chat API error');
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
+
+      const data = await response.json() as {
+        candidates?: Array<{
+          content?: { parts?: Array<{ text: string }> };
+        }>;
+        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+      };
+
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const usage = data.usageMetadata || {};
+
+      return {
+        content,
+        model,
+        usage: {
+          promptTokens: usage.promptTokenCount || 0,
+          completionTokens: usage.candidatesTokenCount || 0,
+          totalTokens: (usage.promptTokenCount || 0) + (usage.candidatesTokenCount || 0),
+        },
+      };
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'Failed to generate Gemini chat response');
       throw error;
     }
   }

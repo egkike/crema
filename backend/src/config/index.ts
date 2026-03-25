@@ -44,9 +44,16 @@ const envSchema = z.object({
   MAX_GLOBAL_UPLOAD_SIZE_MB: z.coerce.number().default(100),
   FORCE_RELEASE_ON_STARTUP: z.boolean().default(false),
   // --- AI Configuration ---
+  LLM_PROVIDER: z.enum(['openai', 'ollama', 'anthropic', 'gemini', 'simulator']).default('openai'),
   OPENAI_API_KEY: z.string().optional().default(''),
+  OPENAI_MODEL: z.string().optional().default('gpt-4o-mini'),
+  OPENAI_EMBEDDING_MODEL: z.string().optional().default('text-embedding-3-small'),
   OLLAMA_BASE_URL: z.string().optional().default(''),
   USE_OLLAMA: z.coerce.boolean().optional(),
+  ANTHROPIC_API_KEY: z.string().optional().default(''),
+  ANTHROPIC_MODEL: z.string().optional().default('claude-3-haiku-20240307'),
+  GEMINI_API_KEY: z.string().optional().default(''),
+  GEMINI_MODEL: z.string().optional().default('gemini-1.5-flash'),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -158,14 +165,22 @@ export const config = {
     maxGlobalSizeBytes: Number(process.env.MAX_GLOBAL_SIZE_BYTES) || 100 * 102 * 1024, // 100MB por defecto
   },
   ai: {
+    // LLM Provider selection: 'openai' | 'ollama' | 'anthropic' | 'gemini' | 'simulator'
+    provider: (env.LLM_PROVIDER || 'openai') as 'openai' | 'ollama' | 'anthropic' | 'gemini' | 'simulator',
     // OpenAI Configuration
     openaiApiKey: env.OPENAI_API_KEY || '',
+    openaiModel: env.OPENAI_MODEL || 'gpt-4o-mini',
+    openaiEmbeddingModel: env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
+    // Anthropic (Claude) Configuration
+    anthropicApiKey: env.ANTHROPIC_API_KEY || '',
+    anthropicModel: env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+    // Google Gemini Configuration
+    geminiApiKey: env.GEMINI_API_KEY || '',
+    geminiModel: env.GEMINI_MODEL || 'gemini-1.5-flash',
     // Ollama Configuration
     ollamaBaseUrl: env.OLLAMA_BASE_URL || 'http://localhost:11434',
     ollamaEnabled: env.USE_OLLAMA === true,
-    // Default models
-    defaultEmbeddingModel: 'text-embedding-3-small',
-    defaultChatModel: 'gpt-4o-mini',
+    // Default models for Ollama
     defaultOllamaChatModel: 'qwen2.5:3b',
     defaultOllamaEmbeddingModel: 'nomic-embed-text',
   },

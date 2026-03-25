@@ -8,7 +8,7 @@
 import { config } from '../../config/index';
 import logger from '../../utils/logger';
 
-const EMBEDDING_MODEL = config.ai.defaultEmbeddingModel;
+const EMBEDDING_MODEL = config.ai.openaiEmbeddingModel;
 const EMBEDDING_DIMENSIONS = 1536;
 
 // Ollama configuration from centralized config
