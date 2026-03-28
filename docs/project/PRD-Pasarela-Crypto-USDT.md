@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD)
 ## Pasarela de Pagos Crypto (USDT) - Crema
 
-**Versión**: 2.0  
+**Versión**: 2.4  
 **Fecha**: Marzo 2026  
 **Estado**: Draft para revisión  
 **Owner**: Kike García  
@@ -77,8 +77,8 @@ Este PRD define los requisitos para implementar una pasarela de pagos con cripto
 **Detalles Técnicos**:
 - Blockonomics API para crear invoices
 - Webhooks para confirmación de pagos
-- Soporte para USDT en redes TRC20 y ERC20
-- Fee: 1% por transacción
+- **Blockonomics solo soporta ERC-20** para recibir pagos
+- Fee: 1% por transacción (pagado mensualmente)
 
 #### RF-02: Registro en Sistema de Pasarelas Dinámicas
 - **Descripción**: Integrar Blockonomics al sistema de payment_gateways existente
@@ -528,6 +528,77 @@ POST /api/payments/webhook/blockonomics
 
 ---
 
+## 8. Configuración de Variables de Entorno
+
+### 8.1 Variables Requeridas para Blockonomics
+
+```env
+# ===========================================
+# BLOCKONOMICS - Pasarela de Pagos Crypto
+# ===========================================
+
+# API Key de Blockonomics (obtener desde dashboard > Stores > API)
+BLOCKONOMICS_API_KEY=tu_api_key_aqui
+
+# Store ID (identificador de tu tienda en Blockonomics)
+BLOCKONOMICS_STORE_ID=tu_store_id
+
+# Callback URL (webhook endpoint)
+# debe ser accesible públicamente para producción
+# para desarrollo local usar ngrok
+BLOCKONOMICS_CALLBACK_URL=https://tu-dominio.com/api/payments/webhook/blockonomics
+
+# (Opcional) Secret para validar webhooks
+BLOCKONOMICS_WEBHOOK_SECRET=tu_secret_aqui
+```
+
+### 8.2 Ubicación del Archivo
+
+| Entorno | Archivo |
+|---------|---------|
+| Desarrollo | `.env.local` |
+| Staging | `.env.staging` |
+| Producción | `.env` (no commitear) |
+
+### 8.3 Ejemplo .env.example
+
+Crear archivo `backend/.env.example` con las variables (sin valores reales):
+
+```bash
+# Blockonomics
+BLOCKONOMICS_API_KEY=
+BLOCKONOMICS_STORE_ID=
+BLOCKONOMICS_CALLBACK_URL=
+# BLOCKONOMICS_WEBHOOK_SECRET=  # opcional
+```
+
+### 8.4 Validación en Código
+
+El provider debe validar al inicializar:
+
+```typescript
+// BlockonomicsProvider.ts
+constructor() {
+  if (!process.env.BLOCKONOMICS_API_KEY) {
+    throw new Error('BLOCKONOMICS_API_KEY is required');
+  }
+  if (!process.env.BLOCKONOMICS_STORE_ID) {
+    throw new Error('BLOCKONOMICS_STORE_ID is required');
+  }
+}
+```
+
+### 8.5 Notas de Seguridad
+
+| Aspecto | Recomendación |
+|---------|---------------|
+| **API Key** | No commitear al repositorio |
+| **Webhook Secret** | Usar para validar autenticidad de callbacks |
+| **Callback URL** | Debe ser HTTPS en producción |
+| **Logs** | No loguear la API key completa |
+
+---
+
 ## 9. Estimación de Trabajo
 
 | Fase | Tarea | Estimación |
@@ -846,6 +917,83 @@ platformEarnings = {
 
 **Nota**: Se recomienda consultar con contador especializado en cripto para validación de este esquema contable.
 
+### 11.7 Costos de Gas/Red para Transacciones USDT
+
+#### Costos por Red (Marzo 2026)
+
+| Red | Costo por Transacción | Notas |
+|-----|---------------------|-------|
+| **ERC-20** | $1-3 USD (en ETH) | Más caro, necesario para recibir |
+| **TRC-20** | $1-2 USD (en TRX) | Barato y rápido |
+| **BEP-20** | $0.50-1 USD (en BNB) | El más económico |
+
+#### Quién Paga el Gas
+
+| Momento | Quién paga | Costo |
+|---------|-----------|-------|
+| Cliente → Blockonomics | Cliente | $1-3 (incluido en su tx) |
+| Blockonomics → Crema | Nadie | $0 |
+| Crema → Creador | Crema | $0.50-2 por transacción |
+
+#### Estimación de Costos Mensuales (Pagos a Creadores)
+
+| Volumen (payouts/mes) | Costo Gas |
+|------------------------|----------|
+| 10 | $5-20 |
+| 50 | $25-100 |
+| 100 | $50-200 |
+| 500 | $250-1,000 |
+
+#### Recomendación
+El costo de gas para pagar a creadores debe considerarse como **gasto operacional** de la pasarela crypto. Se recomienda provisionar un monto mensual estimado basado en el volumen de payouts.
+
+### 11.8 Análisis de Volatilidad
+
+#### Tipos de Volatilidad a Considerar
+
+| Tipo | Descripción | Riesgo para Crema |
+|------|-------------|-------------------|
+| **USDT vs USD** | USDT está diseñado para mantener 1:1 con USD | ✅ Muy bajo |
+| **USDT vs ARS** | Par ARS/USDT varia según mercado blue/oficial | ⚠️ Medio (si se convierte a ARS) |
+| **ETH/BNB/TRX (gas)** | Costo de red varía | ✅ Bajo (asumido por cliente/Crema) |
+
+#### Escenario: USDT como Moneda Final
+
+**Supuesto del modelo**:
+- El comprador paga en USDT
+- El creador recibe en USDT
+- **No hay conversión a ARS**
+
+```
+FLUJO ACTUAL (sin conversión):
+Cliente → Paga USDT → Crema recibe USDT → Creador recibe USDT
+```
+
+**En este escenario**:
+- La volatilidad USDT/USD es prácticamente nula
+- La volatilidad USDT/ARS NO afecta porque no se convierte
+- El riesgo de volatilidad es **mínimo**
+
+#### Escenario: Si Crema Necesitara Convertir a ARS
+
+| Momento | Riesgo | Mitigación |
+|---------|--------|------------|
+| Cliente paga → Se convierte a ARS | Bajo | Hacer conversión inmediatamente |
+| ARS guardado → Se usa para pagar | Medio | Mantener reservas en USDT |
+| USDT/ARS baja entretx y payout | Alto | NO CONVERTIR - pagar en USDT |
+
+**Decisión**: El modelo USDT funciona porque **no se convierte a ARS**. El creador recibe USDT, no ARS.
+
+####结论
+
+| Aspecto | Análisis | Resultado |
+|---------|----------|----------|
+| Volatilidad USDT/USD | Stablecoin, mantiene paridad | ✅ Sin riesgo |
+| Volatilidad USDT/ARS | No se convierte | ✅ Sin riesgo |
+| Volatilidad gas networks | Costo variable | ✅ Asumido por Crema |
+
+**Veredicto**: El modelo USDT **NO tiene problema de volatilidad** porque no involucra conversión de monedas. El flujo es 100% en USDT.
+
 ---
 
 ## 13. Impacto en Procesos Existentes
@@ -957,14 +1105,48 @@ El usuario con método de pago USDT (wallet address) puede:
 | Aprobación manual | Ninguno (ya es manual) |
 | Transferencia | El admin transfiere desde wallet Crema |
 
----
+#### Estrategia de Redes para Payouts
 
-### 13.3 Resumen de Impacto en Procesos
+**Contexto**: Blockonomics solo permite recibir en ERC-20. Sin embargo, para pagar a creadores/afiliados podemos usar redes más económicas.
 
-| Proceso | Impacto | Acción Necesaria |
-|---------|---------|------------------|
-| **Refunds** | ⚠️ ALTO | Deshabilitar refunds automáticos, implementar manual |
-| **Payouts** | ✅ NINGUNO | Ya funciona igual que ARS (manual) |
+**Estrategia Dual**:
+```
+1. CLIENTE → PAGA a Crema
+   └─→ Blockonomics (solo ERC-20)
+       └─→ Costo gas: $0 (lo paga el cliente)
+
+2. CREMA → PAGA a Creador
+   └─→ Wallet TRC20 o BEP20 de Crema
+       └─→ Costo gas: $0.50-2 (asumido por Crema)
+```
+
+**Control de Redes** (Solución A implementada):
+- El seed de USDT se modifica para **permitir solo TRC20 y BEP20** (no ERC20)
+- El usuario selecciona la red de su preferencia al configurar su wallet
+- Al pagar, Crema usa la red que el usuario eligió
+
+**Modificación necesaria**:
+```sql
+-- En 03-create-seeds.sql, cambiar validation_rules de USDT:
+"pattern": "^(TRC20|BEP20)$"  -- Antes: "^(TRC20|ERC20|BEP20)$"
+```
+
+**Validación en Backend** (ya implementada):
+- El backend usa `payout_method.service.ts` línea 105
+- Valida contra el `pattern` del seed automáticamente
+- Si el usuario envía una red inválida, recibe error 400
+
+**Frontend** (requiere verificación):
+- El dropdown de selección de red debe mostrar solo TRC20 y BEP20
+- Se recomienda obtener las redes permitidas desde la API del backend
+- Si el frontend envía una red inválida, el backend la rechazará
+
+**Wallets que necesita Crema**:
+| Red | Para qué |
+|-----|----------|
+| ERC-20 | Recibir de Blockonomics |
+| TRC-20 | Pagar a creadores |
+| BEP-20 | Pagar a creadores (backup) |
 
 ---
 
@@ -1006,7 +1188,81 @@ El usuario con método de pago USDT (wallet address) puede:
 
 ---
 
-## 16. Criterios de Éxito
+## 17. Plan de Contingencia
+
+### 17.1 Escenarios de Falla
+
+| Escenario | Probabilidad | Impacto | Plan de Contingencia |
+|-----------|--------------|---------|---------------------|
+| Blockonomics no responde | Baja | Alto | Mostrar mensaje de error, ofrecer pago con ARS |
+| Webhook no llega | Baja | Alto | Sistema de polling manual + retry |
+| Wallet sin fondos para pagar | Baja | Alto | Alertar al admin, pausar payouts |
+| Red crypto congestionada | Media | Bajo | Aumentar tiempo de confirmación |
+
+### 17.2 Proveedor de Respaldo (Fallback)
+
+**Proveedor alternativo**: NOWPayments o Coinremitter (Premium)
+
+| Criterio | Blockonomics | NOWPayments | Coinremitter |
+|----------|--------------|------------|--------------|
+| **Modelo** | Non-custodial | Custodial | Non-custodial |
+| **Fee** | 1% | 1% | 0.23% + $99.99/mes |
+| **USDT networks** | Solo ERC-20 | 350+ | ERC20, TRC20, BEP20 |
+| **KYC** | ❌ No | ⚠️ Puede variar | ❌ No |
+| **Switch time** | N/A | 2-3 días | 2-3 días |
+
+### 17.3 Activación del Fallback
+
+```
+PROCESO DE FALLBACK:
+
+1. Detectar falla:
+   - API timeout repetido (3+ intentos)
+   - Dashboard Blockonomics no responde
+   - Alertas de monitoreo
+
+2. Comunicación interna:
+   - Alertar al equipo via Slack/Email
+   - Documentar incidente
+
+3. Decisión:
+   - Si es temporal (< 1 hora): esperar
+   - Si es prolongado (> 1 hora): evaluar fallback
+
+4. Activación (si aplica):
+   - Crear cuenta en proveedor alternativo
+   - Actualizar configuración en DB (currency_gateways)
+   - Notificar a usuarios que crypto está temporalmente deshabilitado
+
+5. Rollback:
+   - Cuando Blockonomics vuelva, revertir cambios
+```
+
+### 17.4 Recomendación: Monitoreo
+
+| Métrica | Umbral de Alerta |
+|---------|------------------|
+| Tiempo de respuesta API | > 5 segundos |
+| Errores consecutivos | > 3 en 10 minutos |
+| Webhooks no recibidos | > 5% del total |
+| Tasa de pagos fallidos | > 2% |
+
+### 17.5 Scripts de Emergencia
+
+```bash
+# Deshabilitar pasarela Blockonomics
+UPDATE payment_gateways SET is_active = false WHERE id = 'blockonomics';
+
+# Habilitar pasarela fallback
+UPDATE payment_gateways SET is_active = true WHERE id = 'nowpayments';
+
+# Verificar estado
+SELECT id, name, is_active FROM payment_gateways;
+```
+
+---
+
+## 18. Criterios de Éxito
 
 El feature será considerado exitoso si:
 
@@ -1015,10 +1271,11 @@ El feature será considerado exitoso si:
 3. ✅ Sistema es dinámico (agregado sin cambiar arquitectura)
 4. ✅ Todos los tests pasan
 5. ✅ Diferenciación vs Hotmart es tangible
+6. ✅ Plan de contingencia documentado y testeable
 
 ---
 
-## 14. Roadmap Sugerido
+## 19. Roadmap Sugerido
 
 ```
 Semana 1: Revisión y aprobación del PRD

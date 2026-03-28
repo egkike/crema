@@ -1,7 +1,7 @@
 # Análisis de Factibilidad: Gateway de Pagos Crypto en Crema
 
 **Fecha**: Marzo 2026  
-**Versión**: 1.1 (Actualizado)  
+**Versión**: 1.5 (Agregado análisis de volatilidad y variables de entorno)  
 **Objetivo**: Determinar la viabilidad de implementar pagos con criptomonedas (USDT) en la plataforma Crema
 
 ---
@@ -33,7 +33,7 @@ El marco regulatorio ha evolucionado significativamente en 2025-2026:
 ### 1.3 Obligaciones para Operar
 
 #### Para el Plataforma (Crema)
-- ✅ No necesitaLicense específica de CNV para operar como merchant (solo si es PSP)
+- ✅ No necesita License específica de CNV para operar como merchant (solo si es PSP)
 - ⚠️ Si recibe pagos en crypto y los convierte a fiat → potencialmente clasificado como PSP
 - ✅ Debe informar transacciones a ARCA si supera umbrales (~$50M ARS)
 
@@ -90,9 +90,11 @@ El marco regulatorio ha evolucionado significativamente en 2025-2026:
   - Sin KYC = rápido onboarding
   - Self-custody = no arriesgas fondos de usuarios
   - Usado por +100 developers, buena reputación
+  - Sin límite de requests
 - **Contras**:
   - No convierte a fiat (recibes en crypto)
   - Solo 3 monedas principales
+  - Fee más alto que Coinremitter (1% vs 0.23%)
 - **Ideal para**: Startups que quieren control total
 
 #### Opción B: NOWPayments
@@ -136,6 +138,137 @@ El marco regulatorio ha evolucionado significativamente en 2025-2026:
   - Más complejo de integrar
   - Solo BTC (y Lightning)
 - **Ideal para**: Teams con recursos DevOps
+
+---
+
+## 2.1 Comparativo Detallado: Coinremitter vs Blockonomics
+
+### Overview
+
+| Aspecto | Blockonomics | Coinremitter |
+|---------|--------------|--------------|
+| **Fee por transacción** | 1% | 0.23% |
+| **Modelo** | Non-custodial | Non-custodial |
+| **KYC requerido** | ❌ No | ❌ No |
+| **Monedas soportadas** | 3 (BTC, BCH, USDT) | 10+ (BTC, ETH, USDT-ERC20, USDT-TRC20, etc.) |
+| **Rate limit** | Sin límite | 100/min (free) / 500/min (Pro) |
+| **API response time** | ~100ms | 72-76ms |
+| **Uptime** | ~99% | 99.99% |
+| **Cantidad merchants** | ~100+ devs | 38,000+ |
+| **Soporte** | Email/Docs | 24x7 |
+| **Plan para USDT** | Incluido | ❌ Premium ($99.99/mes) |
+| **Documentación** | Buena | Excelente |
+
+### Análisis por Criterio
+
+#### 💰 Costo (Fee por Transacción)
+
+```
+Blockonomics: 1% por transacción
+Coinremitter:  0.23% por transacción
+
+Ahorro con Coinremitter: 77% menos en fees
+```
+
+**Para el modelo de Crema** (donde la plataforma asume el 1%):
+- Si volumen = 1000 transacciones/mes de $100 USDT = $1000 total
+- Blockonomics: $10 USDT fee/mes
+- Coinremitter: $2.30 USDT fee/mes
+- **Ahorro: $7.70 USDT/mes** (pero requiere plan Premium)
+
+⚠️ **Crucial**: Coinremitter requiere **Plan Premium ($99.99/mes)** para usar USDT-ERC20, USDT-TRC20, y USDC. Sin el plan premium, solo soporta BTC, LTC, DOGE, BCH, DASH, etc.
+
+| Plan | Costo | Monedas USDT |
+|------|-------|--------------|
+| Free | $0 | ❌ No incluye USDT |
+| Premium | $99.99/mes | ✅ USDT-ERC20, USDT-TRC20, USDC |
+
+**Veredicto**: Para usar USDT, Coinremitter sale **más caro** ($99.99/mes + 0.23%) que Blockonomics ($0/mes + 1%).
+
+#### 🪙 Soporte de Monedas
+
+```
+Blockonomics: 
+- BTC (Bitcoin)
+- BCH (Bitcoin Cash)  
+- USDT (ERC-20)
+
+Coinremitter (Free):
+- BTC, LTC, DOGE, BCH, DASH, ZANO
+
+Coinremitter (Premium):
+- + USDT-ERC20, USDT-TRC20, ETH, BNB, USDC-ERC20
+```
+
+**Para Crema**: El objetivo es USDT. Blockonomics lo incluye sin costo extra. Coinremitter requiere Premium.
+
+#### 🔌 Complejidad de Integración
+
+| Aspecto | Blockonomics | Coinremitter |
+|---------|--------------|--------------|
+| **SDK oficial** | ❌ No (REST API) | ✅ npm package |
+| **Docs quality** | Buena | Excelente |
+| **Webhooks** | ✅ | ✅ |
+| **Ejemplos** | Limitados | Completos |
+| **Tiempo estimado** | 2-4 horas | 2-4 horas |
+
+#### 📊 Rendimiento
+
+| Métrica | Blockonomics | Coinremitter |
+|---------|--------------|--------------|
+| **Response time** | ~100ms | 72-76ms |
+| **Uptime** | ~99% | 99.99% |
+| **Rate limit** | Ilimitado | 100/min (free), 500/min (Pro) |
+| **Downtime** | <1% | 0.01% |
+
+#### 🏢 Madurez y Adopción
+
+| Aspecto | Blockonomics | Coinremitter |
+|---------|--------------|--------------|
+| **Merchants** | ~100+ devs | 38,000+ |
+| **Tiempo en mercado** | 2015+ | 2019+ |
+| **Países** | 130+ | 130+ |
+| **Reviews** |-limited data | 99% satisfacción |
+
+#### 📋 Requisitos para USDT
+
+| Requisito | Blockonomics | Coinremitter |
+|-----------|--------------|--------------|
+| **KYC** | ❌ No | ❌ No |
+| **Plan paid** | ❌ No | ✅ Required ($99.99/mo) |
+| **Setup fee** | $0 | $0 |
+| **Monthly minimum** | $0 | $0 |
+
+### Matriz de Decisión Final
+
+| Criterio | Peso | Blockonomics | Coinremitter |
+|----------|------|--------------|--------------|
+| Fee (sin Premium) | 30% | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Costo con USDT | 25% | ⭐⭐⭐⭐⭐ | ⭐⭐ |
+| Facilidad setup | 20% | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| Documentación | 15% | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Soporte | 10% | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Total** | 100% | **3.85** | **3.70** |
+
+### Recomendación para Crema
+
+| Escenario | Recomendación |
+|-----------|---------------|
+| **MVP con USDT** | **Blockonomics** - Sin costo mensual, USDT incluido |
+| **Escala (1000+ tx/mes)** | Evaluar Coinremitter si volumen justifica $99.99/mes |
+| **Multi-cripto (ETH, BNB)** | Coinremitter Premium |
+| **Solo BTC/LTC/DOGE** | Coinremitter Free |
+
+**Veredicto Final**: Para el MVP de Crema con foco en USDT, **Blockonomics es la mejor opción**:
+- ✅ Sin costo mensual
+- ✅ USDT incluido sin Premium
+- ✅ Sin límite de requests
+- ✅ Integración simple
+- ✅ Non-custodial
+
+Coinremitter es mejor para:
+- proyectos que aceptan múltiples cryptos y pueden pagar $99.99/mes
+- proyectos donde el volumen justifica el fee reducido
 
 ---
 
@@ -643,5 +776,134 @@ private static providers: Record<string, PaymentProvider> = {
 
 ---
 
+## 11.7 Costos de Gas/Red para Transacciones USDT
+
+### 11.7.1 Costos por Red (Marzo 2026)
+
+| Red | Costo por Transacción | Notas |
+|-----|---------------------|-------|
+| **ERC-20** | $1-3 USD (en ETH) | Más caro, pero necesario para recibir |
+| **TRC-20** | $1-2 USD (en TRX) | Barato y rápido |
+| **BEP-20** | $0.50-1 USD (en BNB) | El más económico |
+
+### 11.7.2 Estrategia Dual: Recibir vs Pagar
+
+**Blockonomics solo soporta ERC-20** para recibir pagos. Sin embargo, para pagar a creadores/afiliados, podemos usar redes más económicas.
+
+```
+FLUJO DE TRANSACCIONES USDT:
+
+1. CLIENTE → PAGA a Crema
+   └─→ Blockonomics (solo ERC-20)
+       └─→ Crema recibe en wallet ERC-20
+       └─→ Costo gas: $0 (lo paga el cliente)
+
+2. CREMA → PAGA a Creador/Afiliado
+   └─→ Crema envía desde wallet TRC20 o BEP20
+       └─→ Creador recibe en su red preferida
+       └─→ Costo gas: $0.50-2 (asumido por Crema)
+```
+
+### 11.7.3 Quién Paga el Gas
+
+| Momento | Quién paga | Costo |
+|---------|-----------|-------|
+| Cliente → Blockonomics | Cliente | $1-3 (incluido en su tx) |
+| Blockonomics → Crema | Nadie | $0 |
+| Crema → Creador | Crema | $0.50-2 por transacción |
+
+### 11.7.4 Wallets que Necesita Crema
+
+| Red | Wallet | Para qué |
+|-----|--------|----------|
+| **ERC-20** | MetaMask/Cold wallet | Recibir de Blockonomics |
+| **TRC-20** | Tron wallet | Pagar a creadores |
+| **BEP-20** | BSC wallet | Pagar a creadores (backup) |
+
+### 11.7.5 Estimación de Costos Mensuales
+
+| Volumen (tx/mes) | Costo Gas (pagar creadores) |
+|------------------|---------------------------|
+| 10 | $5-20 |
+| 50 | $25-100 |
+| 100 | $50-200 |
+| 500 | $250-1,000 |
+
+### 11.7.6 Mínimo Payout para USDT
+
+**Situación actual** (definido en seed):
+- Minimum payout: $50 USDT
+- Máximo payout: $1,000 USDT
+- Límite de frecuencia: 1 por mes
+
+**Análisis de costo-beneficio**:
+
+| Monto retiro | Costo gas (BEP20) | Costo gas (%) | Creador recibe |
+|--------------|-------------------|---------------|-----------------|
+| $50 USDT | ~$1 | 2% | $49 USDT |
+| $100 USDT | ~$1 | 1% | $99 USDT |
+| $500 USDT | ~$1 | 0.2% | $499 USDT |
+
+**Recomendación**:
+
+| Decisión | Valor | Justificación |
+|----------|-------|---------------|
+| **Mínimo payout** | $50 USDT | Mantener igual. Con $50, el creador recibe ~$49 (98%). Es aceptable. |
+| **Fee de gas** | Asumido por Crema | UX mejor para el creador. Costo operacional aceptable ($1-2 por tx). |
+
+**Nota**: Si en el futuro el volumen de payouts es muy alto, se puede evaluar:
+- Descontar el gas del monto del creador
+- Aumentar el mínimo a $100 USDT
+
+---
+
+## 11.8 Control de Redes para Payouts
+
+### 11.8.1 Situación Actual
+
+El seed de USDT actualmente permite:
+```sql
+"pattern": "^(TRC20|ERC20|BEP20)$"
+```
+
+Esto permite al usuario elegir cualquier red.
+
+### 11.8.2 Cambio Propuesto (Solución A)
+
+**Modificar el seed para permitir solo TRC20 y BEP20** (las más económicas para Crema):
+
+```sql
+"pattern": "^(TRC20|BEP20)$"
+```
+
+### 11.8.3 Implementación
+
+1. **Backend**: Actualizar `03-create-seeds.sql` - cambiar pattern
+2. **Frontend**: Actualizar opciones de red para mostrar solo TRC20 y BEP20
+3. **Payouts**: Usar la red que el usuario seleccionó (TRC20 o BEP20)
+
+### 11.8.4 Beneficios
+
+| Beneficio | Descripción |
+|-----------|-------------|
+| **Costo optimizado** | Crema siempre paga con red más económica |
+| **UX limpia** | Usuario ve solo opciones válidas |
+| **Simplicidad** | No hay lógica compleja de selección |
+| **Escalabilidad** | Easy agregar más redes en el futuro |
+
+---
+
+## 11.9 Resumen: Actualización de Decisiones
+
+| Aspecto | Decisión |
+|---------|----------|
+| Red para recibir | ERC-20 (Blockonomics solo soporta esto) |
+| Redes para payout | Solo TRC20 y BEP20 |
+| Costo gas cliente | $1-3 (lo paga el cliente) |
+| Costo gas Crema | $0.50-2 por payout |
+| Validación | Modificar seed para permitir solo TRC20/BEP20 |
+
+---
+
 **Documento actualizado**: Marzo 2026  
-**Versión**: 1.1 - Actualizado para reflejar decisiones del PRD
+**Versión**: 1.3 - Agregados costos de gas/red y estrategia dual (recibir ERC-20 / pagar TRC20-BEP20)
