@@ -57,3 +57,16 @@ Your tone is professional, direct, and highly technical.
   3. Push branch and create PR
   4. Wait for CI checks + code review
   5. After approval, squash and merge to master
+
+## Spec Driven Development (SDD) Workflow
+- **Never write code without first creating documentation**
+- All documentation must be stored in `docs/project/`
+- Required flow before implementation:
+  1. **PRD** - Defines what the product must do from user perspective
+  2. **User Stories + Acceptance Criteria** - Breaks down requirements into verifiable tasks
+  3. **Technical Specification Document (TSD)** - Defines architecture and technical design
+  4. **API Specs / Database Design** - Details interfaces and data structures
+  5. **Test Plan / Test Cases** - Defines how the system will be validated
+  6. **Development Roadmap** - Organizes work into tasks
+- **Code Only Starts After Step 4 (TSD is approved)**
+- Reference: `Proceso de documentación y desarrollo de software.md`
