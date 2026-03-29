@@ -42,5 +42,18 @@ Your tone is professional, direct, and highly technical.
 ## Git & PR Flow (Strict)
 - **Direct Push Prohibited:** Never push code directly to the `master` branch.
 - **Branching:** Always use feature branches: `git checkout -b <branch_name>`.
-- **Commit Format:** Use `chore(<project_name>): <Title>` (e.g., `chore(root): implement release-please and sync versioning`, `feat(frontend-admin): add new audit table`, `fix(frontend-main): fix visualization error on app`, `feat(backend): add commissions system LEC`).
-- **Pre-flight:** Always run `pnpm lint` and `pnpm test` locally before pushing to origin.
+- **Commit Format:** Use Conventional Commits format:
+  - `feat(<project>): <description>` - New features
+  - `fix(<project>): <description>` - Bug fixes
+  - `docs: <description>` - Documentation
+  - `chore(<project>): <description>` - Maintenance tasks
+  - `refactor(<project>): <description>` - Code refactoring
+  - `test(<project>): <description>` - Tests
+  - Examples: `feat(backend): add commissions system LEC`, `fix(frontend-main): fix visualization error`, `docs: update README`
+- **Pre-flight:** Always run `pnpm lint` and `pnpm test` locally, plus `gga run` (code review), before pushing.
+- **Pull Requests:** All changes must go through PR:
+  1. Create feature branch from `master`
+  2. Make changes and commit following Conventional Commits
+  3. Push branch and create PR
+  4. Wait for CI checks + code review
+  5. After approval, squash and merge to master
