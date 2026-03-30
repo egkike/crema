@@ -4,7 +4,7 @@ import logger from '../utils/logger';
 import pool from '../db/postgres';
 import { getValidatedSchema } from '../utils/validators.util';
 import { verifyProductOwnership } from '../utils/routeHelpers.util';
-import { toString } from '../utils/params.util';
+import { toString, parseClamped, parseDate } from '../utils/params.util';
 import { aiCreditService } from '../services/ai/credits.service';
 import { memoryService } from '../services/ai/memory.service';
 import { qaService } from '../services/ai/qa.service';
@@ -16,7 +16,7 @@ import { restrictTo } from '../middlewares/auth/role.middleware';
 import { aiLimiter, aiChatLimiter } from '../middlewares/rateLimit/rateLimit';
 import { validate } from '../middlewares/auth/validate.middleware';
 import { AppError } from '../errors/AppError';
-import type { UserPayload } from '../types/express';
+import type { AuthenticatedRequest } from '../types/express';
 import type { EmbeddingSourceType } from '../types/ai.types';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
 import { configRepository } from '../repositories/config.repository';
@@ -48,11 +48,6 @@ import {
 } from '../schemas/ai.schema';
 
 const router = Router();
-
-// Extend request type to include user (required after jwtAuthMiddleware)
-interface AuthenticatedRequest extends Request {
-  user: UserPayload;
-}
 
 // ============================================
 // Credit Routes (Protected)
@@ -202,8 +197,8 @@ router.post('/credits/purchase', jwtAuthMiddleware, aiLimiter, validate(purchase
 router.get('/credits/transactions', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user.id;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = parseClamped(req.query.limit, 50, 1, 100);
+    const offset = parseClamped(req.query.offset, 0, 0, 10000);
 
     const { transactions, total } = await aiCreditService.getTransactions(userId, limit, offset);
 
@@ -331,8 +326,8 @@ router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req
 router.get('/products/:productId/questions', aiLimiter, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = parseClamped(req.query.limit, 20, 1, 100);
+    const offset = parseClamped(req.query.offset, 0, 0, 10000);
     const includeUnpublished = req.query.include_unpublished === 'true';
     const userId = (req as AuthenticatedRequest).user?.id;
 
@@ -675,8 +670,8 @@ router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, validate(reor
 router.get('/products/:productId/reviews', aiLimiter, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = parseClamped(req.query.limit, 20, 1, 100);
+    const offset = parseClamped(req.query.offset, 0, 0, 10000);
     const includeUnpublished = req.query.include_unpublished === 'true';
 
     const { reviews, total, avgRating } = await reviewService.getReviews(productId, includeUnpublished, limit, offset);
@@ -847,14 +842,8 @@ router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
     const productId = toString(req.params.productId);
     const userId = req.user.id;
 
-    // Verify user owns the product
-    const ownershipCheck = await pool.query(
-      `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
-      [productId, userId]
-    );
-    if (ownershipCheck.rows.length === 0) {
-      throw new AppError('You do not have permission to view this product settings', 403);
-    }
+    // Verify product ownership using helper
+    await verifyProductOwnership(pool, productId, userId);
 
     const settings = await reviewService.getSettings(productId);
 
@@ -879,14 +868,8 @@ router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, validate(
     const userId = req.user.id;
     const { allow_reviews, require_verified_purchase, auto_publish, min_rating, max_rating } = req.body;
 
-    // Verify user owns the product
-    const ownershipCheck = await pool.query(
-      `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
-      [productId, userId]
-    );
-    if (ownershipCheck.rows.length === 0) {
-      throw new AppError('You do not have permission to modify this product settings', 403);
-    }
+    // Verify product ownership using helper
+    await verifyProductOwnership(pool, productId, userId);
 
     const result = await reviewService.updateSettings(productId, {
       allowReviews: allow_reviews,
@@ -985,8 +968,8 @@ router.post('/reports', jwtAuthMiddleware, validate(createReportSchema), async (
  */
 router.get('/reports', jwtAuthMiddleware, restrictTo('ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = parseClamped(req.query.limit, 20, 1, 100);
+    const offset = parseClamped(req.query.offset, 0, 0, 10000);
     const status = req.query.status as string;
     const contentType = req.query.content_type as string;
 
@@ -1288,7 +1271,7 @@ router.get('/agents/conversations', jwtAuthMiddleware, async (req: Authenticated
   try {
     const userId = req.user.id;
     const agentType = req.query.agent_type as string | undefined;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = parseClamped(req.query.limit, 20, 1, 100);
 
     const conversations = await qaAgentService.getUserConversations(userId, agentType, limit);
 
@@ -1344,8 +1327,8 @@ router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (re
 router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user.id;
-    const startDate = req.query.start_date ? new Date(req.query.start_date as string) : undefined;
-    const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
+    const startDate = parseDate(req.query.start_date);
+    const endDate = parseDate(req.query.end_date);
 
     const metrics = await analyticsService.getDashboardMetrics(userId, startDate, endDate);
 
