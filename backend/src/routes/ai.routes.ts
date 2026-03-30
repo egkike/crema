@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express';
 import logger from '../utils/logger';
 import pool from '../db/postgres';
 import { getValidatedSchema } from '../utils/validators.util';
+import { toString } from '../utils/params.util';
 import { aiCreditService } from '../services/ai/credits.service';
 import { memoryService } from '../services/ai/memory.service';
 import { qaService } from '../services/ai/qa.service';
@@ -23,12 +24,6 @@ const router = Router();
 interface AuthenticatedRequest extends Request {
   user?: UserPayload;
 }
-
-// Helper to convert params to string (handle string | string[])
-const toString = (value: string | string[] | undefined): string => {
-  if (Array.isArray(value)) return value[0];
-  return value || '';
-};
 
 // ============================================
 // Credit Routes (Protected)
@@ -61,7 +56,7 @@ router.get('/credits', jwtAuthMiddleware, async (req: AuthenticatedRequest, res:
  * GET /api/ai/credits/packages
  * Get available credit packages
  */
-router.get('/credits/packages', async (_req: Request, res: Response) => {
+router.get('/credits/packages', aiLimiter, async (_req: Request, res: Response) => {
   try {
     const packages = await aiCreditService.getPackages();
 
@@ -312,7 +307,7 @@ router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req
  * GET /api/ai/products/:productId/questions
  * Get questions for a product (public)
  */
-router.get('/products/:productId/questions', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/products/:productId/questions', aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const limit = parseInt(req.query.limit as string) || 20;
@@ -529,7 +524,7 @@ router.delete('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Auth
  * GET /api/ai/products/:productId/faqs
  * Get FAQs for a product (public)
  */
-router.get('/products/:productId/faqs', async (req: Request, res: Response) => {
+router.get('/products/:productId/faqs', aiLimiter, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const includeInactive = req.query.include_inactive === 'true';
@@ -679,7 +674,7 @@ router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, async (req: A
  * GET /api/ai/products/:productId/reviews
  * Get reviews for a product (public)
  */
-router.get('/products/:productId/reviews', async (req: Request, res: Response) => {
+router.get('/products/:productId/reviews', aiLimiter, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const limit = parseInt(req.query.limit as string) || 20;
@@ -930,7 +925,7 @@ router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
  * GET /api/ai/products/:productId/reviews/distribution
  * Get rating distribution for a product
  */
-router.get('/products/:productId/reviews/distribution', async (req: Request, res: Response) => {
+router.get('/products/:productId/reviews/distribution', aiLimiter, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
 
@@ -955,7 +950,7 @@ router.get('/products/:productId/reviews/distribution', async (req: Request, res
  * GET /api/ai/reports/reasons?contentType=product
  * Get available report reasons for a content type
  */
-router.get('/reports/reasons', async (req: Request, res: Response) => {
+router.get('/reports/reasons', aiLimiter, async (req: Request, res: Response) => {
   try {
     const contentType = req.query.contentType as string;
 
@@ -1124,7 +1119,7 @@ router.post('/reports/:reportId/actions', jwtAuthMiddleware, async (req: Authent
  * GET /api/ai/content/policies
  * Get content policies (public)
  */
-router.get('/content/policies', async (req: Request, res: Response) => {
+router.get('/content/policies', aiLimiter, async (req: Request, res: Response) => {
   try {
     const contentType = req.query.content_type as string | undefined;
 
