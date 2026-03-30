@@ -70,3 +70,27 @@ export const SpecialValidators: Record<string, Record<string, (val: string) => b
     cbu: validateCBU,
   },
 };
+
+// =============================================================================
+// Schema Validation (Security - Defense in Depth)
+// =============================================================================
+
+import { config } from '../config/index';
+
+const ALLOWED_SCHEMAS = ['public', 'crema'];
+
+/**
+ * Validates and returns the database schema from config.
+ * Uses an allowlist to prevent SQL injection via schema name.
+ * Default to 'public' if invalid schema configured.
+ */
+export function getValidatedSchema(): string {
+  const schema = config.db?.schema || 'public';
+  
+  if (ALLOWED_SCHEMAS.includes(schema)) {
+    return schema;
+  }
+  
+  console.warn(`Invalid schema "${schema}" configured. Using "public" instead.`);
+  return 'public';
+}

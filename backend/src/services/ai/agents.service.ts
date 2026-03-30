@@ -5,14 +5,12 @@
  */
 
 import pool from '../../db/postgres';
-import { config } from '../../config/index';
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
+import { getValidatedSchema } from '../../utils/validators.util';
 
 import { aiCreditService } from './credits.service';
 import { llmService } from './llm.service';
-
-const schema = config.db?.schema || 'public';
 
 // Default system prompt for QA Agent
 const DEFAULT_QA_SYSTEM_PROMPT = `Eres un asistente de IA especializado en ayudar a usuarios con preguntas sobre productos digitales.
@@ -87,7 +85,7 @@ export const qaAgentService = {
   async getConfig(productId: string): Promise<QAAgentConfig | null> {
     const query = `
       SELECT id, product_id, is_enabled, model, system_prompt, temperature, max_tokens, use_memory, use_faqs, created_at, updated_at
-      FROM "${schema}".product_qa_agent_config
+      FROM "${getValidatedSchema()}".product_qa_agent_config
       WHERE product_id = $1
     `;
     const { rows } = await pool.query<QAAgentConfig>(query, [productId]);
@@ -151,7 +149,7 @@ export const qaAgentService = {
     updates.push('updated_at = CURRENT_TIMESTAMP');
 
     const query = `
-      INSERT INTO "${schema}".product_qa_agent_config (product_id, ${updates.join(', ')})
+      INSERT INTO "${getValidatedSchema()}".product_qa_agent_config (product_id, ${updates.join(', ')})
       VALUES ($1, ${updates.map((_, i) => `$${i + 2}`).join(', ')})
       ON CONFLICT (product_id) DO UPDATE SET
         ${updates.join(', ')}
@@ -173,7 +171,7 @@ export const qaAgentService = {
     metadata: Record<string, unknown> = {}
   ): Promise<AgentConversation> {
     const query = `
-      INSERT INTO "${schema}".agent_conversations (agent_type, product_id, user_id, metadata)
+      INSERT INTO "${getValidatedSchema()}".agent_conversations (agent_type, product_id, user_id, metadata)
       VALUES ($1, $2, $3, $4)
       RETURNING id, agent_type, product_id, user_id, status, metadata, created_at, updated_at
     `;
@@ -196,7 +194,7 @@ export const qaAgentService = {
     tokensUsed: number = 0
   ): Promise<AgentMessage> {
     const query = `
-      INSERT INTO "${schema}".agent_messages (conversation_id, role, content, tokens_used)
+      INSERT INTO "${getValidatedSchema()}".agent_messages (conversation_id, role, content, tokens_used)
       VALUES ($1, $2, $3, $4)
       RETURNING id, conversation_id, role, content, tokens_used, created_at
     `;
@@ -210,7 +208,7 @@ export const qaAgentService = {
   async getConversation(conversationId: string): Promise<{ conversation: AgentConversation; messages: AgentMessage[] } | null> {
     const convQuery = `
       SELECT id, agent_type, product_id, user_id, status, metadata, created_at, updated_at
-      FROM "${schema}".agent_conversations
+      FROM "${getValidatedSchema()}".agent_conversations
       WHERE id = $1
     `;
     const { rows: convRows } = await pool.query<AgentConversation>(convQuery, [conversationId]);
@@ -218,7 +216,7 @@ export const qaAgentService = {
 
     const msgQuery = `
       SELECT id, conversation_id, role, content, tokens_used, created_at
-      FROM "${schema}".agent_messages
+      FROM "${getValidatedSchema()}".agent_messages
       WHERE conversation_id = $1
       ORDER BY created_at ASC
     `;
@@ -236,7 +234,7 @@ export const qaAgentService = {
   async getUserConversations(userId: string, agentType?: string, limit: number = 20): Promise<AgentConversation[]> {
     let query = `
       SELECT id, agent_type, product_id, user_id, status, metadata, created_at, updated_at
-      FROM "${schema}".agent_conversations
+      FROM "${getValidatedSchema()}".agent_conversations
       WHERE user_id = $1
     `;
     const params: unknown[] = [userId];
@@ -292,7 +290,7 @@ export const qaAgentService = {
     let context = '';
     if (config.use_memory) {
       const embeddings = await pool.query(
-        `SELECT content FROM "${schema}".ai_embeddings 
+        `SELECT content FROM "${getValidatedSchema()}".ai_embeddings 
          WHERE product_id = $1 AND source_type IN ('lesson', 'faq')
          ORDER BY created_at DESC LIMIT 5`,
         [productId]
@@ -303,7 +301,7 @@ export const qaAgentService = {
     // Get FAQs if enabled
     if (config.use_faqs) {
       const faqs = await pool.query(
-        `SELECT question, answer FROM "${schema}".product_faqs 
+        `SELECT question, answer FROM "${getValidatedSchema()}".product_faqs 
          WHERE product_id = $1 AND is_active = true
          ORDER BY sort_order LIMIT 10`,
         [productId]
@@ -400,7 +398,7 @@ ${context.substring(0, 500)}...`,
     let context = '';
     if (config.use_memory) {
       const embeddings = await pool.query(
-        `SELECT content FROM "${schema}".ai_embeddings 
+        `SELECT content FROM "${getValidatedSchema()}".ai_embeddings 
          WHERE product_id = $1 AND source_type IN ('lesson', 'faq')
          ORDER BY created_at DESC LIMIT 5`,
         [productId]
@@ -410,7 +408,7 @@ ${context.substring(0, 500)}...`,
 
     if (config.use_faqs) {
       const faqs = await pool.query(
-        `SELECT question, answer FROM "${schema}".product_faqs 
+        `SELECT question, answer FROM "${getValidatedSchema()}".product_faqs 
          WHERE product_id = $1 AND is_active = true
          ORDER BY sort_order LIMIT 10`,
         [productId]
@@ -495,7 +493,7 @@ export const analyticsService = {
         COALESCE(SUM(product_views), 0) as product_views,
         COALESCE(AVG(conversion_rate), 0) as conversion_rate,
         COALESCE(SUM(ai_credits_used), 0) as ai_credits_used
-      FROM "${schema}".creator_daily_metrics
+      FROM "${getValidatedSchema()}".creator_daily_metrics
       WHERE creator_id = $1 AND date >= $2 AND date <= $3
     `;
     const { rows } = await pool.query<{
@@ -511,7 +509,7 @@ export const analyticsService = {
 
     const dailyQuery = `
       SELECT date, total_sales, total_revenue
-      FROM "${schema}".creator_daily_metrics
+      FROM "${getValidatedSchema()}".creator_daily_metrics
       WHERE creator_id = $1 AND date >= $2 AND date <= $3
       ORDER BY date ASC
     `;
@@ -559,7 +557,7 @@ export const tutorService = {
   } | null> {
     const query = `
       SELECT id, product_id, is_enabled, model, system_prompt, temperature, max_tokens
-      FROM "${schema}".product_tutor_config
+      FROM "${getValidatedSchema()}".product_tutor_config
       WHERE product_id = $1
     `;
     const { rows } = await pool.query<{
@@ -626,7 +624,7 @@ export const tutorService = {
     updates.push('updated_at = CURRENT_TIMESTAMP');
 
     const query = `
-      INSERT INTO "${schema}".product_tutor_config (product_id, ${updates.join(', ')})
+      INSERT INTO "${getValidatedSchema()}".product_tutor_config (product_id, ${updates.join(', ')})
       VALUES ($1, ${updates.map((_, i) => `$${i + 2}`).join(', ')})
       ON CONFLICT (product_id) DO UPDATE SET ${updates.join(', ')}
     `;
@@ -643,7 +641,7 @@ export const tutorService = {
   }> {
     const query = `
       SELECT id, insight_type, content, is_read, created_at
-      FROM "${schema}".tutor_insights
+      FROM "${getValidatedSchema()}".tutor_insights
       WHERE user_id = $1 AND product_id = $2
       ORDER BY created_at DESC
       LIMIT 20
@@ -690,8 +688,8 @@ export const tutorService = {
     // Get lesson content for context
     const lessonsQuery = `
       SELECT l.title, l.content, m.title as module_title
-      FROM "${schema}".lessons l
-      JOIN "${schema}".modules m ON l.module_id = m.id
+      FROM "${getValidatedSchema()}".lessons l
+      JOIN "${getValidatedSchema()}".modules m ON l.module_id = m.id
       WHERE m.product_id = $1 AND (l.is_free = true OR m.product_id = $1)
       ORDER BY m.sort_order, l.sort_order
       LIMIT 20
@@ -770,8 +768,8 @@ ${lessonContext.substring(0, 500)}...`,
     // Get lesson content for context
     const lessonsQuery = `
       SELECT l.title, l.content, m.title as module_title
-      FROM "${schema}".lessons l
-      JOIN "${schema}".modules m ON l.module_id = m.id
+      FROM "${getValidatedSchema()}".lessons l
+      JOIN "${getValidatedSchema()}".modules m ON l.module_id = m.id
       WHERE m.product_id = $1 AND (l.is_free = true OR m.product_id = $1)
       ORDER BY m.sort_order, l.sort_order
       LIMIT 20
@@ -889,7 +887,7 @@ export const insightsService = {
   }> {
     const query = `
       SELECT id, name, description, is_default
-      FROM "${schema}".creator_dashboards
+      FROM "${getValidatedSchema()}".creator_dashboards
       WHERE creator_id = $1
       ORDER BY is_default DESC, name ASC
     `;
@@ -915,7 +913,7 @@ export const insightsService = {
    */
   async createDashboard(userId: string, name: string, description?: string): Promise<{ id: string }> {
     const query = `
-      INSERT INTO "${schema}".creator_dashboards (creator_id, name, description)
+      INSERT INTO "${getValidatedSchema()}".creator_dashboards (creator_id, name, description)
       VALUES ($1, $2, $3)
       RETURNING id
     `;
@@ -948,7 +946,7 @@ export const insightsService = {
 
     updates.push('updated_at = CURRENT_TIMESTAMP');
 
-    const query = `UPDATE "${schema}".creator_dashboards SET ${updates.join(', ')} WHERE id = $1`;
+    const query = `UPDATE "${getValidatedSchema()}".creator_dashboards SET ${updates.join(', ')} WHERE id = $1`;
     await pool.query(query, params);
   },
 
@@ -956,7 +954,7 @@ export const insightsService = {
    * Delete a dashboard
    */
   async deleteDashboard(dashboardId: string): Promise<boolean> {
-    const query = `DELETE FROM "${schema}".creator_dashboards WHERE id = $1`;
+    const query = `DELETE FROM "${getValidatedSchema()}".creator_dashboards WHERE id = $1`;
     const result = await pool.query(query, [dashboardId]);
     return (result.rowCount || 0) > 0;
   },
@@ -995,7 +993,7 @@ Esquema del usuario actual: {schema}
       LIMIT 10
     `;
     const { rows: userProducts } = await pool.query<{ id: string; title: string; type: string }>(
-      userProductsQuery.replace('{schema}', schema),
+      userProductsQuery.replace('{schema}', getValidatedSchema()),
       [userId]
     );
 
@@ -1080,7 +1078,7 @@ REGLAS:
 
       // Save to history
       await pool.query(
-        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
         [userId, naturalLanguageQuery, generatedSql, JSON.stringify(sqlResults)]
       );
 
@@ -1094,7 +1092,7 @@ REGLAS:
       
       // Save failed query to history
       await pool.query(
-        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
         [userId, naturalLanguageQuery, null, JSON.stringify([]), false, err.message]
       );
 
@@ -1152,7 +1150,7 @@ Esquema del usuario actual: {schema}
       LIMIT 10
     `;
     const { rows: userProducts } = await pool.query<{ id: string; title: string; type: string }>(
-      userProductsQuery.replace('{schema}', schema),
+      userProductsQuery.replace('{schema}', getValidatedSchema()),
       [userId]
     );
 
@@ -1280,7 +1278,7 @@ REGLAS:
 
       // Save to history
       await pool.query(
-        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
         [userId, naturalLanguageQuery, generatedSql, resultsJson]
       );
 
@@ -1298,7 +1296,7 @@ REGLAS:
 
       // Save failed query to history
       await pool.query(
-        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
         [userId, naturalLanguageQuery, null, JSON.stringify([]), false, errMsg]
       );
 

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 
 import logger from '../utils/logger';
 import pool from '../db/postgres';
-import { config } from '../config/index';
+import { getValidatedSchema } from '../utils/validators.util';
 import { aiCreditService } from '../services/ai/credits.service';
 import { memoryService } from '../services/ai/memory.service';
 import { qaService } from '../services/ai/qa.service';
@@ -1062,9 +1062,8 @@ router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (r
   }
 
   // Verify product ownership
-  const schema = config.db?.schema || 'public';
   const productCheck = await pool.query(
-    `SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2`,
+    `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
     [product_id, userId]
   );
   if (productCheck.rows.length === 0) {
@@ -1326,9 +1325,8 @@ router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatL
   }
 
   // Verify product ownership
-  const schema = config.db?.schema || 'public';
   const productCheck = await pool.query(
-    `SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2`,
+    `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
     [productId, userId]
   );
   if (productCheck.rows.length === 0) {
