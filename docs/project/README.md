@@ -77,6 +77,7 @@ Implementación de streaming de respuestas en tiempo real para agentes AI usando
 |-----------|-------------|
 | [PRD](./ai-streaming-sse/PRD.md) | Requisitos del producto |
 | [Specs](./ai-streaming-sse/specs/) | User Stories, Test Plan |
+| [TSD](./ai-streaming-sse/TSD.md) | Technical Specification |
 
 **Estado**: Listo para implementación
 
