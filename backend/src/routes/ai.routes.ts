@@ -50,7 +50,9 @@ router.get('/credits', jwtAuthMiddleware, async (req: AuthenticatedRequest, res:
         expires_at: expiresAt.toISOString(),
       },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -67,7 +69,9 @@ router.get('/credits/packages', async (_req: Request, res: Response) => {
       success: true,
       data: { packages },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -164,7 +168,9 @@ router.post('/credits/purchase', jwtAuthMiddleware, async (req: AuthenticatedReq
         },
       },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -190,7 +196,9 @@ router.get('/credits/transactions', jwtAuthMiddleware, async (req: Authenticated
         offset,
       },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -224,7 +232,9 @@ router.post('/embeddings', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
       success: true,
       data: { embedding },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -258,7 +268,9 @@ router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: Authe
       success: true,
       data: { results },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -285,7 +297,9 @@ router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req
       success: true,
       data: { deleted },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -305,9 +319,15 @@ router.get('/products/:productId/questions', async (req: AuthenticatedRequest, r
     const offset = parseInt(req.query.offset as string) || 0;
     const includeUnpublished = req.query.include_unpublished === 'true';
 
-    // Check if user is creator (can see unpublished)
-    const isCreator = req.user && req.user.id;
-    const showUnpublished = !!(isCreator && includeUnpublished);
+    // Verify product ownership if user wants unpublished questions
+    let showUnpublished = false;
+    if (includeUnpublished && req.user?.id) {
+      const productCheck = await pool.query(
+        `SELECT id FROM "${getValidatedSchema()}"."products" WHERE id = $1 AND creator_id = $2`,
+        [productId, req.user.id]
+      );
+      showUnpublished = productCheck.rows.length > 0;
+    }
 
     const { questions, total } = await qaService.getQuestions(productId, showUnpublished, limit, offset);
 
@@ -320,7 +340,9 @@ router.get('/products/:productId/questions', async (req: AuthenticatedRequest, r
         offset,
       },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -345,7 +367,9 @@ router.post('/products/:productId/questions', jwtAuthMiddleware, async (req: Aut
       success: true,
       data: { question: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -370,7 +394,9 @@ router.put('/questions/:questionId/answer', jwtAuthMiddleware, async (req: Authe
       success: true,
       data: { question: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -382,10 +408,22 @@ router.put('/questions/:questionId/answer', jwtAuthMiddleware, async (req: Authe
 router.put('/questions/:questionId/publish', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
+    const userId = req.user!.id;
     const { is_published } = req.body;
 
     if (typeof is_published !== 'boolean') {
       throw new AppError('is_published boolean is required', 400);
+    }
+
+    // Verify user owns the product this question belongs to
+    const ownershipCheck = await pool.query(
+      `SELECT q.id FROM "${getValidatedSchema()}".product_questions q
+       JOIN "${getValidatedSchema()}".products p ON q.product_id = p.id
+       WHERE q.id = $1 AND p.creator_id = $2`,
+      [questionId, userId]
+    );
+    if (ownershipCheck.rows.length === 0) {
+      throw new AppError('No tienes permiso para publicar esta pregunta', 403);
     }
 
     const result = await qaService.togglePublishQuestion(questionId, is_published);
@@ -394,7 +432,9 @@ router.put('/questions/:questionId/publish', jwtAuthMiddleware, async (req: Auth
       success: true,
       data: { question: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -406,6 +446,18 @@ router.put('/questions/:questionId/publish', jwtAuthMiddleware, async (req: Auth
 router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
+    const userId = req.user!.id;
+
+    // Verify user owns the product this question belongs to
+    const ownershipCheck = await pool.query(
+      `SELECT q.id FROM "${getValidatedSchema()}".product_questions q
+       JOIN "${getValidatedSchema()}".products p ON q.product_id = p.id
+       WHERE q.id = $1 AND p.creator_id = $2`,
+      [questionId, userId]
+    );
+    if (ownershipCheck.rows.length === 0) {
+      throw new AppError('No tienes permiso para eliminar esta pregunta', 403);
+    }
 
     const deleted = await qaService.deleteQuestion(questionId);
 
@@ -413,7 +465,9 @@ router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Authentic
       success: true,
       data: { deleted },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -438,7 +492,9 @@ router.post('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Authen
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -458,7 +514,9 @@ router.delete('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Auth
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -482,7 +540,9 @@ router.get('/products/:productId/faqs', async (req: Request, res: Response) => {
       success: true,
       data: { faqs },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -506,7 +566,9 @@ router.post('/products/:productId/faqs', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: { faq: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -518,7 +580,19 @@ router.post('/products/:productId/faqs', jwtAuthMiddleware, async (req: Authenti
 router.put('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const faqId = toString(req.params.faqId);
+    const userId = req.user!.id;
     const { question, answer, sort_order, is_active } = req.body;
+
+    // Verify user owns the product this FAQ belongs to
+    const ownershipCheck = await pool.query(
+      `SELECT f.id FROM "${getValidatedSchema()}".product_faqs f
+       JOIN "${getValidatedSchema()}".products p ON f.product_id = p.id
+       WHERE f.id = $1 AND p.creator_id = $2`,
+      [faqId, userId]
+    );
+    if (ownershipCheck.rows.length === 0) {
+      throw new AppError('No tienes permiso para modificar este FAQ', 403);
+    }
 
     const result = await qaService.updateFAQ(faqId, {
       question,
@@ -531,7 +605,9 @@ router.put('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
       success: true,
       data: { faq: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -543,6 +619,18 @@ router.put('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
 router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const faqId = toString(req.params.faqId);
+    const userId = req.user!.id;
+
+    // Verify user owns the product this FAQ belongs to
+    const ownershipCheck = await pool.query(
+      `SELECT f.id FROM "${getValidatedSchema()}".product_faqs f
+       JOIN "${getValidatedSchema()}".products p ON f.product_id = p.id
+       WHERE f.id = $1 AND p.creator_id = $2`,
+      [faqId, userId]
+    );
+    if (ownershipCheck.rows.length === 0) {
+      throw new AppError('No tienes permiso para eliminar este FAQ', 403);
+    }
 
     const deleted = await qaService.deleteFAQ(faqId);
 
@@ -550,7 +638,9 @@ router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedReques
       success: true,
       data: { deleted },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -574,7 +664,9 @@ router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'FAQs reordered successfully' },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -606,7 +698,9 @@ router.get('/products/:productId/reviews', async (req: Request, res: Response) =
         offset,
       },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -635,7 +729,9 @@ router.post('/products/:productId/reviews', jwtAuthMiddleware, async (req: Authe
       success: true,
       data: { review: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -647,7 +743,19 @@ router.post('/products/:productId/reviews', jwtAuthMiddleware, async (req: Authe
 router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
+    const userId = req.user!.id;
     const { rating, title, content, is_published } = req.body;
+
+    // Verify user owns the product this review belongs to
+    const ownershipCheck = await pool.query(
+      `SELECT r.id FROM "${getValidatedSchema()}".product_reviews r
+       JOIN "${getValidatedSchema()}".products p ON r.product_id = p.id
+       WHERE r.id = $1 AND p.creator_id = $2`,
+      [reviewId, userId]
+    );
+    if (ownershipCheck.rows.length === 0) {
+      throw new AppError('No tienes permiso para modificar esta review', 403);
+    }
 
     const result = await reviewService.updateReview(reviewId, {
       rating,
@@ -660,7 +768,9 @@ router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedReq
       success: true,
       data: { review: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -672,6 +782,18 @@ router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedReq
 router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
+    const userId = req.user!.id;
+
+    // Verify user owns the product this review belongs to
+    const ownershipCheck = await pool.query(
+      `SELECT r.id FROM "${getValidatedSchema()}".product_reviews r
+       JOIN "${getValidatedSchema()}".products p ON r.product_id = p.id
+       WHERE r.id = $1 AND p.creator_id = $2`,
+      [reviewId, userId]
+    );
+    if (ownershipCheck.rows.length === 0) {
+      throw new AppError('No tienes permiso para eliminar esta review', 403);
+    }
 
     const deleted = await reviewService.deleteReview(reviewId);
 
@@ -679,7 +801,9 @@ router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: { deleted },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -704,7 +828,9 @@ router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authentica
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -724,7 +850,9 @@ router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -736,6 +864,16 @@ router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authenti
 router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
+    const userId = req.user!.id;
+
+    // Verify user owns the product
+    const ownershipCheck = await pool.query(
+      `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
+      [productId, userId]
+    );
+    if (ownershipCheck.rows.length === 0) {
+      throw new AppError('No tienes permiso para ver la configuracion de este producto', 403);
+    }
 
     const settings = await reviewService.getSettings(productId);
 
@@ -743,7 +881,9 @@ router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
       success: true,
       data: { settings },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -755,7 +895,17 @@ router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
 router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
+    const userId = req.user!.id;
     const { allow_reviews, require_verified_purchase, auto_publish, min_rating, max_rating } = req.body;
+
+    // Verify user owns the product
+    const ownershipCheck = await pool.query(
+      `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
+      [productId, userId]
+    );
+    if (ownershipCheck.rows.length === 0) {
+      throw new AppError('No tienes permiso para modificar la configuración de este producto', 403);
+    }
 
     const result = await reviewService.updateSettings(productId, {
       allowReviews: allow_reviews,
@@ -769,7 +919,9 @@ router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
       success: true,
       data: { settings: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -788,7 +940,9 @@ router.get('/products/:productId/reviews/distribution', async (req: Request, res
       success: true,
       data: { distribution },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -815,7 +969,9 @@ router.get('/reports/reasons', async (req: Request, res: Response) => {
       success: true,
       data: { reasons },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -839,7 +995,9 @@ router.post('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res
       success: true,
       data: { report: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -870,7 +1028,9 @@ router.get('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res:
         offset,
       },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -894,7 +1054,9 @@ router.get('/reports/:reportId', jwtAuthMiddleware, async (req: AuthenticatedReq
       success: true,
       data: { report, actions },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -919,7 +1081,9 @@ router.put('/reports/:reportId/resolve', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: { report: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -949,7 +1113,9 @@ router.post('/reports/:reportId/actions', jwtAuthMiddleware, async (req: Authent
       success: true,
       data: { action: result },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -968,7 +1134,9 @@ router.get('/content/policies', async (req: Request, res: Response) => {
       success: true,
       data: { policies },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -991,7 +1159,9 @@ router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
       success: true,
       data: { config },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1019,7 +1189,9 @@ router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
       success: true,
       data: { config },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1043,7 +1215,9 @@ router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1154,7 +1328,9 @@ router.get('/agents/conversations', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: { conversations },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1176,7 +1352,9 @@ router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (re
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1201,7 +1379,9 @@ router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: Aut
       success: true,
       data: metrics,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1224,7 +1404,9 @@ router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
       success: true,
       data: { config },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1250,7 +1432,9 @@ router.put('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'Tutor config updated' },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1270,7 +1454,9 @@ router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req:
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1392,7 +1578,9 @@ router.get('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedR
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1416,7 +1604,9 @@ router.post('/insights/dashboards', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1436,7 +1626,9 @@ router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'Dashboard updated' },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1455,7 +1647,9 @@ router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req
       success: true,
       data: { deleted },
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
@@ -1479,7 +1673,9 @@ router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
       success: true,
       data: result,
     });
-  } catch {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
 });
