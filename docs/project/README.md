@@ -69,6 +69,19 @@ Sistema de interacción y analytics con AI: Credits, Q&A, Reviews, Denuncias, Ag
 
 ---
 
+### 🚀 AI Streaming (SSE)
+
+Implementación de streaming de respuestas en tiempo real para agentes AI usando Server-Sent Events.
+
+| Documento | Descripción |
+|-----------|-------------|
+| [PRD](./ai-streaming-sse/PRD.md) | Requisitos del producto |
+| [Specs](./ai-streaming-sse/specs/) | User Stories, Test Plan |
+
+**Estado**: Listo para implementación
+
+---
+
 ## Proyectos Futuros
 
 | Proyecto | Descripción | Estado |
