@@ -429,8 +429,14 @@ ${context.substring(0, 500)}...`,
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
-        // User cancelled - save partial response
-        logger.info({ conversationId, partialLength: fullResponse.length }, 'Stream cancelled by user');
+        // User cancelled - refund credits
+        logger.info({ conversationId, partialLength: fullResponse.length, cost }, 'Stream cancelled by user - refunding credits');
+        try {
+          await aiCreditService.addCredits(userId, cost, 'Refund - stream cancelled');
+        } catch (refundError: unknown) {
+          const err = refundError instanceof Error ? refundError : new Error('Unknown error');
+          logger.error({ error: err.message }, 'Failed to refund credits on abort');
+        }
       } else {
         throw error;
       }
@@ -796,7 +802,14 @@ ${lessonContext.substring(0, 500)}...`,
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
-        logger.info({ productId, userId }, 'Tutor stream cancelled by user');
+        // User cancelled - refund credits
+        logger.info({ productId, userId, cost }, 'Tutor stream cancelled by user - refunding credits');
+        try {
+          await aiCreditService.addCredits(userId, cost, 'Refund - tutor stream cancelled');
+        } catch (refundError: unknown) {
+          const err = refundError instanceof Error ? refundError : new Error('Unknown error');
+          logger.error({ error: err.message }, 'Failed to refund credits on abort');
+        }
       } else {
         throw error;
       }
@@ -1029,7 +1042,6 @@ REGLAS:
         sql: null,
         results: {
           error: 'No se pudo procesar la consulta',
-          message: error.message,
         },
       };
     }
@@ -1134,7 +1146,14 @@ REGLAS:
         });
       } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
-          logger.info({ userId }, 'Insights stream cancelled by user');
+          // User cancelled - refund credits
+          logger.info({ userId, cost }, 'Insights stream cancelled by user - refunding credits');
+          try {
+            await aiCreditService.addCredits(userId, cost, 'Refund - insights stream cancelled');
+          } catch (refundError: unknown) {
+            const err = refundError instanceof Error ? refundError : new Error('Unknown error');
+            logger.error({ error: err.message }, 'Failed to refund credits on abort');
+          }
           throw error;
         }
         throw error;
@@ -1214,7 +1233,7 @@ REGLAS:
         [userId, naturalLanguageQuery, null, JSON.stringify([]), false, errMsg]
       );
 
-      throw new AppError(`No se pudo procesar la consulta: ${errMsg}`, 500);
+      throw new AppError('No se pudo procesar la consulta', 500);
     }
   },
 };

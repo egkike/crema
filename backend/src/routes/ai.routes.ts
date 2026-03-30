@@ -48,9 +48,8 @@ router.get('/credits', jwtAuthMiddleware, async (req: AuthenticatedRequest, res:
         expires_at: expiresAt.toISOString(),
       },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -66,9 +65,8 @@ router.get('/credits/packages', async (_req: Request, res: Response) => {
       success: true,
       data: { packages },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -164,9 +162,8 @@ router.post('/credits/purchase', jwtAuthMiddleware, async (req: AuthenticatedReq
         },
       },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -191,9 +188,8 @@ router.get('/credits/transactions', jwtAuthMiddleware, async (req: Authenticated
         offset,
       },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -226,9 +222,8 @@ router.post('/embeddings', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
       success: true,
       data: { embedding },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -261,9 +256,8 @@ router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: Authe
       success: true,
       data: { results },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -289,9 +283,8 @@ router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req
       success: true,
       data: { deleted },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -325,9 +318,8 @@ router.get('/products/:productId/questions', async (req: AuthenticatedRequest, r
         offset,
       },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -351,9 +343,8 @@ router.post('/products/:productId/questions', jwtAuthMiddleware, async (req: Aut
       success: true,
       data: { question: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -377,9 +368,8 @@ router.put('/questions/:questionId/answer', jwtAuthMiddleware, async (req: Authe
       success: true,
       data: { question: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -402,9 +392,8 @@ router.put('/questions/:questionId/publish', jwtAuthMiddleware, async (req: Auth
       success: true,
       data: { question: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -422,9 +411,8 @@ router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Authentic
       success: true,
       data: { deleted },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -448,9 +436,8 @@ router.post('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Authen
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -469,9 +456,8 @@ router.delete('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Auth
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -494,9 +480,8 @@ router.get('/products/:productId/faqs', async (req: Request, res: Response) => {
       success: true,
       data: { faqs },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -519,9 +504,8 @@ router.post('/products/:productId/faqs', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: { faq: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -545,9 +529,8 @@ router.put('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
       success: true,
       data: { faq: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -565,9 +548,8 @@ router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedReques
       success: true,
       data: { deleted },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -590,9 +572,8 @@ router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'FAQs reordered successfully' },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -623,9 +604,8 @@ router.get('/products/:productId/reviews', async (req: Request, res: Response) =
         offset,
       },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -653,9 +633,8 @@ router.post('/products/:productId/reviews', jwtAuthMiddleware, async (req: Authe
       success: true,
       data: { review: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -679,9 +658,8 @@ router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedReq
       success: true,
       data: { review: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -699,9 +677,8 @@ router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: { deleted },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -725,9 +702,8 @@ router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authentica
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -746,9 +722,8 @@ router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -766,9 +741,8 @@ router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
       success: true,
       data: { settings },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -793,9 +767,8 @@ router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
       success: true,
       data: { settings: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -813,9 +786,8 @@ router.get('/products/:productId/reviews/distribution', async (req: Request, res
       success: true,
       data: { distribution },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -841,9 +813,8 @@ router.get('/reports/reasons', async (req: Request, res: Response) => {
       success: true,
       data: { reasons },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -866,9 +837,8 @@ router.post('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res
       success: true,
       data: { report: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -898,9 +868,8 @@ router.get('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res:
         offset,
       },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -923,9 +892,8 @@ router.get('/reports/:reportId', jwtAuthMiddleware, async (req: AuthenticatedReq
       success: true,
       data: { report, actions },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -949,9 +917,8 @@ router.put('/reports/:reportId/resolve', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: { report: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -980,9 +947,8 @@ router.post('/reports/:reportId/actions', jwtAuthMiddleware, async (req: Authent
       success: true,
       data: { action: result },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1000,9 +966,8 @@ router.get('/content/policies', async (req: Request, res: Response) => {
       success: true,
       data: { policies },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1024,9 +989,8 @@ router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
       success: true,
       data: { config },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1053,9 +1017,8 @@ router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
       success: true,
       data: { config },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1078,9 +1041,8 @@ router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1151,8 +1113,16 @@ router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (r
  * Helper function to send SSE events
  */
 function sendSSE(res: Response, event: string, data: Record<string, unknown>) {
-  res.write(`event: ${event}\n`);
-  res.write(`data: ${JSON.stringify(data)}\n\n`);
+  // Check if response is still writable (client may have disconnected)
+  if (res.writableEnded) {
+    return;
+  }
+  try {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  } catch {
+    // Silently ignore write errors (client disconnected)
+  }
 }
 
 /**
@@ -1171,9 +1141,8 @@ router.get('/agents/conversations', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: { conversations },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1194,9 +1163,8 @@ router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (re
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1220,9 +1188,8 @@ router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: Aut
       success: true,
       data: metrics,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1244,9 +1211,8 @@ router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
       success: true,
       data: { config },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1271,9 +1237,8 @@ router.put('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'Tutor config updated' },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1292,9 +1257,8 @@ router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req:
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1404,9 +1368,8 @@ router.get('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedR
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1429,9 +1392,8 @@ router.post('/insights/dashboards', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1450,9 +1412,8 @@ router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'Dashboard updated' },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1470,9 +1431,8 @@ router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req
       success: true,
       data: { deleted },
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1495,9 +1455,8 @@ router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
       success: true,
       data: result,
     });
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    throw new AppError(err.message, 500);
+  } catch {
+    throw new AppError('Internal server error', 500);
   }
 });
 

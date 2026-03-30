@@ -148,7 +148,7 @@ export class LLMService {
         case 'gemini':
           return await this.geminiStream({ ...requestOptions, messages, onChunk, signal });
         case 'simulator':
-          return await this.simulatorStream({ ...requestOptions, messages, onChunk });
+          return await this.simulatorStream({ ...requestOptions, messages, onChunk, signal });
         default:
           throw new Error(`Streaming not supported for provider: ${this.provider}`);
       }
@@ -827,13 +827,23 @@ export class LLMService {
   private async simulatorStream(options: {
     messages: LLMMessage[];
     onChunk?: (chunk: string) => void;
+    signal?: AbortSignal;
   }): Promise<ChatStreamResponse> {
     const lastMessage = options.messages[options.messages.length - 1]?.content || '';
     const response = `[SIMULATOR] Received: "${lastMessage.substring(0, 30)}..." - This is a simulated stream response.`;
     
+    // Check if already aborted before starting
+    if (options.signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+    
     // Simulate streaming with small chunks
     const chunks = response.match(/.{1,10}/g) || [];
     for (const chunk of chunks) {
+      // Check abort signal in each iteration
+      if (options.signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
       options.onChunk?.(chunk);
       await new Promise(resolve => setTimeout(resolve, 50)); // Simulate delay
     }
