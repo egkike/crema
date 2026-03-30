@@ -509,6 +509,11 @@ export class LLMService {
 
     try {
       while (true) {
+        // Check abort signal during read
+        if (options.signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        
         const { done, value } = await reader.read();
         
         if (done) break;
@@ -590,6 +595,11 @@ export class LLMService {
 
     try {
       while (true) {
+        // Check abort signal during read
+        if (options.signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -680,6 +690,11 @@ export class LLMService {
 
     try {
       while (true) {
+        // Check abort signal during read
+        if (options.signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -785,6 +800,11 @@ export class LLMService {
 
     try {
       while (true) {
+        // Check abort signal during read
+        if (options.signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        
         const { done, value } = await reader.read();
         if (done) break;
 

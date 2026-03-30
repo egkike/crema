@@ -363,14 +363,22 @@ ${context.substring(0, 500)}...`,
       throw new AppError('QA agent no está habilitado', 400);
     }
 
-    // 2. Check and deduct credits (BEFORE starting)
+    // 2. Validate message input
+    if (!message || typeof message !== 'string') {
+      throw new AppError('Message is required', 400);
+    }
+    if (message.length > 2000) {
+      throw new AppError('Message too long (max 2000 characters)', 400);
+    }
+
+    // 3. Check and deduct credits (BEFORE starting)
     const cost = aiCreditService.getOperationCost('search');
     const credits = await aiCreditService.getBalance(userId);
     if (!credits || credits.balance < cost) {
       throw new AppError('Créditos insuficientes', 402);
     }
 
-    // 3. Deduct credits immediately
+    // 4. Deduct credits immediately
     await aiCreditService.useCredits(userId, cost, `QA Agent stream`);
 
     // 4. Get or create conversation

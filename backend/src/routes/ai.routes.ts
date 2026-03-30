@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 
 import logger from '../utils/logger';
+import pool from '../db/postgres';
+import { config } from '../config/index';
 import { aiCreditService } from '../services/ai/credits.service';
 import { memoryService } from '../services/ai/memory.service';
 import { qaService } from '../services/ai/qa.service';
@@ -1059,6 +1061,17 @@ router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (r
     return;
   }
 
+  // Verify product ownership
+  const schema = config.db?.schema || 'public';
+  const productCheck = await pool.query(
+    `SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2`,
+    [product_id, userId]
+  );
+  if (productCheck.rows.length === 0) {
+    res.status(403).json({ error: 'You do not have access to this product' });
+    return;
+  }
+
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1074,8 +1087,9 @@ router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (r
   });
 
   try {
+    const cost = aiCreditService.getOperationCost('search');
     // Send start event
-    sendSSE(res, 'start', { creditsUsed: 1 });
+    sendSSE(res, 'start', { creditsUsed: cost });
 
     // Stream response
     await qaAgentService.chatStream(
@@ -1311,6 +1325,17 @@ router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatL
     return;
   }
 
+  // Verify product ownership
+  const schema = config.db?.schema || 'public';
+  const productCheck = await pool.query(
+    `SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2`,
+    [productId, userId]
+  );
+  if (productCheck.rows.length === 0) {
+    res.status(403).json({ error: 'No tienes acceso a este producto' });
+    return;
+  }
+
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1324,7 +1349,8 @@ router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatL
   });
 
   try {
-    sendSSE(res, 'start', { creditsUsed: 1 });
+    const cost = aiCreditService.getOperationCost('search');
+    sendSSE(res, 'start', { creditsUsed: cost });
 
     await tutorService.chatStream(
       productId,
@@ -1491,7 +1517,8 @@ router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, async (r
   });
 
   try {
-    sendSSE(res, 'start', { creditsUsed: 1 });
+    const cost = aiCreditService.getOperationCost('generate_insight');
+    sendSSE(res, 'start', { creditsUsed: cost });
 
     await insightsService.chatStream(
       userId,
