@@ -805,22 +805,401 @@ describe('LLMService.chatStream', () => {
 
 ---
 
-## 10. Checklist de Implementación
+## 10. Anexo: Streaming para Todos los Providers
+
+### 10.1 Anthropic (Claude) Streaming
+
+Anthropic usa un formato diferente - requiere el header `x-stream: true` y la respuesta es `text/event-stream`:
+
+```typescript
+// backend/src/services/ai/llm.service.ts
+
+private async anthropicStream(options: {
+  messages: LLMMessage[];
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  onChunk?: (chunk: string) => void;
+  signal?: AbortSignal;
+}): Promise<{ content: string }> {
+  const apiKey = config.ai.anthropicApiKey;
+  const model = options.model || ANTHROPIC_MODEL;
+
+  // Convertir mensajes al formato de Anthropic
+  const anthropicMessages = options.messages
+    .filter(msg => msg.role !== 'system')
+    .map(msg => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content,
+    }));
+
+  const systemPrompt = options.messages.find(m => m.role === 'system')?.content || '';
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'x-stream': 'true', // ← IMPORTANTE: habilita streaming
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: options.maxTokens || 1024,
+      temperature: options.temperature ?? 0.7,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    }),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Anthropic stream error: ${response.status} - ${error}`);
+  }
+
+  if (!response.body) {
+    throw new Error('No response body');
+  }
+
+  // Procesar SSE stream de Anthropic
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullContent = '';
+  let usage = { promptTokens: 0, completionTokens: 0 };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+
+        const data = line.slice(6);
+        
+        try {
+          const parsed = JSON.parse(data);
+          
+          // Anthropic envía "message_delta" con el contenido
+          if (parsed.type === 'content_block_delta') {
+            const text = parsed.delta?.text;
+            if (text) {
+              fullContent += text;
+              options.onChunk?.(text);
+            }
+          }
+          
+          // Track usage cuando termina
+          if (parsed.type === 'message_delta') {
+            if (parsed.usage) {
+              usage = {
+                promptTokens: parsed.usage.input_tokens,
+                completionTokens: parsed.usage.output_tokens,
+              };
+            }
+          }
+        } catch {
+          // Skip invalid JSON
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return { content: fullContent };
+}
+```
+
+**Diferencias clave con OpenAI:**
+| Aspecto | OpenAI | Anthropic |
+|---------|--------|-----------|
+| Header | `stream: true` en body | `x-stream: true` en headers |
+| Formato response | JSON lines | SSE con `type: content_block_delta` |
+| Contenido en | `delta.content` | `delta.text` |
+| Fin del stream | `data: [DONE]` | `type: message_delta` |
+
+---
+
+### 10.2 Google Gemini Streaming
+
+Gemini usa `server-sent events` directamente:
+
+```typescript
+// backend/src/services/ai/llm.service.ts
+
+private async geminiStream(options: {
+  messages: LLMMessage[];
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  onChunk?: (chunk: string) => void;
+  signal?: AbortSignal;
+}): Promise<{ content: string }> {
+  const apiKey = config.ai.geminiApiKey;
+  const model = options.model || GEMINI_MODEL;
+
+  // Convertir mensajes al formato de Gemini
+  const contents = options.messages
+    .filter(msg => msg.role !== 'system')
+    .map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }],
+    }));
+
+  const systemInstruction = options.messages.find(m => m.role === 'system')?.content || '';
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/${model}:streamGenerateContent?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+      contents,
+      generationConfig: {
+        temperature: options.temperature ?? 0.7,
+        maxOutputTokens: options.maxTokens ?? 1024,
+        responseModalities: 'text', // Para streaming
+      },
+    }),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Gemini stream error: ${response.status} - ${error}`);
+  }
+
+  if (!response.body) {
+    throw new Error('No response body');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullContent = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+
+        const data = line.slice(6);
+        
+        try {
+          const parsed = JSON.parse(data);
+          
+          // Gemini envía candidatos con partes
+          const candidate = parsed?.candidates?.[0];
+          const part = candidate?.content?.parts?.[0];
+          const text = part?.text;
+          
+          if (text) {
+            fullContent += text;
+            options.onChunk?.(text);
+          }
+        } catch {
+          // Skip invalid JSON
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return { content: fullContent };
+}
+```
+
+**Diferencias clave:**
+| Aspecto | OpenAI | Gemini |
+|---------|--------|--------|
+| API | `/v1/chat/completions` | `/v1beta/{model}:streamGenerateContent` |
+| Formato | JSON lines | JSON con candidatos |
+| Contenido en | `choices[0].delta.content` | `candidates[0].content.parts[0].text` |
+
+---
+
+### 10.3 Fallback entre Providers
+
+Si un provider no soporta streaming, implementar fallback automático:
+
+```typescript
+// En LLMService.chatStream()
+
+async chatStream(options: ChatStreamOptions): Promise<{ content: string; usage?: LLMUsage }> {
+  try {
+    switch (this.provider) {
+      case 'openai':
+        return await this.openAIStream(options);
+      case 'ollama':
+        return await this.ollamaStream(options);
+      case 'anthropic':
+        return await this.anthropicStream(options);
+      case 'gemini':
+        return await this.geminiStream(options);
+      default:
+        throw new Error(`Unknown provider: ${this.provider}`);
+    }
+  } catch (error: any) {
+    // Si es error de streaming, intentar sin streaming como fallback
+    if (error.message.includes('stream') && !options.signal?.aborted) {
+      logger.warn({ provider: this.provider, error: error.message }, 'Stream failed, trying without streaming');
+      
+      // Llamar al método no-streaming
+      const response = await this.chat({
+        messages: options.messages,
+        model: options.model,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+      });
+      
+      // Simular streaming con la respuesta completa
+      options.onChunk?.(response.content);
+      
+      return { content: response.content, usage: response.usage };
+    }
+    
+    throw error;
+  }
+}
+```
+
+---
+
+### 10.4 Memory Leak Prevention
+
+Asegurar cleanup de readers en todos los casos de error:
+
+```typescript
+// Patrón seguro para todos los providers
+
+async function safeStream(options: StreamOptions): Promise<string> {
+  const reader = options.response.body?.getReader();
+  
+  if (!reader) {
+    throw new Error('No response body');
+  }
+
+  try {
+    // ... proceso del stream ...
+  } catch (error: any) {
+    // IMPORTANTE: Siempre hacer cleanup
+    try {
+      reader.cancel(); // Cancelar el reader
+    } catch {
+      // Ignorar errores de cleanup
+    }
+    
+    throw error;
+  } finally {
+    // Asegurar que se libera el lock
+    try {
+      reader.releaseLock();
+    } catch {
+      // Puede fallar si ya se canceló
+    }
+  }
+}
+```
+
+---
+
+### 10.5 Manejo de Connection Close
+
+Qué hacer cuando el browser se cierra o pierde conexión:
+
+```typescript
+// En el endpoint SSE
+
+req.on('close', () => {
+  // El AbortController ya está conectado al signal
+  // Pero podemos agregar logging
+  logger.info({
+    event: 'sse_client_disconnected',
+    userId: req.user?.id,
+    conversationId,
+  }, 'Client disconnected during stream');
+  
+  // No es necesario abort()手动 - el signal ya está configurado
+});
+```
+
+---
+
+### 10.6 Cost Tracking Real
+
+Para cobrar exactamente los tokens usados (no estimado):
+
+```typescript
+// Modificar QA Agent para trackear uso real
+
+async chatStream(...) {
+  // ... verificación de credits ...
+  
+  let totalTokens = 0;
+  
+  await llmService.chatStream({
+    messages,
+    onChunk: (chunk) => {
+      onChunk(chunk);
+      // No podemos contar tokens exactos aquí
+      // Usamos estimación: ~4 caracteres por token
+      totalTokens += Math.ceil(chunk.length / 4);
+    },
+    signal,
+  });
+
+  // Ajustar credits al final (opcional)
+  const estimatedCredits = Math.ceil(totalTokens / 1000); // 1 credit por 1000 tokens
+  const difference = estimatedCredits - 1; // 1 credit fue cobrado al inicio
+  
+  if (difference > 0) {
+    // Cobrar diferencia (raro)
+    await aiCreditService.useCredits(userId, difference, `QA Agent - ajuste`);
+  } else if (difference < 0) {
+    // Reintegrar excedente
+    await aiCreditService.addCredits(userId, Math.abs(difference), `QA Agent - reintegro`);
+  }
+
+  return { conversationId, content: fullResponse };
+}
+```
+
+---
+
+## 12. Checklist de Implementación
 
 - [ ] 1. Agregar método `chatStream()` a `LLMService`
 - [ ] 2. Implementar streaming para OpenAI
 - [ ] 3. Implementar streaming para Ollama
-- [ ] 4. Implementar streaming para Anthropic
-- [ ] 5. Implementar streaming para Gemini
-- [ ] 6. Agregar método `chatStream()` a `qaAgentService`
-- [ ] 7. Agregar método `chatStream()` a `tutorService`
-- [ ] 8. Crear endpoint SSE en `ai.routes.ts`
-- [ ] 9. Configurar nginx para SSE
-- [ ] 10. Crear hook `useAIStream` en frontend
-- [ ] 11. Crear componente de chat con streaming
-- [ ] 12. Tests unitarios
-- [ ] 13. Tests de integración
-- [ ] 14. E2E tests
+- [ ] 4. Implementar streaming para Anthropic (usa `x-stream: true`)
+- [ ] 5. Implementar streaming para Gemini (usa streamGenerateContent)
+- [ ] 6. Agregar fallback sin streaming en cada provider
+- [ ] 7. Asegurar cleanup de readers en casos de error
+- [ ] 8. Agregar método `chatStream()` a `qaAgentService`
+- [ ] 9. Agregar método `chatStream()` a `tutorService`
+- [ ] 10. Implementar endpoint SSE para Insights (`/insights/query/stream`)
+- [ ] 11. Crear endpoint SSE en `ai.routes.ts`
+- [ ] 12. Configurar nginx para SSE
+- [ ] 13. Crear hook `useAIStream` en frontend
+- [ ] 14. Crear componente de chat con streaming
+- [ ] 15. Implementar retry logic en frontend
+- [ ] 16. Tests unitarios
+- [ ] 17. Tests de integración
+- [ ] 18. E2E tests
 
 ---
 
