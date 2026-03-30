@@ -33,7 +33,7 @@ Implementar **Server-Sent Events (SSE)** para streaming de tokens en tiempo real
 ┌──────────────┐     SSE Stream      ┌──────────────┐
 │   Frontend   │ ◄────────────────── │    Backend   │
 │              │    token1: "Hola"   │              │
-│  [打字中...] │    token2: " soy"   │   LLM API    │
+│  [typing...]  │    token2: " soy"   │   LLM API    │
 │  Hola soy    │    token3: " tu"    │  (streaming) │
 │  soy tu...   │    token4: " Tuto"  │              │
 └──────────────┘                     └──────────────┘
