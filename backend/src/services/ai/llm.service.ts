@@ -36,6 +36,28 @@ export interface LLMResponse {
 }
 
 // ============================================================================
+// Chat Stream Types
+// ============================================================================
+
+export interface ChatStreamOptions {
+  messages: LLMMessage[];
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  onChunk?: (chunk: string) => void;
+  signal?: AbortSignal;
+}
+
+export interface ChatStreamResponse {
+  content: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+
+// ============================================================================
 // Configuration (from centralized config)
 // ============================================================================
 
@@ -109,8 +131,53 @@ export class LLMService {
     }
   }
 
+  /**
+   * Chat with streaming response
+   */
+  async chatStream(options: ChatStreamOptions): Promise<ChatStreamResponse> {
+    const { messages, onChunk, signal, ...requestOptions } = options;
+
+    try {
+      switch (this.provider) {
+        case 'openai':
+          return await this.openAIStream({ ...requestOptions, messages, onChunk, signal });
+        case 'ollama':
+          return await this.ollamaStream({ ...requestOptions, messages, onChunk, signal });
+        case 'anthropic':
+          return await this.anthropicStream({ ...requestOptions, messages, onChunk, signal });
+        case 'gemini':
+          return await this.geminiStream({ ...requestOptions, messages, onChunk, signal });
+        case 'simulator':
+          return await this.simulatorStream({ ...requestOptions, messages, onChunk });
+        default:
+          throw new Error(`Streaming not supported for provider: ${this.provider}`);
+      }
+    } catch (error: any) {
+      // If streaming fails and not cancelled, try fallback to non-streaming
+      if (!signal?.aborted && error.message?.includes('stream')) {
+        logger.warn({ provider: this.provider, error: error.message }, 'Stream failed, falling back to non-streaming');
+        
+        const response = await this.chat({
+          messages: options.messages,
+          model: options.model,
+          temperature: options.temperature,
+          maxTokens: options.maxTokens,
+        });
+        
+        // Simulate streaming with full response
+        if (onChunk) {
+          onChunk(response.content);
+        }
+        
+        return { content: response.content, usage: response.usage };
+      }
+      
+      throw error;
+    }
+  }
+
   // ============================================================================
-  // OpenAI Implementation
+  // OpenAI Streaming Implementation
   // ============================================================================
 
   private async openAIChat(request: LLMRequest): Promise<LLMResponse> {
@@ -384,6 +451,389 @@ export class LLMService {
       content: `[SIMULATOR] Received your message: "${lastMessage.substring(0, 50)}..."\n\nThis is a simulated response. Configure OpenAI API key or Ollama to use real LLM.`,
       model: 'simulator',
     };
+  }
+
+  // ============================================================================
+  // OpenAI Stream Implementation
+  // ============================================================================
+
+  private async openAIStream(options: {
+    messages: LLMMessage[];
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    onChunk?: (chunk: string) => void;
+    signal?: AbortSignal;
+  }): Promise<ChatStreamResponse> {
+    const apiKey = config.ai.openaiApiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    const model = options.model || OPENAI_MODEL;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: options.messages,
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.maxTokens ?? 500,
+        stream: true,
+      }),
+      signal: options.signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI stream error: ${response.status} - ${error}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+          
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            
+            if (delta) {
+              fullContent += delta;
+              options.onChunk?.(delta);
+            }
+            
+            if (parsed.usage) {
+              usage = {
+                promptTokens: parsed.usage.prompt_tokens,
+                completionTokens: parsed.usage.completion_tokens,
+                totalTokens: parsed.usage.total_tokens,
+              };
+            }
+          } catch {
+            // Skip invalid JSON
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return { content: fullContent, usage };
+  }
+
+  // ============================================================================
+  // Ollama Stream Implementation
+  // ============================================================================
+
+  private async ollamaStream(options: {
+    messages: LLMMessage[];
+    model?: string;
+    temperature?: number;
+    onChunk?: (chunk: string) => void;
+    signal?: AbortSignal;
+  }): Promise<ChatStreamResponse> {
+    const model = options.model || OLLAMA_MODEL;
+
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: options.messages,
+        temperature: options.temperature ?? 0.7,
+        stream: true,
+      }),
+      signal: options.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Ollama stream error: ${response.status} - ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.trim());
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            const content = data.message?.content;
+            
+            if (content) {
+              fullContent += content;
+              options.onChunk?.(content);
+            }
+          } catch {
+            // Skip
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return { content: fullContent };
+  }
+
+  // ============================================================================
+  // Anthropic Stream Implementation
+  // ============================================================================
+
+  private async anthropicStream(options: {
+    messages: LLMMessage[];
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    onChunk?: (chunk: string) => void;
+    signal?: AbortSignal;
+  }): Promise<ChatStreamResponse> {
+    const apiKey = config.ai.anthropicApiKey;
+    if (!apiKey) {
+      throw new Error('Anthropic API key not configured');
+    }
+
+    const model = options.model || ANTHROPIC_MODEL;
+
+    // Convertir mensajes al formato de Anthropic
+    const anthropicMessages = options.messages
+      .filter(msg => msg.role !== 'system')
+      .map(msg => ({
+        role: msg.role === 'assistant' ? 'assistant' : 'user',
+        content: msg.content,
+      }));
+
+    const systemPrompt = options.messages.find(m => m.role === 'system')?.content || '';
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'x-stream': 'true',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: options.maxTokens || 1024,
+        temperature: options.temperature ?? 0.7,
+        system: systemPrompt,
+        messages: anthropicMessages,
+      }),
+      signal: options.signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Anthropic stream error: ${response.status} - ${error}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+
+          const data = line.slice(6);
+          
+          try {
+            const parsed = JSON.parse(data);
+            
+            // Anthropic envía "message_delta" con el contenido
+            if (parsed.type === 'content_block_delta') {
+              const text = parsed.delta?.text;
+              if (text) {
+                fullContent += text;
+                options.onChunk?.(text);
+              }
+            }
+            
+            // Track usage cuando termina
+            if (parsed.type === 'message_delta' && parsed.usage) {
+              usage = {
+                promptTokens: parsed.usage.input_tokens,
+                completionTokens: parsed.usage.output_tokens,
+                totalTokens: parsed.usage.input_tokens + parsed.usage.output_tokens,
+              };
+            }
+          } catch {
+            // Skip invalid JSON
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return { content: fullContent, usage };
+  }
+
+  // ============================================================================
+  // Gemini Stream Implementation
+  // ============================================================================
+
+  private async geminiStream(options: {
+    messages: LLMMessage[];
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    onChunk?: (chunk: string) => void;
+    signal?: AbortSignal;
+  }): Promise<ChatStreamResponse> {
+    const apiKey = config.ai.geminiApiKey;
+    if (!apiKey) {
+      throw new Error('Gemini API key not configured');
+    }
+
+    const model = options.model || GEMINI_MODEL;
+
+    // Convertir mensajes al formato de Gemini
+    const contents = options.messages
+      .filter(msg => msg.role !== 'system')
+      .map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }],
+      }));
+
+    const systemInstruction = options.messages.find(m => m.role === 'system')?.content || '';
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/${model}:streamGenerateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+        contents,
+        generationConfig: {
+          temperature: options.temperature ?? 0.7,
+          maxOutputTokens: options.maxTokens ?? 1024,
+        },
+      }),
+      signal: options.signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Gemini stream error: ${response.status} - ${error}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+
+          const data = line.slice(6);
+          
+          try {
+            const parsed = JSON.parse(data);
+            
+            // Gemini envía candidatos con partes
+            const candidate = parsed?.candidates?.[0];
+            const part = candidate?.content?.parts?.[0];
+            const text = part?.text;
+            
+            if (text) {
+              fullContent += text;
+              options.onChunk?.(text);
+            }
+          } catch {
+            // Skip invalid JSON
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return { content: fullContent };
+  }
+
+  // ============================================================================
+  // Simulator Stream Implementation
+  // ============================================================================
+
+  private async simulatorStream(options: {
+    messages: LLMMessage[];
+    onChunk?: (chunk: string) => void;
+  }): Promise<ChatStreamResponse> {
+    const lastMessage = options.messages[options.messages.length - 1]?.content || '';
+    const response = `[SIMULATOR] Received: "${lastMessage.substring(0, 30)}..." - This is a simulated stream response.`;
+    
+    // Simulate streaming with small chunks
+    const chunks = response.match(/.{1,10}/g) || [];
+    for (const chunk of chunks) {
+      options.onChunk?.(chunk);
+      await new Promise(resolve => setTimeout(resolve, 50)); // Simulate delay
+    }
+    
+    return { content: response };
   }
 
   // ============================================================================

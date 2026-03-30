@@ -35,7 +35,7 @@ INSTRUCCIONES:
 3. Usa un tono paciente, amigable y motivador
 4. Si no sabes la respuesta, sé honesto y sugiere que contacte al creador del curso
 5. Puedes dar ejemplos del contenido para ilustrar conceptos
-6. Ayudas al estudiante a.progress en su aprendizaje
+6. Ayudas al estudiante a progresar en su aprendizaje
 
 LIMITACIONES:
 - No inventes información que no esté en las lecciones
@@ -345,6 +345,101 @@ ${context.substring(0, 500)}...`,
     logger.info({ productId, userId, conversationId }, 'QA agent response generated');
     return { response, conversationId };
   },
+
+  /**
+   * Chat with QA agent using streaming
+   */
+  async chatStream(
+    productId: string,
+    userId: string,
+    message: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
+  ): Promise<{ conversationId: string; content: string }> {
+    // 1. Get config
+    const config = await this.getConfig(productId);
+    if (!config || !config.is_enabled) {
+      throw new AppError('QA agent no está habilitado', 400);
+    }
+
+    // 2. Check and deduct credits (BEFORE starting)
+    const cost = aiCreditService.getOperationCost('search');
+    const credits = await aiCreditService.getBalance(userId);
+    if (!credits || credits.balance < cost) {
+      throw new AppError('Créditos insuficientes', 402);
+    }
+
+    // 3. Deduct credits immediately
+    await aiCreditService.useCredits(userId, cost, `QA Agent stream`);
+
+    // 4. Get or create conversation
+    let conversationId: string;
+    const conversations = await this.getUserConversations(userId, 'qa', 1);
+    const activeConv = conversations.find(c => c.status === 'active' && c.product_id === productId);
+    
+    if (activeConv) {
+      conversationId = activeConv.id;
+    } else {
+      const conv = await this.createConversation('qa', productId, userId, { productId });
+      conversationId = conv.id;
+    }
+
+    // 5. Save user message
+    await this.addMessage(conversationId, 'user', message);
+
+    // 6. Retrieve context
+    let context = '';
+    if (config.use_memory) {
+      const embeddings = await pool.query(
+        `SELECT content FROM "${schema}".ai_embeddings 
+         WHERE product_id = $1 AND source_type IN ('lesson', 'faq')
+         ORDER BY created_at DESC LIMIT 5`,
+        [productId]
+      );
+      context += 'Información del producto:\n' + embeddings.rows.map(r => r.content).join('\n\n');
+    }
+
+    if (config.use_faqs) {
+      const faqs = await pool.query(
+        `SELECT question, answer FROM "${schema}".product_faqs 
+         WHERE product_id = $1 AND is_active = true
+         ORDER BY sort_order LIMIT 10`,
+        [productId]
+      );
+      context += '\n\nFAQs:\n' + faqs.rows.map(f => `P: ${f.question}\nR: ${f.answer}`).join('\n\n');
+    }
+
+    // 7. Build messages
+    const systemPrompt = config.system_prompt || DEFAULT_QA_SYSTEM_PROMPT;
+    const messages = llmService.buildPrompt(systemPrompt, context, message);
+
+    // 8. Call LLM with streaming
+    let fullResponse = '';
+    try {
+      await llmService.chatStream({
+        messages,
+        temperature: config.temperature,
+        maxTokens: config.max_tokens,
+        onChunk: (chunk) => {
+          fullResponse += chunk;
+          onChunk(chunk);
+        },
+        signal,
+      });
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        // User cancelled - save partial response
+        logger.info({ conversationId, partialLength: fullResponse.length }, 'Stream cancelled by user');
+      } else {
+        throw error;
+      }
+    }
+
+    // 9. Save assistant message (or partial)
+    await this.addMessage(conversationId, 'assistant', fullResponse, Math.ceil(fullResponse.length / 4));
+
+    return { conversationId, content: fullResponse };
+  },
 };
 
 /**
@@ -582,7 +677,7 @@ export const tutorService = {
       SELECT l.title, l.content, m.title as module_title
       FROM "${schema}".lessons l
       JOIN "${schema}".modules m ON l.module_id = m.id
-      WHERE m.product_id = $1 AND l.is_free = true OR m.product_id = $1
+      WHERE m.product_id = $1 AND (l.is_free = true OR m.product_id = $1)
       ORDER BY m.sort_order, l.sort_order
       LIMIT 20
     `;
@@ -629,6 +724,84 @@ ${lessonContext.substring(0, 500)}...`,
 
     logger.info({ productId, userId }, 'Tutor response generated');
     return { response, conversationId: productId };
+  },
+
+  /**
+   * Chat with Tutor using streaming
+   */
+  async chatStream(
+    productId: string,
+    userId: string,
+    message: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
+  ): Promise<{ conversationId: string; content: string }> {
+    // Get config
+    const config = await this.getConfig(productId);
+    if (!config || !config.isEnabled) {
+      throw new AppError('Tutor no está habilitado para este producto', 400);
+    }
+
+    // Check and deduct credits
+    const cost = aiCreditService.getOperationCost('search');
+    const credits = await aiCreditService.getBalance(userId);
+    if (!credits || credits.balance < cost) {
+      throw new AppError('Créditos insuficientes', 402);
+    }
+
+    await aiCreditService.useCredits(userId, cost, `Tutor stream`);
+
+    // Get lesson content for context
+    const lessonsQuery = `
+      SELECT l.title, l.content, m.title as module_title
+      FROM "${schema}".lessons l
+      JOIN "${schema}".modules m ON l.module_id = m.id
+      WHERE m.product_id = $1 AND (l.is_free = true OR m.product_id = $1)
+      ORDER BY m.sort_order, l.sort_order
+      LIMIT 20
+    `;
+    const { rows: lessons } = await pool.query<{ title: string; content: string; module_title: string }>(
+      lessonsQuery,
+      [productId]
+    );
+
+    // Build context from lessons
+    const lessonContext = lessons
+      .map(l => `Módulo: ${l.module_title}\nLección: ${l.title}\nContenido: ${l.content.substring(0, 1000)}`)
+      .join('\n\n---\n\n');
+
+    // Build system prompt
+    const systemPrompt = (config.systemPrompt || DEFAULT_TUTOR_SYSTEM_PROMPT).replace(
+      '{lesson_context}',
+      lessonContext || 'No hay contenido de lecciones disponible.'
+    );
+
+    // Build messages for LLM
+    const messages = llmService.buildPrompt(systemPrompt, '', message);
+
+    // Call LLM with streaming
+    let fullResponse = '';
+    try {
+      await llmService.chatStream({
+        messages,
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+        onChunk: (chunk) => {
+          fullResponse += chunk;
+          onChunk(chunk);
+        },
+        signal,
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.info({ productId, userId }, 'Tutor stream cancelled by user');
+      } else {
+        throw error;
+      }
+    }
+
+    logger.info({ productId, userId }, 'Tutor stream completed');
+    return { conversationId: productId, content: fullResponse };
   },
 };
 

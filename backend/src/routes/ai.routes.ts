@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 
+import logger from '../utils/logger';
 import { aiCreditService } from '../services/ai/credits.service';
 import { memoryService } from '../services/ai/memory.service';
 import { qaService } from '../services/ai/qa.service';
@@ -1046,6 +1047,76 @@ router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
 });
 
 /**
+ * POST /api/ai/agents/qa/chat/stream
+ * SSE streaming for QA Agent
+ */
+router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const { product_id, message } = req.body;
+
+  if (!product_id || !message) {
+    res.status(400).json({ error: 'product_id and message are required' });
+    return;
+  }
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+  // Create AbortController for cancellation
+  const abortController = new AbortController();
+  
+  // Clean up on client disconnect
+  req.on('close', () => {
+    abortController.abort();
+  });
+
+  try {
+    // Send start event
+    sendSSE(res, 'start', { creditsUsed: 1 });
+
+    // Stream response
+    await qaAgentService.chatStream(
+      product_id,
+      userId,
+      message,
+      // onChunk callback
+      (chunk) => {
+        sendSSE(res, 'chunk', { content: chunk, done: false });
+      },
+      abortController.signal
+    );
+
+    // Send done event
+    sendSSE(res, 'done', { done: true });
+
+  } catch (error: any) {
+    logger.error({ error: error.message }, 'SSE stream error');
+
+    // Handle specific errors
+    if (error.message.includes('Créditos insuficientes')) {
+      sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: error.message });
+    } else if (error.name === 'AbortError') {
+      sendSSE(res, 'done', { done: true, cancelled: true });
+    } else {
+      sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error al generar respuesta' });
+    }
+  } finally {
+    res.end();
+  }
+});
+
+/**
+ * Helper function to send SSE events
+ */
+function sendSSE(res: Response, event: string, data: Record<string, unknown>) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+/**
  * GET /api/ai/agents/conversations
  * Get user's conversations
  */
@@ -1206,8 +1277,71 @@ router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter,
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    throw new AppError(message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/products/:productId/tutor/chat/stream
+ * SSE streaming for Tutor AI
+ */
+router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
+  const productId = toString(req.params.productId);
+  const userId = req.user!.id;
+  const { message } = req.body;
+
+  if (!message || typeof message !== 'string') {
+    res.status(400).json({ error: 'El mensaje es requerido' });
+    return;
+  }
+
+  if (message.length > 2000) {
+    res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres)' });
+    return;
+  }
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  const abortController = new AbortController();
+  
+  req.on('close', () => {
+    abortController.abort();
+  });
+
+  try {
+    sendSSE(res, 'start', { creditsUsed: 1 });
+
+    await tutorService.chatStream(
+      productId,
+      userId,
+      message,
+      (chunk) => {
+        sendSSE(res, 'chunk', { content: chunk, done: false });
+      },
+      abortController.signal
+    );
+
+    sendSSE(res, 'done', { done: true });
+
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Tutor SSE stream error');
+
+    if (err.message.includes('Créditos insuficientes')) {
+      sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: err.message });
+    } else if (err.name === 'AbortError') {
+      sendSSE(res, 'done', { done: true, cancelled: true });
+    } else {
+      sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error al generar respuesta' });
+    }
+  } finally {
+    res.end();
   }
 });
 
