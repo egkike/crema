@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express';
 import logger from '../utils/logger';
 import pool from '../db/postgres';
 import { getValidatedSchema } from '../utils/validators.util';
+import { verifyProductOwnership } from '../utils/routeHelpers.util';
 import { toString } from '../utils/params.util';
 import { aiCreditService } from '../services/ai/credits.service';
 import { memoryService } from '../services/ai/memory.service';
@@ -11,18 +12,46 @@ import { reviewService } from '../services/ai/review.service';
 import { reportService } from '../services/ai/denunciation.service';
 import { qaAgentService, analyticsService, tutorService, insightsService } from '../services/ai/agents.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
+import { restrictTo } from '../middlewares/auth/role.middleware';
 import { aiLimiter, aiChatLimiter } from '../middlewares/rateLimit/rateLimit';
+import { validate } from '../middlewares/auth/validate.middleware';
 import { AppError } from '../errors/AppError';
 import type { UserPayload } from '../types/express';
 import type { EmbeddingSourceType } from '../types/ai.types';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
 import { configRepository } from '../repositories/config.repository';
+// Zod schemas for input validation
+import {
+  purchaseCreditsSchema,
+  createQuestionSchema,
+  answerQuestionSchema,
+  voteQuestionSchema,
+  publishQuestionSchema,
+  createFAQSchema,
+  updateFAQSchema,
+  reorderFAQsSchema,
+  createReviewSchema,
+  updateReviewSchema,
+  voteReviewSchema,
+  updateReviewSettingsSchema,
+  createReportSchema,
+  resolveReportSchema,
+  reportActionSchema,
+  updateQAConfigSchema,
+  updateTutorConfigSchema,
+  createEmbeddingSchema,
+  createDashboardSchema,
+  updateDashboardSchema,
+  insightsQuerySchema,
+  chatMessageSchema,
+  qaChatSchema,
+} from '../schemas/ai.schema';
 
 const router = Router();
 
-// Extend request type to include user
+// Extend request type to include user (required after jwtAuthMiddleware)
 interface AuthenticatedRequest extends Request {
-  user?: UserPayload;
+  user: UserPayload;
 }
 
 // ============================================
@@ -33,9 +62,9 @@ interface AuthenticatedRequest extends Request {
  * GET /api/ai/credits
  * Get user's credit balance
  */
-router.get('/credits', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/credits', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { balance, expiresAt } = await aiCreditService.getBalance(userId);
 
     res.json({
@@ -75,14 +104,10 @@ router.get('/credits/packages', aiLimiter, async (_req: Request, res: Response) 
  * POST /api/ai/credits/purchase
  * Purchase a credit package - initiates payment flow
  */
-router.post('/credits/purchase', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/credits/purchase', jwtAuthMiddleware, aiLimiter, validate(purchaseCreditsSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { packageId, currency = 'ARS', gatewayId } = req.body;
-
-    if (!packageId) {
-      throw new AppError('Package ID is required', 400);
-    }
 
     // Get package details
     const pkg = await aiCreditService.getPackageById(packageId);
@@ -140,7 +165,7 @@ router.post('/credits/purchase', jwtAuthMiddleware, async (req: AuthenticatedReq
       amount: price,
       currency,
       userId,
-      email: req.user!.email,
+      email: req.user.email,
     };
 
     // Check if provider supports credit preferences
@@ -174,9 +199,9 @@ router.post('/credits/purchase', jwtAuthMiddleware, async (req: AuthenticatedReq
  * GET /api/ai/credits/transactions
  * Get user's credit transaction history
  */
-router.get('/credits/transactions', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/credits/transactions', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
 
@@ -206,14 +231,10 @@ router.get('/credits/transactions', jwtAuthMiddleware, async (req: Authenticated
  * POST /api/ai/embeddings
  * Create a new embedding
  */
-router.post('/embeddings', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/embeddings', jwtAuthMiddleware, validate(createEmbeddingSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { sourceType, sourceId, content, metadata } = req.body;
-
-    if (!sourceType || !sourceId || !content) {
-      throw new AppError('sourceType, sourceId, and content are required', 400);
-    }
 
     // Validate source type
     const validTypes: EmbeddingSourceType[] = ['lesson', 'faq', 'policy', 'qa', 'review', 'insight', 'saved_dashboard'];
@@ -240,7 +261,7 @@ router.post('/embeddings', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
  */
 router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { query, limit, sourceTypes } = req.query;
 
     if (!query) {
@@ -307,19 +328,20 @@ router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req
  * GET /api/ai/products/:productId/questions
  * Get questions for a product (public)
  */
-router.get('/products/:productId/questions', aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/products/:productId/questions', aiLimiter, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
     const includeUnpublished = req.query.include_unpublished === 'true';
+    const userId = (req as AuthenticatedRequest).user?.id;
 
     // Verify product ownership if user wants unpublished questions
     let showUnpublished = false;
-    if (includeUnpublished && req.user?.id) {
+    if (includeUnpublished && userId) {
       const productCheck = await pool.query(
         `SELECT id FROM "${getValidatedSchema()}"."products" WHERE id = $1 AND creator_id = $2`,
-        [productId, req.user.id]
+        [productId, userId]
       );
       showUnpublished = productCheck.rows.length > 0;
     }
@@ -346,15 +368,11 @@ router.get('/products/:productId/questions', aiLimiter, async (req: Authenticate
  * POST /api/ai/products/:productId/questions
  * Ask a question on a product (authenticated)
  */
-router.post('/products/:productId/questions', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/questions', jwtAuthMiddleware, validate(createQuestionSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { question } = req.body;
-
-    if (!question) {
-      throw new AppError('Question text is required', 400);
-    }
 
     const result = await qaService.createQuestion(productId, userId, question);
 
@@ -373,15 +391,11 @@ router.post('/products/:productId/questions', jwtAuthMiddleware, async (req: Aut
  * PUT /api/ai/questions/:questionId/answer
  * Answer a question (creator or admin)
  */
-router.put('/questions/:questionId/answer', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/questions/:questionId/answer', jwtAuthMiddleware, validate(answerQuestionSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const answeredBy = req.user!.id;
+    const answeredBy = req.user.id;
     const { answer } = req.body;
-
-    if (!answer) {
-      throw new AppError('Answer text is required', 400);
-    }
 
     const result = await qaService.answerQuestion(questionId, answer, answeredBy);
 
@@ -400,15 +414,11 @@ router.put('/questions/:questionId/answer', jwtAuthMiddleware, async (req: Authe
  * PUT /api/ai/questions/:questionId/publish
  * Toggle question publication (creator or admin)
  */
-router.put('/questions/:questionId/publish', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/questions/:questionId/publish', jwtAuthMiddleware, validate(publishQuestionSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { is_published } = req.body;
-
-    if (typeof is_published !== 'boolean') {
-      throw new AppError('is_published boolean is required', 400);
-    }
 
     // Verify user owns the product this question belongs to
     const ownershipCheck = await pool.query(
@@ -418,7 +428,7 @@ router.put('/questions/:questionId/publish', jwtAuthMiddleware, async (req: Auth
       [questionId, userId]
     );
     if (ownershipCheck.rows.length === 0) {
-      throw new AppError('No tienes permiso para publicar esta pregunta', 403);
+      throw new AppError('You do not have permission to publish this question', 403);
     }
 
     const result = await qaService.togglePublishQuestion(questionId, is_published);
@@ -441,7 +451,7 @@ router.put('/questions/:questionId/publish', jwtAuthMiddleware, async (req: Auth
 router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     // Verify user owns the product this question belongs to
     const ownershipCheck = await pool.query(
@@ -451,7 +461,7 @@ router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Authentic
       [questionId, userId]
     );
     if (ownershipCheck.rows.length === 0) {
-      throw new AppError('No tienes permiso para eliminar esta pregunta', 403);
+      throw new AppError('You do not have permission to delete this question', 403);
     }
 
     const deleted = await qaService.deleteQuestion(questionId);
@@ -471,15 +481,11 @@ router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Authentic
  * POST /api/ai/questions/:questionId/vote
  * Vote on a question
  */
-router.post('/questions/:questionId/vote', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/questions/:questionId/vote', jwtAuthMiddleware, validate(voteQuestionSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { vote_type } = req.body;
-
-    if (!vote_type || !['helpful', 'not_helpful'].includes(vote_type)) {
-      throw new AppError('vote_type must be "helpful" or "not_helpful"', 400);
-    }
 
     const result = await qaService.voteQuestion(questionId, userId, vote_type);
 
@@ -501,7 +507,7 @@ router.post('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Authen
 router.delete('/questions/:questionId/vote', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     const result = await qaService.removeVote(questionId, userId);
 
@@ -546,14 +552,10 @@ router.get('/products/:productId/faqs', aiLimiter, async (req: Request, res: Res
  * POST /api/ai/products/:productId/faqs
  * Create a FAQ (creator or admin)
  */
-router.post('/products/:productId/faqs', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/faqs', jwtAuthMiddleware, validate(createFAQSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const { question, answer, sort_order } = req.body;
-
-    if (!question || !answer) {
-      throw new AppError('question and answer are required', 400);
-    }
 
     const result = await qaService.createFAQ(productId, question, answer, sort_order);
 
@@ -572,10 +574,10 @@ router.post('/products/:productId/faqs', jwtAuthMiddleware, async (req: Authenti
  * PUT /api/ai/faqs/:faqId
  * Update a FAQ (creator or admin)
  */
-router.put('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/faqs/:faqId', jwtAuthMiddleware, validate(updateFAQSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const faqId = toString(req.params.faqId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { question, answer, sort_order, is_active } = req.body;
 
     // Verify user owns the product this FAQ belongs to
@@ -586,7 +588,7 @@ router.put('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
       [faqId, userId]
     );
     if (ownershipCheck.rows.length === 0) {
-      throw new AppError('No tienes permiso para modificar este FAQ', 403);
+      throw new AppError('You do not have permission to modify this FAQ', 403);
     }
 
     const result = await qaService.updateFAQ(faqId, {
@@ -614,7 +616,7 @@ router.put('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
 router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const faqId = toString(req.params.faqId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     // Verify user owns the product this FAQ belongs to
     const ownershipCheck = await pool.query(
@@ -624,7 +626,7 @@ router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedReques
       [faqId, userId]
     );
     if (ownershipCheck.rows.length === 0) {
-      throw new AppError('No tienes permiso para eliminar este FAQ', 403);
+      throw new AppError('You do not have permission to delete this FAQ', 403);
     }
 
     const deleted = await qaService.deleteFAQ(faqId);
@@ -644,14 +646,10 @@ router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedReques
  * PUT /api/ai/products/:productId/faqs/reorder
  * Reorder FAQs for a product (creator or admin)
  */
-router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, validate(reorderFAQsSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const { faq_ids } = req.body;
-
-    if (!faq_ids || !Array.isArray(faq_ids)) {
-      throw new AppError('faq_ids array is required', 400);
-    }
 
     await qaService.reorderFAQs(productId, faq_ids);
 
@@ -704,19 +702,11 @@ router.get('/products/:productId/reviews', aiLimiter, async (req: Request, res: 
  * POST /api/ai/products/:productId/reviews
  * Create a review (authenticated)
  */
-router.post('/products/:productId/reviews', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/reviews', jwtAuthMiddleware, validate(createReviewSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { rating, title, content } = req.body;
-
-    if (!rating || !content) {
-      throw new AppError('rating and content are required', 400);
-    }
-
-    if (rating < 1 || rating > 5) {
-      throw new AppError('rating must be between 1 and 5', 400);
-    }
 
     const result = await reviewService.createReview(productId, userId, rating, content, title);
 
@@ -735,10 +725,10 @@ router.post('/products/:productId/reviews', jwtAuthMiddleware, async (req: Authe
  * PUT /api/ai/reviews/:reviewId
  * Update a review
  */
-router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/reviews/:reviewId', jwtAuthMiddleware, validate(updateReviewSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { rating, title, content, is_published } = req.body;
 
     // Verify user owns the product this review belongs to
@@ -749,7 +739,7 @@ router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedReq
       [reviewId, userId]
     );
     if (ownershipCheck.rows.length === 0) {
-      throw new AppError('No tienes permiso para modificar esta review', 403);
+      throw new AppError('You do not have permission to modify this review', 403);
     }
 
     const result = await reviewService.updateReview(reviewId, {
@@ -777,7 +767,7 @@ router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedReq
 router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     // Verify user owns the product this review belongs to
     const ownershipCheck = await pool.query(
@@ -787,7 +777,7 @@ router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Authenticated
       [reviewId, userId]
     );
     if (ownershipCheck.rows.length === 0) {
-      throw new AppError('No tienes permiso para eliminar esta review', 403);
+      throw new AppError('You do not have permission to delete this review', 403);
     }
 
     const deleted = await reviewService.deleteReview(reviewId);
@@ -807,15 +797,11 @@ router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Authenticated
  * POST /api/ai/reviews/:reviewId/vote
  * Vote on a review
  */
-router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, validate(voteReviewSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { vote_type } = req.body;
-
-    if (!vote_type || !['helpful', 'not_helpful'].includes(vote_type)) {
-      throw new AppError('vote_type must be "helpful" or "not_helpful"', 400);
-    }
 
     const result = await reviewService.voteReview(reviewId, userId, vote_type);
 
@@ -837,7 +823,7 @@ router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authentica
 router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     const result = await reviewService.removeVote(reviewId, userId);
 
@@ -859,7 +845,7 @@ router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authenti
 router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     // Verify user owns the product
     const ownershipCheck = await pool.query(
@@ -867,7 +853,7 @@ router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
       [productId, userId]
     );
     if (ownershipCheck.rows.length === 0) {
-      throw new AppError('No tienes permiso para ver la configuracion de este producto', 403);
+      throw new AppError('You do not have permission to view this product settings', 403);
     }
 
     const settings = await reviewService.getSettings(productId);
@@ -887,10 +873,10 @@ router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
  * PUT /api/ai/products/:productId/reviews/settings
  * Update review settings for a product
  */
-router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, validate(updateReviewSettingsSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { allow_reviews, require_verified_purchase, auto_publish, min_rating, max_rating } = req.body;
 
     // Verify user owns the product
@@ -899,7 +885,7 @@ router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
       [productId, userId]
     );
     if (ownershipCheck.rows.length === 0) {
-      throw new AppError('No tienes permiso para modificar la configuración de este producto', 403);
+      throw new AppError('You do not have permission to modify this product settings', 403);
     }
 
     const result = await reviewService.updateSettings(productId, {
@@ -975,14 +961,10 @@ router.get('/reports/reasons', aiLimiter, async (req: Request, res: Response) =>
  * POST /api/ai/reports
  * Create a new report (authenticated)
  */
-router.post('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/reports', jwtAuthMiddleware, validate(createReportSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const reporterId = req.user!.id;
+    const reporterId = req.user.id;
     const { content_type, content_id, reason_code, description } = req.body;
-
-    if (!content_type || !content_id || !reason_code) {
-      throw new AppError('content_type, content_id, and reason_code are required', 400);
-    }
 
     const result = await reportService.createReport(reporterId, content_type, content_id, reason_code, description);
 
@@ -1001,7 +983,7 @@ router.post('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res
  * GET /api/ai/reports
  * Get reports (admin)
  */
-router.get('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/reports', jwtAuthMiddleware, restrictTo('ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
@@ -1034,13 +1016,13 @@ router.get('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res:
  * GET /api/ai/reports/:reportId
  * Get a single report by ID (admin)
  */
-router.get('/reports/:reportId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/reports/:reportId', jwtAuthMiddleware, restrictTo('ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reportId = toString(req.params.reportId);
 
     const report = await reportService.getReportById(reportId);
     if (!report) {
-      throw new AppError('Report no encontrado', 404);
+      throw new AppError('Report not found', 404);
     }
 
     const actions = await reportService.getActions(reportId);
@@ -1060,15 +1042,11 @@ router.get('/reports/:reportId', jwtAuthMiddleware, async (req: AuthenticatedReq
  * PUT /api/ai/reports/:reportId/resolve
  * Resolve a report (admin)
  */
-router.put('/reports/:reportId/resolve', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/reports/:reportId/resolve', jwtAuthMiddleware, restrictTo('ADMIN'), validate(resolveReportSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reportId = toString(req.params.reportId);
-    const resolvedBy = req.user!.id;
+    const resolvedBy = req.user.id;
     const { status, resolution_notes } = req.body;
-
-    if (!status || !['pending', 'investigating', 'resolved', 'rejected'].includes(status)) {
-      throw new AppError('status is required and must be valid', 400);
-    }
 
     const result = await reportService.resolveReport(reportId, status, resolvedBy, resolution_notes);
 
@@ -1087,15 +1065,11 @@ router.put('/reports/:reportId/resolve', jwtAuthMiddleware, async (req: Authenti
  * POST /api/ai/reports/:reportId/actions
  * Apply action to a report (admin)
  */
-router.post('/reports/:reportId/actions', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/reports/:reportId/actions', jwtAuthMiddleware, restrictTo('ADMIN'), validate(reportActionSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reportId = toString(req.params.reportId);
-    const performedBy = req.user!.id;
+    const performedBy = req.user.id;
     const { action_type, notes } = req.body;
-
-    if (!action_type) {
-      throw new AppError('action_type is required', 400);
-    }
 
     const validActions = ['warning', 'suspend', 'ban', 'delete_content', 'hide_content', 'no_action'];
     if (!validActions.includes(action_type)) {
@@ -1147,6 +1121,10 @@ router.get('/content/policies', aiLimiter, async (req: Request, res: Response) =
 router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
+    const userId = req.user.id;
+
+    // Verify product ownership using helper
+    await verifyProductOwnership(pool, productId, userId);
 
     const config = await qaAgentService.getConfig(productId);
 
@@ -1165,10 +1143,14 @@ router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
  * PUT /api/ai/products/:productId/qa-agent/config
  * Update QA agent config for a product
  */
-router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, validate(updateQAConfigSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
+    const userId = req.user.id;
     const { is_enabled, model, system_prompt, temperature, max_tokens, use_memory, use_faqs } = req.body;
+
+    // Verify product ownership using helper
+    await verifyProductOwnership(pool, productId, userId);
 
     const config = await qaAgentService.updateConfig(productId, {
       isEnabled: is_enabled,
@@ -1195,14 +1177,10 @@ router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
  * POST /api/ai/agents/qa/chat
  * Chat with QA agent (uses credits - rate limited)
  */
-router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, validate(qaChatSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { product_id, message } = req.body;
-
-    if (!product_id || !message) {
-      throw new AppError('product_id and message are required', 400);
-    }
 
     const result = await qaAgentService.chat(product_id, userId, message);
 
@@ -1221,16 +1199,11 @@ router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
  * POST /api/ai/agents/qa/chat/stream
  * SSE streaming for QA Agent
  */
-router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.id;
+router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, validate(qaChatSchema), async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user.id;
   const { product_id, message } = req.body;
 
-  if (!product_id || !message) {
-    res.status(400).json({ error: 'product_id and message are required' });
-    return;
-  }
-
-  // Verify product ownership
+  // Verify product ownership (can't throw AppError in SSE - headers already sent)
   const productCheck = await pool.query(
     `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
     [product_id, userId]
@@ -1313,7 +1286,7 @@ function sendSSE(res: Response, event: string, data: Record<string, unknown>) {
  */
 router.get('/agents/conversations', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const agentType = req.query.agent_type as string | undefined;
     const limit = parseInt(req.query.limit as string) || 20;
 
@@ -1337,10 +1310,16 @@ router.get('/agents/conversations', jwtAuthMiddleware, async (req: Authenticated
 router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const conversationId = toString(req.params.conversationId);
+    const userId = req.user.id;
 
     const result = await qaAgentService.getConversation(conversationId);
     if (!result) {
-      throw new AppError('Conversación no encontrada', 404);
+      throw new AppError('Conversation not found', 404);
+    }
+
+    // Verify ownership
+    if (result.conversation.user_id !== userId) {
+      throw new AppError('You do not have permission to view this conversation', 403);
     }
 
     res.json({
@@ -1364,7 +1343,7 @@ router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (re
  */
 router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const startDate = req.query.start_date ? new Date(req.query.start_date as string) : undefined;
     const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
 
@@ -1392,6 +1371,10 @@ router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: Aut
 router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
+    const userId = req.user.id;
+
+    // Verify product ownership using helper
+    await verifyProductOwnership(pool, productId, userId);
 
     const config = await tutorService.getConfig(productId);
 
@@ -1410,10 +1393,14 @@ router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
  * PUT /api/ai/products/:productId/tutor/config
  * Update tutor config for a product
  */
-router.put('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:productId/tutor/config', jwtAuthMiddleware, validate(updateTutorConfigSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
+    const userId = req.user.id;
     const { is_enabled, model, system_prompt, temperature, max_tokens } = req.body;
+
+    // Verify product ownership using helper
+    await verifyProductOwnership(pool, productId, userId);
 
     await tutorService.updateConfig(productId, {
       isEnabled: is_enabled,
@@ -1441,7 +1428,7 @@ router.put('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
 router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     const result = await tutorService.getInsights(userId, productId);
 
@@ -1460,19 +1447,11 @@ router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req:
  * POST /api/ai/products/:productId/tutor/chat
  * Chat with Tutor AI
  */
-router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter, validate(chatMessageSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { message } = req.body;
-
-    if (!message || typeof message !== 'string') {
-      throw new AppError('El mensaje es requerido', 400);
-    }
-
-    if (message.length > 2000) {
-      throw new AppError('El mensaje es demasiado largo (máximo 2000 caracteres)', 400);
-    }
 
     const result = await tutorService.chat(productId, userId, message);
 
@@ -1481,8 +1460,9 @@ router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter,
       data: result,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    throw new AppError(message, 500);
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Endpoint error');
+    throw new AppError('Internal server error', 500);
   }
 });
 
@@ -1490,28 +1470,18 @@ router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter,
  * POST /api/ai/products/:productId/tutor/chat/stream
  * SSE streaming for Tutor AI
  */
-router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatLimiter, validate(chatMessageSchema), async (req: AuthenticatedRequest, res: Response) => {
   const productId = toString(req.params.productId);
-  const userId = req.user!.id;
+  const userId = req.user.id;
   const { message } = req.body;
 
-  if (!message || typeof message !== 'string') {
-    res.status(400).json({ error: 'El mensaje es requerido' });
-    return;
-  }
-
-  if (message.length > 2000) {
-    res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres)' });
-    return;
-  }
-
-  // Verify product ownership
+  // Verify product ownership (can't throw AppError in SSE - headers already sent)
   const productCheck = await pool.query(
     `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
     [productId, userId]
   );
   if (productCheck.rows.length === 0) {
-    res.status(403).json({ error: 'No tienes acceso a este producto' });
+    res.status(403).json({ error: 'You do not have access to this product' });
     return;
   }
 
@@ -1552,7 +1522,7 @@ router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatL
     } else if (err.name === 'AbortError') {
       sendSSE(res, 'done', { done: true, cancelled: true });
     } else {
-      sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error al generar respuesta' });
+      sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error generating response' });
     }
   } finally {
     res.end();
@@ -1565,7 +1535,7 @@ router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatL
  */
 router.get('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     const result = await insightsService.getDashboards(userId);
 
@@ -1584,14 +1554,10 @@ router.get('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedR
  * POST /api/ai/insights/dashboards
  * Create an insight dashboard
  */
-router.post('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/insights/dashboards', jwtAuthMiddleware, validate(createDashboardSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { name, description } = req.body;
-
-    if (!name) {
-      throw new AppError('name is required', 400);
-    }
 
     const result = await insightsService.createDashboard(userId, name, description);
 
@@ -1610,10 +1576,20 @@ router.post('/insights/dashboards', jwtAuthMiddleware, async (req: Authenticated
  * PUT /api/ai/insights/dashboards/:dashboardId
  * Update an insight dashboard
  */
-router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, validate(updateDashboardSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const dashboardId = toString(req.params.dashboardId);
+    const userId = req.user.id;
     const { name, description, config } = req.body;
+
+    // Verify ownership
+    const dashboard = await insightsService.getDashboardById(dashboardId);
+    if (!dashboard) {
+      throw new AppError('Dashboard not found', 404);
+    }
+    if (dashboard.creator_id !== userId) {
+      throw new AppError('You do not have permission to modify this dashboard', 403);
+    }
 
     await insightsService.updateDashboard(dashboardId, { name, description, config });
 
@@ -1635,6 +1611,16 @@ router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: A
 router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const dashboardId = toString(req.params.dashboardId);
+    const userId = req.user.id;
+
+    // Verify ownership
+    const dashboard = await insightsService.getDashboardById(dashboardId);
+    if (!dashboard) {
+      throw new AppError('Dashboard not found', 404);
+    }
+    if (dashboard.creator_id !== userId) {
+      throw new AppError('You do not have permission to delete this dashboard', 403);
+    }
 
     const deleted = await insightsService.deleteDashboard(dashboardId);
 
@@ -1653,14 +1639,10 @@ router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req
  * POST /api/ai/insights/query
  * Query data with AI (rate limited - uses credits)
  */
-router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, validate(insightsQuerySchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user.id;
     const { query } = req.body;
-
-    if (!query) {
-      throw new AppError('query is required', 400);
-    }
 
     const result = await insightsService.query(userId, query);
 
@@ -1679,19 +1661,9 @@ router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
  * POST /api/ai/insights/query/stream
  * Query data with AI using SSE streaming
  */
-router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.id;
+router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, validate(insightsQuerySchema), async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user.id;
   const { query } = req.body;
-
-  if (!query || typeof query !== 'string') {
-    res.status(400).json({ error: 'query is required' });
-    return;
-  }
-
-  if (query.length > 500) {
-    res.status(400).json({ error: 'Query too long (max 500 characters)' });
-    return;
-  }
 
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
