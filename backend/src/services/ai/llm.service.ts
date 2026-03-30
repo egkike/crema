@@ -152,10 +152,11 @@ export class LLMService {
         default:
           throw new Error(`Streaming not supported for provider: ${this.provider}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
       // If streaming fails and not cancelled, try fallback to non-streaming
-      if (!signal?.aborted && error.message?.includes('stream')) {
-        logger.warn({ provider: this.provider, error: error.message }, 'Stream failed, falling back to non-streaming');
+      if (!signal?.aborted && err.message.includes('stream')) {
+        logger.warn({ provider: this.provider, error: err.message }, 'Stream failed, falling back to non-streaming');
         
         const response = await this.chat({
           messages: options.messages,
@@ -172,7 +173,7 @@ export class LLMService {
         return { content: response.content, usage: response.usage };
       }
       
-      throw error;
+      throw err;
     }
   }
 
@@ -228,9 +229,10 @@ export class LLMService {
           totalTokens: data.usage.total_tokens,
         },
       };
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'Failed to generate OpenAI chat response');
-      throw error;
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Failed to generate OpenAI chat response');
+      throw err;
     }
   }
 
@@ -292,9 +294,10 @@ export class LLMService {
           totalTokens: promptTokens + completionTokens,
         },
       };
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'Failed to generate Ollama chat response');
-      throw error;
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Failed to generate Ollama chat response');
+      throw err;
     }
   }
 
@@ -361,9 +364,10 @@ export class LLMService {
           totalTokens: usage.input_tokens + usage.output_tokens,
         },
       };
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'Failed to generate Anthropic chat response');
-      throw error;
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Failed to generate Anthropic chat response');
+      throw err;
     }
   }
 
@@ -434,9 +438,10 @@ export class LLMService {
           totalTokens: (usage.promptTokenCount || 0) + (usage.candidatesTokenCount || 0),
         },
       };
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'Failed to generate Gemini chat response');
-      throw error;
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Failed to generate Gemini chat response');
+      throw err;
     }
   }
 
