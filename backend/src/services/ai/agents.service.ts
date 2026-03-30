@@ -325,8 +325,9 @@ export const qaAgentService = {
         temperature: config.temperature,
         maxTokens: config.max_tokens,
       });
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'LLM call failed, falling back to placeholder');
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'LLM call failed, falling back to placeholder');
       llmResponse = {
         content: `Gracias por tu pregunta: "${message}". 
 
@@ -426,8 +427,8 @@ ${context.substring(0, 500)}...`,
         },
         signal,
       });
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled - save partial response
         logger.info({ conversationId, partialLength: fullResponse.length }, 'Stream cancelled by user');
       } else {
@@ -708,8 +709,9 @@ export const tutorService = {
         temperature: config.temperature,
         maxTokens: config.maxTokens,
       });
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'LLM call failed for Tutor');
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'LLM call failed for Tutor');
       llmResponse = {
         content: `Gracias por tu pregunta: "${message}". 
 
@@ -997,9 +999,10 @@ REGLAS:
 
         const { rows } = await pool.query(safeSql);
         sqlResults = rows;
-      } catch (sqlError: any) {
-        logger.error({ error: sqlError.message, sql: generatedSql }, 'SQL execution failed');
-        sqlResults = [{ error: 'Error al ejecutar la consulta', details: sqlError.message }];
+      } catch (sqlError: unknown) {
+        const errMsg = sqlError instanceof Error ? sqlError.message : 'Unknown error';
+        logger.error({ error: errMsg, sql: generatedSql }, 'SQL execution failed');
+        sqlResults = [{ error: 'Error al ejecutar la consulta', details: errMsg }];
       }
 
       // Save to history
@@ -1012,13 +1015,14 @@ REGLAS:
         sql: generatedSql,
         results: sqlResults,
       };
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'Insights query failed');
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Insights query failed');
       
       // Save failed query to history
       await pool.query(
         `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [userId, naturalLanguageQuery, null, JSON.stringify([]), false, error.message]
+        [userId, naturalLanguageQuery, null, JSON.stringify([]), false, err.message]
       );
 
       return {
@@ -1028,6 +1032,189 @@ REGLAS:
           message: error.message,
         },
       };
+    }
+  },
+
+  /**
+   * Query data with AI using streaming - converts natural language to SQL and executes
+   */
+  async chatStream(
+    userId: string,
+    naturalLanguageQuery: string,
+    onChunk: (chunk: string, type: 'explanation' | 'sql' | 'results') => void,
+    signal?: AbortSignal
+  ): Promise<{ sql: string | null; results: unknown }> {
+    logger.info({ userId, query: naturalLanguageQuery }, 'Insights stream query requested');
+
+    // Check credits
+    const cost = aiCreditService.getOperationCost('search');
+    const credits = await aiCreditService.getBalance(userId);
+    if (!credits || credits.balance < cost) {
+      throw new AppError('Créditos insuficientes', 402);
+    }
+
+    await aiCreditService.useCredits(userId, cost, 'Insights stream');
+
+    // Database schema for context
+    const dbSchema = `
+Tablas disponibles:
+- orders: id, buyer_id, product_id, total_amount, currency, status, created_at
+- products: id, creator_id, title, type, status, prices (JSON), created_at
+- users: id, email, username, level, created_at
+- commissions: id, order_id, recipient_id, amount, currency, type, status, created_at
+- product_reviews: id, product_id, user_id, rating, content, created_at
+- product_questions: id, product_id, user_id, question, answer, created_at
+- balances: id, user_id, available, pending, currency
+
+Precios en orders.total_amount (entero, ejemplo: 5000 = $50.00)
+Fechas en orders.created_at (timestamp)
+
+Esquema del usuario actual: {schema}
+`;
+
+    // Get user's products for context
+    const userProductsQuery = `
+      SELECT id, title, type FROM "{schema}".products 
+      WHERE creator_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `;
+    const { rows: userProducts } = await pool.query<{ id: string; title: string; type: string }>(
+      userProductsQuery.replace('{schema}', schema),
+      [userId]
+    );
+
+    const userSchema = userProducts.length > 0 
+      ? `El usuario es creador de ${userProducts.length} productos: ${userProducts.map(p => `${p.title} (${p.type})`).join(', ')}`
+      : 'El usuario no tiene productos creados';
+
+    // Build prompt for SQL generation
+    const sqlPrompt = `Eres un asistente que convierte preguntas de negocio en consultas SQL.
+Responde SOLO con JSON, sin texto adicional.
+
+Pregunta: "${naturalLanguageQuery}"
+
+${dbSchema.replace('{schema}', userSchema)}
+
+Responde en JSON con este formato:
+{
+  "sql": "SELECT ... FROM orders WHERE ...",
+  "explanation": "Breve explicación de qué hace la consulta"
+}
+
+REGLAS:
+1. USA SOLO las tablas listadas arriba
+2. Los resultados deben ser DEL PROPIO USUARIO (filtra por creator_id o buyer_id)
+3. Convierte precios: si la pregunta es en pesos, divide por 100
+4. Fechas: usa DATE_TRUNC('month', created_at) para agrupar por mes
+5. NO uses INSERT, UPDATE, DELETE - solo SELECT
+6. Limita resultados a máximo 100 filas`;
+
+    try {
+      // Stream the LLM response (contains explanation + SQL)
+      let fullContent = '';
+      let generatedSql = '';
+      let explanation = '';
+      let explanationSent = false;
+
+      try {
+        await llmService.chatStream({
+          messages: [
+            { role: 'system', content: sqlPrompt },
+            { role: 'user', content: naturalLanguageQuery }
+          ],
+          temperature: 0.2,
+          maxTokens: 500,
+          onChunk: (chunk) => {
+            fullContent += chunk;
+            // Try to extract explanation as it's being generated
+            onChunk(chunk, 'explanation');
+          },
+          signal,
+        });
+      } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          logger.info({ userId }, 'Insights stream cancelled by user');
+          throw error;
+        }
+        throw error;
+      }
+
+      // Parse SQL from response
+      try {
+        const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          generatedSql = parsed.sql || '';
+          explanation = parsed.explanation || '';
+          
+          // Send explanation if we have it and haven't sent it yet
+          if (explanation && !explanationSent) {
+            onChunk(`💡 ${explanation}`, 'explanation');
+            explanationSent = true;
+          }
+        }
+      } catch {
+        // Try to extract SQL directly
+        const sqlMatch = fullContent.match(/(SELECT[\s\S]+)/i);
+        if (sqlMatch) {
+          generatedSql = sqlMatch[1].trim();
+        }
+      }
+
+      if (!generatedSql) {
+        throw new Error('No se pudo generar SQL válido');
+      }
+
+      // Send SQL to client
+      onChunk(generatedSql, 'sql');
+
+      // Execute SQL safely
+      let sqlResults: unknown[] = [];
+      try {
+        // Add safety limits
+        const safeSql = generatedSql
+          .replace(/;.*$/g, '') // Remove any trailing commands
+          .replace(/\bLIMIT\s+\d+/gi, 'LIMIT 100') // Force limit
+          .replace(/\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER)\b/gi, ''); // Remove dangerous commands
+
+        const { rows } = await pool.query(safeSql);
+        sqlResults = rows;
+      } catch (sqlError: unknown) {
+        const errMsg = sqlError instanceof Error ? sqlError.message : 'Unknown error';
+        logger.error({ error: errMsg, sql: generatedSql }, 'SQL execution failed');
+        sqlResults = [{ error: 'Error al ejecutar la consulta', details: errMsg }];
+      }
+
+      // Send results to client
+      const resultsJson = JSON.stringify(sqlResults);
+      onChunk(resultsJson, 'results');
+
+      // Save to history
+      await pool.query(
+        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
+        [userId, naturalLanguageQuery, generatedSql, resultsJson]
+      );
+
+      return {
+        sql: generatedSql,
+        results: sqlResults,
+      };
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error;
+      }
+
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ error: errMsg }, 'Insights stream failed');
+
+      // Save failed query to history
+      await pool.query(
+        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [userId, naturalLanguageQuery, null, JSON.stringify([]), false, errMsg]
+      );
+
+      throw new AppError(`No se pudo procesar la consulta: ${errMsg}`, 500);
     }
   },
 };

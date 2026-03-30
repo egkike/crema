@@ -48,8 +48,9 @@ router.get('/credits', jwtAuthMiddleware, async (req: AuthenticatedRequest, res:
         expires_at: expiresAt.toISOString(),
       },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -65,8 +66,9 @@ router.get('/credits/packages', async (_req: Request, res: Response) => {
       success: true,
       data: { packages },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -162,8 +164,9 @@ router.post('/credits/purchase', jwtAuthMiddleware, async (req: AuthenticatedReq
         },
       },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -188,8 +191,9 @@ router.get('/credits/transactions', jwtAuthMiddleware, async (req: Authenticated
         offset,
       },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -222,8 +226,9 @@ router.post('/embeddings', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
       success: true,
       data: { embedding },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -256,8 +261,9 @@ router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: Authe
       success: true,
       data: { results },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -283,8 +289,9 @@ router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req
       success: true,
       data: { deleted },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -318,8 +325,9 @@ router.get('/products/:productId/questions', async (req: AuthenticatedRequest, r
         offset,
       },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -343,8 +351,9 @@ router.post('/products/:productId/questions', jwtAuthMiddleware, async (req: Aut
       success: true,
       data: { question: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -368,8 +377,9 @@ router.put('/questions/:questionId/answer', jwtAuthMiddleware, async (req: Authe
       success: true,
       data: { question: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -392,8 +402,9 @@ router.put('/questions/:questionId/publish', jwtAuthMiddleware, async (req: Auth
       success: true,
       data: { question: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -411,8 +422,9 @@ router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Authentic
       success: true,
       data: { deleted },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -436,8 +448,9 @@ router.post('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Authen
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -456,8 +469,9 @@ router.delete('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Auth
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -480,8 +494,9 @@ router.get('/products/:productId/faqs', async (req: Request, res: Response) => {
       success: true,
       data: { faqs },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -504,8 +519,9 @@ router.post('/products/:productId/faqs', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: { faq: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -529,8 +545,9 @@ router.put('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, 
       success: true,
       data: { faq: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -548,8 +565,9 @@ router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedReques
       success: true,
       data: { deleted },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -572,8 +590,9 @@ router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'FAQs reordered successfully' },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -604,8 +623,9 @@ router.get('/products/:productId/reviews', async (req: Request, res: Response) =
         offset,
       },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -633,8 +653,9 @@ router.post('/products/:productId/reviews', jwtAuthMiddleware, async (req: Authe
       success: true,
       data: { review: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -658,8 +679,9 @@ router.put('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedReq
       success: true,
       data: { review: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -677,8 +699,9 @@ router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: { deleted },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -702,8 +725,9 @@ router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authentica
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -722,8 +746,9 @@ router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -741,8 +766,9 @@ router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
       success: true,
       data: { settings },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -767,8 +793,9 @@ router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
       success: true,
       data: { settings: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -786,8 +813,9 @@ router.get('/products/:productId/reviews/distribution', async (req: Request, res
       success: true,
       data: { distribution },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -813,8 +841,9 @@ router.get('/reports/reasons', async (req: Request, res: Response) => {
       success: true,
       data: { reasons },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -837,8 +866,9 @@ router.post('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res
       success: true,
       data: { report: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -868,8 +898,9 @@ router.get('/reports', jwtAuthMiddleware, async (req: AuthenticatedRequest, res:
         offset,
       },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -892,8 +923,9 @@ router.get('/reports/:reportId', jwtAuthMiddleware, async (req: AuthenticatedReq
       success: true,
       data: { report, actions },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -917,8 +949,9 @@ router.put('/reports/:reportId/resolve', jwtAuthMiddleware, async (req: Authenti
       success: true,
       data: { report: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -947,8 +980,9 @@ router.post('/reports/:reportId/actions', jwtAuthMiddleware, async (req: Authent
       success: true,
       data: { action: result },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -966,8 +1000,9 @@ router.get('/content/policies', async (req: Request, res: Response) => {
       success: true,
       data: { policies },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -989,8 +1024,9 @@ router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
       success: true,
       data: { config },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1017,8 +1053,9 @@ router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
       success: true,
       data: { config },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1041,8 +1078,9 @@ router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1092,13 +1130,14 @@ router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, async (r
     // Send done event
     sendSSE(res, 'done', { done: true });
 
-  } catch (error: any) {
-    logger.error({ error: error.message }, 'SSE stream error');
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'SSE stream error');
 
     // Handle specific errors
-    if (error.message.includes('Créditos insuficientes')) {
-      sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: error.message });
-    } else if (error.name === 'AbortError') {
+    if (err.message.includes('Créditos insuficientes')) {
+      sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: err.message });
+    } else if (err.name === 'AbortError') {
       sendSSE(res, 'done', { done: true, cancelled: true });
     } else {
       sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error al generar respuesta' });
@@ -1132,8 +1171,9 @@ router.get('/agents/conversations', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: { conversations },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1154,8 +1194,9 @@ router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (re
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1179,8 +1220,9 @@ router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: Aut
       success: true,
       data: metrics,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1202,8 +1244,9 @@ router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
       success: true,
       data: { config },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1228,8 +1271,9 @@ router.put('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'Tutor config updated' },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1248,8 +1292,9 @@ router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req:
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1359,8 +1404,9 @@ router.get('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedR
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1383,8 +1429,9 @@ router.post('/insights/dashboards', jwtAuthMiddleware, async (req: Authenticated
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1403,8 +1450,9 @@ router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: A
       success: true,
       data: { message: 'Dashboard updated' },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1422,8 +1470,9 @@ router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req
       success: true,
       data: { deleted },
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
   }
 });
 
@@ -1446,8 +1495,69 @@ router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, async (req: Aut
       success: true,
       data: result,
     });
-  } catch (error: any) {
-    throw new AppError(error.message, 500);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    throw new AppError(err.message, 500);
+  }
+});
+
+/**
+ * POST /api/ai/insights/query/stream
+ * Query data with AI using SSE streaming
+ */
+router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const { query } = req.body;
+
+  if (!query || typeof query !== 'string') {
+    res.status(400).json({ error: 'query is required' });
+    return;
+  }
+
+  if (query.length > 500) {
+    res.status(400).json({ error: 'Query too long (max 500 characters)' });
+    return;
+  }
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  const abortController = new AbortController();
+  
+  req.on('close', () => {
+    abortController.abort();
+  });
+
+  try {
+    sendSSE(res, 'start', { creditsUsed: 1 });
+
+    await insightsService.chatStream(
+      userId,
+      query,
+      (chunk, type) => {
+        sendSSE(res, 'chunk', { content: chunk, type, done: false });
+      },
+      abortController.signal
+    );
+
+    sendSSE(res, 'done', { done: true });
+
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    logger.error({ error: err.message }, 'Insights SSE stream error');
+
+    if (err.message.includes('Créditos insuficientes')) {
+      sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: err.message });
+    } else if (err.name === 'AbortError') {
+      sendSSE(res, 'done', { done: true, cancelled: true });
+    } else {
+      sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error al procesar consulta' });
+    }
+  } finally {
+    res.end();
   }
 });
 
