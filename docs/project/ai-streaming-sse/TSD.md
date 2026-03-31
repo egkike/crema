@@ -334,7 +334,7 @@ export const qaAgentService = {
         },
         signal,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.name === 'AbortError') {
         // User cancelled - save partial response
         logger.info({ conversationId, partialLength: fullResponse.length }, 'Stream cancelled by user');
@@ -412,7 +412,7 @@ router.post(
       // Send done event
       sendSSE(res, 'done', { done: true });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error({ error: error.message }, 'SSE stream error');
 
       // Handle specific errors
@@ -713,7 +713,7 @@ async function withRetry(fn: () => Promise<void>, maxRetries = 3) {
     try {
       await fn();
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
       
       // Wait with exponential backoff: 1s, 2s, 4s
@@ -1053,7 +1053,7 @@ async chatStream(options: ChatStreamOptions): Promise<{ content: string; usage?:
       default:
         throw new Error(`Unknown provider: ${this.provider}`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Si es error de streaming, intentar sin streaming como fallback
     if (error.message.includes('stream') && !options.signal?.aborted) {
       logger.warn({ provider: this.provider, error: error.message }, 'Stream failed, trying without streaming');
@@ -1095,7 +1095,7 @@ async function safeStream(options: StreamOptions): Promise<string> {
 
   try {
     // ... proceso del stream ...
-  } catch (error: any) {
+  } catch (error: unknown) {
     // IMPORTANTE: Siempre hacer cleanup
     try {
       reader.cancel(); // Cancelar el reader

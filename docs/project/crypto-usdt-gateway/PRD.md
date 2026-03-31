@@ -222,7 +222,7 @@ async getSupportsRefunds(gatewayId: string): Promise<boolean> {
   try {
     const { rows } = await pool.query(query, [gatewayId]);
     return rows.length > 0 ? (rows[0].supports_refunds ?? true) : true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.warn({ gatewayId, error: error.message }, '⚠️ Error getSupportsRefunds, defaults to true');
     return true;
   }
@@ -240,7 +240,7 @@ async getSupportsSubscriptions(gatewayId: string): Promise<boolean> {
   try {
     const { rows } = await pool.query(query, [gatewayId]);
     return rows.length > 0 ? (rows[0].supports_subscriptions ?? true) : true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.warn({ gatewayId, error: error.message }, '⚠️ Error getSupportsSubscriptions, defaults to true');
     return true;
   }
