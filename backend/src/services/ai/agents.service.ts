@@ -1012,6 +1012,9 @@ export const insightsService = {
 
     logger.info({ userId, query: naturalLanguageQuery }, 'Insights query requested');
 
+    // Get validated schema
+    const schema = getValidatedSchema();
+
     // Database schema for context
     const dbSchema = `
 Tablas disponibles:
@@ -1026,22 +1029,22 @@ Tablas disponibles:
 Precios en orders.total_amount (entero, ejemplo: 5000 = $50.00)
 Fechas en orders.created_at (timestamp)
 
-Esquema del usuario actual: {schema}
+Esquema del usuario actual: ${schema}
 `;
 
     // Get user's products for context
     const userProductsQuery = `
-      SELECT id, title, type FROM "{schema}".products 
+      SELECT id, title, type FROM "${schema}".products 
       WHERE creator_id = $1 
       ORDER BY created_at DESC 
       LIMIT 10
     `;
     const { rows: userProducts } = await pool.query<{ id: string; title: string; type: string }>(
-      userProductsQuery.replace('{schema}', getValidatedSchema()),
+      userProductsQuery,
       [userId]
     );
 
-    const userSchema = userProducts.length > 0 
+    const userSchemaDescription = userProducts.length > 0 
       ? `El usuario es creador de ${userProducts.length} productos: ${userProducts.map(p => `${p.title} (${p.type})`).join(', ')}`
       : 'El usuario no tiene productos creados';
 
@@ -1051,7 +1054,9 @@ Responde SOLO con JSON, sin texto adicional.
 
 Pregunta: "${naturalLanguageQuery}"
 
-${dbSchema.replace('{schema}', userSchema)}
+${dbSchema}
+
+${userSchemaDescription}
 
 Responde en JSON con este formato:
 {
@@ -1176,6 +1181,9 @@ REGLAS:
 
     await aiCreditService.useCredits(userId, cost, 'Insights stream');
 
+    // Get validated schema
+    const schema = getValidatedSchema();
+
     // Database schema for context
     const dbSchema = `
 Tablas disponibles:
@@ -1190,22 +1198,22 @@ Tablas disponibles:
 Precios en orders.total_amount (entero, ejemplo: 5000 = $50.00)
 Fechas en orders.created_at (timestamp)
 
-Esquema del usuario actual: {schema}
+Esquema del usuario actual: ${schema}
 `;
 
     // Get user's products for context
     const userProductsQuery = `
-      SELECT id, title, type FROM "{schema}".products 
+      SELECT id, title, type FROM "${schema}".products 
       WHERE creator_id = $1 
       ORDER BY created_at DESC 
       LIMIT 10
     `;
     const { rows: userProducts } = await pool.query<{ id: string; title: string; type: string }>(
-      userProductsQuery.replace('{schema}', getValidatedSchema()),
+      userProductsQuery,
       [userId]
     );
 
-    const userSchema = userProducts.length > 0 
+    const userSchemaDescription = userProducts.length > 0 
       ? `El usuario es creador de ${userProducts.length} productos: ${userProducts.map(p => `${p.title} (${p.type})`).join(', ')}`
       : 'El usuario no tiene productos creados';
 
@@ -1215,7 +1223,9 @@ Responde SOLO con JSON, sin texto adicional.
 
 Pregunta: "${naturalLanguageQuery}"
 
-${dbSchema.replace('{schema}', userSchema)}
+${dbSchema}
+
+${userSchemaDescription}
 
 Responde en JSON con este formato:
 {
