@@ -3,7 +3,7 @@ import { Router, Request, Response } from 'express';
 import logger from '../utils/logger';
 import pool from '../db/postgres';
 import { getValidatedSchema } from '../utils/validators.util';
-import { verifyProductOwnership } from '../utils/routeHelpers.util';
+import { verifyProductOwnership, verifyProductAccess } from '../utils/routeHelpers.util';
 import { toString, parseClamped, parseDate } from '../utils/params.util';
 import { aiCreditService } from '../services/ai/credits.service';
 import { memoryService } from '../services/ai/memory.service';
@@ -1165,6 +1165,9 @@ router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, validate(qaChat
     const userId = req.user.id;
     const { product_id, message } = req.body;
 
+    // Verify user has access to this product (creator, buyer, or affiliate)
+    await verifyProductAccess(pool, product_id, userId);
+
     const result = await qaAgentService.chat(product_id, userId, message);
 
     res.json({
@@ -1186,13 +1189,38 @@ router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, validate
   const userId = req.user.id;
   const { product_id, message } = req.body;
 
-  // Verify product ownership (can't throw AppError in SSE - headers already sent)
-  const productCheck = await pool.query(
-    `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
+  // Verify product access (creator, buyer, or affiliate) - can't throw AppError in SSE
+  // We need to do the check inline since SSE headers already sent
+  const schema = getValidatedSchema();
+  
+  // Check creator
+  let hasAccess = false;
+  const creatorCheck = await pool.query(
+    `SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2`,
     [product_id, userId]
   );
-  if (productCheck.rows.length === 0) {
-    res.status(403).json({ error: 'You do not have access to this product' });
+  if (creatorCheck.rows.length > 0) hasAccess = true;
+  
+  // Check purchase
+  if (!hasAccess) {
+    const purchaseCheck = await pool.query(
+      `SELECT id FROM "${schema}".orders WHERE product_id = $1 AND buyer_id = $2 AND status = 'completed'`,
+      [product_id, userId]
+    );
+    if (purchaseCheck.rows.length > 0) hasAccess = true;
+  }
+  
+  // Check affiliate
+  if (!hasAccess) {
+    const affiliateCheck = await pool.query(
+      `SELECT id FROM "${schema}".affiliate_sales WHERE product_id = $1 AND affiliate_id = $2`,
+      [product_id, userId]
+    );
+    if (affiliateCheck.rows.length > 0) hasAccess = true;
+  }
+  
+  if (!hasAccess) {
+    res.status(403).json({ error: 'You do not have access to this product. Purchase required.' });
     return;
   }
 
@@ -1436,6 +1464,9 @@ router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter,
     const userId = req.user.id;
     const { message } = req.body;
 
+    // Verify user has access to this product (creator, buyer, or affiliate)
+    await verifyProductAccess(pool, productId, userId);
+
     const result = await tutorService.chat(productId, userId, message);
 
     res.json({
@@ -1458,13 +1489,34 @@ router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatL
   const userId = req.user.id;
   const { message } = req.body;
 
-  // Verify product ownership (can't throw AppError in SSE - headers already sent)
-  const productCheck = await pool.query(
-    `SELECT id FROM "${getValidatedSchema()}".products WHERE id = $1 AND creator_id = $2`,
+  // Verify product access (creator, buyer, or affiliate) - can't throw AppError in SSE
+  const schema = getValidatedSchema();
+  
+  let hasAccess = false;
+  const creatorCheck = await pool.query(
+    `SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2`,
     [productId, userId]
   );
-  if (productCheck.rows.length === 0) {
-    res.status(403).json({ error: 'You do not have access to this product' });
+  if (creatorCheck.rows.length > 0) hasAccess = true;
+  
+  if (!hasAccess) {
+    const purchaseCheck = await pool.query(
+      `SELECT id FROM "${schema}".orders WHERE product_id = $1 AND buyer_id = $2 AND status = 'completed'`,
+      [productId, userId]
+    );
+    if (purchaseCheck.rows.length > 0) hasAccess = true;
+  }
+  
+  if (!hasAccess) {
+    const affiliateCheck = await pool.query(
+      `SELECT id FROM "${schema}".affiliate_sales WHERE product_id = $1 AND affiliate_id = $2`,
+      [productId, userId]
+    );
+    if (affiliateCheck.rows.length > 0) hasAccess = true;
+  }
+  
+  if (!hasAccess) {
+    res.status(403).json({ error: 'You do not have access to this product. Purchase required.' });
     return;
   }
 
