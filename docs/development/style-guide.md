@@ -31,6 +31,47 @@ const data: User = response.data;
 function parse(input: string): User { ... }
 ```
 
+### Type Assertions
+
+Cuando sea necesario acceder a propiedades específicas de un error desconocido:
+
+❌ **MALO:**
+```typescript
+catch (error: any) {
+  if (error.code === '23514') { ... }
+}
+```
+
+✅ **BUENO:**
+```typescript
+catch (error: unknown) {
+  const pgError = error as Record<string, unknown>;
+  if (pgError?.code === '23514') { ... }
+}
+```
+
+Para Express Request, usar interface augmentation en lugar de casting:
+
+❌ **MALO:**
+```typescript
+const userId = (req as any).user?.id;
+```
+
+✅ **BUENO:**
+```typescript
+// express.d.ts — augmentation
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserPayload;
+    }
+  }
+}
+
+// Uso directo — tipado correctamente
+const userId = req.user?.id;
+```
+
 ### Type Inference
 
 ✅ **Dejar que TypeScript infiera cuando es obvio:**
@@ -232,14 +273,23 @@ throw new AppError('Usuario no encontrado', 404, 'USER_NOT_FOUND');
 
 ### Try-Catch
 
-✅ **Wrapping mínimo:**
+✅ **Type-safe error handling:**
 ```typescript
 try {
   const user = await userService.getById(id);
   return user;
-} catch (error) {
-  logger.error({ error, userId: id }, 'Error getting user');
+} catch (error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  logger.error({ error: message, userId: id }, 'Error getting user');
   throw error;
+}
+```
+
+❌ **No use `any` in catch blocks:**
+```typescript
+// ❌ INCORRECTO - viola type safety
+catch (error: any) {
+  logger.error({ error: error.message }, 'Error'); // Unsafe property access
 }
 ```
 

@@ -2,7 +2,7 @@
 
 Este documento describe las medidas de seguridad, vulnerabilidades corregidas y mejores prácticas implementadas en el backend de Crema.
 
-> **Última Actualización:** 2026
+> **Última Actualización:** 2026-03-31 (Security Audit + Judgment Day completo)
 > **Frecuencia de Revisión:** Trimestral
 
 ---
@@ -18,7 +18,9 @@ Este documento describe las medidas de seguridad, vulnerabilidades corregidas y 
 7. [Cabeceras de Seguridad](#cabeceras-de-seguridad)
 8. [Mitigación de Prompt Injection](#mitigación-de-prompt-injection)
 9. [Seguridad en Subida y Descarga de Archivos](#seguridad-en-subida-y-descarga-de-archivos)
-10. [Vulnerabilidades Corregidas](#vulnerabilidades-corrigidas)
+10. [Seguridad en SQL Generado por LLM](#seguridad-en-sql-generado-por-llm)
+11. [Type Safety Standards](#type-safety-standards)
+12. [Vulnerabilidades Corrigidas](#vulnerabilidades-corrigidas)
 
 ---
 
@@ -244,29 +246,32 @@ Para facilitar el debugging y la trazabilidad distribuida, se implementa un midd
 
 ```typescript
 // Middleware: requestIdMiddleware
+// Usa Express Request augmentation (express.d.ts) para tipos seguros
 export const requestIdMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   // Acepta X-Request-ID entrante o genera uno nuevo
-  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
-  
-  // Adjunta a request
-  (req as Request & { id: string }).id = requestId;
-  
+  const incomingId = req.headers['x-request-id'] as string | undefined;
+  const requestId = incomingId || crypto.randomUUID();
+
+  // Adjunta a request (tipado via express.d.ts augmentation)
+  req.id = requestId;
+
   // Header en respuesta
   res.setHeader('X-Request-ID', requestId);
-  
+
   // Pino child logger con requestId
   const reqLogger = logger.child({ requestId });
-  (req as Request & { log: typeof reqLogger }).log = reqLogger;
-  
+  req.log = reqLogger;
+
   next();
 };
 ```
 
 **Beneficios:**
-- Cada request HTTP tiene un ID único para追踪
+- Cada request HTTP tiene un ID único para trazabilidad
 - Soporte para trazabilidad distribuida (X-Request-ID entrante)
 - Todos los logs incluyen el requestId automáticamente
 - Compatible con MercadoPago webhook verification (usa el mismo header)
+- Sin type casting inseguro — usa Express interface augmentation
 
 ---
 
@@ -429,6 +434,138 @@ function sanitizeDownloadFilename(filename: string): string {
 
 ---
 
+## Seguridad en SQL Generado por LLM
+
+### Problema
+
+El endpoint de Insights permite a los usuarios hacer consultas en lenguaje natural que se traducen a SQL mediante un LLM. Esto presenta riesgos de:
+- SQL injection a través de prompt injection
+- UNION-based attacks para extraer datos de otras tablas
+- Comandos DDL (DROP, ALTER, etc.) ejecutados accidentalmente
+
+### Solución Implementada
+
+#### 1. Lista Negra de Palabras Clave (Word-Boundary Aware)
+
+```typescript
+const DANGEROUS_KEYWORDS = [
+  'drop', 'alter', 'create', 'truncate', 'delete', 'update', 'insert',
+  'union', 'grant', 'revoke', 'execute', 'exec', 'sleep', 'waitfor', 'benchmark',
+  'information_schema', 'pg_', 'pg_catalog'
+];
+
+// Verificación con word boundaries para evitar bypasses
+for (const keyword of DANGEROUS_KEYWORDS) {
+  const wordBoundary = new RegExp(`\\b${keyword}\\b`, 'i');
+  if (wordBoundary.test(sql)) {
+    return { valid: false, reason: `Dangerous keyword: ${keyword}` };
+  }
+}
+```
+
+#### 2. Validación de Tablas Permitidas
+
+Solo se permiten queries sobre tablas específicas con matching word-boundary:
+
+```typescript
+const ALLOWED_TABLES = ['orders', 'products', 'users', 'commissions', 'balances'];
+
+const hasAllowedTable = ALLOWED_TABLES.some(table => 
+  new RegExp(`\\bfrom\\s+["\`]?${table}["\`]?\\b`, 'i').test(sql) ||
+  new RegExp(`\\bjoin\\s+["\`]?${table}["\`]?\\b`, 'i').test(sql)
+);
+```
+
+#### 3. Sanitización de SQL
+
+```typescript
+const safeSql = generatedSql
+  .replace(/\0/g, '')                                    // Null byte rejection
+  .replace(/;.*$/gm, '')                                 // Multiline semicolon strip
+  .replace(/\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi, 'LIMIT 100')
+  .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100');           // Handle LIMIT ALL
+```
+
+#### 4. Control de Acceso
+
+- Endpoints de insights requieren que el usuario sea creador de al menos un producto
+- Verificación de propiedad en todos los endpoints SSE
+
+---
+
+## Type Safety Standards
+
+### Política: Cero `as any` en Producción
+
+El proyecto mantiene una política estricta de **cero `as any`** en código de producción.
+
+#### Catch Blocks
+
+Todos los catch blocks usan `error: unknown` con type narrowing:
+
+```typescript
+// ✅ Correcto
+catch (error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  logger.error({ error: message }, 'Error occurred');
+  next(error);
+}
+
+// ❌ Incorrecto
+catch (error: any) {
+  logger.error({ error: error.message }, 'Error occurred'); // Unsafe
+}
+```
+
+#### Express Request Augmentation
+
+Las propiedades custom de `req` se definen via interface augmentation:
+
+```typescript
+// express.d.ts
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserPayload;
+      id: string;
+      log: Logger;
+      rateLimit?: { key: string; limit: number; /* ... */ };
+    }
+  }
+}
+```
+
+#### Type Assertions
+
+Cuando se necesita acceso a propiedades específicas (ej: PostgreSQL error codes):
+
+```typescript
+// ✅ Correcto - usa Record<string, unknown>
+const pgError = error as Record<string, unknown>;
+if (pgError?.code === '23514') { ... }
+
+// ❌ Incorrecto - usa as any
+if ((error as any).code === '23514') { ... }
+```
+
+### ReDoS Protection
+
+Los regex construidos desde la base de datos se validan:
+
+```typescript
+if (typeof rule.pattern !== 'string' || rule.pattern.length > 256) {
+  throw new AppError('Invalid pattern', 400);
+}
+try {
+  regex = new RegExp(rule.pattern);
+} catch (regexError: unknown) {
+  logger.warn({ error: regexError }, 'Invalid regex from DB');
+  throw new AppError('Invalid format', 400);
+}
+```
+
+---
+
 ## Lista de Auditoría
 
 Antes de cada commit, verificar:
@@ -468,6 +605,18 @@ Antes de cada commit, verificar:
 | Type safety en error handler (err: any) | ✅ Corregido | Cambiado a err: Error con type guards |
 | CORS permite todos los orígenes en producción | ✅ Corregido | Bloquea si no está configurado en producción |
 | Falta request ID para trazabilidad | ✅ Corregido | requestIdMiddleware implementado |
+| SQL injection via LLM (UNION no bloqueado) | ✅ Corregido | 'union' agregado a DANGEROUS_KEYWORDS + word-boundary regex |
+| SQL sanitización bypassable (multiline) | ✅ Corregido | Regex con flag 'm' + null byte rejection |
+| Runtime crash: getDashboardById inexistente | ✅ Corregido | Método implementado en insightsService |
+| Sin access control en insights streaming | ✅ Corregido | Verificación de creator agregada |
+| `as any` en catch blocks (14 archivos) | ✅ Corregido | Todos los catch usan `error: unknown` |
+| Error handler filtra mensajes internos | ✅ Corregido | Mensaje genérico en producción |
+| ReDoS via regex desde DB | ✅ Corregido | Validación de longitud + try-catch |
+| Context leakage en fallback LLM | ✅ Corregido | Mensaje genérico sin datos internos |
+| CORP `cross-origin` debilita defensa | ✅ Corregido | Cambiado a `same-origin` |
+| Type assertion insegura en PG error code | ✅ Corregido | Usa `Record<string, unknown>` |
+| Error re-thrown sin wrapper | ✅ Corregido | Envuelto en AppError |
+| SQL LIMIT sanitización incompleta | ✅ Corregido | Maneja LIMIT ALL, OFFSET, FETCH FIRST |
 
 ### Cambios en CSP (2026-03-31)
 
