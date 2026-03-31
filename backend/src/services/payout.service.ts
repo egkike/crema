@@ -232,7 +232,8 @@ export class PayoutService {
       await client.query('ROLLBACK');
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error({ error: errorMsg, userId }, 'Error en requestPayout');
-      if ((error as { code?: string }).code === '23514' || errorMsg.includes('balance')) {
+      const pgError = error as Record<string, unknown>;
+      if (pgError?.code === '23514' || errorMsg.includes('balance')) {
         throw new AppError('Saldo insuficiente para realizar el retiro.', 400);
       }
       throw error;

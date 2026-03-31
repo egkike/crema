@@ -887,16 +887,18 @@ function validateGeneratedSQL(sql: string): { valid: boolean; reason?: string } 
     return { valid: false, reason: 'Only SELECT queries are allowed' };
   }
 
-  // Check for dangerous keywords
+  // Check for dangerous keywords (word-boundary aware)
   for (const keyword of DANGEROUS_KEYWORDS) {
-    if (sqlLower.includes(keyword)) {
+    const wordBoundary = new RegExp(`\\b${keyword}\\b`, 'i');
+    if (wordBoundary.test(sql)) {
       return { valid: false, reason: `Dangerous keyword detected: ${keyword}` };
     }
   }
 
-  // Verify at least one allowed table is used
+  // Verify at least one allowed table is used (word-boundary aware)
   const hasAllowedTable = ALLOWED_TABLES.some(table => 
-    sqlLower.includes(`from ${table}`) || sqlLower.includes(`join ${table}`)
+    new RegExp(`\\bfrom\\s+["\`]?${table}["\`]?\\b`, 'i').test(sql) ||
+    new RegExp(`\\bjoin\\s+["\`]?${table}["\`]?\\b`, 'i').test(sql)
   );
 
   if (!hasAllowedTable) {
@@ -1144,7 +1146,8 @@ REGLAS:
           const safeSql = generatedSql
             .replace(/\0/g, '') // Remove null bytes
             .replace(/;.*$/gm, '') // Remove any trailing commands (multiline)
-            .replace(/\bLIMIT\s+\d+/gi, 'LIMIT 100'); // Force limit
+            .replace(/\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi, 'LIMIT 100') // Force limit
+            .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100'); // Handle LIMIT ALL
 
           const { rows } = await pool.query(safeSql);
           sqlResults = rows;
@@ -1351,7 +1354,8 @@ REGLAS:
           const safeSql = generatedSql
             .replace(/\0/g, '') // Remove null bytes
             .replace(/;.*$/gm, '') // Remove any trailing commands (multiline)
-            .replace(/\bLIMIT\s+\d+/gi, 'LIMIT 100'); // Force limit
+            .replace(/\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi, 'LIMIT 100') // Force limit
+            .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100'); // Handle LIMIT ALL
 
           const { rows } = await pool.query(safeSql);
           sqlResults = rows;

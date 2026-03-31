@@ -172,12 +172,12 @@ app.use((err: Error, req: Request, res: Response, _: NextFunction) => {
   // Handle errors with status property (e.g., from Express)
   const statusCode = (err as { status?: number }).status || 500;
   
-  logger.error({ error: err.message, stack: err.stack, path: req.path }, 'Error inesperado');
+  logger.error({ error: err.message, stack: err instanceof Error ? err.stack : undefined, path: req.path }, 'Error inesperado');
 
   res.status(statusCode).json({
     success: false,
     error: config.nodeEnv === 'development' ? err.message : 'Error interno del servidor',
-    ...(config.nodeEnv === 'development' && { stack: err.stack }),
+    ...(config.nodeEnv === 'development' && { stack: err instanceof Error ? err.stack : undefined }),
   });
 });
 

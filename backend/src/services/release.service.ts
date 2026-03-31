@@ -179,7 +179,7 @@ export const ReleaseService = {
       return stats;
     } catch (error: unknown) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, '💥 Fallo crítico en ReleaseService');
-      throw error;
+      throw new AppError(error instanceof Error ? error.message : 'Critical error in ReleaseService', 500);
     }
   },
 
