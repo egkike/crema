@@ -877,12 +877,19 @@ export class LLMService {
 
   /**
    * Build a simple prompt with context
+   * Wraps user input with delimiters to prevent prompt injection
+   * @throws Error if user input contains delimiter strings
    */
   buildPrompt(systemPrompt: string, context: string, userQuestion: string): LLMMessage[] {
+    // Validate: reject input containing delimiter strings to prevent breaking
+    if (userQuestion.includes('[USER_INPUT_START]') || userQuestion.includes('[USER_INPUT_END]')) {
+      throw new Error('Invalid input: reserved delimiter strings not allowed');
+    }
+
     return [
       { role: 'system', content: systemPrompt },
       { role: 'system', content: `Context:\n${context}` },
-      { role: 'user', content: userQuestion },
+      { role: 'user', content: `[USER_INPUT_START]\n${userQuestion}\n[USER_INPUT_END]` },
     ];
   }
 
