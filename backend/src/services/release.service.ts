@@ -164,10 +164,10 @@ export const ReleaseService = {
 
           await client.query('COMMIT');
           stats.count++;
-        } catch (error: any) {
+        } catch (error: unknown) {
           await client.query('ROLLBACK');
           logger.error(
-            { orderId: order.id, error: error.message },
+            { orderId: order.id, error: error instanceof Error ? error.message : String(error) },
             '💥 Error liberando orden individual'
           );
         } finally {
@@ -177,8 +177,8 @@ export const ReleaseService = {
 
       logger.info(stats, '🏁 Proceso de liberación finalizado');
       return stats;
-    } catch (error: any) {
-      logger.error({ error: error.message }, '💥 Fallo crítico en ReleaseService');
+    } catch (error: unknown) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, '💥 Fallo crítico en ReleaseService');
       throw error;
     }
   },
@@ -217,8 +217,8 @@ export const ReleaseService = {
           await EmailService.sendBalanceReleasedEmail(user.email, user.fullname, amount, currency);
         }
       }
-    } catch (err: any) {
-      logger.error({ userId, error: err.message }, 'Error procesando notificación de liberación');
+    } catch (err: unknown) {
+      logger.error({ userId, error: err instanceof Error ? err.message : String(err) }, 'Error procesando notificación de liberación');
     }
   },
 };

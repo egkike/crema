@@ -17,7 +17,7 @@ export const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => {
-    return req.user?.id || ipKeyGenerator(req);
+    return req.user?.id || ipKeyGenerator(req) || 'unknown';
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, ip: req.ip }, 'Límite de login alcanzado');
@@ -37,7 +37,7 @@ export const refreshLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => {
-    return req.user?.id || ipKeyGenerator(req);
+    return req.user?.id || ipKeyGenerator(req) || 'unknown';
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, ip: req.ip }, 'Límite de refresh alcanzado');
@@ -69,7 +69,7 @@ export const aiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => {
-    return req.user?.id || ipKeyGenerator(req);
+    return req.user?.id || ipKeyGenerator(req) || 'unknown';
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de AI alcanzado');
@@ -89,7 +89,7 @@ export const aiChatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => {
-    return req.user?.id || ipKeyGenerator(req);
+    return req.user?.id || ipKeyGenerator(req) || 'unknown';
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de chat AI alcanzado');

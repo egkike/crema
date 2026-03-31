@@ -347,11 +347,7 @@ export const qaAgentService = {
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'LLM call failed, falling back to placeholder');
       llmResponse = {
-        content: `Gracias por tu pregunta: "${message}". 
-
-Lo sentimos, hubo un problema al generar la respuesta. Pero aca esta la informacion del contexto que recuperamos:
-
-${context.substring(0, 500)}...`,
+        content: `Gracias por tu pregunta. Lo sentimos, hubo un problema al generar la respuesta. Por favor, intenta nuevamente más tarde.`,
         model: llmService.getProvider(),
       };
     }
@@ -753,11 +749,7 @@ export const tutorService = {
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'LLM call failed for Tutor');
       llmResponse = {
-        content: `Gracias por tu pregunta: "${message}". 
-
-Lo sentimos, hubo un problema al generar la respuesta. Pero aqui esta informacion de las lecciones que recuperamos:
-
-${lessonContext.substring(0, 500)}...`,
+        content: `Gracias por tu pregunta. Lo sentimos, hubo un problema al generar la respuesta. Por favor, intenta nuevamente más tarde.`,
         model: llmService.getProvider(),
       };
     }
@@ -874,7 +866,7 @@ ${lessonContext.substring(0, 500)}...`,
 
 const ALLOWED_TABLES = ['orders', 'products', 'users', 'commissions', 'product_reviews', 'product_questions', 'balances'];
 const DANGEROUS_KEYWORDS = [
-  'insert', 'update', 'delete', 'drop', 'truncate', 'alter', 'create', 
+  'union', 'insert', 'update', 'delete', 'drop', 'truncate', 'alter', 'create', 
   'grant', 'revoke', 'execute', 'exec', 'sleep', 'waitfor', 'benchmark',
   'information_schema', 'pg_', 'pg_catalog'
 ];
@@ -984,6 +976,44 @@ export const insightsService = {
 
     const query = `UPDATE "${getValidatedSchema()}".creator_dashboards SET ${updates.join(', ')} WHERE id = $1`;
     await pool.query(query, params);
+  },
+
+  /**
+   * Get a single dashboard by ID with ownership verification
+   */
+  async getDashboardById(dashboardId: string): Promise<{
+    id: string;
+    name: string;
+    description: string | null;
+    isDefault: boolean;
+    creator_id: string;
+    config: Record<string, unknown> | null;
+  } | null> {
+    const query = `
+      SELECT id, creator_id, name, description, is_default, config
+      FROM "${getValidatedSchema()}".creator_dashboards
+      WHERE id = $1
+    `;
+    const { rows } = await pool.query<{
+      id: string;
+      creator_id: string;
+      name: string;
+      description: string | null;
+      is_default: boolean;
+      config: Record<string, unknown> | null;
+    }>(query, [dashboardId]);
+
+    if (rows.length === 0) return null;
+
+    const r = rows[0];
+    return {
+      id: r.id,
+      creator_id: r.creator_id,
+      name: r.name,
+      description: r.description,
+      isDefault: r.is_default,
+      config: r.config,
+    };
   },
 
   /**
@@ -1112,7 +1142,8 @@ REGLAS:
         } else {
           // Add safety limits
           const safeSql = generatedSql
-            .replace(/;.*$/g, '') // Remove any trailing commands
+            .replace(/\0/g, '') // Remove null bytes
+            .replace(/;.*$/gm, '') // Remove any trailing commands (multiline)
             .replace(/\bLIMIT\s+\d+/gi, 'LIMIT 100'); // Force limit
 
           const { rows } = await pool.query(safeSql);
@@ -1318,7 +1349,8 @@ REGLAS:
         } else {
           // Add safety limits
           const safeSql = generatedSql
-            .replace(/;.*$/g, '') // Remove any trailing commands
+            .replace(/\0/g, '') // Remove null bytes
+            .replace(/;.*$/gm, '') // Remove any trailing commands (multiline)
             .replace(/\bLIMIT\s+\d+/gi, 'LIMIT 100'); // Force limit
 
           const { rows } = await pool.query(safeSql);

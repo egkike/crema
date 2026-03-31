@@ -3,6 +3,7 @@
 // Después de crear este archivo, TypeScript ya no se quejará cuando escribas req.user?.id en tus middlewares o controladores.
 
 import type { Request } from 'express';
+import type { Logger } from 'pino';
 import { JwtPayload } from 'jsonwebtoken';
 
 declare global {
@@ -16,6 +17,10 @@ declare global {
         remaining: number;
         resetTime: Date;
       };
+      /** Request ID for distributed tracing, set by requestIdMiddleware */
+      id: string;
+      /** Child logger instance with requestId attached, set by requestIdMiddleware */
+      log: Logger;
     }
   }
 }

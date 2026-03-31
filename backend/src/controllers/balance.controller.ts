@@ -27,7 +27,7 @@ export class BalanceController {
           chart: chartData,
         },
       });
-    } catch (error) {
+    } catch (error: unknown) {
       next(error);
     }
   }
@@ -49,7 +49,7 @@ export class BalanceController {
         success: true,
         data: balances,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       next(error);
     }
   }
@@ -86,7 +86,7 @@ export class BalanceController {
           hasMore: offset + data.length < total,
         },
       });
-    } catch (error) {
+    } catch (error: unknown) {
       next(error);
     }
   }

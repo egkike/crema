@@ -1700,6 +1700,18 @@ router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, validate
   const userId = req.user.id;
   const { query } = req.body;
 
+  // Verify user has creator-level access (has at least one product)
+  // Platform-wide insights: users can only query their own data (service filters by creator_id)
+  const schema = getValidatedSchema();
+  const productCheck = await pool.query(
+    `SELECT id FROM "${schema}".products WHERE creator_id = $1 LIMIT 1`,
+    [userId]
+  );
+  if (productCheck.rows.length === 0) {
+    res.status(403).json({ error: 'You must be a creator with at least one product to use insights.' });
+    return;
+  }
+
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');

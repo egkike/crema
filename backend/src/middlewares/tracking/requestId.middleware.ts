@@ -19,7 +19,7 @@ export const requestIdMiddleware = (req: Request, res: Response, next: NextFunct
   const requestId = incomingId || crypto.randomUUID();
 
   // 2. Guardar en request para uso en controllers/services
-  (req as Request & { id: string }).id = requestId;
+  req.id = requestId;
 
   // 3. Agregar header a la respuesta
   res.setHeader('X-Request-ID', requestId);
@@ -28,7 +28,7 @@ export const requestIdMiddleware = (req: Request, res: Response, next: NextFunct
   const reqLogger = logger.child({ requestId });
   
   // 5. Adjuntar logger al request para uso en servicios
-  (req as Request & { log: typeof reqLogger }).log = reqLogger;
+  req.log = reqLogger;
 
   next();
 };

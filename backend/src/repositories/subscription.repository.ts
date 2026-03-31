@@ -29,7 +29,6 @@ export interface UserSubscription {
     custom_fee_percent?: number;
     [key: string]: unknown;
   };
-  allowed_types?: string[];
 }
 
 export const subscriptionRepository = {
@@ -60,9 +59,10 @@ export const subscriptionRepository = {
     try {
       const { rows } = await pool.query<UserSubscription>(query, [userId, planId, currency]);
       return rows[0];
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
       logger.error(
-        { userId, planId, error: error.message },
+        { userId, planId, error: errMsg },
         'Error en upsert de suscripción inicial'
       );
       throw error;
@@ -92,8 +92,9 @@ export const subscriptionRepository = {
     try {
       const { rows } = await pool.query<UserSubscription>(query, [userId]);
       return rows[0] || null;
-    } catch (error: any) {
-      logger.error({ userId, error: error.message }, 'Error obteniendo suscripción activa');
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ userId, error: errMsg }, 'Error obteniendo suscripción activa');
       throw error;
     }
   },
@@ -107,8 +108,9 @@ export const subscriptionRepository = {
     try {
       const { rows } = await pool.query(query, [userId]);
       return parseInt(rows[0]?.total || '0', 10);
-    } catch (error: any) {
-      logger.error({ userId, error: error.message }, 'Error calculando uso de almacenamiento');
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ userId, error: errMsg }, 'Error calculando uso de almacenamiento');
       throw error;
     }
   },
@@ -162,9 +164,10 @@ export const subscriptionRepository = {
       await client.query('COMMIT');
 
       logger.info({ userId, planId, currency }, 'Upgrade de plan procesado en DB');
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ userId, error: error.message }, 'Error en upgradeUserPlan');
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ userId, error: errMsg }, 'Error en upgradeUserPlan');
       throw error;
     } finally {
       client.release();
@@ -230,9 +233,10 @@ export const subscriptionRepository = {
       }
 
       return rows;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message }, 'Error desactivando suscripciones expiradas');
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errMsg }, 'Error desactivando suscripciones expiradas');
       throw error;
     } finally {
       client.release();
@@ -322,10 +326,11 @@ export const subscriptionRepository = {
         { amount, netProfit, taxAmount, currency },
         '✅ Contabilidad de suscripción registrada con IVA incluido'
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
+      const errMsg = error instanceof Error ? error.message : String(error);
       logger.error(
-        { error: error.message, amount, currency },
+        { error: errMsg, amount, currency },
         '💥 Error registrando ganancia de suscripción en repositorio'
       );
       throw error;
@@ -374,8 +379,9 @@ export const subscriptionRepository = {
         currentStorageBytes: storageBytes,
         currentStorageMb: parseFloat((storageBytes / (1024 * 1024)).toFixed(2)),
       };
-    } catch (error: any) {
-      logger.error({ userId, error: error.message }, 'Error en getCreatorPlanLimits');
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ userId, error: errMsg }, 'Error en getCreatorPlanLimits');
       throw error;
     }
   },

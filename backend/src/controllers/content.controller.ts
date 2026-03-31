@@ -173,7 +173,7 @@ export const getProductContent = async (req: Request, res: Response, next: NextF
     }
 
     throw new AppError('El contenido no está disponible para descarga.', 404);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -249,7 +249,7 @@ export const getMyLearningDashboard = async (req: Request, res: Response, next: 
       success: true,
       data: products,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -352,7 +352,7 @@ export const verifyCertificate = async (req: Request, res: Response, next: NextF
       success: true,
       data: certificate,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -374,7 +374,7 @@ export const getLessonDetail = async (req: Request, res: Response, next: NextFun
       success: true,
       data: lesson,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };

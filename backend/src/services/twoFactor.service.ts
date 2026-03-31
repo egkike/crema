@@ -33,8 +33,8 @@ export class TwoFactorService {
   static async generateQRCode(otpauth: string): Promise<string> {
     try {
       return await QRCode.toDataURL(otpauth);
-    } catch (error) {
-      logger.error({ error }, 'Error generando código QR');
+    } catch (error: unknown) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Error generando código QR');
       throw new AppError('No se pudo generar el código QR', 500);
     }
   }
@@ -45,8 +45,8 @@ export class TwoFactorService {
   static verifyToken(token: string, secret: string): boolean {
     try {
       return authenticator.verify({ token, secret });
-    } catch (error) {
-      logger.warn({ error }, 'Error verificando token TOTP');
+    } catch (error: unknown) {
+      logger.warn({ error: error instanceof Error ? error.message : String(error) }, 'Error verificando token TOTP');
       return false;
     }
   }

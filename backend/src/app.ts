@@ -79,7 +79,7 @@ app.use(
       },
     },
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginResourcePolicy: { policy: 'same-origin' },
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     noSniff: true,
@@ -171,13 +171,12 @@ app.use((err: Error, req: Request, res: Response, _: NextFunction) => {
 
   // Handle errors with status property (e.g., from Express)
   const statusCode = (err as { status?: number }).status || 500;
-  const errorMessage = err.message || 'Error interno del servidor';
   
-  logger.error({ error: errorMessage, stack: err.stack, path: req.path }, 'Error inesperado');
+  logger.error({ error: err.message, stack: err.stack, path: req.path }, 'Error inesperado');
 
   res.status(statusCode).json({
     success: false,
-    error: errorMessage,
+    error: config.nodeEnv === 'development' ? err.message : 'Error interno del servidor',
     ...(config.nodeEnv === 'development' && { stack: err.stack }),
   });
 });

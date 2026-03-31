@@ -1,3 +1,5 @@
+import type { Server } from 'http';
+
 import { app } from './app';
 import { config } from './config/index';
 import logger from './utils/logger';
@@ -5,7 +7,7 @@ import { ReleaseService } from './services/release.service';
 import { initMainWorker, closeWorker } from './queues/main.worker';
 import { initScheduler, closeScheduler } from './queues/scheduler';
 
-let server: any;
+let server: Server | undefined;
 
 // Solo arrancar si NO estamos en entorno de test
 if (config.nodeEnv !== 'test') {
@@ -20,8 +22,8 @@ if (config.nodeEnv !== 'test') {
       logger.info('SISTEMA: Ejecutando liberación de saldos inicial (Startup)...');
       const result = await ReleaseService.processPendingBalances(false);
       logger.info({ ordersProcessed: result.count }, 'SISTEMA: Proceso inicial completado');
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'SISTEMA: Error en ejecución inicial');
+    } catch (error: unknown) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, 'SISTEMA: Error en ejecución inicial');
     }
   })();
 
@@ -75,8 +77,8 @@ const handleShutdown = async (signal: string) => {
 
     // Pequeño delay para que el hilo de pino-roll termine de escribir al disco
     setTimeout(() => process.exit(0), 500);
-  } catch (error: any) {
-    logger.error({ error: error.message }, 'SISTEMA: Error durante el proceso de apagado');
+  } catch (error: unknown) {
+    logger.error({ error: error instanceof Error ? error.message : String(error) }, 'SISTEMA: Error durante el proceso de apagado');
     process.exit(1);
   }
 };

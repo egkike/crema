@@ -220,8 +220,8 @@ export class CommissionService {
       );
 
       return { platformFee: totalPlatformFee, creatorNet: creatorNetAmount };
-    } catch (error: any) {
-      logger.error({ error: error.message, orderId: order.id }, '💥 Error en CommissionService');
+    } catch (error: unknown) {
+      logger.error({ error: error instanceof Error ? error.message : String(error), orderId: order.id }, '💥 Error en CommissionService');
       throw error instanceof AppError ? error : new AppError('Error al procesar comisiones', 500);
     } finally {
       // Release client if we created it

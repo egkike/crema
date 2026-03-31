@@ -14,11 +14,27 @@ import { AppError } from '../errors/AppError';
 
 import { EmailService } from './email.service';
 
+/**
+ * Represents the type/category of a payout method (e.g., 'bank_transfer', 'crypto', 'paypal').
+ */
+export type PayoutMethodType = string;
+
+/**
+ * Dynamic data payload for a payout method.
+ * Fields vary by currency and method type (e.g., cbu, address, alias, bank_name, etc.).
+ */
+export type PayoutMethodData = Record<string, unknown>;
+
 export class PayoutMethodService {
   /**
    * Genera un token de confirmación y lo envía por email
    */
-  static async requestChange(userId: string, currency: string, type: any, data: any) {
+  static async requestChange(
+    userId: string,
+    currency: string,
+    type: PayoutMethodType,
+    data: PayoutMethodData
+  ) {
     // 1. Buscamos si el usuario tiene retiros en estado 'pending' o 'processing'
     const pendingPayouts = await payoutRepository.getByStatusAndUser(userId, [
       'pending',
@@ -102,8 +118,22 @@ export class PayoutMethodService {
           400
         );
       }
-      if (rule.pattern && !new RegExp(rule.pattern).test(value)) {
-        throw new AppError(rule.errorMsg || `El formato de ${field} es inválido`, 400);
+      if (rule.pattern) {
+        if (typeof rule.pattern !== 'string' || rule.pattern.length > 256) {
+          logger.warn({ field, currency }, 'Invalid or too-long regex pattern');
+          throw new AppError(rule.errorMsg || `El formato de ${field} es inválido`, 400);
+        }
+        let regex: RegExp;
+        try {
+          regex = new RegExp(rule.pattern);
+        } catch (regexError: unknown) {
+          const errMsg = regexError instanceof Error ? regexError.message : String(regexError);
+          logger.warn({ field, pattern: rule.pattern, error: errMsg }, 'Invalid regex pattern from DB');
+          throw new AppError(rule.errorMsg || `El formato de ${field} es inválido`, 400);
+        }
+        if (!regex.test(value)) {
+          throw new AppError(rule.errorMsg || `El formato de ${field} es inválido`, 400);
+        }
       }
 
       // Buscamos si existe una función lógica para esta moneda y este campo
@@ -142,7 +172,8 @@ export class PayoutMethodService {
         action: string;
         userId: string;
         currency: string;
-        methodData: Record<string, unknown>;
+        type: string;
+        data: Record<string, unknown>;
       };
 
       if (decoded.action !== 'confirm_payout_method') {
@@ -157,8 +188,9 @@ export class PayoutMethodService {
       );
 
       return updatedMethod;
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'El link de confirmación es inválido o ha expirado');
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errMsg }, 'El link de confirmación es inválido o ha expirado');
       throw new AppError('El link de confirmación es inválido o ha expirado', 400);
     }
   }

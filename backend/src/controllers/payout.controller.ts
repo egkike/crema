@@ -106,7 +106,7 @@ class PayoutController {
         message: 'Solicitud de retiro creada. El monto ha sido reservado de su saldo disponible.',
         data: payout,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof z.ZodError) {
         const message = error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('. ');
         return next(new AppError(`Error de validación: ${message}`, 400));
@@ -126,7 +126,7 @@ class PayoutController {
         success: true,
         data: payouts,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       next(error);
     }
   }
@@ -151,7 +151,7 @@ class PayoutController {
         success: true,
         message: result.message,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       next(error);
     }
   }

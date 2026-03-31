@@ -171,9 +171,9 @@ export class RefundService {
           await provider.refund(order.transaction_id, Number(order.amount));
 
           logger.info({ orderId, gateway: order.payment_method }, 'Reembolso en pasarela OK');
-        } catch (gatewayError: any) {
+        } catch (gatewayError: unknown) {
           // CAPTURA DETALLADA DEL ERROR EXTERNO
-          const gatewayMessage = gatewayError.message || 'Sin mensaje de error del proveedor';
+          const gatewayMessage = gatewayError instanceof Error ? gatewayError.message : 'Sin mensaje de error del proveedor';
 
           logger.error(
             {
@@ -195,10 +195,10 @@ export class RefundService {
       await client.query('COMMIT');
       logger.info({ orderId }, '✅ Reembolso procesado exitosamente');
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, orderId }, '💥 Fallo en RefundService');
-      throw error instanceof AppError ? error : new AppError(error.message, 500);
+      logger.error({ error: error instanceof Error ? error.message : String(error), orderId }, '💥 Fallo en RefundService');
+      throw error instanceof AppError ? error : new AppError(error instanceof Error ? error.message : 'Error interno', 500);
     } finally {
       client.release();
     }

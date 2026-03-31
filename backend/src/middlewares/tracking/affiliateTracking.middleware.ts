@@ -38,8 +38,9 @@ export const affiliateTracking = async (req: Request, res: Response, next: NextF
       }
     }
     next();
-  } catch (error) {
-    logger.error({ error }, 'Error en affiliateTracking middleware');
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    logger.error({ error: errMsg }, 'Error in affiliateTracking middleware');
     next();
   }
 };

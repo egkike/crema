@@ -43,8 +43,9 @@ export class EmailService {
       });
       logger.info({ messageId: info.messageId, to }, '📧 Email enviado correctamente');
       return true;
-    } catch (error: any) {
-      logger.error({ error: error.message }, '❌ Error en el transporte de email');
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errMsg }, '❌ Error en el transporte de email');
       return false;
     }
   }

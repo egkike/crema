@@ -65,7 +65,7 @@ export class PayoutService {
     const requiredFields = await configRepository.getRequiredFieldsByCurrency(currency);
 
     // 2. Construimos el snapshot de datos basado en los requerimientos
-    const dynamicData: Record<string, any> = {};
+    const dynamicData: Record<string, unknown> = {};
     requiredFields.forEach(field => {
       dynamicData[field] = method.data[field] || null;
     });
@@ -122,7 +122,18 @@ export class PayoutService {
       if (payoutData.tax_id) {
         // A. Validación de Formato (Regex desde DB)
         if (rules?.tax_id_validation?.pattern) {
-          const regex = new RegExp(rules.tax_id_validation.pattern);
+          if (typeof rules.tax_id_validation.pattern !== 'string' || rules.tax_id_validation.pattern.length > 256) {
+            logger.warn({ currency }, 'Invalid or too-long regex pattern for tax_id_validation');
+            throw new AppError(`Formato de ID fiscal inválido para ${currency}.`, 400);
+          }
+          let regex: RegExp;
+          try {
+            regex = new RegExp(rules.tax_id_validation.pattern);
+          } catch (regexError: unknown) {
+            const errMsg = regexError instanceof Error ? regexError.message : String(regexError);
+            logger.warn({ currency, pattern: rules.tax_id_validation.pattern, error: errMsg }, 'Invalid regex pattern from DB');
+            throw new AppError(`Formato de ID fiscal inválido para ${currency}.`, 400);
+          }
           if (!regex.test(payoutData.tax_id)) {
             throw new AppError(`Formato de ID fiscal inválido para ${currency}.`, 400);
           }
@@ -217,10 +228,11 @@ export class PayoutService {
         estimated_date: dateStr,
         message: `Solicitud recibida. Plazo estimado: ${processingDays} días hábiles (${dateStr}).`,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, userId }, 'Error en requestPayout');
-      if (error.code === '23514' || error.message.includes('balance')) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMsg, userId }, 'Error en requestPayout');
+      if ((error as { code?: string }).code === '23514' || errorMsg.includes('balance')) {
         throw new AppError('Saldo insuficiente para realizar el retiro.', 400);
       }
       throw error;
@@ -275,9 +287,9 @@ export class PayoutService {
         success: true,
         message: 'Solicitud anulada y saldo reintegrado.',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, payoutId }, 'Error en cancelUserPayout');
+      logger.error({ error: error instanceof Error ? error.message : String(error), payoutId }, 'Error en cancelUserPayout');
       throw error;
     } finally {
       client.release();
@@ -371,9 +383,9 @@ export class PayoutService {
         }
       }
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, payoutId }, 'Error en updatePayoutStatus');
+      logger.error({ error: error instanceof Error ? error.message : String(error), payoutId }, 'Error en updatePayoutStatus');
       throw error;
     } finally {
       client.release();
@@ -403,9 +415,9 @@ export class PayoutService {
       );
       await client.query('COMMIT');
       return { success: true, data: withdrawal };
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, adminId }, 'Error en platform payout');
+      logger.error({ error: error instanceof Error ? error.message : String(error), adminId }, 'Error en platform payout');
       throw new AppError('Error en retiro plataforma', 400);
     } finally {
       client.release();

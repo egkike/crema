@@ -20,7 +20,7 @@ export const requestPayoutMethodUpdate = async (
       success: true,
       message: result.message,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -49,7 +49,7 @@ export const confirmPayoutMethodUpdate = async (
       message: 'Tu cuenta de retiro ha sido actualizada correctamente.',
       data: updatedMethod,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -63,7 +63,7 @@ export const getMyPayoutMethods = async (req: Request, res: Response, next: Next
       success: true,
       data: methods,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };

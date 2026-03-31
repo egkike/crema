@@ -49,7 +49,7 @@ export const getMySubscriptionStatus = async (req: Request, res: Response, next:
         allowedTypes: subscription.allowed_types,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
