@@ -6,6 +6,7 @@ import swaggerUi from 'swagger-ui-express';
 
 import swaggerSpecs from './swagger';
 import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit/rateLimit';
+import { requestIdMiddleware } from './middlewares/tracking/requestId.middleware';
 import { AppError } from './errors/AppError';
 import { config } from './config/index';
 import logger from './utils/logger';
@@ -30,6 +31,9 @@ app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// --- REQUEST ID (Traza) ---
+app.use(requestIdMiddleware);
 
 // --- HELMET & SECURITY ---
 app.use(

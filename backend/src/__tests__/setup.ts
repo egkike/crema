@@ -453,7 +453,13 @@ vi.mock('../db/postgres', () => ({
 }));
 
 vi.mock('../utils/logger', () => ({
-  default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+  default: { 
+    info: vi.fn(), 
+    error: vi.fn(), 
+    warn: vi.fn(), 
+    debug: vi.fn(),
+    child: vi.fn(() => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() })),
+  },
 }));
 
 export const extractCookies = (res: { headers: Record<string, string | string[] | undefined> }) => {
