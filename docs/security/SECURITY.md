@@ -16,7 +16,9 @@ Este documento describe las medidas de seguridad, vulnerabilidades corregidas y 
 5. [Seguridad en Pagos](#seguridad-en-pagos)
 6. [Seguridad de Base de Datos](#seguridad-de-base-de-datos)
 7. [Cabeceras de Seguridad](#cabeceras-de-seguridad)
-8. [Lista de Auditoría](#lista-de-auditoría)
+8. [Mitigación de Prompt Injection](#mitigación-de-prompt-injection)
+9. [Seguridad en Subida y Descarga de Archivos](#seguridad-en-subida-y-descarga-de-archivos)
+10. [Vulnerabilidades Corregidas](#vulnerabilidades-corrigidas)
 
 ---
 
@@ -198,8 +200,73 @@ Implementadas vía Helmet.js:
 | `X-Content-Type-Options` | nosniff |
 | `X-Frame-Options` | DENY |
 | `X-XSS-Protection` | 1; mode=block |
-| `Strict-Transport-Security` | max-age=31536000 |
+| `Strict-Transport-Security` | max-age=31536000 (solo producción) |
 | `Content-Security-Policy` | configurado para API |
+
+### Content Security Policy (CSP)
+
+```typescript
+// Configuración actual (app.ts)
+directives: {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", 'https://cdn.jsdelivr.net', 'https://*.mercadopago.com', 'https://*.mux.com'],
+  styleSrc: ["'self'", 'https://fonts.googleapis.com'],
+  imgSrc: ["'self'", 'data:', 'https://images.unsplash.com', 'https://via.placeholder.com', 'https://*.cloudflarestream.com', 'https://*.mux.com'],
+  mediaSrc: ["'self'", 'blob:', 'https://*.cloudflarestream.com', 'https://*.mux.com'],
+  frameSrc: ["'self'", 'https://*.cloudflarestream.com'],
+  connectSrc: ["'self'", 'https://*.mercadopago.com', 'https://*.cloudflarestream.com', 'https://*.mux.com'],
+  fontSrc: ["'self'", 'data:', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com', 'https://*.mercadopago.com'],
+  objectSrc: ["'none'"],
+  frameAncestors: ["'self'"],
+  formAction: ["'self'"],
+  upgradeInsecureRequests: [],
+}
+```
+
+### CORS Configuración
+
+```typescript
+// app.ts - Lógica de orígenes CORS
+const corsOrigins = config.cors?.origins;
+
+// Producción: requiere lista explícita de orígenes
+// Desarrollo: permite localhost para testing
+const corsOrigin = Array.isArray(corsOrigins) && corsOrigins.length > 0
+  ? corsOrigins
+  : config.nodeEnv === 'production'
+    ? []  // Bloquea CORS en producción si no está configurado
+    : ['http://localhost:3000', 'http://localhost:4321'];
+```
+
+### Request ID y Trazabilidad
+
+Para facilitar el debugging y la trazabilidad distribuida, se implementa un middleware de request ID:
+
+```typescript
+// Middleware: requestIdMiddleware
+export const requestIdMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+  // Acepta X-Request-ID entrante o genera uno nuevo
+  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
+  
+  // Adjunta a request
+  (req as Request & { id: string }).id = requestId;
+  
+  // Header en respuesta
+  res.setHeader('X-Request-ID', requestId);
+  
+  // Pino child logger con requestId
+  const reqLogger = logger.child({ requestId });
+  (req as Request & { log: typeof reqLogger }).log = reqLogger;
+  
+  next();
+};
+```
+
+**Beneficios:**
+- Cada request HTTP tiene un ID único para追踪
+- Soporte para trazabilidad distribuida (X-Request-ID entrante)
+- Todos los logs incluyen el requestId automáticamente
+- Compatible con MercadoPago webhook verification (usa el mismo header)
 
 ---
 
@@ -396,6 +463,19 @@ Antes de cada commit, verificar:
 | Falta verificación de acceso a producto en AI | ✅ Corregido | verifyProductAccess() aplicado a endpoints AI |
 | Subida de archivos sin validación | ✅ Corregido | fileFilter con allowlist de extensiones y MIME types |
 | Path traversal en downloads | ✅ Corregido | validateFilePath() + sanitizeDownloadFilename() |
+| 'unsafe-eval' en CSP | ✅ Corregido | Removido de scriptSrc |
+| 'unsafe-inline' en CSP | ✅ Corregido | Removido de scriptSrc y styleSrc |
+| Type safety en error handler (err: any) | ✅ Corregido | Cambiado a err: Error con type guards |
+| CORS permite todos los orígenes en producción | ✅ Corregido | Bloquea si no está configurado en producción |
+| Falta request ID para trazabilidad | ✅ Corregido | requestIdMiddleware implementado |
+
+### Cambios en CSP (2026-03-31)
+
+| Antes | Después | Reason |
+|-------|---------|--------|
+| `'unsafe-inline'` en scriptSrc | Removido | Previene XSS vía scripts inline |
+| `'unsafe-inline'` en styleSrc | Removido | Previene XSS vía estilos inline |
+| `'unsafe-eval'` en scriptSrc | Removido | Previene eval() dinámico |
 
 ---
 
