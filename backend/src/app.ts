@@ -41,7 +41,6 @@ app.use(
         scriptSrc: [
           "'self'",
           "'unsafe-inline'",
-          "'unsafe-eval'",
           'https://cdn.jsdelivr.net',
           'https://*.mercadopago.com',
           'https://*.mux.com',
