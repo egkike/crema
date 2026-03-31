@@ -134,17 +134,18 @@ class PayoutController {
   /**
    * Permite al usuario cancelar su solicitud de retiro si aún está pendiente
    */
-  async cancelPayout(req: Request, res: Response, next: NextFunction) {
+   async cancelPayout(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = (req as any).user?.id;
-      const id = req.params.id as string;
+      const user = req.user;
+      const id = req.params.id;
 
-      if (!userId) throw new AppError('Usuario no autenticado', 401);
-      if (!id) throw new AppError('ID de solicitud no proporcionado', 400);
+      // Validate inputs
+      if (!user?.id) throw new AppError('Usuario no autenticado', 401);
+      if (!id || typeof id !== 'string') throw new AppError('ID de solicitud no proporcionado', 400);
 
-      logger.info({ userId, payoutId: id }, '🚫 Procesando cancelación de retiro por el usuario');
+      logger.info({ userId: user.id, payoutId: id }, 'Procesando cancelación de retiro por el usuario');
 
-      const result = await PayoutService.cancelUserPayout(id, userId);
+      const result = await PayoutService.cancelUserPayout(id, user.id);
 
       res.status(200).json({
         success: true,

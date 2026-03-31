@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { Request, Response, NextFunction } from 'express';
+import type { Multer } from 'multer';
 import { z } from 'zod';
 
 import { productRepository } from '../repositories/product.repository';
@@ -32,7 +33,7 @@ const upsertQuizSchema = z.object({
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
-    const file = (req as any).file;
+    const file = (req as Request & { file?: Multer.File }).file;
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
@@ -66,9 +67,9 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     }
 
     res.status(201).json({ success: true, data: product });
-  } catch (error: any) {
-    if ((req as any).file && fs.existsSync((req as any).file.path)) {
-      fs.unlinkSync((req as any).file.path);
+  } catch (error: unknown) {
+    if (file && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
     }
     next(error);
   }
@@ -79,9 +80,8 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
  */
 export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const productId = req.params.productId as string;
     const { user } = req;
-    const file = (req as any).file;
+    const file = (req as Request & { file?: Multer.File }).file;
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
@@ -143,8 +143,8 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     const updated = await productRepository.updateProduct(productId, productInput);
     res.status(200).json({ success: true, data: updated });
   } catch (error) {
-    if ((req as any).file && fs.existsSync((req as any).file.path)) {
-      fs.unlinkSync((req as any).file.path);
+    if (file && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
     }
     next(error);
   }
@@ -318,7 +318,7 @@ export const upsertQuiz = async (req: Request, res: Response, next: NextFunction
     ]);
 
     res.status(200).json({ success: true, data: result.rows[0] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     next(error);
   }
 };

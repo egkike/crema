@@ -257,6 +257,111 @@ INSTRUCCIONES DE SEGURIDAD:
 
 ---
 
+## Seguridad en Subida y Descarga de Archivos
+
+### Problema
+
+Los endpoints de upload y download de archivos pueden ser vulnerables a:
+- Subida de archivos maliciosos (malware, scripts, executables)
+- Path traversal attacks (acceso a archivos fuera del directorio permitido)
+- Header injection a través de nombres de archivo
+
+### Solución Implementada
+
+#### 1. Validación de Extensiones y MIME Types (Upload)
+
+El middleware Multer ahora filtra archivos usando allowlists:
+
+```typescript
+const ALLOWED_EXTENSIONS = [
+  // Documents
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'odt',
+  // Images
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico',
+  // Video/Audio
+  'mp4', 'webm', 'mov', 'avi', 'mkv', 'mp3', 'wav', 'ogg', 'm4a',
+  // Archives
+  'zip', 'rar', '7z', 'tar', 'gz',
+  // Code
+  'html', 'css', 'js', 'json', 'xml', 'md',
+];
+
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'video/mp4',
+  // ... etc
+];
+
+// Multer fileFilter rejects files not in allowlist
+export const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 100 * 1024 * 1024 },
+});
+```
+
+#### 2. Path Traversal Prevention (Download)
+
+Se valida que la ruta del archivo no salga del directorio permitido:
+
+```typescript
+function validateFilePath(relativePath: string): void {
+  // Clean path
+  const cleanPath = relativePath.replace(/^\/+/, '').replace(/\/+$/, '');
+  
+  // Block traversal attempts
+  if (cleanPath.includes('..')) {
+    throw new AppError('Ruta de archivo inválida', 400);
+  }
+  
+  // Must start with allowed directory
+  const firstDir = cleanPath.split(path.sep)[0];
+  if (!ALLOWED_DOWNLOAD_DIRS.includes(firstDir)) {
+    throw new AppError('Ruta de archivo no permitida', 400);
+  }
+  
+  // Verify final path is within cwd
+  const fullPath = path.join(process.cwd(), cleanPath);
+  if (!path.normalize(fullPath).startsWith(process.cwd())) {
+    throw new AppError('Ruta de archivo fuera del directorio permitido', 400);
+  }
+}
+```
+
+#### 3. Sanitización de Nombres de Archivo
+
+Los nombres de archivo en downloads se sanitizan para prevenir header injection:
+
+```typescript
+function sanitizeDownloadFilename(filename: string): string {
+  const basename = path.basename(filename);
+  let sanitized = basename
+    .replace(/[<>:"|?*]/g, '')  // Windows-invalid chars
+    .replace(/\.+/g, '.')        // Multiple dots
+    .replace(/^[\s.]+|[\s.]+$/g, '');  // Leading/trailing
+    
+  // Remove control characters
+  sanitized = sanitized.split('').filter(char => {
+    const code = char.charCodeAt(0);
+    return code >= 32 && code !== 127;
+  }).join('');
+  
+  return sanitized.substring(0, 200) || 'download';
+}
+```
+
+### Archivos Bloqueados
+
+| Tipo | Ejemplos | Riesgo |
+|------|----------|--------|
+| Executables | `.exe`, `.bat`, `.sh`, `.cmd`, `.msi` | Malware, remote code execution |
+| Scripts | `.php`, `.jsp`, `.asp`, `.cgi`, `.pl` | Server-side code execution |
+| Web files | `.html`, `.js` con scripts embebidos | XSS, defacement |
+| System files | `.htaccess`, `.htpasswd`, `.git`, `.env` | Information disclosure |
+
+---
+
 ## Lista de Auditoría
 
 Antes de cada commit, verificar:
@@ -289,6 +394,8 @@ Antes de cada commit, verificar:
 | Verificación de conexión SSE | ✅ Corregido | Verificación de writableEnded |
 | Prompt injection en endpoints AI | ✅ Corregido | Instruction wrapping + system prompts |
 | Falta verificación de acceso a producto en AI | ✅ Corregido | verifyProductAccess() aplicado a endpoints AI |
+| Subida de archivos sin validación | ✅ Corregido | fileFilter con allowlist de extensiones y MIME types |
+| Path traversal en downloads | ✅ Corregido | validateFilePath() + sanitizeDownloadFilename() |
 
 ---
 

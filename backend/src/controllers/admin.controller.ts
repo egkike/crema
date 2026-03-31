@@ -13,7 +13,7 @@ export class AdminController {
   /**
    * Helper para validar moneda obligatoria
    */
-  private static validateCurrency(currency: any): string {
+  private static validateCurrency(currency: string | undefined): string {
     if (!currency || typeof currency !== 'string') {
       throw new AppError('La moneda (currency) es obligatoria para esta consulta.', 400);
     }
@@ -38,11 +38,12 @@ export class AdminController {
       res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
 
       return res.send(csv);
-    } catch (error: any) {
-      const status = error instanceof AppError ? error.statusCode : 500;
-      logger.error({ error: error.message }, 'Error al exportar reporte fiscal');
-      return res.status(status).json({ message: error.message || 'Error al generar reporte' });
-    }
+  } catch (error: unknown) {
+    const status = error instanceof AppError ? error.statusCode : 500;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ error: errorMessage }, 'Error al exportar reporte fiscal');
+    return res.status(status).json({ message: errorMessage || 'Error al generar reporte' });
+  }
   }
 
   /**
@@ -55,9 +56,10 @@ export class AdminController {
       const summary = await adminRepository.getRetentionSummary(currency);
 
       return res.json({ status: 'success', data: summary });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      return res.status(status).json({ message: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return res.status(status).json({ message: errorMessage });
     }
   }
 
@@ -73,9 +75,10 @@ export class AdminController {
       const healthReport = await StatsService.getAdminHealthCheck(currency, from, to);
 
       return res.json({ status: 'success', data: healthReport });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      return res.status(status).json({ message: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return res.status(status).json({ message: errorMessage });
     }
   }
 
@@ -91,9 +94,10 @@ export class AdminController {
       const ledger = await adminRepository.getPlatformLedger(currency, from, to);
 
       return res.json({ status: 'success', data: ledger });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      return res.status(status).json({ message: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return res.status(status).json({ message: errorMessage });
     }
   }
 
@@ -113,9 +117,10 @@ export class AdminController {
       );
 
       return res.send(csv);
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      return res.status(status).json({ message: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return res.status(status).json({ message: errorMessage });
     }
   }
 
@@ -138,10 +143,12 @@ export class AdminController {
       );
 
       return res.send(csv);
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      logger.error({ error: error.message }, 'Error al exportar reembolsos');
-      return res.status(status).json({ message: error.message || 'Error al generar reporte' });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const safeMessage = errorMessage || 'Error al generar reporte';
+      logger.error({ error: safeMessage }, 'Error al exportar reembolsos');
+      return res.status(status).json({ message: safeMessage });
     }
   }
 
@@ -169,10 +176,11 @@ export class AdminController {
         status: 'success',
         data: stats,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      logger.error({ error: error.message }, 'Error al exportar estadística del creador');
-      return res.status(status).json({ message: error.message || 'Error al generar reporte' });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage }, 'Error al exportar estadística del creador');
+      return res.status(status).json({ message: errorMessage || 'Error al generar reporte' });
     }
   }
 
@@ -188,9 +196,10 @@ export class AdminController {
         status: 'success',
         data: payouts,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(
-        { error: error.message, status: req.query.status },
+        { error: errorMessage, status: req.query.status },
         'Error en getPayoutsByStatus'
       );
       return res.status(500).json({ message: 'Error al obtener las solicitudes de retiro' });
@@ -220,9 +229,10 @@ export class AdminController {
       );
 
       return res.json({ status: 'success', data: result });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      return res.status(status).json({ message: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return res.status(status).json({ message: errorMessage });
     }
   }
 
@@ -252,9 +262,10 @@ export class AdminController {
         message: 'Actividad de I+D registrada correctamente.',
         data: log,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      return res.status(status).json({ message: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return res.status(status).json({ message: errorMessage });
     }
   }
 
@@ -282,9 +293,10 @@ export class AdminController {
           currency: 'ARS', // La ley nacional se evalúa sobre base imponible local
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error instanceof AppError ? error.statusCode : 500;
-      return res.status(status).json({ message: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return res.status(status).json({ message: errorMessage });
     }
   }
 
@@ -295,8 +307,9 @@ export class AdminController {
     try {
       const projects = await adminRepository.getRDProjects();
       return res.json({ status: 'success', data: projects });
-    } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return res.status(500).json({ message: errorMessage });
     }
   }
 }

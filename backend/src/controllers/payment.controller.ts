@@ -144,7 +144,7 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
         externalReference,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -217,9 +217,9 @@ export const handleProviderWebhook = async (req: Request, res: Response) => {
           gatewayTax: result.gatewayTax,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { gatewayId, error: error.message },
+        { gatewayId, error: error instanceof Error ? error.message : String(error) },
         'Error en procesamiento background de webhook'
       );
     }

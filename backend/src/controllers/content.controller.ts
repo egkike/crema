@@ -9,6 +9,86 @@ import { AccessService } from '../services/access.service';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
+// ============================================================================
+// TYPES FOR QUIZ
+// ============================================================================
+
+interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correct: number;
+}
+
+interface Quiz {
+  id: number;
+  lesson_id: string;
+  title: string;
+  passing_score: number;
+  questions: QuizQuestion[];
+}
+
+// ============================================================================
+// SECURITY UTILITIES FOR FILE DOWNLOADS
+// ============================================================================
+
+// Allowed base directories for file downloads (prevent path traversal)
+const ALLOWED_DOWNLOAD_DIRS = ['uploads'];
+
+/**
+ * Validate that the file path stays within allowed directories
+ * Prevents path traversal attacks like ../../etc/passwd
+ * @throws AppError if path is invalid or traverses outside allowed dirs
+ */
+function validateFilePath(relativePath: string): void {
+  // Clean the path - remove leading/trailing slashes
+  const cleanPath = relativePath.replace(/^\/+/, '').replace(/\/+$/, '');
+  
+  // Check for path traversal attempts
+  if (cleanPath.includes('..')) {
+    throw new AppError('Ruta de archivo inválida', 400);
+  }
+  
+  // Verify the path starts with an allowed directory
+  const firstDir = cleanPath.split(path.sep)[0];
+  if (!ALLOWED_DOWNLOAD_DIRS.includes(firstDir)) {
+    throw new AppError('Ruta de archivo no permitida', 400);
+  }
+  
+  // Additional check: resolve the full path and verify it's within cwd
+  const fullPath = path.join(process.cwd(), cleanPath);
+  const normalizedFull = path.normalize(fullPath);
+  const normalizedCwd = path.normalize(process.cwd());
+  
+  if (!normalizedFull.startsWith(normalizedCwd)) {
+    throw new AppError('Ruta de archivo fuera del directorio permitido', 400);
+  }
+}
+
+/**
+ * Sanitize filename for download - prevent header injection and path traversal
+ */
+function sanitizeDownloadFilename(filename: string): string {
+  // Get basename only - remove any path components
+  const basename = path.basename(filename);
+  
+  // Remove potentially dangerous characters
+  // Keep alphanumeric, spaces, and common punctuation
+  let sanitized = basename
+    .replace(/[<>:"|?*]/g, '')  // Remove Windows-invalid chars
+    .replace(/\.+/g, '.')  // Remove multiple dots
+    .replace(/^[\s.]+|[\s.]+$/g, '');  // Remove leading/trailing dots/spaces
+  
+  // Remove control characters manually (eslint blocks \x00-\x1F in regex)
+  sanitized = sanitized.split('').filter(char => {
+    const code = char.charCodeAt(0);
+    return code >= 32 && code !== 127;  // Keep printable chars only
+  }).join('');
+  
+  // Limit length
+  return sanitized.substring(0, 200) || 'download';
+}
+
 // --- ESQUEMAS DE VALIDACIÓN ---
 const updateProgressSchema = z.object({
   productId: z.string().uuid('ID de producto inválido'),
@@ -75,14 +155,18 @@ export const getProductContent = async (req: Request, res: Response, next: NextF
 
       // Caso B: Archivo Local
       const relativePath = accessInfo.contentUrl.replace(/^\/+/, ''); // Limpia barras iniciales
+      
+      // SECURITY: Validate path to prevent path traversal attacks
+      validateFilePath(relativePath);
+      
       const filePath = path.join(process.cwd(), relativePath);
 
       if (fs.existsSync(filePath)) {
-        // En productos digitales, forzamos la descarga con un nombre limpio
+        // SECURITY: Sanitize filename to prevent header injection and path traversal
         const fileName = path.basename(filePath);
-        const cleanName = fileName.split('-').slice(1).join('-') || fileName;
+        const safeName = sanitizeDownloadFilename(fileName);
 
-        return res.download(filePath, cleanName, err => {
+        return res.download(filePath, safeName, err => {
           if (err) logger.error({ err, filePath }, 'Error al descargar archivo');
         });
       }
@@ -132,7 +216,7 @@ export const updateLessonProgress = async (req: Request, res: Response, next: Ne
         productId,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Manejo unificado de errores de validación (Zod)
     if (error instanceof z.ZodError) {
       logger.warn({ userId: req.user?.id, errors: error.issues }, 'Validación fallida en progreso');
@@ -147,7 +231,7 @@ export const updateLessonProgress = async (req: Request, res: Response, next: Ne
     }
 
     logger.error(
-      { error: error.message, userId: req.user?.id, productId: req.body?.productId },
+      { error: error instanceof Error ? error.message : String(error), userId: req.user?.id, productId: req.body?.productId },
       'Error crítico al actualizar progreso'
     );
     next(error);
@@ -183,14 +267,14 @@ export const submitLessonQuiz = async (req: Request, res: Response, next: NextFu
     const product = await AccessService.getProtectedContent(user.id, productId);
 
     // 3. Obtener el examen real
-    const quiz = await productRepository.getLessonQuiz(lessonId);
+    const quiz = await productRepository.getLessonQuiz(lessonId) as Quiz | null;
     if (!quiz) throw new AppError('Esta lección no contiene un examen.', 404);
 
     // 4. Calificar el examen
     const totalQuestions = quiz.questions.length;
     let correctCount = 0;
 
-    quiz.questions.forEach((q: any) => {
+    quiz.questions.forEach((q: QuizQuestion) => {
       const userAns = answers.find(a => a.questionId === q.id);
       if (userAns && userAns.selectedOption === q.correct) {
         correctCount++;
@@ -235,7 +319,7 @@ export const submitLessonQuiz = async (req: Request, res: Response, next: NextFu
         totalQuestions,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Unificación de errores de validación Zod
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -245,7 +329,7 @@ export const submitLessonQuiz = async (req: Request, res: Response, next: NextFu
       });
     }
 
-    logger.error({ error: error.message, userId: req.user?.id }, 'Error en submitLessonQuiz');
+    logger.error({ error: error instanceof Error ? error.message : String(error), userId: req.user?.id }, 'Error en submitLessonQuiz');
     next(error);
   }
 };

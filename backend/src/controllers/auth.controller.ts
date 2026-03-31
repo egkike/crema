@@ -53,14 +53,21 @@ export class AuthController {
       const user = await userRepository.findByCredentials(identifier);
 
       if (!user) {
-        logger.warn({ identifier }, 'Intento de login: Usuario no encontrado');
+        // Log identifier for security monitoring (mask email for privacy)
+        const maskedIdentifier = identifier.includes('@') 
+          ? identifier.replace(/(.{2})(.*)(@.*)/, '$1***$3') 
+          : identifier;
+        logger.warn({ identifier: maskedIdentifier }, 'Intento de login: Usuario no encontrado');
         throw new AppError('Credenciales inválidas', 401);
       }
 
       const isValidPassword = await bcrypt.compare(password + config.passwordPepper, user.password);
 
       if (!isValidPassword) {
-        logger.warn({ identifier }, 'Intento de login: Password incorrecto');
+        const maskedIdentifier = identifier.includes('@') 
+          ? identifier.replace(/(.{2})(.*)(@.*)/, '$1***$3') 
+          : identifier;
+        logger.warn({ identifier: maskedIdentifier }, 'Intento de login: Password incorrecto');
         throw new AppError('Credenciales inválidas', 401);
       }
 
@@ -88,7 +95,7 @@ export class AuthController {
           id: user.id,
           username: user.username,
           partial: true,
-        } as any);
+        });
 
         res.cookie('access_token', tempToken, cookieOptions);
 
@@ -104,7 +111,7 @@ export class AuthController {
           id: user.id,
           username: user.username,
           partial: true, // Reutilizamos tu lógica de acceso restringido
-        } as any);
+        });
 
         res.cookie('access_token', mfaToken, cookieOptions);
 
@@ -193,7 +200,10 @@ export class AuthController {
         throw new AppError('Token inválido o expirado', 403);
       }
 
-      const decoded = verifyRefreshToken(refreshToken) as any;
+      const decoded = verifyRefreshToken(refreshToken);
+      if (!decoded) {
+        throw new AppError('Token inválido o expirado', 403);
+      }
       const cleanData = cleanPayload(decoded); // <--- Limpia iat y exp
 
       const newAccessToken = generateAccessToken(cleanData);
@@ -207,7 +217,7 @@ export class AuthController {
       });
 
       return res.status(200).json({ success: true, message: 'Token renovado' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       next(error);
     }
   }
@@ -245,7 +255,10 @@ export class AuthController {
       EmailService.sendSecurityNotification(
         user.email,
         'Tu contraseña ha sido actualizada exitosamente tras tu primer inicio de sesión.'
-      ).catch(err => logger.error({ err: err.message }, 'Error enviando email de seguridad'));
+      ).catch(err => {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error({ error: errorMessage }, 'Error enviando email de seguridad')
+      });
 
       const cookieOptions = {
         httpOnly: true,
@@ -298,9 +311,10 @@ export class AuthController {
         await userRepository.saveResetToken(email, token, expires);
 
         // No bloqueamos la respuesta esperando al email
-        EmailService.sendResetPasswordEmail(email, user.fullname, token).catch(err =>
-          logger.error({ err: err.message, email }, 'Error enviando reset password email')
-        );
+        EmailService.sendResetPasswordEmail(email, user.fullname, token).catch(err => {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          logger.error({ error: errorMessage, email }, 'Error enviando reset password email')
+        });
       }
 
       res.json({
@@ -347,7 +361,7 @@ export class AuthController {
       if (!userReq) throw new AppError('Usuario requerido', 400);
 
       // Opcional: Bloquear si ya está activo
-      const user = (await userRepository.getById(userReq.id)) as any;
+      const user = await userRepository.getById(userReq.id) as UserWithPassword | null;
       if (user?.two_factor_enabled) {
         throw new AppError('El 2FA ya está activado en esta cuenta', 400);
       }
@@ -392,7 +406,10 @@ export class AuthController {
         userReq.email,
         'Doble factor de autenticación activado',
         'Se ha habilitado correctamente la autenticación de dos factores (2FA) en tu cuenta. Esto añade una capa extra de protección.'
-      ).catch(err => logger.error({ err: err.message }, 'Error enviando email de seguridad'));
+      ).catch(err => {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error({ error: errorMessage }, 'Error enviando email de seguridad')
+      });
 
       res.json({ success: true, message: '2FA activado correctamente' });
     } catch (error) {
@@ -435,7 +452,10 @@ export class AuthController {
             user.email,
             'Código de respaldo 2FA utilizado',
             'Se ha utilizado un código de respaldo para acceder a tu cuenta. Recuerda que estos códigos son de un solo uso.'
-          ).catch(err => logger.error({ err: err.message }, 'Error enviando email de seguridad'));
+          ).catch(err => {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error({ error: errorMessage }, 'Error enviando email de seguridad')
+      });
           isValid = true;
         }
       }
