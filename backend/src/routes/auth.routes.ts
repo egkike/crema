@@ -4,6 +4,7 @@ import { AuthController } from '../controllers/auth.controller';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { loginSchema, registerPartnerSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/users.schema';
 import { validate } from '../middlewares/auth/validate.middleware';
+import { loginLimiter, refreshLimiter, apiLimiter } from '../middlewares/rateLimit/rateLimit';
 
 const router = Router();
 const authController = new AuthController();
@@ -17,13 +18,13 @@ const authController = new AuthController();
  * summary: Registro manual exclusivo para Socios (Afiliados y Creadores)
  * tags: [Auth]
  */
-router.post('/register', validate(registerPartnerSchema), authController.register.bind(authController));
+router.post('/register', apiLimiter, validate(registerPartnerSchema), authController.register.bind(authController));
 
-router.get('/verify-email', authController.verifyEmail.bind(authController));
+router.get('/verify-email', apiLimiter, authController.verifyEmail.bind(authController));
 
-router.post('/login', validate(loginSchema), authController.login.bind(authController));
+router.post('/login', loginLimiter, validate(loginSchema), authController.login.bind(authController));
 
-router.post('/refresh', authController.refresh.bind(authController));
+router.post('/refresh', refreshLimiter, authController.refresh.bind(authController));
 
 router.post('/logout', jwtAuthMiddleware, authController.logout.bind(authController));
 
@@ -31,12 +32,14 @@ router.post('/logout', jwtAuthMiddleware, authController.logout.bind(authControl
 
 router.post(
   '/forgot-password', 
+  apiLimiter,
   validate(forgotPasswordSchema), // Valida que venga un email real
   authController.forgotPassword.bind(authController)
 );
 
 router.post(
   '/reset-password', 
+  apiLimiter,
   validate(resetPasswordSchema), // Valida token y robustez de pass
   authController.resetPassword.bind(authController)
 );
