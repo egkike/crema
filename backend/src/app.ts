@@ -40,12 +40,11 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
-          "'unsafe-inline'",
           'https://cdn.jsdelivr.net',
           'https://*.mercadopago.com',
           'https://*.mux.com',
         ],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", 'https://fonts.googleapis.com'],
         imgSrc: [
           "'self'",
           'data:',
@@ -89,9 +88,19 @@ app.use(
 );
 
 // --- CORS ---
+const corsOrigins = config.cors?.origins;
+
+// In production, require explicit origins list
+// In development, allow localhost for testing
+const corsOrigin = Array.isArray(corsOrigins) && corsOrigins.length > 0
+  ? corsOrigins
+  : config.nodeEnv === 'production'
+    ? []  // Block CORS in production if not configured
+    : ['http://localhost:3000', 'http://localhost:4321']; // Allow localhost for dev
+
 app.use(
   cors({
-    origin: config.cors?.origins || true,
+    origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -146,7 +155,8 @@ app.use((_req: Request, _res: Response, next: NextFunction) => {
   next(new AppError('Ruta no encontrada', 404));
 });
 
-app.use((err: any, req: Request, res: Response, _: NextFunction) => {
+app.use((err: Error, req: Request, res: Response, _: NextFunction) => {
+  // Handle known AppError instances
   if (err instanceof AppError) {
     logger.warn(
       { status: err.statusCode, message: err.message, path: req.path },
@@ -155,12 +165,15 @@ app.use((err: any, req: Request, res: Response, _: NextFunction) => {
     return res.status(err.statusCode).json({ success: false, error: err.message });
   }
 
-  const statusCode = err.status || 500;
-  logger.error({ error: err.message, stack: err.stack, path: req.path }, 'Error inesperado');
+  // Handle errors with status property (e.g., from Express)
+  const statusCode = (err as { status?: number }).status || 500;
+  const errorMessage = err.message || 'Error interno del servidor';
+  
+  logger.error({ error: errorMessage, stack: err.stack, path: req.path }, 'Error inesperado');
 
   res.status(statusCode).json({
     success: false,
-    error: err.message || 'Error interno del servidor',
+    error: errorMessage,
     ...(config.nodeEnv === 'development' && { stack: err.stack }),
   });
 });
