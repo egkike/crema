@@ -117,7 +117,7 @@ class PayoutController {
 
   async getMyPayouts(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
       if (!userId) throw new AppError('Usuario no autenticado', 401);
 
       const payouts = await payoutRepository.getByUserId(userId);

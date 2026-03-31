@@ -10,7 +10,7 @@ export const requestPayoutMethodUpdate = async (
   next: NextFunction
 ) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
     const { currency, type, data } = req.body;
 
     // Iniciamos el flujo de seguridad (envío de email)
@@ -56,7 +56,7 @@ export const confirmPayoutMethodUpdate = async (
 
 export const getMyPayoutMethods = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
     const methods = await payoutMethodRepository.getByUserId(userId);
 
     return res.status(200).json({

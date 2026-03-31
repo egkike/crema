@@ -11,7 +11,7 @@ export class BalanceController {
    */
   async getDashboardStats(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
       const currency = (req.query.currency as string) || 'ARS';
 
       // Ejecutamos ambas en paralelo para que el dashboard cargue rápido
@@ -37,7 +37,7 @@ export class BalanceController {
    */
   async getMyBalance(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
 
       if (!userId) {
         throw new AppError('Usuario no autenticado', 401);
@@ -59,7 +59,7 @@ export class BalanceController {
    */
   async getMyHistory(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
 
       if (!userId) {
         throw new AppError('Usuario no autenticado', 401);

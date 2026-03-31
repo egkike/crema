@@ -33,7 +33,7 @@ export const getMySubscriptionStatus = async (req: Request, res: Response, next:
       data: {
         planName: subscription.plan_name,
         status: subscription.status,
-        expiresAt: (subscription as any).current_period_end, // Tipado rápido si falta en la interfaz
+        expiresAt: subscription.current_period_end,
         usage: {
           products: {
             used: currentProducts.length,
@@ -46,7 +46,7 @@ export const getMySubscriptionStatus = async (req: Request, res: Response, next:
             remainingMB: Number(((limits.storage_mb || 0) - storageUsedNum).toFixed(2)),
           },
         },
-        allowedTypes: (subscription as any).allowed_types,
+        allowedTypes: subscription.allowed_types,
       },
     });
   } catch (error) {

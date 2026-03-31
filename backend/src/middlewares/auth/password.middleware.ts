@@ -9,7 +9,7 @@ import { AppError } from '../../errors/AppError';
  */
 export const enforceFullAuth = (req: Request, _res: Response, next: NextFunction) => {
   // Hacemos el cast a 'any' para evitar el error de tipos de TS
-  const user = (req as any).user;
+  const user = req.user;
 
   // Si el token tiene el flag 'partial' (primer login)
   if (user?.partial) {

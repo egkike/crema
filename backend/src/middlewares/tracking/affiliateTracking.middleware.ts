@@ -8,7 +8,7 @@ export const affiliateTracking = async (req: Request, res: Response, next: NextF
   try {
     const { aff } = req.query;
     // El usuario logueado (si existe) viene inyectado por el auth middleware previo
-    const currentUser = (req as any).user;
+    const currentUser = req.user;
 
     if (aff && typeof aff === 'string') {
       // 1. Buscamos al afiliado por su slug

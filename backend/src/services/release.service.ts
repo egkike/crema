@@ -110,7 +110,7 @@ export const ReleaseService = {
                 order_id: order.id,
                 amount: amountToRelease,
                 currency: order.currency,
-                type: 'balance_release' as any,
+                type: 'balance_release',
                 description: `Saldo liberado (${role}) - Orden #${order.id.substring(0, 8)}`,
               });
 

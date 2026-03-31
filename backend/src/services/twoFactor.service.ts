@@ -1,12 +1,12 @@
 import crypto from 'crypto';
 
-import * as otplib from 'otplib';
+import { Authenticator } from 'otplib';
 import QRCode from 'qrcode';
 
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
-const { authenticator } = otplib as any;
+const authenticator = new Authenticator();
 
 export class TwoFactorService {
   /**

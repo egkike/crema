@@ -138,7 +138,12 @@ export class PayoutMethodService {
    */
   static async confirmChange(token: string) {
     try {
-      const decoded = jwt.verify(token, config.jwt.secret) as any;
+      const decoded = jwt.verify(token, config.jwt.secret) as {
+        action: string;
+        userId: string;
+        currency: string;
+        methodData: Record<string, unknown>;
+      };
 
       if (decoded.action !== 'confirm_payout_method') {
         throw new AppError('Token de confirmación inválido', 400);

@@ -169,7 +169,7 @@ export class PayoutService {
         order_id: null,
         amount: -Math.abs(sanitizedAmount),
         currency,
-        type: 'payout_request' as any,
+        type: 'payout_request',
         description: `Retiro pendiente (${currency}) a: ${payoutData.alias || payoutData.destination_account}`,
       });
 
@@ -254,7 +254,7 @@ export class PayoutService {
         order_id: null,
         amount: payout.amount,
         currency: payout.currency,
-        type: 'payout_cancel' as any,
+        type: 'payout_cancel',
         description: `Retiro anulado: +${payout.amount}`,
       });
 
@@ -349,7 +349,7 @@ export class PayoutService {
           order_id: null,
           amount: payout.amount,
           currency: payout.currency,
-          type: 'payout_refund' as any,
+          type: 'payout_refund',
           description: `RETIRO RECHAZADO${rejectionReason} (Monto reintegrado)`,
         });
         await client.query('COMMIT');

@@ -103,7 +103,7 @@ export class RefundService {
             order_id: orderId,
             amount: -amountToDeduct,
             currency: orderCurrency,
-            type: 'refund' as any,
+            type: 'refund',
             description: `Deducción por reembolso: Orden #${orderId.substring(0, 8)}`,
           });
         }

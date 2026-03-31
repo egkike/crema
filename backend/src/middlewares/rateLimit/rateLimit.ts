@@ -17,12 +17,10 @@ export const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => {
-    // Evita crash si req.user es undefined
-    const user = (req as any).user;
-    return user?.id || ipKeyGenerator(req as any);
+    return req.user?.id || ipKeyGenerator(req);
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: (req as any).rateLimit?.key, ip: req.ip }, 'Límite de login alcanzado');
+    logger.warn({ key: req.rateLimit?.key, ip: req.ip }, 'Límite de login alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -39,12 +37,10 @@ export const refreshLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => {
-    // Evita crash si req.user es undefined
-    const user = (req as any).user;
-    return user?.id || ipKeyGenerator(req as any);
+    return req.user?.id || ipKeyGenerator(req);
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: (req as any).rateLimit?.key, ip: req.ip }, 'Límite de refresh alcanzado');
+    logger.warn({ key: req.rateLimit?.key, ip: req.ip }, 'Límite de refresh alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -73,11 +69,10 @@ export const aiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => {
-    const user = (req as any).user;
-    return user?.id || ipKeyGenerator(req as any);
+    return req.user?.id || ipKeyGenerator(req);
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: (req as any).rateLimit?.key, path: req.path }, 'Límite de AI alcanzado');
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de AI alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -94,11 +89,10 @@ export const aiChatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => {
-    const user = (req as any).user;
-    return user?.id || ipKeyGenerator(req as any);
+    return req.user?.id || ipKeyGenerator(req);
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: (req as any).rateLimit?.key, path: req.path }, 'Límite de chat AI alcanzado');
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de chat AI alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });

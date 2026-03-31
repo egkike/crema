@@ -11,7 +11,7 @@ export interface PlatformPlan {
   is_active: boolean;
   amount: number; // Viene del JOIN con plan_prices
   currency: string;
-  features?: any;
+  features?: Record<string, unknown>;
 }
 
 export interface UserSubscription {
@@ -24,9 +24,10 @@ export interface UserSubscription {
   currency: string;
   current_period_end?: Date;
   plan_name?: string;
+  allowed_types?: string[];
   features?: {
     custom_fee_percent?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   allowed_types?: string[];
 }

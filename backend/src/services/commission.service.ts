@@ -146,7 +146,7 @@ export class CommissionService {
               feeApplied: 0,
               netAmount: affiliateAmount,
               currency: orderCurrency,
-              type: 'affiliate' as any,
+              type: 'affiliate',
               status: 'pending',
             },
             client
@@ -164,7 +164,7 @@ export class CommissionService {
             order_id: order.id,
             amount: affiliateAmount,
             currency: orderCurrency,
-            type: 'sale_affiliate' as any,
+            type: 'sale_affiliate',
             description: `Comisión afiliado: ${product.title}${order.discount_applied > 0 ? ' (Cupón aplicado)' : ''}`,
           });
         }
@@ -185,7 +185,7 @@ export class CommissionService {
           feeApplied: totalPlatformFee,
           netAmount: creatorNetAmount,
           currency: orderCurrency,
-          type: 'creator' as any,
+          type: 'creator',
           status: 'pending',
         },
         client
@@ -203,7 +203,7 @@ export class CommissionService {
         order_id: order.id,
         amount: creatorNetAmount,
         currency: orderCurrency,
-        type: 'sale_creator' as any,
+        type: 'sale_creator',
         description: `Venta: ${product.title}${order.discount_applied > 0 ? ` (Dcto: ${order.discount_applied})` : ''}`,
       });
 

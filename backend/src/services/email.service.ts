@@ -19,10 +19,10 @@ try {
       connectionTimeout: 10000,
     });
   } else {
-    // Usamos 'as any' para que en tests no pida todas las propiedades de Nodemailer
+    // Usamos un mock mínimo para que en tests no intente conectar SMTP
     transporter = {
       sendMail: async () => ({ messageId: 'test-id' }),
-    } as any;
+    } as unknown as Transporter;
   }
 } catch {
   logger.error('❌ Error crítico inicializando el transporte de Email');

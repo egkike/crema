@@ -462,6 +462,22 @@ vi.mock('../utils/logger', () => ({
   },
 }));
 
+// --- OTPlib mock (used by twoFactor.service.ts) ---
+vi.mock('otplib', () => ({
+  Authenticator: class {
+    generateSecret = () => 'JBSWY3DPEHPK3PXP';
+    keyuri = () => 'otpauth://totp/Test:user@test.com?secret=JBSWY3DPEHPK3PXP';
+    verify = () => true;
+  },
+}));
+
+// --- QRCode mock (used by twoFactor.service.ts) ---
+vi.mock('qrcode', () => ({
+  default: {
+    toDataURL: vi.fn(() => Promise.resolve('data:image/png;base64,mock')),
+  },
+}));
+
 export const extractCookies = (res: { headers: Record<string, string | string[] | undefined> }) => {
   const cookies = res.headers['set-cookie'];
   if (!Array.isArray(cookies)) {

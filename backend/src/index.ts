@@ -66,9 +66,10 @@ const handleShutdown = async (signal: string) => {
 
     clearTimeout(forceExitTimeout);
 
-    // logger.flush() asegura que los mensajes en memoria se envíen a los transportes (archivo/consola)
-    if ((logger as any).flush) {
-      (logger as any).flush();
+    // logger.flush() asegura que los mensajes en memoria se envíen a los transportes
+    const pinoLogger = logger as typeof logger & { flush?: () => void };
+    if (pinoLogger.flush) {
+      pinoLogger.flush();
     }
     logger.info('SISTEMA: Apagado completado con éxito. 👋');
 
