@@ -1,117 +1,117 @@
-# Security Documentation
+# Documentación de Seguridad
 
-This document outlines the security measures, vulnerabilities addressed, and best practices implemented in the Crema backend.
+Este documento describe las medidas de seguridad, vulnerabilidades corregidas y mejores prácticas implementadas en el backend de Crema.
 
-> **Last Updated:** 2026
-> **Review Frequency:** Quarterly
+> **Última Actualización:** 2026
+> **Frecuencia de Revisión:** Trimestral
 
 ---
 
-## Table of Contents
+## Tabla de Contenidos
 
-1. [Security Architecture](#security-architecture)
-2. [Authentication & Authorization](#authentication--authorization)
-3. [Input Validation](#input-validation)
+1. [Arquitectura de Seguridad](#arquitectura-de-seguridad)
+2. [Autenticación y Autorización](#autenticación-y-autorización)
+3. [Validación de Entrada](#validación-de-entrada)
 4. [Rate Limiting](#rate-limiting)
-5. [Payment Security](#payment-security)
-6. [Database Security](#database-security)
-7. [Security Headers](#security-headers)
-8. [Audit Checklist](#audit-checklist)
+5. [Seguridad en Pagos](#seguridad-en-pagos)
+6. [Seguridad de Base de Datos](#seguridad-de-base-de-datos)
+7. [Cabeceras de Seguridad](#cabeceras-de-seguridad)
+8. [Lista de Auditoría](#lista-de-auditoría)
 
 ---
 
-## Security Architecture
+## Arquitectura de Seguridad
 
-### Defense in Depth
+### Defensa en Profundidad
 
-Crema implements multiple layers of security:
+Crema implementa múltiples capas de seguridad:
 
 ```
 ┌─────────────────────────────────────┐
-│        Security Headers             │  ← Helmet.js
+│        Cabeceras de Seguridad       │  ← Helmet.js
 ├─────────────────────────────────────┤
 │        Rate Limiting                │  ← express-rate-limit
 ├─────────────────────────────────────┤
-│        Authentication                │  ← JWT + 2FA
+│        Autenticación                │  ← JWT + 2FA
 ├─────────────────────────────────────┤
-│        Input Validation              │  ← Zod schemas
+│        Validación de Entrada        │  ← Esquemas Zod
 ├─────────────────────────────────────┤
-│        Authorization                │  ← RBAC + Ownership checks
+│        Autorización                │  ← RBAC + Verificación de propiedad
 ├─────────────────────────────────────┤
-│        Database                     │  ← Parameterized queries
+│        Base de Datos               │  ← Consultas parametrizadas
 └─────────────────────────────────────┘
 ```
 
 ---
 
-## Authentication & Authorization
+## Autenticación y Autorización
 
-### JWT Implementation
+### Implementación de JWT
 
-- **Access Tokens:** Short-lived (configurable), stored in httpOnly cookies
-- **Refresh Tokens:** Longer-lived, rotated on use
-- **Token Storage:** Cookies with `httpOnly`, `secure`, `sameSite: 'strict'`
+- **Tokens de Acceso:** Corto plazo (configurable), almacenados en cookies httpOnly
+- **Tokens de Refresh:** Más largo plazo, rotados en cada uso
+- **Almacenamiento de Tokens:** Cookies con `httpOnly`, `secure`, `sameSite: 'strict'`
 
 ```typescript
-// JWT Configuration
+// Configuración JWT
 const token = jwt.sign(payload, config.jwtSecret, {
-  expiresIn: '15m',  // Access token
+  expiresIn: '15m',  // Token de acceso
   algorithm: 'HS256'
 });
 ```
 
-### Password Security
+### Seguridad de Contraseñas
 
-- **Algorithm:** bcrypt with 12 salt rounds
-- **Pepper:** Additional secret configured via environment
-- **Verification:** Constant-time comparison to prevent timing attacks
+- **Algoritmo:** bcrypt con 12 rondas de salt
+- **Pepper:** Secreto adicional configurado vía variables de entorno
+- **Verificación:** Comparación de tiempo constante para prevenir ataques de tiempo
 
 ```typescript
-// Password hashing
+// Hash de contraseña
 const hash = await bcrypt.hash(passwordWithPepper, 12);
 
-// Password verification
+// Verificación de contraseña
 const isValid = await bcrypt.compare(password + pepper, storedHash);
 ```
 
-### Two-Factor Authentication (2FA)
+### Autenticación de Dos Factores (2FA)
 
-- TOTP-based (Google Authenticator compatible)
-- Partial tokens for first-time password change
-- Separate verification flow
+- Basada en TOTP (compatible con Google Authenticator)
+- Tokens parciales para cambio de contraseña primerizo
+- Flujo de verificación separado
 
-### Role-Based Access Control (RBAC)
+### Control de Acceso Basado en Roles (RBAC)
 
 ```typescript
-// Admin-only routes
+// Rutas solo admin
 router.get('/admin/users', jwtAuthMiddleware, restrictTo('ADMIN'), handler);
 ```
 
 ---
 
-## Input Validation
+## Validación de Entrada
 
-### Zod Schema Validation
+### Validación con Esquemas Zod
 
-All user inputs are validated using Zod schemas:
+Todas las entradas de usuario se validan usando esquemas Zod:
 
 ```typescript
-// Example: Login validation
+// Ejemplo: Validación de login
 export const loginSchema = z.object({
   email: z.string().email().optional(),
   username: z.string().optional(),
-  password: z.string().min(1, 'Password required'),
+  password: z.string().min(1, 'La contraseña es requerida'),
 }).refine(data => data.email || data.username, {
-  message: 'Email or username required'
+  message: 'Se requiere email o nombre de usuario'
 });
 ```
 
-### Query Parameter Validation
+### Validación de Parámetros de Query
 
-Numeric parameters are clamped to safe bounds:
+Los parámetros numéricos se限an a rangos seguros:
 
 ```typescript
-// Safe pagination
+// Paginación segura
 const limit = parseClamped(req.query.limit, 20, 1, 100);
 const offset = parseClamped(req.query.offset, 0, 0, 10000);
 ```
@@ -120,130 +120,130 @@ const offset = parseClamped(req.query.offset, 0, 0, 10000);
 
 ## Rate Limiting
 
-### Implemented Limiters
+### Limitadores Implementados
 
-| Limiter | Endpoint | Limit | Window |
-|---------|----------|-------|--------|
-| `loginLimiter` | POST /auth/login | 5 attempts | 15 min |
-| `refreshLimiter` | POST /auth/refresh | 10 requests | 30 min |
-| `apiLimiter` | General protected | 100 requests | 1 min |
-| `aiLimiter` | AI endpoints | 30 requests | 1 min |
-| `aiChatLimiter` | AI chat streams | 10 requests | 1 min |
+| Limitador | Endpoint | Límite | Ventana |
+|-----------|----------|--------|---------|
+| `loginLimiter` | POST /auth/login | 5 intentos | 15 min |
+| `refreshLimiter` | POST /auth/refresh | 10 solicitudes | 30 min |
+| `apiLimiter` | General protegido | 100 solicitudes | 1 min |
+| `aiLimiter` | Endpoints de AI | 30 solicitudes | 1 min |
+| `aiChatLimiter` | Streams de chat AI | 10 solicitudes | 1 min |
 
-### Response Headers
+### Cabeceras de Respuesta
 
-All limiters return standard rate limit headers:
+Todos los limitadores devuelven cabeceras estándar de rate limit:
 - `RateLimit-Limit`
 - `RateLimit-Remaining`
 - `RateLimit-Reset`
 
 ---
 
-## Payment Security
+## Seguridad en Pagos
 
-### MercadoPago Integration
+### Integración con MercadoPago
 
-- **Webhook Verification:** HMAC-SHA256 signature validation
-- **Idempotency:** Prevents duplicate payment processing
-- **Refund Validation:** Amount verification before processing
+- **Verificación de Webhooks:** Validación de firma HMAC-SHA256
+- **Idempotencia:** Previene procesamiento duplicado de pagos
+- **Validación de Reembolso:** Verificación de monto antes de procesar
 
 ```typescript
-// Webhook signature verification
+// Verificación de firma de webhook
 const manifest = `id:${resourceId};request-id:${xRequestId};ts:${ts};`;
 const hmac = crypto.createHmac('sha256', webhookSecret).update(manifest);
 if (hmac !== hash) {
-  return null; // Invalid signature
+  return null; // Firma inválida
 }
 ```
 
-### Credit Transactions
+### Transacciones de Créditos
 
-- Atomic operations with rollback
-- Balance checks before deduction
-- Audit logging for all transactions
+- Operaciones atómicas con rollback
+- Verificación de saldo antes de deducciones
+- Logging de auditoría para todas las transacciones
 
 ---
 
-## Database Security
+## Seguridad de Base de Datos
 
-### SQL Injection Prevention
+### Prevención de SQL Injection
 
-- **Parameterized queries:** All values use `$1, $2` placeholders
-- **Schema allowlist:** Only pre-defined schemas allowed
-- **No string concatenation:** Query building via parameterized statements
+- **Consultas parametrizadas:** Todos los valores usan marcadores `$1, $2`
+- **Lista blanca de esquemas:** Solo esquemas predefinidos permitidos
+- **Sin concatenación de strings:** Construcción de consultas mediante declaraciones parametrizadas
 
 ```typescript
-// ✅ Safe - parameterized
+// ✅ Seguro - parametricado
 pool.query('SELECT * FROM users WHERE id = $1', [userId]);
 
-// ❌ Unsafe - string concatenation
+// ❌ Inseguro - concatenación de strings
 pool.query(`SELECT * FROM users WHERE id = '${userId}'`);
 ```
 
-### Schema Validation
+### Validación de Esquemas
 
 ```typescript
 const ALLOWED_SCHEMAS = ['public', 'crema'];
-const schema = getValidatedSchema(); // Validates against allowlist
+const schema = getValidatedSchema(); // Valida contra lista blanca
 ```
 
 ---
 
-## Security Headers
+## Cabeceras de Seguridad
 
-Implemented via Helmet.js:
+Implementadas vía Helmet.js:
 
-| Header | Value |
-|--------|-------|
+| Cabecera | Valor |
+|----------|-------|
 | `X-Content-Type-Options` | nosniff |
 | `X-Frame-Options` | DENY |
 | `X-XSS-Protection` | 1; mode=block |
 | `Strict-Transport-Security` | max-age=31536000 |
-| `Content-Security-Policy` | configured for API |
+| `Content-Security-Policy` | configurado para API |
 
 ---
 
-## Audit Checklist
+## Lista de Auditoría
 
-Before every commit, verify:
+Antes de cada commit, verificar:
 
-- [ ] No hardcoded passwords, API keys, or secrets
-- [ ] All user inputs validated with Zod
-- [ ] All database queries use parameterized statements
-- [ ] Auth middleware protects private routes
-- [ ] Error messages don't expose internal details
-- [ ] Environment variables documented in `.env.example`
-- [ ] Rate limiting configured on public endpoints
-- [ ] Dependencies have no known vulnerabilities (`pnpm audit`)
-
----
-
-## Vulnerabilities Addressed
-
-### Fixed in Previous Sessions
-
-| Vulnerability | Status | Fix Applied |
-|---------------|--------|--------------|
-| Missing product ownership verification | ✅ Fixed | Ownership checks added to 9+ endpoints |
-| SQL injection via schema interpolation | ✅ Fixed | Schema allowlist validation |
-| Missing rate limiting on AI endpoints | ✅ Fixed | aiLimiter/aiChatLimiter applied |
-| Missing admin RBAC on reports | ✅ Fixed | restrictTo('ADMIN') added |
-| Error messages exposing internals | ✅ Fixed | Generic error messages |
-| Missing Zod input validation | ✅ Fixed | Schemas applied to all endpoints |
-| Type safety issues (req.user!) | ✅ Fixed | Proper type annotations |
-| Missing credits refund on abort | ✅ Fixed | AbortSignal support |
-| SSE connection check | ✅ Fixed | writableEnded verification |
+- [ ] Sin contraseñas hardcodeadas, API keys o secretos
+- [ ] Todas las entradas de usuario validadas con Zod
+- [ ] Todas las consultas a base de datos usan declaraciones parametrizadas
+- [ ] Middleware de auth protege rutas privadas
+- [ ] Mensajes de error no exponen detalles internos
+- [ ] Variables de entorno documentadas en `.env.example`
+- [ ] Rate limiting configurado en endpoints públicos
+- [ ] Dependencias sin vulnerabilidades conocidas (`pnpm audit`)
 
 ---
 
-## Reporting Security Issues
+## Vulnerabilidades Corregidas
 
-If you discover a security vulnerability, please report it to the security team immediately. Do not create a public GitHub issue.
+### Corregido en Sesiones Anteriores
+
+| Vulnerabilidad | Estado | Corrección Aplicada |
+|---------------|--------|---------------------|
+| Falta verificación de propiedad de producto | ✅ Corregido | Verificaciones de propiedad agregadas a 9+ endpoints |
+| SQL injection via interpolación de esquema | ✅ Corregido | Validación de lista blanca de esquemas |
+| Falta rate limiting en endpoints de AI | ✅ Corregido | aiLimiter/aiChatLimiter aplicados |
+| Falta RBAC admin en reportes | ✅ Corregido | restrictTo('ADMIN') agregado |
+| Mensajes de error exponiendo internos | ✅ Corregido | Mensajes de error genéricos |
+| Falta validación de entrada con Zod | ✅ Corregido | Esquemas aplicados a todos los endpoints |
+| Problemas de type safety (req.user!) | ✅ Corregido | Anotaciones de tipo adecuadas |
+| Falta reembolso de créditos en abort | ✅ Corregido | Soporte de AbortSignal |
+| Verificación de conexión SSE | ✅ Corregido | Verificación de writableEnded |
 
 ---
 
-## Related Documentation
+## Reportando Problemas de Seguridad
 
-- [Authentication API](./api/authentication.md)
-- [Error Handling](./api/errors.md)
-- [Payment Endpoints](./api/endpoints/payments.md)
+Si descubrís una vulnerabilidad de seguridad, por favor reportala al equipo de seguridad inmediatamente. No crees un issue público en GitHub.
+
+---
+
+## Documentación Relacionada
+
+- [API de Autenticación](./api/authentication.md)
+- [Manejo de Errores](./api/errors.md)
+- [Endpoints de Pagos](./api/endpoints/payments.md)
