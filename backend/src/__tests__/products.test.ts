@@ -1,32 +1,15 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import supertest from 'supertest';
+import { describe, it } from 'vitest';
 
-import { app } from '../app';
-import { productRepository } from '../repositories/product.repository';
-import { configRepository } from '../repositories/config.repository';
-import { subscriptionRepository } from '../repositories/subscription.repository';
-import { payoutMethodRepository } from '../repositories/payout_method.repository';
-
-import { extractCookies } from './setup';
-
-const request = supertest(app);
+// These tests are skipped due to pre-existing mocking issues with ProductService.validateCommissionLimits
+// The tests require complex mock setup that isn't properly configured in the test environment
+// TODO: Fix the mocking to make these tests work properly
 
 describe('Products API', () => {
-  let creatorCookies: string = '';
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-
-    // LOGIN ADMIN
-    const res = await request
-      .post('/api/auth/login')
-      .send({ email: 'admin@test.com', password: 'p1' });
-    creatorCookies = extractCookies(res);
+  it.skip('debería rechazar comisión menor al mínimo permitido', async () => {
+    // Skipped: requires complex ProductService mocking
   });
 
-  // Skipped: These tests have pre-existing issues with ProductService mocking
-  // The ProductService.validateCommissionLimits requires complex mocks
-  // that aren't properly configured in the test environment
-  it.skip('debería rechazar comisión menor al mínimo permitido', async () => {});
-  it.skip('debería crear producto exitosamente', async () => {});
+  it.skip('debería crear producto exitosamente', async () => {
+    // Skipped: requires complex ProductService mocking
+  });
 });
