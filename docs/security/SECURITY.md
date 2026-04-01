@@ -160,6 +160,35 @@ if (hmac !== hash) {
 }
 ```
 
+### Integración con Blockonomics (Crypto USDT)
+
+- **Webhook Authentication:** Validación obligatoria de secret con timing-safe comparison
+- **Replay Protection:** Map de `processedTxids` con TTL de 1 hora y cleanup LRU
+- **Amount Validation:** Sanity check mínimo (100000 satoshis/wei), NaN rejection
+- **Race Condition Protection:** Final status check dentro de transacción con row lock
+- **Query Param Sanitization:** Normalización de arrays a strings para prevenir type confusion
+- **Rate Limiting:** 60 req/min por IP en endpoint de webhook
+- **Transaction ID Persistence:** Hash de blockchain persistido en orden para auditoría
+- **No Refunds:** Las transacciones crypto son irreversibles — `supports_refunds = false`
+- **No Subscriptions:** Blockonomics no soporta pagos recurrentes — `supports_subscriptions = false`
+
+```typescript
+// Webhook secret validation (timing-safe)
+const secretBuffer = Buffer.from(String(secret));
+const expectedBuffer = Buffer.from(config.blockonomics.webhookSecret);
+if (!crypto.timingSafeEqual(secretBuffer, expectedBuffer)) {
+  return null; // Firma inválida
+}
+
+// Replay protection
+if (BlockonomicsProvider.isTxidProcessed(txid)) {
+  return null; // Ya procesado
+}
+BlockonomicsProvider.markTxidProcessed(txid);
+```
+
+> **Documentación completa:** Ver `docs/project/crypto-usdt-gateway/SECURITY-CRYPTO.md` para detalles de wallet security, AML compliance, incident response, y legal requirements.
+
 ### Transacciones de Créditos
 
 - Operaciones atómicas con rollback
@@ -618,6 +647,35 @@ Antes de cada commit, verificar:
 | Error re-thrown sin wrapper | ✅ Corregido | Envuelto en AppError |
 | SQL LIMIT sanitización incompleta | ✅ Corregido | Maneja LIMIT ALL, OFFSET, FETCH FIRST |
 
+### Corregido en Implementación Blockonomics (2026-04-01)
+
+| Vulnerabilidad | Estado | Corrección Aplicada |
+|---------------|--------|---------------------|
+| Webhook sin autenticación obligatoria | ✅ Corregido | Validación mandatory de secret con timing-safe comparison |
+| No replay protection en webhooks | ✅ Corregido | Map `processedTxids` con TTL de 1 hora y cleanup LRU |
+| NaN bypass de amount validation | ✅ Corregido | `Number.isNaN(value)` check + minimum threshold 100000 |
+| `transaction_id` descartado silenciosamente | ✅ Corregido | Persistido dentro de transacción en `completeOrder` |
+| Race condition en webhook concurrente | ✅ Corregido | `finalStatuses` check dentro de transacción con row lock |
+| `transaction_id` fuera de transacción | ✅ Corregido | Removido update externo, solo dentro de transacción |
+| `monitorUSDTTransaction` sin `response.ok` check | ✅ Corregido | Lanza `AppError` si API retorna error |
+| `monitorUSDTTransaction` sin timeout | ✅ Corregido | AbortController con 5s timeout |
+| `callbackUrl` validation después del fetch | ✅ Corregido | Validación antes del fetch |
+| `addressOrderMap` memory leak | ✅ Corregido | `setTimeout.unref()` + size limit 10000 |
+| `processedTxids` O(n log n) sort | ✅ Corregido | Iterator-based O(n) cleanup sin sorting |
+| `req.query` sin sanitización | ✅ Corregido | Normalización de arrays a strings en controller |
+| Unhandled promise rejection en webhook | ✅ Corregido | `.catch()` handler en async IIFE |
+| Webhook sin rate limiting | ✅ Corregido | 60 req/min por IP |
+| `gatewayFee` Infinity bypass | ✅ Corregido | `Number.isFinite()` check |
+| Doble update de fees fuera/ dentro de transacción | ✅ Corregido | Solo dentro de transacción |
+| `any` types en PaymentProvider interface | ✅ Corregido | `Record<string, unknown>` y tipos específicos |
+| `supports_refunds` y `supports_subscriptions` faltantes | ✅ Corregido | Columnas agregadas + seeds con ON CONFLICT |
+| `order_ref` sin URL encoding | ✅ Corregido | `encodeURIComponent()` en callback URL |
+| `checkoutUrl` sin URL encoding | ✅ Corregido | `encodeURIComponent()` en address y amount |
+| `handleWebhook` traga todos los errores | ✅ Corregido | Re-throw de non-AppError exceptions |
+| `createPreference` sin validación de amount | ✅ Corregido | Zod schema en payment.controller.ts |
+| MercadoPagoProvider `catch (error: any)` | ✅ Corregido | 4x `error: unknown` con type narrowing |
+| SimulatorProvider usa `console` en vez de `logger` | ✅ Corregido | Reemplazado con `logger.info()` |
+
 ### Cambios en CSP (2026-03-31)
 
 | Antes | Después | Reason |
@@ -639,3 +697,6 @@ Si descubrís una vulnerabilidad de seguridad, por favor reportala al equipo de 
 - [API de Autenticación](./api/authentication.md)
 - [Manejo de Errores](./api/errors.md)
 - [Endpoints de Pagos](./api/endpoints/payments.md)
+- [Seguridad Crypto USDT](../project/crypto-usdt-gateway/SECURITY-CRYPTO.md) — Wallet security, AML, incident response
+- [PRD Crypto USDT](../project/crypto-usdt-gateway/PRD.md) — Product requirements
+- [TSD Crypto USDT](../project/crypto-usdt-gateway/specs/TSD-Pasarela-Crypto-USDT.md) — Technical specification
