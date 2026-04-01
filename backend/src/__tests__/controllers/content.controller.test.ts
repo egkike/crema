@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Request, Response } from 'express';
 
 // Mock dependencies
 const mockQuery = vi.fn();
@@ -37,14 +38,12 @@ vi.mock('../../utils/logger', () => ({
   },
 }));
 
-// Mock fs and path
 vi.mock('fs', () => ({
   default: {
     existsSync: vi.fn(),
   },
 }));
 
-import { Request, Response } from 'express';
 import {
   getProductContent,
   updateLessonProgress,
@@ -55,7 +54,6 @@ import {
 } from '../../controllers/content.controller';
 import { productRepository } from '../../repositories/product.repository';
 import { AccessService } from '../../services/access.service';
-import fs from 'fs';
 
 describe('content.controller.ts', () => {
   let req: Partial<Request>;
