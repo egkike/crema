@@ -1,6 +1,7 @@
 import { subscriptionRepository, PlatformPlan } from '../repositories/subscription.repository';
 import { userRepository } from '../repositories/user.repository';
 import { configRepository } from '../repositories/config.repository';
+import { gatewayRepository } from '../repositories/gateway.repository';
 import { payoutMethodRepository } from '../repositories/payout_method.repository';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
 import { AppError } from '../errors/AppError';
@@ -51,7 +52,9 @@ export class SubscriptionService {
 
     const provider = PaymentProviderFactory.getProvider(gatewayId);
 
-    if (!provider.createSubscription) {
+    // Verificar si la pasarela soporta suscripciones
+    const supportsSubscriptions = await gatewayRepository.getSupportsSubscriptions(gatewayId);
+    if (!supportsSubscriptions || !provider.createSubscription) {
       throw new AppError('Este método de pago no soporta suscripciones recurrentes', 400);
     }
 
@@ -182,8 +185,9 @@ export class SubscriptionService {
       }
 
       return { message: 'Suscripción cancelada exitosamente' };
-    } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'Error crítico al cancelar suscripción');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ error: message, userId }, 'Error crítico al cancelar suscripción');
       if (!isWebhook) throw new AppError('No se pudo procesar la cancelación', 500);
     }
   }

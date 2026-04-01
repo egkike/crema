@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS payment_gateways (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     liquidity_delay_days INT DEFAULT 0,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    supports_refunds BOOLEAN DEFAULT TRUE,
+    supports_subscriptions BOOLEAN DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS product_types (

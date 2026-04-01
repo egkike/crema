@@ -101,7 +101,21 @@ export class OrderService {
       }
 
       // --- 1. LÓGICA DE LA DOBLE LLAVE (GARANTÍA + LIQUIDEZ) ---
-      const guaranteeDays = await systemRepository.resolveGuaranteeDays(product.id);
+      // Si la pasarela no soporta refunds (ej: crypto), garantía = 0
+      const supportsRefunds = await gatewayRepository.getSupportsRefunds(
+        lockedOrder.payment_method
+      );
+
+      let guaranteeDays = 0;
+      if (supportsRefunds) {
+        guaranteeDays = await systemRepository.resolveGuaranteeDays(product.id);
+      } else {
+        logger.info(
+          { orderId: lockedOrder.id, paymentMethod: lockedOrder.payment_method },
+          '⚠️ Pasarela sin soporte de refunds - Garantía establecida en 0 días'
+        );
+      }
+
       const gatewayLiquidityDays = await gatewayRepository.getLiquidityDays(
         lockedOrder.payment_method
       );
@@ -187,9 +201,10 @@ export class OrderService {
         },
         '✅ Orden completada y comisiones distribuidas'
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ orderId: order.id, error: error.message }, '💥 Error al completar la orden');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ orderId: order.id, error: message }, '💥 Error al completar la orden');
       throw error; // Re-lanzamos para que el webhook sepa que falló
     } finally {
       client.release();
@@ -199,8 +214,9 @@ export class OrderService {
   private static async triggerImmediateRelease(orderId: string) {
     try {
       await ReleaseService.processPendingBalances(false, orderId);
-    } catch (error: any) {
-      logger.error({ orderId, error: error.message }, '💥 Fallo en liberación inmediata');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ orderId, error: message }, '💥 Fallo en liberación inmediata');
     }
   }
 }
