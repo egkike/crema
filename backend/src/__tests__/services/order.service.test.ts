@@ -147,5 +147,52 @@ describe('OrderService', () => {
       );
       expect(txIdUpdateOutsideTransaction).toBeUndefined();
     });
+
+    it('should process refund when status is refunded', async () => {
+      vi.mocked(orderRepository.getByExternalRef).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        external_reference: 'ref-123',
+      } as any);
+
+      await OrderService.processPaymentNotification({
+        externalReference: 'ref-123',
+        status: 'refunded',
+      });
+
+      const { RefundService } = await import('../../services/refund.service');
+      expect(RefundService.processRefund).toHaveBeenCalledWith(ORDER_ID, 'Status: refunded');
+    });
+
+    it('should process refund when status is cancelled', async () => {
+      vi.mocked(orderRepository.getByExternalRef).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        external_reference: 'ref-123',
+      } as any);
+
+      await OrderService.processPaymentNotification({
+        externalReference: 'ref-123',
+        status: 'cancelled',
+      });
+
+      const { RefundService } = await import('../../services/refund.service');
+      expect(RefundService.processRefund).toHaveBeenCalledWith(ORDER_ID, 'Status: cancelled');
+    });
+
+    it('should not process unknown status', async () => {
+      vi.mocked(orderRepository.getByExternalRef).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        external_reference: 'ref-123',
+      } as any);
+
+      await OrderService.processPaymentNotification({
+        externalReference: 'ref-123',
+        status: 'unknown',
+      });
+
+      expect(orderRepository.updateByExternalRef).not.toHaveBeenCalled();
+    });
   });
 });
