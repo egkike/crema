@@ -464,11 +464,9 @@ vi.mock('../utils/logger', () => ({
 
 // --- OTPlib mock (used by twoFactor.service.ts) ---
 vi.mock('otplib', () => ({
-  authenticator: {
-    generateSecret: () => 'JBSWY3DPEHPK3PXP',
-    keyuri: () => 'otpauth://totp/Test:user@test.com?secret=JBSWY3DPEHPK3PXP',
-    verify: () => true,
-  },
+  generateSecret: () => 'JBSWY3DPEHPK3PXP',
+  generateURI: () => 'otpauth://totp/Test:user@test.com?secret=JBSWY3DPEHPK3PXP',
+  verifySync: () => true,
 }));
 
 // --- QRCode mock (used by twoFactor.service.ts) ---
