@@ -54,6 +54,10 @@ const envSchema = z.object({
   ANTHROPIC_MODEL: z.string().optional().default('claude-3-haiku-20240307'),
   GEMINI_API_KEY: z.string().optional().default(''),
   GEMINI_MODEL: z.string().optional().default('gemini-1.5-flash'),
+  // --- Blockonomics Configuration ---
+  BLOCKONOMICS_API_KEY: z.string().optional().default(''),
+  BLOCKONOMICS_CALLBACK_URL: z.string().optional().default(''),
+  BLOCKONOMICS_WEBHOOK_SECRET: z.string().optional().default(''),
 });
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -141,9 +145,9 @@ export const config = {
     from: env.EMAIL_FROM,
   },
   redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: Number(process.env.REDIS_PORT) || 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
+    host: env.REDIS_HOST || 'localhost',
+    port: env.REDIS_PORT || 6379,
+    password: env.REDIS_PASSWORD,
   },
   streaming: {
     cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
@@ -183,6 +187,11 @@ export const config = {
     // Default models for Ollama
     defaultOllamaChatModel: 'qwen2.5:3b',
     defaultOllamaEmbeddingModel: 'nomic-embed-text',
+  },
+  blockonomics: {
+    apiKey: env.BLOCKONOMICS_API_KEY,
+    callbackUrl: env.BLOCKONOMICS_CALLBACK_URL,
+    webhookSecret: env.BLOCKONOMICS_WEBHOOK_SECRET,
   },
 } as const;
 

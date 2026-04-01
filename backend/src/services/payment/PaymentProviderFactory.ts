@@ -3,11 +3,13 @@ import { AppError } from '../../errors/AppError';
 import { PaymentProvider } from './PaymentProvider';
 import { MercadoPagoProvider } from './providers/MercadoPagoProvider';
 import { SimulatorProvider } from './providers/SimulatorProvider';
+import { BlockonomicsProvider } from './providers/BlockonomicsProvider';
 
 export class PaymentProviderFactory {
   private static providers: Record<string, PaymentProvider> = {
     mercadopago: new MercadoPagoProvider(),
     simulator: new SimulatorProvider(),
+    blockonomics: new BlockonomicsProvider(),
   };
 
   static getProvider(gatewayId: string): PaymentProvider {
