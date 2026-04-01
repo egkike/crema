@@ -17,15 +17,15 @@ export class MercadoPagoProvider implements PaymentProvider {
     accessToken: config.mercadoPago?.accessToken || 'dummy_token',
   });
 
-  async createPreference(data: any): Promise<PaymentResponse> {
+  async createPreference(data: { product: Record<string, unknown>; amount: number; currency: string; externalReference: string; email: string; tempPassword?: string }): Promise<PaymentResponse> {
     const preference = new Preference(this.client);
 
     const response = await preference.create({
       body: {
         items: [
           {
-            id: String(data.product.id),
-            title: String(data.product.title),
+            id: String(data.product['id']),
+            title: String(data.product['title']),
             quantity: 1,
             unit_price: Number(data.amount),
             currency_id: data.currency,
@@ -62,8 +62,9 @@ export class MercadoPagoProvider implements PaymentProvider {
         payment_id: Number(transactionId),
         body: { amount: amount },
       });
-    } catch (error: any) {
-      throw new Error(`Error en Mercado Pago Refund: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Error en Mercado Pago Refund: ${message}`);
     }
   }
 
@@ -148,7 +149,7 @@ export class MercadoPagoProvider implements PaymentProvider {
     });
   }
 
-  async handleWebhook({ body, headers, query }: any): Promise<WebhookResult | null> {
+  async handleWebhook({ body, headers, query }: { body: Record<string, unknown>; headers: Record<string, string>; query: Record<string, string> }): Promise<WebhookResult | null> {
     const { action, type, data } = body;
     const xSignature = headers['x-signature'] as string;
     const xRequestId = headers['x-request-id'] as string;
@@ -181,8 +182,9 @@ export class MercadoPagoProvider implements PaymentProvider {
             }
           }
         }
-      } catch (err: any) {
-        logger.error({ err: err.message }, 'Error validando firma');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        logger.error({ err: message }, 'Error validando firma');
         return null;
       }
     }
@@ -202,7 +204,7 @@ export class MercadoPagoProvider implements PaymentProvider {
         let gatewayTax = 0;
 
         if (payment.fee_details && Array.isArray(payment.fee_details)) {
-          payment.fee_details.forEach((fee: any) => {
+          payment.fee_details.forEach((fee: Record<string, unknown>) => {
             // MP clasifica como 'mercadopago_fee' su comisión bruta
             if (fee.type === 'mercadopago_fee') {
               gatewayFee += Number(fee.amount || 0);
@@ -244,9 +246,10 @@ export class MercadoPagoProvider implements PaymentProvider {
           type: 'subscription',
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       logger.warn(
-        { rawId, error: error.message },
+        { rawId, error: message },
         'No se pudo verificar el recurso en la API de MP'
       );
       return null;

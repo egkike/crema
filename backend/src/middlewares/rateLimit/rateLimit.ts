@@ -96,3 +96,16 @@ export const aiChatLimiter = rateLimit({
     res.status(options.statusCode || 429).json(options.message);
   },
 });
+
+// Rate limiter permisivo para webhooks de pasarelas de pago
+// Las pasarelas pueden reintentar, así que el límite es alto
+export const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 60, // máximo 60 peticiones por minuto por IP (Blockonomics envía 1-3 por transacción)
+  message: {
+    success: false,
+    error: 'Demasiadas peticiones de webhook. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

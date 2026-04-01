@@ -2,9 +2,10 @@ import crypto from 'crypto';
 
 import { PaymentProvider, PaymentResponse, SubscriptionData, WebhookResult, CreditPreferenceData } from '../PaymentProvider';
 import { config } from '../../../config';
+import logger from '../../../utils/logger';
 
 export class SimulatorProvider implements PaymentProvider {
-  async createPreference(data: any): Promise<PaymentResponse> {
+  async createPreference(data: { product: Record<string, unknown>; amount: number; currency: string; externalReference: string; email: string; tempPassword?: string }): Promise<PaymentResponse> {
     const url = `${config.frontendUrl}/simulator/pay?ref=${data.externalReference}&amount=${data.amount}&currency=${data.currency}`;
     return { initPoint: url };
   }
@@ -22,7 +23,7 @@ export class SimulatorProvider implements PaymentProvider {
 
   async cancelSubscription(subscriptionId: string): Promise<void> {
     // En el simulador simplemente logueamos la acción
-    console.info(`[SIMULATOR] Suscripción cancelada exitosamente: ${subscriptionId}`);
+    logger.info(`[SIMULATOR] Suscripción cancelada exitosamente: ${subscriptionId}`);
     return Promise.resolve();
   }
 
@@ -36,11 +37,11 @@ export class SimulatorProvider implements PaymentProvider {
   }
 
   async refund(transactionId: string, amount: number): Promise<void> {
-    console.info(`[SIMULATOR] Reembolso procesado para TX: ${transactionId} por ${amount}`);
+    logger.info(`[SIMULATOR] Reembolso procesado para TX: ${transactionId} por ${amount}`);
     return Promise.resolve();
   }
 
-  async handleWebhook({ body }: any): Promise<WebhookResult | null> {
+  async handleWebhook({ body }: { body: Record<string, unknown>; headers: Record<string, string>; query: Record<string, string> }): Promise<WebhookResult | null> {
     return {
       externalReference: body.externalReference,
       status: body.status || 'approved',

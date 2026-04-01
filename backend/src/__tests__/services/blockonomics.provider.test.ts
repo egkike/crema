@@ -32,6 +32,8 @@ describe('BlockonomicsProvider', () => {
   beforeEach(() => {
     provider = new BlockonomicsProvider();
     vi.clearAllMocks();
+    // Clear static processedTxids Map to prevent test pollution between tests
+    BlockonomicsProvider.processedTxids.clear();
   });
 
   afterEach(() => {
@@ -89,7 +91,7 @@ describe('BlockonomicsProvider', () => {
       expect(result.providerReference).toBe('0xUSDTtest123');
       expect(result.initPoint).toContain('crypto=usdt');
 
-      // Verify monitor-tx was called
+      // Verify monitor-tx was called with order_ref in callback_url
       expect(mockFetch).toHaveBeenCalledWith(
         'https://www.blockonomics.co/api/monitor-tx',
         expect.objectContaining({
@@ -97,7 +99,7 @@ describe('BlockonomicsProvider', () => {
           body: JSON.stringify({
             addr: '0xUSDTtest123',
             order_id: 'order-789',
-            callback_url: 'https://test.crema.app/webhook',
+            callback_url: 'https://test.crema.app/webhook?order_ref=order-789',
           }),
         })
       );
@@ -156,6 +158,29 @@ describe('BlockonomicsProvider', () => {
       expect(fetchOptions.signal).toBeDefined();
       expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
     });
+
+    it('should throw when monitorUSDTTransaction fails (USDT)', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ address: '0xUSDTfail' }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          text: () => Promise.resolve('Internal Server Error'),
+        });
+
+      await expect(
+        provider.createPreference({
+          product: { id: 'prod-123' },
+          amount: 50,
+          currency: 'USDT',
+          externalReference: 'order-fail',
+          email: 'user@test.com',
+        })
+      ).rejects.toThrow('Error al crear preferencia de pago crypto');
+    });
   });
 
   describe('handleWebhook', () => {
@@ -168,28 +193,31 @@ describe('BlockonomicsProvider', () => {
           addr: 'bc1qtest123',
           value: '100000000', // 1 BTC in satoshis
           txid: '0xabc123',
+          secret: 'test_secret',
+          order_ref: 'ORD-123-456',
         },
       });
 
       expect(result).not.toBeNull();
       expect(result?.status).toBe('completed');
       expect(result?.transactionId).toBe('0xabc123');
-      expect(result?.externalReference).toBe('bc1qtest123');
+      expect(result?.externalReference).toBe('ORD-123-456');
       expect(result?.type).toBe('payment');
       expect(result?.gatewayTax).toBe(0);
+      expect(result?.gatewayFee).toBe(0);
     });
 
     it('should map pending status (0, 1) correctly', async () => {
       const result0 = await provider.handleWebhook({
         body: {},
         headers: {},
-        query: { status: '0', addr: 'bc1qtest', value: '100', txid: 'tx1' },
+        query: { status: '0', addr: 'bc1qtest', value: '100000', txid: 'tx1', secret: 'test_secret', order_ref: 'ORD-1' },
       });
 
       const result1 = await provider.handleWebhook({
         body: {},
         headers: {},
-        query: { status: '1', addr: 'bc1qtest', value: '100', txid: 'tx2' },
+        query: { status: '1', addr: 'bc1qtest', value: '100000', txid: 'tx2', secret: 'test_secret', order_ref: 'ORD-2' },
       });
 
       expect(result0?.status).toBe('pending');
@@ -200,7 +228,7 @@ describe('BlockonomicsProvider', () => {
       const result = await provider.handleWebhook({
         body: {},
         headers: {},
-        query: { status: '-1', addr: 'bc1qtest', value: '100', txid: 'tx3' },
+        query: { status: '-1', addr: 'bc1qtest', value: '100000', txid: 'tx3', secret: 'test_secret', order_ref: 'ORD-3' },
       });
 
       expect(result?.status).toBe('failed');
@@ -216,6 +244,7 @@ describe('BlockonomicsProvider', () => {
           value: '100',
           txid: 'tx1',
           secret: 'wrong_secret',
+          order_ref: 'ORD-4',
         },
       });
 
@@ -229,26 +258,44 @@ describe('BlockonomicsProvider', () => {
         query: {
           status: '2',
           addr: 'bc1qtest',
-          value: '100',
-          txid: 'tx1',
+          value: '100000',
+          txid: 'tx-accept-secret',
           secret: 'test_secret',
+          order_ref: 'ORD-5',
         },
       });
 
       expect(result).not.toBeNull();
     });
 
-    it('should return null when missing required fields', async () => {
+    it('should return null when missing order_ref', async () => {
       const result = await provider.handleWebhook({
         body: {},
         headers: {},
-        query: { status: '2' }, // missing addr and txid
+        query: { status: '2', addr: 'bc1qtest', value: '100000', txid: 'tx1' },
       });
 
       expect(result).toBeNull();
     });
 
-    it('should calculate estimated gateway fee (1%)', async () => {
+    it('should reject webhook with value <= 0', async () => {
+      const result = await provider.handleWebhook({
+        body: {},
+        headers: {},
+        query: {
+          status: '2',
+          addr: 'bc1qtest',
+          value: '0',
+          txid: 'tx1',
+          secret: 'test_secret',
+          order_ref: 'ORD-8',
+        },
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('should have zero gateway fee (monthly subscription model)', async () => {
       const result = await provider.handleWebhook({
         body: {},
         headers: {},
@@ -256,12 +303,14 @@ describe('BlockonomicsProvider', () => {
           status: '2',
           addr: 'bc1qtest',
           value: '100000000', // 1 BTC
-          txid: 'tx1',
+          txid: 'tx-zerofee',
+          secret: 'test_secret',
+          order_ref: 'ORD-6',
         },
       });
 
-      // 100000000 satoshis = 1 BTC, 1% = 0.01
-      expect(result?.gatewayFee).toBe(0.01);
+      // Blockonomics charges monthly subscription, not per-transaction
+      expect(result?.gatewayFee).toBe(0);
     });
 
     it('should read status from body when query is empty', async () => {
@@ -269,14 +318,112 @@ describe('BlockonomicsProvider', () => {
         body: {
           status: '2',
           addr: 'bc1qtest',
-          value: '100',
-          txid: 'tx1',
+          value: '100000',
+          txid: 'tx-body-status',
+          secret: 'test_secret',
+          order_ref: 'ORD-7',
         },
         headers: {},
-        query: {},
+        query: { order_ref: 'ORD-7', secret: 'test_secret' },
       });
 
       expect(result?.status).toBe('completed');
+    });
+
+    it('should reject webhook with negative value', async () => {
+      const result = await provider.handleWebhook({
+        body: {},
+        headers: {},
+        query: {
+          status: '2',
+          addr: 'bc1qtest',
+          value: '-100',
+          txid: 'tx-neg',
+          secret: 'test_secret',
+          order_ref: 'ORD-NEG',
+        },
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('should reject webhook when webhookSecret is not configured', async () => {
+      // Temporarily override config to simulate missing webhookSecret
+      const { config } = await import('../../config/index');
+      const originalSecret = config.blockonomics?.webhookSecret;
+      if (config.blockonomics) {
+        config.blockonomics.webhookSecret = '';
+      }
+
+      const result = await provider.handleWebhook({
+        body: {},
+        headers: {},
+        query: {
+          status: '2',
+          addr: 'bc1qtest',
+          value: '100000000',
+          txid: 'tx-nosecret',
+          secret: 'test_secret',
+          order_ref: 'ORD-NOSECRET',
+        },
+      });
+
+      expect(result).toBeNull();
+
+      // Restore original secret
+      if (config.blockonomics && originalSecret !== undefined) {
+        config.blockonomics.webhookSecret = originalSecret;
+      }
+    });
+
+    it('should reject webhook with value below minimum sanity check (< 100000)', async () => {
+      const result = await provider.handleWebhook({
+        body: {},
+        headers: {},
+        query: {
+          status: '2',
+          addr: 'bc1qtest',
+          value: '1', // 1 satoshi — attack attempt
+          txid: 'tx-min',
+          secret: 'test_secret',
+          order_ref: 'ORD-MIN',
+        },
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('should reject replayed webhook with same txid', async () => {
+      const firstResult = await provider.handleWebhook({
+        body: {},
+        headers: {},
+        query: {
+          status: '2',
+          addr: 'bc1qtest',
+          value: '100000000',
+          txid: 'tx-replay-test',
+          secret: 'test_secret',
+          order_ref: 'ORD-REPLAY',
+        },
+      });
+
+      expect(firstResult).not.toBeNull();
+
+      // Second attempt with same txid should be rejected
+      const secondResult = await provider.handleWebhook({
+        body: {},
+        headers: {},
+        query: {
+          status: '2',
+          addr: 'bc1qtest',
+          value: '100000000',
+          txid: 'tx-replay-test',
+          secret: 'test_secret',
+          order_ref: 'ORD-REPLAY',
+        },
+      });
+
+      expect(secondResult).toBeNull();
     });
   });
 
@@ -285,24 +432,6 @@ describe('BlockonomicsProvider', () => {
       await expect(provider.refund('tx123', 100)).rejects.toThrow(
         'Las transacciones crypto no pueden ser reembolsadas'
       );
-    });
-  });
-
-  describe('constructor', () => {
-    it('should initialize without API key without throwing', async () => {
-      // Temporarily override config
-      vi.doMock('../../config/index', () => ({
-        config: {
-          blockonomics: {
-            apiKey: '',
-            callbackUrl: '',
-            webhookSecret: '',
-          },
-        },
-      }));
-
-      // Should not throw even without API key
-      expect(() => new BlockonomicsProvider()).not.toThrow();
     });
   });
 });

@@ -110,20 +110,20 @@ describe('gatewayRepository', () => {
       expect(result).toBe(true);
     });
 
-    it('should default to true when gateway not found', async () => {
+    it('should default to false when gateway not found (fail-safe)', async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
 
       const result = await gatewayRepository.getSupportsRefunds('unknown');
 
-      expect(result).toBe(true);
+      expect(result).toBe(false);
     });
 
-    it('should default to true on DB error', async () => {
+    it('should default to false on DB error (fail-safe)', async () => {
       mockQuery.mockRejectedValueOnce(new Error('DB error'));
 
       const result = await gatewayRepository.getSupportsRefunds('blockonomics');
 
-      expect(result).toBe(true);
+      expect(result).toBe(false);
     });
   });
 
@@ -144,12 +144,12 @@ describe('gatewayRepository', () => {
       expect(result).toBe(true);
     });
 
-    it('should default to true when gateway not found', async () => {
+    it('should default to false when gateway not found (fail-safe)', async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
 
       const result = await gatewayRepository.getSupportsSubscriptions('unknown');
 
-      expect(result).toBe(true);
+      expect(result).toBe(false);
     });
   });
 });

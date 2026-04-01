@@ -79,11 +79,11 @@ export const gatewayRepository = {
 
     try {
       const { rows } = await pool.query(query, [gatewayId]);
-      return rows.length > 0 ? (rows[0].supports_refunds ?? true) : true;
+      return rows.length > 0 ? (rows[0].supports_refunds ?? false) : false;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.warn({ error: message, gatewayId }, '⚠️ Error getSupportsRefunds, defaults to true');
-      return true;
+      logger.warn({ error: message, gatewayId }, '⚠️ Error getSupportsRefunds, defaults to false');
+      return false;
     }
   },
 
@@ -101,11 +101,11 @@ export const gatewayRepository = {
 
     try {
       const { rows } = await pool.query(query, [gatewayId]);
-      return rows.length > 0 ? (rows[0].supports_subscriptions ?? true) : true;
+      return rows.length > 0 ? (rows[0].supports_subscriptions ?? false) : false;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.warn({ error: message, gatewayId }, '⚠️ Error getSupportsSubscriptions, defaults to true');
-      return true;
+      logger.warn({ error: message, gatewayId }, '⚠️ Error getSupportsSubscriptions, defaults to false');
+      return false;
     }
   },
 };

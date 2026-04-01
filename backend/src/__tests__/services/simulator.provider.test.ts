@@ -65,29 +65,13 @@ describe('SimulatorProvider', () => {
 
   describe('cancelSubscription', () => {
     it('should resolve without error', async () => {
-      const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
-
       await expect(provider.cancelSubscription('SUB-123')).resolves.toBeUndefined();
-      
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('cancelada')
-      );
-
-      consoleSpy.mockRestore();
     });
   });
 
   describe('refund', () => {
     it('should resolve without error', async () => {
-      const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
-
       await expect(provider.refund('TX-123', 500)).resolves.toBeUndefined();
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Reembolso')
-      );
-
-      consoleSpy.mockRestore();
     });
   });
 

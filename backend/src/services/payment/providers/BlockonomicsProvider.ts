@@ -28,6 +28,16 @@ import logger from '../../../utils/logger';
 export class BlockonomicsProvider implements PaymentProvider {
   private readonly apiKey: string;
   private readonly baseUrl = 'https://www.blockonomics.co/api';
+  // Map payment address -> externalReference for BTC webhooks (store-level callback URL doesn't support per-transaction params)
+  private readonly addressOrderMap = new Map<string, string>();
+  // Replay protection: track processed txids with TTL
+  // LIMITACIÓN: Este Map en memoria se pierde al reiniciar el proceso.
+  // La solución definitiva requiere Redis o tabla en DB para persistencia cross-restart.
+  // El Map actual sigue siendo útil para protección dentro de la misma sesión del proceso.
+  private static readonly processedTxids = new Map<string, number>();
+  private static readonly TXID_TTL_MS = 60 * 60 * 1000; // 1 hour
+  private static readonly MAX_TXIDS = 10000;
+  private static readonly CLEANUP_THRESHOLD = 5000;
 
   constructor() {
     this.apiKey = config.blockonomics?.apiKey || '';
@@ -63,20 +73,23 @@ export class BlockonomicsProvider implements PaymentProvider {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(`${this.baseUrl}/new_address`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          addr_count: 1,
-          show_addr: true,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
+      let response: Response;
+      try {
+        response = await fetch(`${this.baseUrl}/new_address`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            addr_count: 1,
+            show_addr: true,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -92,15 +105,41 @@ export class BlockonomicsProvider implements PaymentProvider {
 
       const paymentAddress = result.address;
 
-      // 2. Para USDT, monitorear la transacción
+      // 2. Build callback URL with order_ref for ALL currencies
+      // Blockonomics forwards callback URL params in the webhook, so order_ref
+      // is available for both BTC and USDT webhooks.
+      const callbackBaseUrl = config.blockonomics?.callbackUrl || '';
+      const callbackUrl = callbackBaseUrl
+        ? (callbackBaseUrl.includes('?')
+            ? `${callbackBaseUrl}&order_ref=${encodeURIComponent(data.externalReference)}`
+            : `${callbackBaseUrl}?order_ref=${encodeURIComponent(data.externalReference)}`)
+        : '';
+
+      // 3. For USDT, register the address with Blockonomics monitor-tx API
       if (data.currency === 'USDT') {
-        await this.monitorUSDTTransaction(paymentAddress, data.externalReference);
+        await this.monitorUSDTTransaction(paymentAddress, data.externalReference, callbackUrl);
       }
 
-      // 3. Construir URL de pago
+      // 4. For BTC, store address->order mapping as fallback (Blockonomics store-level webhook
+      //    may not forward per-transaction callback params; we resolve order_ref from the map)
+      if (data.currency !== 'USDT') {
+        // Size limit: si excede 10000, borrar las primeras 5000 entradas
+        if (this.addressOrderMap.size >= 10000) {
+          const keys = Array.from(this.addressOrderMap.keys());
+          for (let i = 0; i < 5000; i++) {
+            this.addressOrderMap.delete(keys[i]);
+          }
+          logger.warn('addressOrderMap excedió 10000 entradas — 5000 entradas viejas eliminadas');
+        }
+        this.addressOrderMap.set(paymentAddress, data.externalReference);
+        // Cleanup after 24h to prevent memory leak
+        setTimeout(() => this.addressOrderMap.delete(paymentAddress), 24 * 60 * 60 * 1000).unref();
+      }
+
+      // 5. Construir URL de pago
       // Blockonomics tiene una página de pago simple donde se muestra
       // la dirección y el monto a enviar
-      const checkoutUrl = `${this.baseUrl}/pay?addr=${paymentAddress}&amount=${data.amount}&crypto=${data.currency === 'USDT' ? 'usdt' : 'btc'}`;
+      const checkoutUrl = `${this.baseUrl}/pay?addr=${encodeURIComponent(paymentAddress)}&amount=${encodeURIComponent(String(data.amount))}&crypto=${data.currency === 'USDT' ? 'usdt' : 'btc'}`;
 
       logger.info(
         {
@@ -128,10 +167,20 @@ export class BlockonomicsProvider implements PaymentProvider {
    * 
    * Blockonomics necesita saber qué dirección monitorear para USDT
    * ya que las transacciones USDT son diferentes a BTC en la blockchain.
+   * 
+   * El externalReference (order ID) se incluye en el callback URL como query param
+   * para que Blockonomics lo reenvíe en el webhook y podamos mapear la orden.
    */
-  private async monitorUSDTTransaction(address: string, externalReference: string): Promise<void> {
+  private async monitorUSDTTransaction(address: string, externalReference: string, callbackUrl: string): Promise<void> {
+    if (!callbackUrl) {
+      throw new AppError('callbackUrl es requerido para monitorear transacciones USDT', 500);
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
     try {
-      await fetch(`${this.baseUrl}/monitor-tx`, {
+      const response = await fetch(`${this.baseUrl}/monitor-tx`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
@@ -140,13 +189,21 @@ export class BlockonomicsProvider implements PaymentProvider {
         body: JSON.stringify({
           addr: address,
           order_id: externalReference,
-          callback_url: config.blockonomics?.callbackUrl || '',
+          callback_url: callbackUrl,
         }),
+        signal: controller.signal,
       });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.warn({ error: message, address }, '⚠️ No se pudo monitorear transacción USDT');
-      // No lanzamos error porque el webhook aún puede funcionar
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(
+          { address, status: response.status, body: errorText },
+          '⚠️ monitorUSDTTransaction failed — USDT webhook will NOT be registered'
+        );
+        throw new AppError(`Failed to monitor USDT address: ${response.status} ${errorText}`, 502);
+      }
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -171,28 +228,94 @@ export class BlockonomicsProvider implements PaymentProvider {
     query: Record<string, string>;
   }): Promise<WebhookResult | null> {
     try {
-      const status = Number(query.status || (body.status as string));
+      const rawStatus = query.status ?? (body.status as string) ?? '0';
+      const status = Number(rawStatus);
+      // Validate status is a known Blockonomics status code (0, 1, 2, -1)
+      if (![0, 1, 2, -1].includes(status)) {
+        logger.warn({ status, rawStatus }, '⚠️ Webhook rechazado: status inválido');
+        return null;
+      }
       const address = query.addr || (body.addr as string);
       const value = Number(query.value || (body.value as string));
       const txid = query.txid || (body.txid as string);
       const secret = query.secret;
 
       // Validar secret si está configurado (timing-safe comparison)
-      if (config.blockonomics?.webhookSecret && secret) {
-        const secretBuffer = Buffer.from(String(secret));
-        const expectedBuffer = Buffer.from(config.blockonomics.webhookSecret);
-        if (
-          secretBuffer.length !== expectedBuffer.length ||
-          !crypto.timingSafeEqual(secretBuffer, expectedBuffer)
-        ) {
-          logger.warn({ secret: '***' }, '⚠️ Webhook secret inválido');
-          return null;
-        }
+      // REJECT webhooks without a valid secret — prevents forged payment notifications
+      if (!config.blockonomics?.webhookSecret) {
+        logger.warn('⚠️ Webhook rechazado: webhookSecret no configurado en Blockonomics');
+        return null;
+      }
+
+      if (!secret) {
+        logger.warn('⚠️ Webhook rechazado: secret ausente en la solicitud');
+        return null;
+      }
+
+      const secretBuffer = Buffer.from(String(secret));
+      const expectedBuffer = Buffer.from(config.blockonomics.webhookSecret);
+      if (
+        secretBuffer.length !== expectedBuffer.length ||
+        !crypto.timingSafeEqual(secretBuffer, expectedBuffer)
+      ) {
+        logger.warn({ secret: '***' }, '⚠️ Webhook secret inválido');
+        return null;
       }
 
       // Si no hay datos mínimos, ignorar
       if (!address || !txid) {
         logger.warn({ query, body }, '⚠️ Webhook de Blockonomics sin datos mínimos');
+        return null;
+      }
+
+      // Validar que el monto recibido sea un número válido (NaN bypasses ALL comparisons)
+      if (Number.isNaN(value)) {
+        logger.warn({ value, txid, address }, '⚠️ Webhook rechazado: value es NaN, posible intento de bypass');
+        return null;
+      }
+
+      // Validar que el monto recibido sea mayor a 0 (previene payment bypass con valor mínimo)
+      if (value <= 0) {
+        logger.warn({ value, txid, address }, '⚠️ Webhook rechazado: value <= 0, posible intento de bypass');
+        return null;
+      }
+
+      // Sanity check: valor mínimo razonable (100000 satoshis ≈ 0.001 BTC ≈ ~0.1 USDT)
+      // Previene ataques con montos insignificantes.
+      // NOTA: La validación completa contra el monto esperado de la orden requiere
+      // consultar la orden en el webhook handler (arquitectura adicional necesaria).
+      // Este hardening intermedio establece un piso mínimo más estricto.
+      if (value < 100000) {
+        logger.warn({ value, txid, address }, '⚠️ Webhook rechazado: value < 100000, monto por debajo del mínimo aceptable');
+        return null;
+      }
+
+      // Replay protection: verificar si txid ya fue procesado
+      if (BlockonomicsProvider.isTxidProcessed(txid)) {
+        logger.warn({ txid }, '⚠️ Webhook rechazado: txid ya procesado (replay detected)');
+        return null;
+      }
+      BlockonomicsProvider.markTxidProcessed(txid);
+
+      logger.info(
+        { value, order_ref: query.order_ref, txid, address },
+        '📊 Webhook payment value received (audit log)'
+      );
+
+      // Extraer order_ref del callback URL (incluido en monitorUSDTTransaction)
+      // Blockonomics reenvía los parámetros del callback URL en el webhook
+      let orderRef = query.order_ref;
+
+      // Fallback: para BTC, usar el mapeo address->orderRef almacenado en createPreference
+      if (!orderRef && address) {
+        orderRef = this.addressOrderMap.get(address);
+        if (orderRef) {
+          logger.info({ address, orderRef }, '📌 order_ref resuelto desde addressOrderMap (BTC fallback)');
+        }
+      }
+
+      if (!orderRef) {
+        logger.warn({ query, body }, '⚠️ Webhook de Blockonomics sin order_ref — no se puede mapear la orden');
         return null;
       }
 
@@ -206,11 +329,8 @@ export class BlockonomicsProvider implements PaymentProvider {
 
       const mappedStatus = statusMap[status] || 'pending';
 
-      // Calcular fee estimado (1% para Blockonomics, configurable)
-      // El fee real se provisiona mensualmente
-      const estimatedFeePercent = 0.01; // Blockonomics cobra 1% mensual
-      const amountInUSD = value / 100000000; // Asumiendo que value viene en satoshis para BTC
-      const gatewayFee = amountInUSD * estimatedFeePercent;
+      // Blockonomics cobra suscripción mensual, no fee por transacción
+      const gatewayFee = 0;
 
       logger.info(
         {
@@ -224,7 +344,7 @@ export class BlockonomicsProvider implements PaymentProvider {
       );
 
       return {
-        externalReference: address, // Usamos la dirección como referencia
+        externalReference: orderRef, // Order ID from callback URL param
         status: mappedStatus,
         transactionId: txid,
         metadata: {
@@ -237,10 +357,45 @@ export class BlockonomicsProvider implements PaymentProvider {
         gatewayTax: 0, // No aplica para crypto
       };
     } catch (error: unknown) {
+      // Re-lanzar errores inesperados (no AppError) para que no se traguen bugs de programación
+      if (!(error instanceof AppError)) {
+        logger.error({ error }, '💥 Error inesperado procesando Blockonomics webhook');
+        throw error;
+      }
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error({ error: message }, 'Error processing Blockonomics webhook');
       return null;
     }
+  }
+
+  /**
+   * Replay protection: verificar si un txid ya fue procesado
+   */
+  private static isTxidProcessed(txid: string): boolean {
+    const timestamp = BlockonomicsProvider.processedTxids.get(txid);
+    if (!timestamp) return false;
+    // TTL expired
+    if (Date.now() - timestamp > BlockonomicsProvider.TXID_TTL_MS) {
+      BlockonomicsProvider.processedTxids.delete(txid);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Replay protection: marcar un txid como procesado
+   */
+  private static markTxidProcessed(txid: string): void {
+    // LRU simple: si excede el límite, limpiar las entradas más viejas
+    if (BlockonomicsProvider.processedTxids.size >= BlockonomicsProvider.MAX_TXIDS) {
+      // Map maintains insertion order — delete oldest entries without allocating full array
+      let count = 0;
+      for (const key of BlockonomicsProvider.processedTxids.keys()) {
+        if (count++ >= BlockonomicsProvider.CLEANUP_THRESHOLD) break;
+        BlockonomicsProvider.processedTxids.delete(key);
+      }
+    }
+    BlockonomicsProvider.processedTxids.set(txid, Date.now());
   }
 
   /**

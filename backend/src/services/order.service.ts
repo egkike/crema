@@ -17,7 +17,7 @@ export class OrderService {
   static async processPaymentNotification(data: {
     externalReference: string;
     status: string;
-    transactionId?: string;
+    transactionId?: string; // transaction_id is updated inside completeOrder within the transaction
     tempPassword?: string;
     gatewayFee?: number | undefined;
     gatewayTax?: number | undefined;
@@ -30,27 +30,19 @@ export class OrderService {
       return;
     }
 
-    const finalStatuses = ['paid', 'approved', 'authorized'];
-    if (finalStatuses.includes(order.status)) {
-      logger.info(
-        { externalReference, status },
-        'ℹ️ Webhook ignorado: La orden ya está en un estado final.'
-      );
-      return;
-    }
+    // Early return check moved inside completeOrder transaction to prevent race conditions.
+    // Two concurrent webhooks could both pass this check while order is still 'pending',
+    // then both attempt completeOrder. The definitive guard is inside the transaction
+    // after acquiring the row lock (see completeOrder).
 
-    // Actualizamos ID de transacción y fees si vienen en el webhook
-    if (transactionId || gatewayFee !== undefined) {
-      await orderRepository.updateByExternalRef(externalReference, {
-        transaction_id: transactionId,
-        gateway_fee: gatewayFee || 0,
-        gateway_tax: gatewayTax || 0,
-      });
-    }
+    // Validar que los fees no sean negativos ni infinitos (sanitize inputs)
+    // Los fees se actualizan dentro de completeOrder (dentro de transacción)
+    const safeGatewayFee = (gatewayFee !== undefined && Number.isFinite(gatewayFee) && gatewayFee >= 0) ? gatewayFee : 0;
+    const safeGatewayTax = (gatewayTax !== undefined && Number.isFinite(gatewayTax) && gatewayTax >= 0) ? gatewayTax : 0;
 
     if (status === 'approved' || status === 'paid') {
-      // Pasamos los fees al método de completado
-      await this.completeOrder(order, tempPassword, gatewayFee, gatewayTax);
+      // Pasamos los fees sanitizados al método de completado
+      await this.completeOrder(order, tempPassword, safeGatewayFee, safeGatewayTax, transactionId);
     } else if (status === 'refunded' || status === 'cancelled') {
       await RefundService.processRefund(order.id, `Status: ${status}`);
     }
@@ -60,7 +52,8 @@ export class OrderService {
     order: Order,
     tempPassword?: string,
     gatewayFee: number = 0,
-    gatewayTax: number = 0
+    gatewayTax: number = 0,
+    transactionId?: string
   ) {
     if (order.status === 'paid' || order.commissions_calculated) {
       return;
@@ -74,8 +67,17 @@ export class OrderService {
       // Bloqueamos la fila de la orden
       const lockedOrder = await orderRepository.getById(order.id, client);
 
-      if (!lockedOrder || lockedOrder.status === 'paid' || lockedOrder.commissions_calculated) {
+      // Final-status check INSIDE the transaction after row lock acquisition.
+      // This prevents race conditions where two concurrent webhooks both pass the
+      // pre-transaction check while the order is still 'pending'. Only the first
+      // webhook to acquire the lock will proceed; the second will see status='paid'.
+      const finalStatuses = ['paid', 'approved', 'authorized'];
+      if (!lockedOrder || finalStatuses.includes(lockedOrder.status) || lockedOrder.commissions_calculated) {
         await client.query('ROLLBACK');
+        logger.info(
+          { orderId: order.id },
+          'ℹ️ completeOrder ignorado: La orden ya está en un estado final (race condition guard).'
+        );
         return;
       }
 
@@ -133,6 +135,7 @@ export class OrderService {
           status: 'paid',
           gateway_fee: gatewayFee, // Viene de la pasarela
           gateway_tax: gatewayTax, // Viene de la pasarela
+          transaction_id: transactionId, // Hash de la transacción blockchain
           days_of_guarantee_applied: guaranteeDays,
           gateway_liquidity_days_applied: gatewayLiquidityDays,
           release_at: releaseAt,

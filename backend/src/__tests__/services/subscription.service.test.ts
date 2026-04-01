@@ -16,6 +16,12 @@ vi.mock('../../repositories/payout_method.repository', () => ({
   },
 }));
 
+vi.mock('../../repositories/gateway.repository', () => ({
+  gatewayRepository: {
+    getSupportsSubscriptions: vi.fn().mockResolvedValue(true),
+  },
+}));
+
 vi.mock('../../repositories/config.repository', () => ({
   configRepository: {
     getGatewaysByCurrency: vi.fn().mockResolvedValue([{ id: 'mercadopago' }]),

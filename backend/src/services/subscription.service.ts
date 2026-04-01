@@ -96,7 +96,7 @@ export class SubscriptionService {
     }
 
     if (!plan) {
-      throw new Error('Plan no encontrado al procesar pago de suscripción');
+      throw new AppError('Plan no encontrado al procesar pago de suscripción', 404);
     }
 
     // 2. OBTENER REGLAS FISCALES DINÁMICAS (Evitamos Hardcode)
@@ -173,8 +173,12 @@ export class SubscriptionService {
           logger.info({ userId, gatewayId }, 'Suscripción cancelada en la pasarela');
         }
       }
-
-      // El downgrade en DB siempre se hace
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ error: message, userId }, 'Error crítico al cancelar suscripción');
+      if (!isWebhook) throw new AppError('No se pudo procesar la cancelación', 500);
+    } finally {
+      // El downgrade en DB siempre se hace, incluso si la pasarela falla
       await subscriptionRepository.forceDowngrade(userId);
 
       const user = await userRepository.getById(userId);
@@ -183,12 +187,8 @@ export class SubscriptionService {
           logger.error({ err: err.message, userId }, 'Error enviando email de downgrade')
         );
       }
-
-      return { message: 'Suscripción cancelada exitosamente' };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error({ error: message, userId }, 'Error crítico al cancelar suscripción');
-      if (!isWebhook) throw new AppError('No se pudo procesar la cancelación', 500);
     }
+
+    return { message: 'Suscripción cancelada exitosamente' };
   }
 }

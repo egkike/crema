@@ -25,7 +25,7 @@ export interface WebhookResult {
   externalReference: string;
   status: string;
   transactionId: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   type: 'payment' | 'subscription';
   gatewayFee?: number;
   gatewayTax?: number;
@@ -33,7 +33,7 @@ export interface WebhookResult {
 
 export interface PaymentProvider {
   createPreference(data: {
-    product: any;
+    product: Record<string, unknown>;
     amount: number;
     currency: string;
     externalReference: string;
@@ -52,5 +52,5 @@ export interface PaymentProvider {
   // Método para procesar devoluciones
   refund(transactionId: string, amount: number): Promise<void>;
 
-  handleWebhook(payload: { body: any; headers: any; query: any }): Promise<WebhookResult | null>;
+  handleWebhook(payload: { body: Record<string, unknown>; headers: Record<string, string>; query: Record<string, string> }): Promise<WebhookResult | null>;
 }

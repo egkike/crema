@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { optionalJwtAuth, jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import * as PaymentController from '../controllers/payment.controller';
 import { SubscriptionService } from '../services/subscription.service';
+import { webhookLimiter } from '../middlewares/rateLimit/rateLimit';
 
 const router = Router();
 
@@ -11,7 +12,7 @@ const router = Router();
 router.post('/checkout/create', optionalJwtAuth, PaymentController.createPaymentPreference);
 
 // --- WEBHOOKS (Receptores) ---
-router.post('/webhook/:gatewayId', PaymentController.handleProviderWebhook);
+router.post('/webhook/:gatewayId', webhookLimiter, PaymentController.handleProviderWebhook);
 
 // --- SUSCRIPCIONES ---
 // Cambiamos la ruta para que sea más genérica si quieres, o mantenemos la lógica

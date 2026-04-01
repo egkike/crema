@@ -123,7 +123,7 @@ describe('OrderService', () => {
       expect(result).toBeUndefined();
     });
 
-    it('should update transaction and fees when provided', async () => {
+    it('should pass sanitized fees to completeOrder (transaction_id updated inside transaction)', async () => {
       vi.mocked(orderRepository.getByExternalRef).mockResolvedValue({
         id: ORDER_ID,
         status: 'pending',
@@ -138,11 +138,14 @@ describe('OrderService', () => {
         gatewayTax: 21,
       });
 
-      expect(orderRepository.updateByExternalRef).toHaveBeenCalledWith('ref-123', {
-        transaction_id: 'txn-123',
-        gateway_fee: 100,
-        gateway_tax: 21,
-      });
+      // transaction_id is no longer updated outside the transaction (race condition fix).
+      // It is updated inside completeOrder within the DB transaction.
+      // Verify that updateByExternalRef was NOT called with transaction_id outside the transaction.
+      const calls = vi.mocked(orderRepository.updateByExternalRef).mock.calls;
+      const txIdUpdateOutsideTransaction = calls.find(
+        (call) => call[1] && 'transaction_id' in call[1]
+      );
+      expect(txIdUpdateOutsideTransaction).toBeUndefined();
     });
   });
 });

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 
 import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 
 import { AppError } from '../errors/AppError';
 import { productRepository } from '../repositories/product.repository';
@@ -14,10 +15,22 @@ import { PaymentProviderFactory } from '../services/payment/PaymentProviderFacto
 import { aiCreditService } from '../services/ai/credits.service';
 import logger from '../utils/logger';
 
+// Zod schema for payment creation input validation
+const createPaymentSchema = z.object({
+  productId: z.string().uuid(),
+  currency: z.string().length(3),
+  quantity: z.number().int().positive().default(1),
+  email: z.string().email().optional(),
+  fullname: z.string().max(100).optional(),
+  gatewayId: z.string().max(50),
+  couponCode: z.string().max(50).optional(),
+});
+
 export const createPaymentPreference = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Agregamos gatewayId al body, por defecto mercadopago para no romper el frontend actual
-    const { productId, currency, quantity = 1, email, fullname, gatewayId, couponCode } = req.body;
+    // Validate input with Zod
+    const validatedBody = createPaymentSchema.parse(req.body);
+    const { productId, currency, quantity = 1, email, fullname, gatewayId, couponCode } = validatedBody;
 
     // 1. VALIDACIÓN DINÁMICA DE PASARELA SEGÚN MONEDA (Usando tu nuevo método)
     const allowedGateways = await configRepository.getGatewaysByCurrency(currency);
@@ -172,7 +185,9 @@ export const handleProviderWebhook = async (req: Request, res: Response) => {
       const result = await provider.handleWebhook({
         body: req.body,
         headers: req.headers,
-        query: req.query,
+        query: Object.fromEntries(
+          Object.entries(req.query).map(([k, v]) => [k, Array.isArray(v) ? v[0] : String(v)])
+        ),
       });
 
       // Si la firma falló o el ID no existe en MP, 'result' será null y salimos.
@@ -223,5 +238,10 @@ export const handleProviderWebhook = async (req: Request, res: Response) => {
         'Error en procesamiento background de webhook'
       );
     }
-  })();
+  })().catch((err: unknown) => {
+    logger.error(
+      { gatewayId, error: err instanceof Error ? err.message : String(err) },
+      'Unhandled rejection in webhook background processing'
+    );
+  });
 };
