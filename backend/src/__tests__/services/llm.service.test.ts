@@ -1,25 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { LLMService } from '../../services/ai/llm.service';
-
-// Mock config - simulator is the default provider
-vi.mock('../../config/index', () => ({
-  config: {
-    ai: {
-      provider: 'simulator',
-      openaiModel: 'gpt-4o-mini',
-      defaultOllamaChatModel: 'llama3',
-      ollamaBaseUrl: 'http://localhost:11434',
-      anthropicModel: 'claude-3-haiku-20240307',
-      geminiModel: 'gemini-1.5-flash',
-      openaiApiKey: 'sk-test-openai',
-      anthropicApiKey: 'sk-ant-test',
-      geminiApiKey: 'ai-test',
-    },
-  },
-}));
-
-// Mock logger
+// Mock logger - needs to be before import
 vi.mock('../../utils/logger', () => ({
   default: {
     info: vi.fn(),
@@ -31,6 +12,25 @@ vi.mock('../../utils/logger', () => ({
 // Mock fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+// Mock config - simulator is the default provider
+vi.mock('../../config/index', () => ({
+  config: {
+    ai: {
+      provider: 'simulator',
+      openaiModel: 'gpt-4o-mini',
+      defaultOllamaChatModel: 'llama3',
+      ollamaBaseUrl: 'http://localhost:11434',
+      anthropicModel: 'claude-3-haiku-20240307',
+      geminiModel: 'gemini-1.5-flash',
+      openaiApiKey: '',
+      anthropicApiKey: '',
+      geminiApiKey: '',
+    },
+  },
+}));
+
+import { LLMService } from '../../services/ai/llm.service';
 
 describe('LLMService', () => {
   let service: LLMService;
@@ -393,6 +393,22 @@ describe('LLMService', () => {
       await expect(
         fetch('https://api.openai.com/v1/chat/completions')
       ).rejects.toThrow('Network error');
+    });
+
+    it('should throw error for unknown provider in chat', async () => {
+      const service = new (LLMService as any)();
+      service.provider = 'unknown' as any;
+
+      await expect(service.chat({ messages: [] }))
+        .rejects.toThrow('Unknown LLM provider');
+    });
+
+    it('should throw error for unknown provider in stream', async () => {
+      const service = new (LLMService as any)();
+      service.provider = 'unknown' as any;
+
+      await expect(service.chatStream({ messages: [] }))
+        .rejects.toThrow('Streaming not supported for provider');
     });
   });
 });
