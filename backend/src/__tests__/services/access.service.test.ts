@@ -1,26 +1,46 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { USER_ID, CREATOR_ID, PRODUCT_ID } from '../setup';
-// eslint-disable-next-line import/order
-import { AccessService } from '../../services/access.service';
+// Override setup.ts mocks - these must be defined before imports
+const mockGetProductById = vi.fn();
+const mockGetUserProductProgress = vi.fn();
+const mockGetLessonWithAccess = vi.fn();
+const mockGetActiveOrderWithBuyer = vi.fn();
+const mockInvalidateGuarantee = vi.fn();
+const mockGetBalanceForUpdate = vi.fn();
+const mockSubtractAvailableBalance = vi.fn();
+const mockAddAvailableBalance = vi.fn();
 
+// We need to mock at the module level to override setup.ts
 vi.mock('../../repositories/product.repository', () => ({
   productRepository: {
-    getProductById: vi.fn(),
-    getUserProductProgress: vi.fn(),
-    getLessonWithAccess: vi.fn(),
+    getProductById: (...args: unknown[]) => mockGetProductById(...args),
+    getUserProductProgress: (...args: unknown[]) => mockGetUserProductProgress(...args),
+    getLessonWithAccess: (...args: unknown[]) => mockGetLessonWithAccess(...args),
   },
 }));
 
 vi.mock('../../repositories/order.repository', () => ({
   orderRepository: {
-    getActiveOrderWithBuyer: vi.fn(),
-    invalidateGuarantee: vi.fn().mockResolvedValue(true),
+    getActiveOrderWithBuyer: (...args: unknown[]) => mockGetActiveOrderWithBuyer(...args),
+    invalidateGuarantee: (...args: unknown[]) => mockInvalidateGuarantee(...args),
+  },
+}));
+
+vi.mock('../../repositories/balance.repository', () => ({
+  balanceRepository: {
+    getBalanceForUpdate: mockGetBalanceForUpdate,
+    subtractAvailableBalance: mockSubtractAvailableBalance,
+    addAvailableBalance: mockAddAvailableBalance,
   },
 }));
 
 vi.mock('../../utils/logger', () => ({
-  default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+  default: { 
+    info: vi.fn(), 
+    error: vi.fn(), 
+    warn: vi.fn(), 
+    debug: vi.fn() 
+  },
 }));
 
 vi.mock('../../queues/scheduler', () => ({
@@ -45,22 +65,26 @@ vi.mock('../../config/index', () => ({
   config: {
     db: { schema: 'public' },
     redis: { host: 'localhost', port: 6379 },
+    jwt: { secret: 'test' },
   },
 }));
 
-vi.mock('../../config/redis', () => ({
-  redisConnection: {
-    host: 'localhost',
-    port: 6379,
-  },
-}));
-
-import { productRepository } from '../../repositories/product.repository';
-import { orderRepository } from '../../repositories/order.repository';
+// Import AFTER mocks
+import { AccessService } from '../../services/access.service';
 
 describe('AccessService', () => {
+  const USER_ID = '00000000-0000-0000-0000-000000000002';
+  const CREATOR_ID = '00000000-0000-0000-0000-000000000003';
+  const PRODUCT_ID = '00000000-0000-0000-0000-000000000099';
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock implementations
+    mockGetProductById.mockReset();
+    mockGetUserProductProgress.mockReset();
+    mockGetLessonWithAccess.mockReset();
+    mockGetActiveOrderWithBuyer.mockReset();
+    mockInvalidateGuarantee.mockReset();
   });
 
   describe('getProtectedContent', () => {
@@ -77,7 +101,7 @@ describe('AccessService', () => {
         updated_at: new Date(),
       };
 
-      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      mockGetProductById.mockResolvedValue(mockProduct);
 
       const result = await AccessService.getProtectedContent(USER_ID, PRODUCT_ID);
 
@@ -94,12 +118,11 @@ describe('AccessService', () => {
         status: 'draft',
         creator_id: CREATOR_ID,
         content_url: 'https://example.com/content',
-        description: 'Test description',
         has_structured_content: false,
         updated_at: new Date(),
       };
 
-      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      mockGetProductById.mockResolvedValue(mockProduct);
 
       const result = await AccessService.getProtectedContent(CREATOR_ID, PRODUCT_ID);
 
@@ -109,7 +132,7 @@ describe('AccessService', () => {
 
   describe('evaluateGuaranteeStatus', () => {
     it('should not invalidate if no order exists', async () => {
-      vi.mocked(orderRepository.getActiveOrderWithBuyer).mockResolvedValue(null);
+      mockGetActiveOrderWithBuyer.mockResolvedValue(null);
 
       await AccessService.evaluateGuaranteeStatus(
         USER_ID,
@@ -117,15 +140,15 @@ describe('AccessService', () => {
         { id: PRODUCT_ID, has_structured_content: true }
       );
 
-      expect(orderRepository.invalidateGuarantee).not.toHaveBeenCalled();
+      expect(mockInvalidateGuarantee).not.toHaveBeenCalled();
     });
 
     it('should not invalidate if already ineligible', async () => {
-      vi.mocked(orderRepository.getActiveOrderWithBuyer).mockResolvedValue({
+      mockGetActiveOrderWithBuyer.mockResolvedValue({
         id: 'order-1',
         buyer_id: USER_ID,
         is_guarantee_eligible: false,
-      } as any);
+      });
 
       await AccessService.evaluateGuaranteeStatus(
         USER_ID,
@@ -133,7 +156,7 @@ describe('AccessService', () => {
         { id: PRODUCT_ID, has_structured_content: true }
       );
 
-      expect(productRepository.getUserProductProgress).not.toHaveBeenCalled();
+      expect(mockGetUserProductProgress).not.toHaveBeenCalled();
     });
   });
 });

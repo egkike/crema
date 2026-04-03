@@ -387,6 +387,9 @@ export const AccessServiceMock = {
 };
 
 // --- APLICACIÓN DE MOCKS ---
+// Mocks para repositories necesarios en tests de integración
+// Los servicios que necesitan coverage propio definen sus propios mocks en sus archivos.
+// NOTA: El mock de user.repository es CRÍTICO para auth - debe estar aquí
 vi.mock('../repositories/user.repository', () => ({ userRepository: userRepositoryMock }));
 vi.mock('../repositories/product.repository', () => ({ productRepository: productRepositoryMock }));
 vi.mock('../repositories/order.repository', () => ({ orderRepository: orderRepositoryMock }));
@@ -398,9 +401,11 @@ vi.mock('../repositories/payout_method.repository', () => ({
   payoutMethodRepository: { getByUserId: vi.fn(async () => [{ currency: 'ARS' }]) },
 }));
 
-vi.mock('../services/access.service', () => ({ AccessService: AccessServiceMock }));
+// NOTA: AccessService NO se mockea globalmente aquí - los tests unitarios en
+// services/access.service.test.ts definen sus propios mocks para coverage
 
 // --- MOCKS FOR REFUNDSERVICE ---
+// (Estos se mantienen porque no hay tests directos de estos repositories)
 export const balanceRepositoryMock = {
   deductPendingEarnings: vi.fn().mockResolvedValue(true),
   addPendingBalance: vi.fn().mockResolvedValue(true),
