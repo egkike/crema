@@ -10,7 +10,10 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text'],
-      include: ['src/repositories/**/*.ts', 'src/__tests__/repositories/order.repository.test.ts'],
+      include: [
+        'src/repositories/**/*.ts',
+        'src/__tests__/repositories/*.test.ts'
+      ],
       exclude: ['node_modules/**'],
     },
     include: ['src/__tests__/repositories/**/*.test.ts'],
