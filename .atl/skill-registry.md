@@ -31,21 +31,26 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 Pre-digested rules per skill. Delegators copy matching blocks into sub-agent prompts as `## Project Standards (auto-resolved)`.
 
 ### branch-pr
-- All PRs must reference an issue (issue-first enforcement)
+- Every PR MUST link an approved issue — no exceptions
+- Every PR MUST have exactly one `type:*` label
+- Automated checks must pass before merge is possible
+- Blank PRs without issue linkage will be blocked by GitHub Actions
 - Use Conventional Commits format: `feat(<project>): description`, `fix(<project>): description`
 - Never commit directly to master — always use feature branches
 - PR title and body must follow the team's template
 - Squash and merge only after CI passes and review approved
-- Auto-link PR to issue via keywords: "closes #123", "fixes #456"
 
 ### frontend-design
 - Create production-grade interfaces with high design quality
 - Avoid generic AI aesthetics — aim for distinctive, polished UI
-- Use Tailwind CSS with official Astro integration
-- Use Tabler Icons with explicit imports only (NO barrels)
-- Mobile-first responsive design
-- Accessibility: proper ARIA labels, keyboard navigation
-- Loading states, error states, empty states for all components
+- Choose fonts that are beautiful, unique, and interesting (never Arial, Inter, Roboto)
+- Commit to a cohesive aesthetic direction (minimalist, maximalist, retro-futuristic, etc.)
+- Use CSS variables for color consistency
+- Prioritize CSS-only animations over JavaScript when possible
+- Use Motion library for React when available
+- Unexpected layouts: asymmetry, overlap, diagonal flow, grid-breaking
+- Add atmospheric backgrounds: gradient meshes, noise textures, geometric patterns
+- Match implementation complexity to aesthetic vision
 
 ### go-testing
 - Use teatest for Bubbletea TUI testing
@@ -54,6 +59,7 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Use table-driven tests for multiple scenarios
 - Mock external dependencies
 - Coverage goal: 80%+ for core business logic
+- Use golden file testing for complex output validation
 
 ### issue-creation
 - Issue-first enforcement: all changes must have an issue
