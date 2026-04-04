@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock config before imports
 vi.mock('../../../config/index', () => ({
@@ -28,6 +28,18 @@ vi.mock('../../../utils/logger', () => ({
     debug: vi.fn(),
   },
 }));
+
+// Mock fetch globally for provider tests
+let originalFetch: typeof fetch;
+
+beforeEach(() => {
+  originalFetch = global.fetch;
+  global.fetch = vi.fn();
+});
+
+afterEach(() => {
+  global.fetch = originalFetch;
+});
 
 import { llmService, type LLMMessage } from '../../../services/ai/llm.service';
 
@@ -256,5 +268,167 @@ describe('LLMService - Multiple Concurrent Requests', () => {
 
     expect(result1.content).toBeDefined();
     expect(result2.content).toBeDefined();
+  });
+});
+
+describe('LLMService - Ollama Provider (with mocked fetch)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const createOllamaMockResponse = (chunks: string[]) => {
+    const encoder = new TextEncoder();
+    const chunkData = chunks.map(content => 
+      `data: ${JSON.stringify({ message: { content } })}\n\n`
+    ).join('');
+    
+    return {
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: vi.fn()
+            .mockResolvedValueOnce({ done: false, value: encoder.encode(chunkData) })
+            .mockResolvedValueOnce({ done: true })
+        })
+      }
+    };
+  };
+
+  it('should handle Ollama chat (non-streaming)', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        message: { content: 'Ollama response' },
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+      })
+    });
+
+    // Create new service with Ollama provider
+    const { config } = await import('../../../config/index');
+    const originalProvider = config.ai.provider;
+    config.ai.provider = 'ollama';
+
+    const result = await llmService.chat({ 
+      messages: [{ role: 'user' as const, content: 'Hello' }] 
+    });
+
+    config.ai.provider = originalProvider;
+    expect(result).toBeDefined();
+  });
+
+  it('should handle Ollama stream response', async () => {
+    const mockResponse = createOllamaMockResponse(['Hello ', 'World']);
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockResponse);
+
+    const chunks: string[] = [];
+    const result = await llmService.chatStream({
+      messages: [{ role: 'user' as const, content: 'Test' }],
+      onChunk: (chunk) => chunks.push(chunk),
+    });
+
+    expect(result.content).toBeDefined();
+  });
+
+  it('should handle Ollama stream error', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: async () => 'Internal Server Error'
+    });
+
+    const result = await llmService.chatStream({
+      messages: [{ role: 'user' as const, content: 'Test' }],
+    });
+
+    // Should fallback to non-streaming
+    expect(result).toBeDefined();
+  });
+});
+
+describe('LLMService - OpenAI Provider (with mocked fetch)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should handle OpenAI stream response', async () => {
+    const encoder = new TextEncoder();
+    const mockBody = {
+      getReader: () => ({
+        read: vi.fn()
+          .mockResolvedValueOnce({ 
+            done: false, 
+            value: encoder.encode('data: {"choices":[{"delta":{"content":"Hi"}}]}\n\ndata: [DONE]\n') 
+          })
+          .mockResolvedValueOnce({ done: true })
+      })
+    };
+
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      body: mockBody,
+    });
+
+    const { config } = await import('../../../config/index');
+    const originalProvider = config.ai.provider;
+    config.ai.provider = 'openai';
+
+    const chunks: string[] = [];
+    const result = await llmService.chatStream({
+      messages: [{ role: 'user' as const, content: 'Hello' }],
+      onChunk: (chunk) => chunks.push(chunk),
+    });
+
+    config.ai.provider = originalProvider;
+    expect(result).toBeDefined();
+  });
+});
+
+describe('LLMService - Error Handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should handle network errors gracefully', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('Network error')
+    );
+
+    const { config } = await import('../../../config/index');
+    const originalProvider = config.ai.provider;
+    config.ai.provider = 'ollama';
+
+    const result = await llmService.chatStream({
+      messages: [{ role: 'user' as const, content: 'Test' }],
+    });
+
+    config.ai.provider = originalProvider;
+    expect(result).toBeDefined();
+  });
+
+  it('should handle malformed JSON in stream', async () => {
+    const encoder = new TextEncoder();
+    const mockBody = {
+      getReader: () => ({
+        read: vi.fn()
+          .mockResolvedValueOnce({ 
+            done: false, 
+            value: encoder.encode('data: not valid json\n\ndata: {"message":{"content":"valid"}}') 
+          })
+          .mockResolvedValueOnce({ done: true })
+      })
+    };
+
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      body: mockBody,
+    });
+
+    const chunks: string[] = [];
+    const result = await llmService.chatStream({
+      messages: [{ role: 'user' as const, content: 'Test' }],
+      onChunk: (chunk) => chunks.push(chunk),
+    });
+
+    expect(result).toBeDefined();
   });
 });
