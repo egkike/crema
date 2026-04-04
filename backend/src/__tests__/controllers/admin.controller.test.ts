@@ -61,7 +61,7 @@ import { payoutRepository } from '../../repositories/payout.repository';
 
 describe('AdminController', () => {
   let mockReq: any;
-  let mockRes: any;
+  let mockRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
 
   beforeEach(() => {
     vi.clearAllMocks();
