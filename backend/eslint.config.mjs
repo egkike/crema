@@ -9,6 +9,7 @@ export default tseslint.config(
   {
     ignores: [
       'vitest.config.ts', // <-- Añadido específicamente aquí
+      'vitest.repository.config.ts', // Repository unit tests config
       'dist/**',
       'node_modules/**',
       'coverage/**',
