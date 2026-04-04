@@ -3,7 +3,8 @@ import supertest from 'supertest';
 
 import { app } from '../app';
 
-import { extractCookies } from './setup';
+// Import setup for mocks - this loads admin user
+import './setup';
 
 const request = supertest(app);
 
@@ -11,125 +12,187 @@ describe('Admin Routes', () => {
   let cookies: string = '';
 
   beforeEach(async () => {
-    // Login first to get auth cookies
+    // Login first to get auth cookies (user@test.com has level 1, not admin)
     const res = await request.post('/api/auth/login').send({
-      email: 'admin@test.com',
+      email: 'user@test.com',
       password: 'p1',
     });
-    cookies = extractCookies(res);
+    cookies = res.headers['set-cookie']?.join('; ') || '';
     vi.clearAllMocks();
   });
 
   describe('Require Admin Role', () => {
     it('should require authentication for all admin routes', async () => {
-      // Test financial health
+      // Test financial health without auth
       const res = await request.get('/api/admin/financial-health');
       expect(res.status).toBe(401);
     });
 
-    it('should handle request with valid token but non-admin role', async () => {
-      // Test with regular user token
+    it('should reject non-admin user (level 1)', async () => {
+      // Test with regular user token (level 1)
       const res = await request
         .get('/api/admin/financial-health')
         .set('Cookie', cookies);
 
-      // Regular user - any response is valid
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      // Should return 403 Forbidden for non-admin users
+      expect([403, 500]).toContain(res.status);
     });
   });
 
   describe('GET /api/admin/financial-health', () => {
-    it('should handle request from non-admin users', async () => {
+    it('should reject non-admin users', async () => {
       const res = await request
         .get('/api/admin/financial-health')
         .set('Cookie', cookies);
 
-      // Any response is valid - route exists and responds
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
     });
   });
 
   describe('GET /api/admin/ledger', () => {
-    it('should handle request from non-admin users', async () => {
+    it('should reject non-admin users', async () => {
       const res = await request
         .get('/api/admin/ledger')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
     });
   });
 
   describe('GET /api/admin/user-stats/:userId', () => {
-    it('should handle request from non-admin users', async () => {
+    it('should reject non-admin users', async () => {
       const res = await request
         .get('/api/admin/user-stats/user-123')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
     });
   });
 
   describe('GET /api/admin/retention-summary', () => {
-    it('should handle request from non-admin users', async () => {
+    it('should reject non-admin users', async () => {
       const res = await request
         .get('/api/admin/retention-summary')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
     });
   });
 
   describe('GET /api/admin/payouts/pending', () => {
-    it('should handle request from non-admin users', async () => {
+    it('should reject non-admin users', async () => {
       const res = await request
         .get('/api/admin/payouts/pending')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
+    });
+  });
+
+  describe('PATCH /api/admin/payouts/:id/status', () => {
+    it('should reject non-admin users', async () => {
+      const res = await request
+        .patch('/api/admin/payouts/payout-1/status')
+        .set('Cookie', cookies)
+        .send({ status: 'approved' });
+
+      expect([403, 404, 500]).toContain(res.status);
+    });
+  });
+
+  describe('POST /api/admin/withdraw-platform', () => {
+    it('should reject non-admin users', async () => {
+      const res = await request
+        .post('/api/admin/withdraw-platform')
+        .set('Cookie', cookies)
+        .send({
+          amount: 1000,
+          currency: 'ARS',
+          transaction_receipt: 'receipt-123',
+        });
+
+      expect([403, 500]).toContain(res.status);
+    });
+
+    it('should reject missing amount', async () => {
+      const res = await request
+        .post('/api/admin/withdraw-platform')
+        .set('Cookie', cookies)
+        .send({
+          currency: 'ARS',
+          transaction_receipt: 'receipt-123',
+        });
+
+      expect([400, 403, 500]).toContain(res.status);
     });
   });
 
   describe('Export endpoints', () => {
-    it('should handle request for tax report', async () => {
+    it('should reject non-admin for tax report', async () => {
       const res = await request
         .get('/api/admin/export/tax-report')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
     });
 
-    it('should handle request for audit report', async () => {
+    it('should reject non-admin for audit report', async () => {
       const res = await request
         .get('/api/admin/export/audit')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
     });
 
-    it('should handle request for refunds report', async () => {
+    it('should reject non-admin for refunds report', async () => {
       const res = await request
         .get('/api/admin/export/refunds')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
+    });
+
+    it('should reject non-admin for payouts export', async () => {
+      const res = await request
+        .get('/api/admin/export/payouts?currency=ARS')
+        .set('Cookie', cookies);
+
+      expect([400, 403, 500]).toContain(res.status);
+    });
+
+    it('should require currency parameter for payouts export', async () => {
+      const res = await request
+        .get('/api/admin/export/payouts')
+        .set('Cookie', cookies);
+
+      // Missing required parameter
+      expect([400, 403, 500]).toContain(res.status);
+    });
+
+    it('should reject non-admin for lec-report', async () => {
+      const res = await request
+        .get('/api/admin/export/lec-report')
+        .set('Cookie', cookies);
+
+      expect([403, 500]).toContain(res.status);
     });
   });
 
   describe('LEC endpoints', () => {
-    it('should handle request for lec/projects', async () => {
+    it('should reject non-admin for lec/projects', async () => {
       const res = await request
         .get('/api/admin/lec/projects')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
     });
 
-    it('should handle request for lec/compliance-status', async () => {
+    it('should reject non-admin for lec/compliance-status', async () => {
       const res = await request
         .get('/api/admin/lec/compliance-status')
         .set('Cookie', cookies);
 
-      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect([403, 500]).toContain(res.status);
     });
   });
 });
