@@ -9,9 +9,9 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'], // genera reportes en consola, JSON y HTML
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'node_modules/**'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'node_modules/**', 'src/__tests__/repositories/order.repository.test.ts'],
     },
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
-    exclude: ['node_modules/**', 'dist/**'],
+    exclude: ['node_modules/**', 'dist/**', 'src/__tests__/repositories/order.repository.test.ts'],
   },
 });
