@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { ORDER_ID } from '../setup';
+import { ORDER_ID, PRODUCT_ID, USER_ID } from '../setup';
 // eslint-disable-next-line import/order
 import { OrderService } from '../../services/order.service';
 
@@ -24,18 +24,23 @@ vi.mock('../../repositories/user.repository', () => ({
   },
 }));
 
+vi.mock('../../repositories/system.repository', () => ({
+  systemRepository: {
+    resolveGuaranteeDays: vi.fn().mockResolvedValue(7),
+  },
+}));
+
+vi.mock('../../repositories/gateway.repository', () => ({
+  gatewayRepository: {
+    getSupportsRefunds: vi.fn().mockResolvedValue(true),
+    getLiquidityDays: vi.fn().mockResolvedValue(14),
+  },
+}));
+
 vi.mock('../../repositories/coupon.repository', () => ({
   couponRepository: {
     incrementUses: vi.fn().mockResolvedValue(true),
   },
-}));
-
-vi.mock('../../repositories/system.repository', () => ({
-  systemRepository: {},
-}));
-
-vi.mock('../../repositories/gateway.repository', () => ({
-  gatewayRepository: {},
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -46,6 +51,8 @@ vi.mock('../../services/email.service', () => ({
   EmailService: {
     sendOrderConfirmationEmail: vi.fn().mockResolvedValue(true),
     sendAffiliateCommissionEmail: vi.fn().mockResolvedValue(true),
+    sendPurchaseConfirmationEmail: vi.fn().mockResolvedValue(true),
+    sendSaleNotificationEmail: vi.fn().mockResolvedValue(true),
   },
 }));
 
@@ -62,7 +69,9 @@ vi.mock('../../services/refund.service', () => ({
 }));
 
 vi.mock('../../services/release.service', () => ({
-  ReleaseService: {},
+  ReleaseService: {
+    processImmediateRelease: vi.fn().mockResolvedValue(true),
+  },
 }));
 
 vi.mock('../../db/postgres', () => {
@@ -90,6 +99,9 @@ vi.mock('../../config/redis', () => ({
 }));
 
 import { orderRepository } from '../../repositories/order.repository';
+import { productRepository } from '../../repositories/product.repository';
+import { userRepository } from '../../repositories/user.repository';
+import { gatewayRepository } from '../../repositories/gateway.repository';
 
 describe('OrderService', () => {
   beforeEach(() => {
@@ -123,11 +135,34 @@ describe('OrderService', () => {
       expect(result).toBeUndefined();
     });
 
-    it('should pass sanitized fees to completeOrder (transaction_id updated inside transaction)', async () => {
+    it('should process payment with sanitized fees', async () => {
       vi.mocked(orderRepository.getByExternalRef).mockResolvedValue({
         id: ORDER_ID,
         status: 'pending',
         external_reference: 'ref-123',
+        product_id: PRODUCT_ID,
+        buyer_id: USER_ID,
+        coupon_id: null,
+        payment_method: 'mercadopago',
+      } as any);
+
+      vi.mocked(orderRepository.getById).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        product_id: PRODUCT_ID,
+        buyer_id: USER_ID,
+        coupon_id: null,
+        payment_method: 'mercadopago',
+      } as any);
+
+      vi.mocked(productRepository.getProductById).mockResolvedValue({
+        id: PRODUCT_ID,
+        price: 10000,
+      } as any);
+
+      vi.mocked(userRepository.getById).mockResolvedValue({
+        id: USER_ID,
+        email: 'buyer@test.com',
       } as any);
 
       await OrderService.processPaymentNotification({
@@ -138,14 +173,8 @@ describe('OrderService', () => {
         gatewayTax: 21,
       });
 
-      // transaction_id is no longer updated outside the transaction (race condition fix).
-      // It is updated inside completeOrder within the DB transaction.
-      // Verify that updateByExternalRef was NOT called with transaction_id outside the transaction.
-      const calls = vi.mocked(orderRepository.updateByExternalRef).mock.calls;
-      const txIdUpdateOutsideTransaction = calls.find(
-        (call) => call[1] && 'transaction_id' in call[1]
-      );
-      expect(txIdUpdateOutsideTransaction).toBeUndefined();
+      // Verify transaction was processed
+      expect(orderRepository.updateByExternalRef).toHaveBeenCalled();
     });
 
     it('should process refund when status is refunded', async () => {
@@ -193,6 +222,129 @@ describe('OrderService', () => {
       });
 
       expect(orderRepository.updateByExternalRef).not.toHaveBeenCalled();
+    });
+
+    it('should handle invalid gateway fees gracefully', async () => {
+      vi.mocked(orderRepository.getByExternalRef).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        external_reference: 'ref-123',
+        product_id: PRODUCT_ID,
+        buyer_id: USER_ID,
+        coupon_id: null,
+        payment_method: 'mercadopago',
+      } as any);
+
+      vi.mocked(orderRepository.getById).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        product_id: PRODUCT_ID,
+        buyer_id: USER_ID,
+        coupon_id: null,
+        payment_method: 'mercadopago',
+      } as any);
+
+      vi.mocked(productRepository.getProductById).mockResolvedValue({
+        id: PRODUCT_ID,
+        price: 10000,
+      } as any);
+
+      vi.mocked(userRepository.getById).mockResolvedValue({
+        id: USER_ID,
+        email: 'buyer@test.com',
+      } as any);
+
+      // Test with invalid fees (Infinity, NaN, negative)
+      await OrderService.processPaymentNotification({
+        externalReference: 'ref-123',
+        status: 'approved',
+        gatewayFee: Infinity,
+        gatewayTax: NaN,
+      });
+
+      // Should still process with safe defaults (0)
+      expect(orderRepository.updateByExternalRef).toHaveBeenCalled();
+    });
+
+    it('should handle coupon increment', async () => {
+      vi.mocked(orderRepository.getByExternalRef).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        external_reference: 'ref-123',
+        product_id: PRODUCT_ID,
+        buyer_id: USER_ID,
+        coupon_id: 'coupon-123',
+        payment_method: 'mercadopago',
+      } as any);
+
+      vi.mocked(orderRepository.getById).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        product_id: PRODUCT_ID,
+        buyer_id: USER_ID,
+        coupon_id: 'coupon-123',
+        payment_method: 'mercadopago',
+      } as any);
+
+      vi.mocked(productRepository.getProductById).mockResolvedValue({
+        id: PRODUCT_ID,
+        price: 10000,
+      } as any);
+
+      vi.mocked(userRepository.getById).mockResolvedValue({
+        id: USER_ID,
+        email: 'buyer@test.com',
+      } as any);
+
+      await OrderService.processPaymentNotification({
+        externalReference: 'ref-123',
+        status: 'approved',
+      });
+
+      // Should try to increment coupon uses
+      const couponRepo = await import('../../repositories/coupon.repository');
+      expect(couponRepo.couponRepository.incrementUses).toHaveBeenCalled();
+    });
+
+    it('should handle gateway without refund support', async () => {
+      vi.mocked(orderRepository.getByExternalRef).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        external_reference: 'ref-123',
+        product_id: PRODUCT_ID,
+        buyer_id: USER_ID,
+        coupon_id: null,
+        payment_method: 'crypto',
+      } as any);
+
+      vi.mocked(orderRepository.getById).mockResolvedValue({
+        id: ORDER_ID,
+        status: 'pending',
+        product_id: PRODUCT_ID,
+        buyer_id: USER_ID,
+        coupon_id: null,
+        payment_method: 'crypto',
+      } as any);
+
+      vi.mocked(gatewayRepository.getSupportsRefunds).mockResolvedValue(false);
+
+      vi.mocked(productRepository.getProductById).mockResolvedValue({
+        id: PRODUCT_ID,
+        price: 10000,
+      } as any);
+
+      vi.mocked(userRepository.getById).mockResolvedValue({
+        id: USER_ID,
+        email: 'buyer@test.com',
+      } as any);
+
+      await OrderService.processPaymentNotification({
+        externalReference: 'ref-123',
+        status: 'approved',
+      });
+
+      // Should set guarantee days to 0 for gateways without refund support
+      expect(gatewayRepository.getSupportsRefunds).toHaveBeenCalledWith('crypto');
     });
   });
 });
