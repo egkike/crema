@@ -432,4 +432,16 @@ describe('content.controller.ts', () => {
       expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
     });
   });
+
+  describe('getProductContent edge cases', () => {
+    it('should handle errors gracefully', async () => {
+      (AccessService.getProtectedContent as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+
+      req.params = { productId: '550e8400-e29b-41d4-a716-446655440000' };
+
+      await getProductContent(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+  });
 });

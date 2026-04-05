@@ -154,4 +154,20 @@ describe('RefundController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(200);
     });
   });
+
+  describe('edge cases', () => {
+    it('should handle service errors gracefully', async () => {
+      const { processRefund } = await import('../../controllers/refund.controller');
+      const refundService = await import('../../services/refund.service');
+      (refundService.RefundService.processRefund as any).mockRejectedValue(new Error('Service error'));
+
+      mockReq.user = { id: 'admin-1', level: 10 };
+      mockReq.params = { orderId: 'order-1' };
+      mockReq.body = { reason: 'Customer request' };
+
+      await processRefund(mockReq, mockRes, mockNext);
+
+      expect(mockNext).toHaveBeenCalled();
+    });
+  });
 });
