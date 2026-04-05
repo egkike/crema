@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-describe('UserController', () => {
+describe('UserController - Happy Paths', () => {
   it('should export UserController class', async () => {
     const { UserController } = await import('../../controllers/user.controller');
     expect(UserController).toBeDefined();
@@ -49,5 +49,10 @@ describe('UserController', () => {
   it('should have changeMyPassword method', async () => {
     const { UserController } = await import('../../controllers/user.controller');
     expect(typeof UserController.prototype.changeMyPassword).toBe('function');
+  });
+
+  it('should have upgradeMyLevel method', async () => {
+    const { UserController } = await import('../../controllers/user.controller');
+    expect(typeof UserController.prototype.upgradeMyLevel).toBe('function');
   });
 });
