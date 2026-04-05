@@ -14,6 +14,20 @@
 
 Este PRD define los requisitos para implementar **streaming de respuestas en tiempo real** para los agentes AI de Crema (QA Agent, Tutor AI, Insights AI) usando Server-Sent Events (SSE).
 
+### 1.2 Multi-Provider LLM Support
+
+El sistema soporta múltiples proveedores LLM para streaming:
+
+| Provider | Streaming | Notas |
+|----------|-----------|-------|
+| **OpenAI** | ✅ | GPT-4o-mini, GPT-4o |
+| **Ollama** | ✅ | Local, llama3, mistral |
+| **Anthropic** | ✅ | Claude 3.5 Sonnet |
+| **Gemini** | ✅ | Gemini 1.5 Pro |
+| **Simulator** | ✅ | Para testing sin API |
+
+La configuración se realiza via `AI_PROVIDER` en variables de entorno.
+
 ### 1.2 Problema Actual
 
 La implementación actual de los agentes AI es **100% síncrona**:
@@ -221,33 +235,52 @@ data: {"code": "LLM_ERROR", "message": "Error al generar respuesta"}
 ### 6.1 Flujo de Datos
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Frontend  │     │   Backend   │     │  LLM API    │
-└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
-       │                    │                    │
-       │ POST /chat/stream  │                    │
-       │───────────────────>│                    │
-       │                    │                    │
-       │              Verificar credits         │
-       │              Abonar costo              │
-       │                    │                    │
-       │                    │ POST /chat (stream)│
-       │                    │───────────────────>│
-       │                    │                    │
-       │    SSE Stream      │<──────────────────│
-       │<──────────────────│  chunk1: "Hola"   │
-       │  event: chunk      │                    │
-       │                    │  chunk2: " soy"   │
-       │<──────────────────│                    │
-       │  event: chunk      │                    │
-       │                    │                    │
-       │              (continúa hasta done)       │
-       │                    │                    │
-       │  event: done       │                    │
-       │<──────────────────│                    │
+┌─────────────┐     ┌─────────────┐     ┌─────────────────────────┐
+│  Frontend  │     │   Backend   │     │      LLM Provider       │
+└──────┬──────┘     └──────┬──────┘     └───────────┬─────────────┘
+       │                    │                         │
+       │ POST /chat/stream │                         │
+       │───────────────────>│                         │
+       │                    │                         │
+       │              Verificar credits              │
+       │              Abonar costo                   │
+       │                    │                         │
+       │                    │ POST /chat (stream)    │ OpenAI/Ollama/
+       │                    │────────────────────────►│ Anthropic/Gemini
+       │                    │                         │
+       │    SSE Stream      │<────────────────────────│
+       │<──────────────────│  chunk1: "Hola"        │
+       │  event: chunk      │                         │
+       │                    │  chunk2: " soy"         │
+       │<──────────────────│                         │
+       │  event: chunk      │                         │
+       │                    │ (continúa hasta done)   │
+       │                    │                         │
+       │  event: done       │                         │
+       │<──────────────────│                         │
 ```
 
-### 6.2 Componentes a Modificar
+### 6.2 Multi-Provider LLM Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    llm.service.ts                       │
+├─────────────────────────────────────────────────────────┤
+│  +-----------+  +----------+  +----------+  +------+  │
+│  │  OpenAI   │  │  Ollama  │  │Anthropic │  │Gemini│  │
+│  │  (GPT-4)  │  │ (local)  │  │Claude 3.5│  │ 1.5  │  │
+│  +-----------+  +----------+  +----------+  +------+  │
+│        │             │             │            │       │
+│        └─────────────┴─────────────┴────────────┘       │
+│                          │                               │
+│                   Unified Interface                     │
+│                   - chat()                              │
+│                   - chatStream()                        │
+│                   - getProvider()                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 6.3 Componentes a Modificar
 
 | Archivo | Cambio |
 |---------|--------|
@@ -385,17 +418,26 @@ interface ActiveStream {
 ## 12. Plan de Implementación
 
 ### Semana 1: Backend
-- [ ] Modificar `llm.service.ts` - Agregar `chatStream()`
-- [ ] Modificar `qaAgent.service.ts` - Agregar `chatStream()`
-- [ ] Modificar `tutor.service.ts` - Agregar `chatStream()`
-- [ ] Crear nuevos endpoints SSE en `ai.routes.ts`
-- [ ] Tests unitarios
+- [x] Modificar `llm.service.ts` - Agregar `chatStream()`
+- [x] Modificar `qaAgent.service.ts` - Agregar `chatStream()`
+- [x] Modificar `tutor.service.ts` - Agregar `chatStream()`
+- [x] Crear nuevos endpoints SSE en `ai.routes.ts`
+- [x] Tests unitarios
 
 ### Semana 2: Frontend + Testing
 - [ ] Crear componente de streaming (React/Astro)
 - [ ] Integrar con chat UI existente
 - [ ] Testing E2E
 - [ ] Manual testing
+
+---
+
+> **Estado de Implementación**: Backend completado (Abril 2026)
+> - LLM multi-provider (OpenAI, Ollama, Anthropic, Gemini) ✅
+> - Streaming para QA Agent ✅
+> - Streaming para Tutor AI ✅
+> - Streaming para Insights AI ✅
+> - Frontend pendiente
 
 ---
 

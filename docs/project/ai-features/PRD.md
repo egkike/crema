@@ -44,15 +44,34 @@ Este PRD define los requisitos para implementar los módulos de:
 
 Basado en análisis de Hotmart, la plataforma líder en digital products en Latinoamérica.
 
-### 1.3 Modelo de IA
+### 1.3 Modelo de IA - Multi-Provider Support
 
 | Aspecto | Decisión |
 |---------|----------|
 | **Quién paga** | Crema (incluido en Plan Pro) |
 | **Modelo** | GPT-4o-mini (mejor relación precio/calidad) |
+| **Proveedores disponibles** | OpenAI, Ollama, Anthropic, Gemini, Simulator |
 | **Límite Pro** | 100 conversaciones/mes |
 | **Modelo de pago extra** | Créditos prepagos (no expiran en 6-12 meses) |
 | **Memoria persistente** | PostgreSQL + pgvector (Crema Memory MCP) |
+
+#### 1.3.1 Proveedores LLM Soportados
+
+| Provider | Modelo | Streaming | Uso recomendado |
+|----------|--------|-----------|-----------------|
+| **OpenAI** | GPT-4o-mini, GPT-4o | ✅ | Producción |
+| **Ollama** | llama3, mistral | ✅ | Desarrollo local |
+| **Anthropic** | Claude 3.5 Sonnet | ✅ | Alternativa a OpenAI |
+| **Gemini** | Gemini 1.5 Pro | ✅ | Multimodal |
+| **Simulator** | N/A | ✅ | Testing sin API |
+
+#### 1.3.2 Proveedores de Embeddings
+
+| Provider | Modelo | Dimensiones |
+|----------|--------|-------------|
+| **OpenAI** | text-embedding-3-small | 1536 |
+| **Ollama** | nomic-embed-text | 768 |
+| **Simulator** | N/A (vectores aleatorios) | Testing |
 
 ### 1.4 Sistema de Créditos Prepagos
 
@@ -1888,6 +1907,9 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 | Servicio | Uso | Costo Estimado |
 |----------|-----|----------------|
 | **OpenAI API** | Todos los features AI (embeddings + chat) | $0.50-2 USD/mes |
+| **Anthropic API** | Alternative LLM provider | Opcional |
+| **Gemini API** | Alternative LLM provider | Opcional |
+| **Ollama** | Local LLM (desarrollo) | $0 (local) |
 | **Resend** | Notificaciones email | Ya integrado |
 | **PostgreSQL + pgvector** | Memoria AI + Base de datos | Ya existe |
 
@@ -2001,9 +2023,10 @@ RESPUENDE en JSON con este formato exacto.
 | 1.0 | Marzo 2026 | Versión inicial |
 | 1.1 | Marzo 2026 | Crema Memory Service como prioridad 1, reorganización de fases, modelo de IA detallado con costos, Agentes IA agregados |
 | 1.2 | Marzo 2026 | Sistema de créditos prepagos agregado, Insights AI Agent con dashboards dinámicos usando Crema Memory MCP |
+| 1.3 | Abril 2026 | Multi-provider LLM support (OpenAI, Ollama, Anthropic, Gemini, Simulator), Streaming SSE implementado |
 
 ---
 
-*Documento preparado para el proyecto Crema - Marzo 2026*
-*Versión: 1.2 - Draft para revisión*
-*Última actualización: Marzo 2026 - Créditos prepagos + Dashboards AI*
+*Documento preparado para el proyecto Crema - Abril 2026*
+*Versión: 1.3 - Multi-provider + Streaming*
+*Última actualización: Abril 2026 - Multi-provider LLM + Streaming SSE*
