@@ -20,14 +20,17 @@ vi.mock('../../services/payout.service', () => ({
   PayoutService: {
     checkPlatformLiquidity: vi.fn(),
     notifyAdminPendingPayouts: vi.fn(),
+    processPayout: vi.fn(),
   },
 }));
 
-// Mock repositories
 vi.mock('../../repositories/admin.repository', () => ({
   adminRepository: {
     getRetentionSummary: vi.fn(),
     getPlatformLedger: vi.fn(),
+    getLECMetrics: vi.fn(),
+    getRDProjects: vi.fn(),
+    logRDActivity: vi.fn(),
   },
 }));
 
@@ -287,6 +290,38 @@ describe('AdminController', () => {
       await AdminController.getPayoutsByStatus(mockReq, mockRes);
 
       expect(payoutRepository.getByStatus).toHaveBeenCalledWith('pending');
+    });
+  });
+
+  describe('processPayout', () => {
+    it('should return 401 when admin not authenticated', async () => {
+      // No admin user in request
+      mockReq.params = { id: 'payout-1' };
+      mockReq.body = { status: 'completed' };
+
+      await AdminController.processPayout(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(401);
+    });
+
+    it('should return 400 when status is invalid', async () => {
+      mockReq.user = { id: 'admin-1' };
+      mockReq.params = { id: 'payout-1' };
+      mockReq.body = { status: 'invalid' };
+
+      await AdminController.processPayout(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe('logRDActivity', () => {
+    it('should return 400 when required fields missing', async () => {
+      mockReq.body = {};
+
+      await AdminController.logRDActivity(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
     });
   });
 });
