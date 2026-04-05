@@ -317,16 +317,19 @@ pnpm test:ci           # Tests en Docker
 
 | Métrica | Porcentaje |
 |---------|------------|
-| Statements | ~27% |
-| Functions | ~32% |
-| Lines | ~27% |
+| Statements | ~40% |
+| Functions | ~43% |
+| Lines | ~40% |
+| Branches | ~31% |
 
-**Total: 157 tests unitarios**
+**Total: 754 tests unitarios en 66 archivos de test**
 
 ### Archivos de Test
 
 - **Rutas**: auth, users, products, content, quiz, balance, payouts, payments, refunds, affiliates, admin, products-routes
-- **Servicios**: auth, user, product, payment, payout, order, commission, refund, release, access, subscription, payout_method, email, twoFactor, simulator-provider
+- **Servicios**: auth, user, product, payment, payout, order, commission, refund, release, access, subscription, payout_method, email, twoFactor, simulator-provider, ai (embedding, llm, tutor, agents, qa, review)
+- **Utils**: validators, jwt, params
+- **Config/DB**: config, postgres
 - **Setup**: setup.ts (mocks globales), vitest.setup.ts
 
 ---
