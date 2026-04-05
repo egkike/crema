@@ -405,4 +405,27 @@ describe('PayoutService', () => {
       expect(vi.mocked(mainQueue.add)).toHaveBeenCalled();
     });
   });
+
+  // Method existence tests
+  describe('method existence', () => {
+    it('should have requestPayout method', () => {
+      expect(typeof PayoutService.requestPayout).toBe('function');
+    });
+
+    it('should have cancelUserPayout method', () => {
+      expect(typeof PayoutService.cancelUserPayout).toBe('function');
+    });
+
+    it('should have updatePayoutStatus method', () => {
+      expect(typeof PayoutService.updatePayoutStatus).toBe('function');
+    });
+
+    it('should have checkPlatformLiquidity method', () => {
+      expect(typeof PayoutService.checkPlatformLiquidity).toBe('function');
+    });
+
+    it('should have notifyAdminPendingPayouts method', () => {
+      expect(typeof PayoutService.notifyAdminPendingPayouts).toBe('function');
+    });
+  });
 });

@@ -171,4 +171,15 @@ describe('ReleaseService', () => {
       expect(mainQueue!.add).not.toHaveBeenCalled();
     });
   });
+
+  // Method existence tests
+  describe('method existence', () => {
+    it('should have processPendingBalances method', () => {
+      expect(typeof ReleaseService.processPendingBalances).toBe('function');
+    });
+
+    it('should have notifyUser method', () => {
+      expect(typeof ReleaseService.notifyUser).toBe('function');
+    });
+  });
 });

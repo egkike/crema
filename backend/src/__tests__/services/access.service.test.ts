@@ -159,4 +159,19 @@ describe('AccessService', () => {
       expect(mockGetUserProductProgress).not.toHaveBeenCalled();
     });
   });
+
+  // Method existence tests
+  describe('method existence', () => {
+    it('should have getProtectedContent method', () => {
+      expect(typeof AccessService.getProtectedContent).toBe('function');
+    });
+
+    it('should have evaluateGuaranteeStatus method', () => {
+      expect(typeof AccessService.evaluateGuaranteeStatus).toBe('function');
+    });
+
+    it('should have getProtectedLesson method', () => {
+      expect(typeof AccessService.getProtectedLesson).toBe('function');
+    });
+  });
 });
