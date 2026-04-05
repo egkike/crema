@@ -34,7 +34,9 @@ vi.mock('../../repositories/config.repository', () => ({
 }));
 
 vi.mock('../../repositories/user.repository', () => ({
-  userRepository: {},
+  userRepository: {
+    getById: vi.fn(),
+  },
 }));
 
 vi.mock('../../services/payment/PaymentProviderFactory', () => ({
