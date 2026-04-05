@@ -1,5 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Mock config BEFORE importing the service
+vi.mock('../../../config/index', () => ({
+  config: {
+    ai: {
+      openaiApiKey: '',
+      openaiEmbeddingModel: 'text-embedding-3-small',
+      defaultOllamaEmbeddingModel: 'nomic-embed-text',
+      ollamaBaseUrl: '', // Empty to force simulator
+      ollamaEnabled: false,
+    },
+  },
+}));
+
 // Mock logger
 vi.mock('../../../utils/logger', () => ({
   default: {
@@ -7,19 +20,6 @@ vi.mock('../../../utils/logger', () => ({
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  },
-}));
-
-// Mock config - use doMock to allow runtime changes
-vi.doMock('../../../config/index', () => ({
-  config: {
-    ai: {
-      openaiApiKey: '',
-      openaiEmbeddingModel: 'text-embedding-3-small',
-      defaultOllamaEmbeddingModel: 'nomic-embed-text',
-      ollamaBaseUrl: 'http://localhost:11434',
-      ollamaEnabled: false,
-    },
   },
 }));
 
