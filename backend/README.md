@@ -183,7 +183,7 @@
 - **Build**: esbuild
 - **DB**: PostgreSQL 18 con pgvector (búsqueda semántica)
 - **Colas**: BullMQ + Redis
-- **AI**: OpenAI GPT-4o-mini + text-embedding-3-small
+- **AI**: OpenAI GPT-4o-mini + text-embedding-3-small + Multi-provider (Ollama, Anthropic, Gemini)
 - **Auth**: JWT + Refresh Tokens + 2FA
 - **Validación**: Zod
 - **Logging**: Pino
