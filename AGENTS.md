@@ -69,7 +69,6 @@ Your tone is professional, direct, and highly technical.
   5. **Test Plan / Test Cases** - Defines how the system will be validated
   6. **Development Roadmap** - Organizes work into tasks
 - **Code Only Starts After Step 4 (TSD is approved)**
-- Reference: `Proceso de documentación y desarrollo de software.md`
 
 ## Cybersecurity Standards (Mandatory)
 
