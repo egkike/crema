@@ -267,7 +267,7 @@ export const orderRepository = {
       FROM "${schema}".orders o
       JOIN "${schema}".users u ON o.buyer_id = u.id
       WHERE o.buyer_id = $1 AND o.product_id = $2 AND o.status = 'paid'
-      ORDER BY o.created_at DESC LIMIT 1;
+      ORDER BY o.created_at DESC LIMIT 1
     `;
     const { rows } = await pool.query(query, [userId, productId]);
     if (!rows[0]) return null;
@@ -278,6 +278,226 @@ export const orderRepository = {
       ...order,
       buyer_email: rows[0].buyer_email,
       buyer_name: rows[0].buyer_name,
+    };
+  },
+
+  // ==========================================
+  // ADMIN - Métodos para panel de admin
+  // ==========================================
+
+  /**
+   * Lista todas las órdenes de la plataforma con filtros y paginación
+   */
+  async getAllOrders(params: {
+    status?: string;
+    currency?: string;
+    from?: string;
+    to?: string;
+    buyerId?: string;
+    productId?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ orders: any[]; total: number }> {
+    const schema = config.db?.schema || 'public';
+    const { status, currency, from, to, buyerId, productId, page = 1, limit = 20 } = params;
+
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (status) {
+      conditions.push(`o.status = $${idx}`);
+      values.push(status);
+      idx++;
+    }
+
+    if (currency) {
+      conditions.push(`o.currency = $${idx}`);
+      values.push(currency);
+      idx++;
+    }
+
+    if (from) {
+      conditions.push(`o.created_at >= $${idx}::date`);
+      values.push(from);
+      idx++;
+    }
+
+    if (to) {
+      conditions.push(`o.created_at <= $${idx}::date`);
+      values.push(to);
+      idx++;
+    }
+
+    if (buyerId) {
+      conditions.push(`o.buyer_id = $${idx}`);
+      values.push(buyerId);
+      idx++;
+    }
+
+    if (productId) {
+      conditions.push(`o.product_id = $${idx}`);
+      values.push(productId);
+      idx++;
+    }
+
+    const whereClause = conditions.length > 0 
+      ? `WHERE ${conditions.join(' AND ')}` 
+      : '';
+
+    // Query para total
+    const countQuery = `
+      SELECT COUNT(*)::int as total
+      FROM "${schema}".orders o
+      ${whereClause}
+    `;
+
+    // Query para datos con paginación
+    const offset = (page - 1) * limit;
+    const dataQuery = `
+      SELECT 
+        o.*,
+        json_build_object(
+          'id', u.id,
+          'fullname', u.fullname,
+          'email', u.email
+        ) as buyer,
+        json_build_object(
+          'id', p.id,
+          'title', p.title,
+          'type', p.type
+        ) as product,
+        json_build_object(
+          'id', COALESCE(a.id, null),
+          'fullname', COALESCE(a.fullname, null)
+        ) as affiliate
+      FROM "${schema}".orders o
+      LEFT JOIN "${schema}".users u ON o.buyer_id = u.id
+      LEFT JOIN "${schema}".products p ON o.product_id = p.id
+      LEFT JOIN "${schema}".users a ON o.affiliate_id = a.id
+      ${whereClause}
+      ORDER BY o.created_at DESC
+      LIMIT $${idx} OFFSET $${idx + 1}
+    `;
+    values.push(limit, offset);
+
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(countQuery, values.slice(0, idx - 1)),
+      pool.query(dataQuery, values),
+    ]);
+
+    const total = countResult.rows[0]?.total || 0;
+    const orders = dataResult.rows.map(row => ({
+      id: row.id,
+      buyer_id: row.buyer_id,
+      product_id: row.product_id,
+      affiliate_id: row.affiliate_id,
+      amount: Number(row.amount),
+      currency: row.currency,
+      commission_amount: Number(row.commission_amount || 0),
+      status: row.status,
+      payment_method: row.payment_method,
+      external_reference: row.external_reference,
+      gateway_fee: Number(row.gateway_fee || 0),
+      gateway_tax: Number(row.gateway_tax || 0),
+      net_platform_profit: Number(row.net_platform_profit || 0),
+      transaction_id: row.transaction_id,
+      commissions_calculated: row.commissions_calculated,
+      balance_released: row.balance_released,
+      is_guarantee_eligible: row.is_guarantee_eligible,
+      release_at: row.release_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      buyer: row.buyer,
+      product: row.product,
+      affiliate: row.affiliate,
+    }));
+
+    return { orders, total };
+  },
+
+  /**
+   * Obtiene una orden específica por ID con todos los datos relacionados
+   */
+  async getOrderByIdForAdmin(orderId: string): Promise<any | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT 
+        o.*,
+        json_build_object(
+          'id', u.id,
+          'fullname', u.fullname,
+          'email', u.email
+        ) as buyer,
+        json_build_object(
+          'id', p.id,
+          'title', p.title,
+          'type', p.type,
+          'creator_id', p.creator_id
+        ) as product,
+        json_build_object(
+          'id', COALESCE(a.id, null),
+          'fullname', COALESCE(a.fullname, null),
+          'email', COALESCE(a.email, null)
+        ) as affiliate,
+        json_build_object(
+          'id', c.id,
+          'user_id', c.user_id,
+          'type', c.type,
+          'amount', c.amount,
+          'fee_applied', c.fee_applied,
+          'net_amount', c.net_amount
+        ) as creator_commission,
+        json_build_object(
+          'id', ca.id,
+          'user_id', ca.user_id,
+          'type', ca.type,
+          'amount', ca.amount,
+          'fee_applied', ca.fee_applied,
+          'net_amount', ca.net_amount
+        ) as affiliate_commission
+      FROM "${schema}".orders o
+      LEFT JOIN "${schema}".users u ON o.buyer_id = u.id
+      LEFT JOIN "${schema}".products p ON o.product_id = p.id
+      LEFT JOIN "${schema}".users a ON o.affiliate_id = a.id
+      LEFT JOIN "${schema}".commissions c ON o.id = c.order_id AND c.type = 'creator'
+      LEFT JOIN "${schema}".commissions ca ON o.id = ca.order_id AND ca.type = 'affiliate'
+      WHERE o.id = $1
+    `;
+
+    const { rows } = await pool.query(query, [orderId]);
+    if (!rows[0]) return null;
+
+    const row = rows[0];
+    return {
+      id: row.id,
+      buyer_id: row.buyer_id,
+      product_id: row.product_id,
+      affiliate_id: row.affiliate_id,
+      amount: Number(row.amount),
+      currency: row.currency,
+      original_amount: row.original_amount ? Number(row.original_amount) : null,
+      discount_applied: Number(row.discount_applied || 0),
+      commission_amount: Number(row.commission_amount || 0),
+      status: row.status,
+      payment_method: row.payment_method,
+      external_reference: row.external_reference,
+      gateway_fee: Number(row.gateway_fee || 0),
+      gateway_tax: Number(row.gateway_tax || 0),
+      net_platform_profit: Number(row.net_platform_profit || 0),
+      transaction_id: row.transaction_id,
+      commissions_calculated: row.commissions_calculated,
+      balance_released: row.balance_released,
+      is_guarantee_eligible: row.is_guarantee_eligible,
+      days_of_guarantee_applied: row.days_of_guarantee_applied,
+      release_at: row.release_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      buyer: row.buyer,
+      product: row.product,
+      affiliate: row.affiliate,
+      creator_commission: row.creator_commission,
+      affiliate_commission: row.affiliate_commission,
     };
   },
 };

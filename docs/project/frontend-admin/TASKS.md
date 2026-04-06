@@ -163,11 +163,11 @@ Una vez completadas las tareas B-001 a B-006, se procederá con las tareas de fr
 
 | Tarea | Estado |
 |-------|--------|
-| B-001 | ⏳ Pendiente |
-| B-002 | ⏳ Pendiente |
-| B-003 | ⏳ Pendiente |
-| B-004 | ⏳ Pendiente |
-| B-005 | ⏳ Pendiente |
+| B-001 | ✅ Completado |
+| B-002 | ✅ Completado |
+| B-003 | ✅ Completado |
+| B-004 | ✅ Completado |
+| B-005 | ✅ Completado |
 | B-006 | ⏳ Pendiente |
 | Frontend | ⏳ Esperando Backend |
 

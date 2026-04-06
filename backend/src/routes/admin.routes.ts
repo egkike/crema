@@ -5,6 +5,8 @@ import { payoutRepository } from '../repositories/payout.repository';
 import { PayoutService } from '../services/payout.service';
 import { ExportService } from '../services/export.service';
 import { productRepository } from '../repositories/product.repository';
+import { orderRepository } from '../repositories/order.repository';
+import { commissionRepository } from '../repositories/commission.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
@@ -119,6 +121,92 @@ router.patch('/products/:id', async (req: Request, res: Response, next: NextFunc
       success: true, 
       data: updatedProduct,
       message: 'Producto actualizado correctamente' 
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* --- 1.2 GESTIÓN DE ÓRDENES --- */
+
+/**
+ * Lista todas las órdenes de la plataforma con filtros y paginación
+ */
+router.get('/orders', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { status, currency, from, to, buyer_id, product_id, page, limit } = req.query;
+
+    const result = await orderRepository.getAllOrders({
+      status: status as string,
+      currency: currency as string,
+      from: from as string,
+      to: to as string,
+      buyerId: buyer_id as string,
+      productId: product_id as string,
+      page: page ? parseInt(page as string) : 1,
+      limit: limit ? parseInt(limit as string) : 20,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.orders,
+      pagination: {
+        page: page ? parseInt(page as string) : 1,
+        limit: limit ? parseInt(limit as string) : 20,
+        total: result.total,
+        totalPages: Math.ceil(result.total / (limit ? parseInt(limit as string) : 20)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Ver detalle de una orden específica
+ */
+router.get('/orders/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const order = await orderRepository.getOrderByIdForAdmin(id);
+
+    if (!order) {
+      throw new AppError('Orden no encontrada', 404);
+    }
+
+    res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Obtiene estadísticas de comisiones de la plataforma
+ */
+router.get('/commissions/stats', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const stats = await commissionRepository.getStats();
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Obtiene el top de productos por ventas de afiliados
+ */
+router.get('/commissions/top-products', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+    const topProducts = await commissionRepository.getTopProductsByAffiliateSales(limit);
+
+    res.status(200).json({
+      success: true,
+      data: topProducts,
     });
   } catch (error) {
     next(error);

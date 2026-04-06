@@ -143,4 +143,70 @@ export const commissionRepository = {
       throw error;
     }
   },
+
+  // ==========================================
+  // ADMIN - Métodos para panel de admin
+  // ==========================================
+
+  /**
+   * Obtiene estadísticas generales de comisiones de la plataforma
+   */
+  async getStats(): Promise<{
+    totalPaid: number;
+    totalPending: number;
+    totalRefunded: number;
+    totalCreatorCommissions: number;
+    totalAffiliateCommissions: number;
+  }> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT 
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN net_amount ELSE 0 END), 0) as "totalPaid",
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN net_amount ELSE 0 END), 0) as "totalPending",
+        COALESCE(SUM(CASE WHEN status = 'refunded' THEN net_amount ELSE 0 END), 0) as "totalRefunded",
+        COALESCE(SUM(CASE WHEN type = 'creator' AND status = 'paid' THEN net_amount ELSE 0 END), 0) as "totalCreatorCommissions",
+        COALESCE(SUM(CASE WHEN type = 'affiliate' AND status = 'paid' THEN net_amount ELSE 0 END), 0) as "totalAffiliateCommissions"
+      FROM "${schema}".commissions
+    `;
+    const { rows } = await pool.query(query);
+    const row = rows[0];
+    return {
+      totalPaid: Number(row.totalPaid),
+      totalPending: Number(row.totalPending),
+      totalRefunded: Number(row.totalRefunded),
+      totalCreatorCommissions: Number(row.totalCreatorCommissions),
+      totalAffiliateCommissions: Number(row.totalAffiliateCommissions),
+    };
+  },
+
+  /**
+   * Obtiene el top de productos por ventas de afiliados
+   */
+  async getTopProductsByAffiliateSales(limit: number = 10): Promise<any[]> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT 
+        p.id as "productId",
+        p.title as "productTitle",
+        p.type as "productType",
+        COUNT(DISTINCT o.id) as "orderCount",
+        COUNT(DISTINCT o.affiliate_id) as "affiliateCount",
+        COALESCE(SUM(c.net_amount), 0) as "totalAffiliateEarnings"
+      FROM "${schema}".products p
+      JOIN "${schema}".orders o ON p.id = o.product_id AND o.affiliate_id IS NOT NULL
+      JOIN "${schema}".commissions c ON o.id = c.order_id AND c.type = 'affiliate' AND c.status = 'paid'
+      GROUP BY p.id, p.title, p.type
+      ORDER BY "totalAffiliateEarnings" DESC
+      LIMIT $1
+    `;
+    const { rows } = await pool.query(query, [limit]);
+    return rows.map(row => ({
+      product_id: row.productId,
+      product_title: row.productTitle,
+      product_type: row.productType,
+      order_count: Number(row.orderCount),
+      affiliate_count: Number(row.affiliateCount),
+      total_affiliate_earnings: Number(row.totalAffiliateEarnings),
+    }));
+  },
 };
