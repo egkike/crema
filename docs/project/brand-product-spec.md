@@ -92,7 +92,7 @@ Todo tipo de info-productos:
 | Método | Moneda | Proveedor |
 |--------|--------|-----------|
 | MercadoPago | ARS | Cards, PIX, etc |
-| Crypto | USDT/BTC | Blockonomics |
+| Crypto | USDT | Blockonomics |
 
 ### 6.2 Checkout
 
