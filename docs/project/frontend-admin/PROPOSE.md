@@ -108,25 +108,28 @@ Para lograr el scope Full, se necesitan los siguientes endpoints que **NO existe
 
 ## 6. Recomendación
 
-**Elegir: Alternativa A** - Crear endpoints primero
+**Elegir: Alternativa B** - Backend primero
 
 ### Justificación:
 - El frontend depende de los endpoints
-- Es más eficiente desarrollar backend y frontend en paralelo
-- Reduces refactoring posterior
+- Frontend consume APIs ready desde el inicio
+- Sin refactoring posterior
+- Desarrollo secuencial más controlado
 
-### Plan de trabajo paralelo:
+### Plan de trabajo (Backend primero):
 
 ```
-Backend (Gaps G1-G6)     Frontend-admin
-    │                        │
-    ├─ G1,G2 (products)     ├─ Setup project
-    ├─ G4,G5 (orders)        ├─ Dashboard
-    ├─ G3 (edit product)    ├─ Users (existing)
-    └─ G6 (commissions)      ├─ Products (mock)
-                             ├─ Orders (mock)
-                             ├─ Balance/Payouts
-                             ├─ Connect APIs
+FASE 1: Backend              →  FASE 2: Frontend
+──────────────────────            ───────────────────
+B-001: GET products             Setup proyecto
+B-002: GET product/:id          Auth + Login
+B-003: PATCH product/:id        Layout
+B-004: GET orders               Dashboard
+B-005: GET order/:id            Users (existente)
+B-006: GET commissions          Products ← Connect API
+                               Orders ← Connect API
+                               Balance + Payouts
+                               etc...
 ```
 
 ---
