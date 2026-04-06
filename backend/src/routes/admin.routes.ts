@@ -6,6 +6,7 @@ import { PayoutService } from '../services/payout.service';
 import { ExportService } from '../services/export.service';
 import { productRepository } from '../repositories/product.repository';
 import { AppError } from '../errors/AppError';
+import logger from '../utils/logger';
 
 import { jwtAuthMiddleware } from './../middlewares/auth/jwt.middleware';
 import { restrictTo } from './../middlewares/auth/role.middleware';
@@ -70,6 +71,55 @@ router.get('/products/:id', async (req: Request, res: Response, next: NextFuncti
     }
 
     res.status(200).json({ success: true, data: product });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Editar un producto (solo campos específicos)
+ */
+router.patch('/products/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { title, description, status, affiliate_commission_percent } = req.body;
+
+    // Verificar que el producto existe
+    const existingProduct = await productRepository.getProductByIdForAdmin(id);
+    if (!existingProduct) {
+      throw new AppError('Producto no encontrado', 404);
+    }
+
+    // Validar status si se proporciona
+    const validStatuses = ['draft', 'published', 'archived'];
+    if (status && !validStatuses.includes(status)) {
+      throw new AppError(`Status inválido. Debe ser: ${validStatuses.join(', ')}`, 400);
+    }
+
+    // Validar affiliate_commission_percent si se proporciona
+    if (affiliate_commission_percent !== undefined) {
+      if (typeof affiliate_commission_percent !== 'number' || affiliate_commission_percent < 0 || affiliate_commission_percent > 100) {
+        throw new AppError('La comisión de afiliado debe ser un número entre 0 y 100', 400);
+      }
+    }
+
+    // Construir objeto de actualización (solo campos permitidos)
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (status !== undefined) updateData.status = status;
+    if (affiliate_commission_percent !== undefined) updateData.affiliate_commission_percent = affiliate_commission_percent;
+
+    // Actualizar producto
+    const updatedProduct = await productRepository.updateProduct(id, updateData);
+
+    logger.info({ productId: id, adminId: req.user?.id, updates: Object.keys(updateData) }, 'Admin actualizó producto');
+
+    res.status(200).json({ 
+      success: true, 
+      data: updatedProduct,
+      message: 'Producto actualizado correctamente' 
+    });
   } catch (error) {
     next(error);
   }

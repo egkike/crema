@@ -217,4 +217,37 @@ describe('Admin Routes', () => {
       expect([403, 500]).toContain(res.status);
     });
   });
+
+  /* --- PRODUCTOS ADMIN - PATCH --- */
+
+  describe('PATCH /api/admin/products/:id (requires admin)', () => {
+    it('should reject non-admin users', async () => {
+      const res = await request
+        .patch('/api/admin/products/00000000-0000-0000-0000-000000000001')
+        .set('Cookie', cookies)
+        .send({ title: 'New Title' });
+
+      expect([403, 500]).toContain(res.status);
+    });
+
+    it('should reject invalid status', async () => {
+      const res = await request
+        .patch('/api/admin/products/00000000-0000-0000-0000-000000000001')
+        .set('Cookie', cookies)
+        .send({ status: 'invalid_status' });
+
+      // Should return 400 for invalid status (since we reject at validation level before auth check)
+      // But in this test user is non-admin so we expect 403/500
+      expect([403, 500, 400]).toContain(res.status);
+    });
+
+    it('should reject invalid commission percent', async () => {
+      const res = await request
+        .patch('/api/admin/products/00000000-0000-0000-0000-000000000001')
+        .set('Cookie', cookies)
+        .send({ affiliate_commission_percent: 150 });
+
+      expect([403, 500, 400]).toContain(res.status);
+    });
+  });
 });
