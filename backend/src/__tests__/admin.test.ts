@@ -195,4 +195,26 @@ describe('Admin Routes', () => {
       expect([403, 500]).toContain(res.status);
     });
   });
+
+  /* --- PRODUCTOS ADMIN --- */
+
+  describe('GET /api/admin/products (requires admin)', () => {
+    it('should reject non-admin users', async () => {
+      const res = await request
+        .get('/api/admin/products')
+        .set('Cookie', cookies);
+
+      expect([403, 500]).toContain(res.status);
+    });
+  });
+
+  describe('GET /api/admin/products/:id (requires admin)', () => {
+    it('should reject non-admin users', async () => {
+      const res = await request
+        .get('/api/admin/products/00000000-0000-0000-0000-000000000001')
+        .set('Cookie', cookies);
+
+      expect([403, 500]).toContain(res.status);
+    });
+  });
 });

@@ -361,4 +361,158 @@ describe('productRepository', () => {
       expect(result).toBeNull();
     });
   });
+
+  // ==========================================
+  // ADMIN - Tests para panel de admin
+  // ==========================================
+
+  describe('getAllProducts (Admin)', () => {
+    const mockProduct = {
+      id: 'prod-1',
+      slug: 'test-product',
+      creator_id: 'user-1',
+      title: 'Test Product',
+      description: 'Description',
+      type: 'course',
+      content_url: null,
+      affiliate_commission_percent: 10,
+      size_bytes: 0,
+      has_structured_content: true,
+      status: 'published',
+      guarantee_days: 7,
+      created_at: new Date(),
+      updated_at: new Date(),
+      prices: [{ currency: 'ARS', amount: 1000 }],
+      creator: { id: 'user-1', fullname: 'Test User', email: 'test@test.com' },
+    };
+
+    it('should return all products with pagination', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      
+      // Mock count query
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })  // count
+        .mockResolvedValueOnce({ rows: [mockProduct] });    // data
+
+      const result = await productRepository.getAllProducts({});
+
+      expect(result.total).toBe(1);
+      expect(result.products).toHaveLength(1);
+      expect(result.products[0].title).toBe('Test Product');
+    });
+
+    it('should filter by search term', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({ rows: [mockProduct] });
+
+      const result = await productRepository.getAllProducts({ search: 'test' });
+
+      expect(result.total).toBe(1);
+    });
+
+    it('should filter by type', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({ rows: [mockProduct] });
+
+      const result = await productRepository.getAllProducts({ type: 'course' });
+
+      expect(result.total).toBe(1);
+    });
+
+    it('should filter by status', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({ rows: [mockProduct] });
+
+      const result = await productRepository.getAllProducts({ status: 'published' });
+
+      expect(result.total).toBe(1);
+    });
+
+    it('should filter by creator', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({ rows: [mockProduct] });
+
+      const result = await productRepository.getAllProducts({ creatorId: 'user-1' });
+
+      expect(result.total).toBe(1);
+    });
+
+    it('should use pagination', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: 50 }] })
+        .mockResolvedValueOnce({ rows: [mockProduct] });
+
+      const result = await productRepository.getAllProducts({ page: 2, limit: 10 });
+
+      expect(result.total).toBe(50);
+    });
+
+    it('should return empty array when no products', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: 0 }] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const result = await productRepository.getAllProducts({});
+
+      expect(result.total).toBe(0);
+      expect(result.products).toHaveLength(0);
+    });
+  });
+
+  describe('getProductByIdForAdmin (Admin)', () => {
+    const mockProductWithCreator = {
+      id: 'prod-1',
+      slug: 'test-product',
+      creator_id: 'user-1',
+      title: 'Test Product',
+      description: 'Description',
+      type: 'course',
+      content_url: null,
+      affiliate_commission_percent: 10,
+      size_bytes: 0,
+      has_structured_content: true,
+      status: 'published',
+      guarantee_days: 7,
+      created_at: new Date(),
+      updated_at: new Date(),
+      prices: [{ currency: 'ARS', amount: 1000 }],
+      creator: { id: 'user-1', fullname: 'Test User', email: 'test@test.com' },
+    };
+
+    it('should return product with creator info', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      mockQuery.mockResolvedValue({ rows: [mockProductWithCreator] });
+
+      const result = await productRepository.getProductByIdForAdmin('prod-1');
+
+      expect(result).not.toBeNull();
+      expect(result?.title).toBe('Test Product');
+      expect(result?.creator?.fullname).toBe('Test User');
+    });
+
+    it('should return null when product not found', async () => {
+      const { productRepository } = await import('../../repositories/product.repository');
+      mockQuery.mockResolvedValue({ rows: [] });
+
+      const result = await productRepository.getProductByIdForAdmin('not-found');
+
+      expect(result).toBeNull();
+    });
+  });
 });
