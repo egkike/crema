@@ -4,6 +4,7 @@ import { AdminController } from '../controllers/admin.controller';
 import { payoutRepository } from '../repositories/payout.repository';
 import { PayoutService } from '../services/payout.service';
 import { ExportService } from '../services/export.service';
+import { productRepository } from '../repositories/product.repository';
 import { AppError } from '../errors/AppError';
 
 import { jwtAuthMiddleware } from './../middlewares/auth/jwt.middleware';
@@ -22,6 +23,57 @@ router.get('/user-stats/:userId', AdminController.getUserStats);
 
 // Resumen de retenciones (IVA/IIBB) para gráficos en el Dashboard
 router.get('/retention-summary', AdminController.getRetentionSummary);
+
+/* --- 1.1 GESTIÓN DE PRODUCTOS --- */
+
+/**
+ * Lista todos los productos de la plataforma
+ */
+router.get('/products', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { search, type, status, creator_id, page, limit } = req.query;
+
+    const result = await productRepository.getAllProducts({
+      search: search as string,
+      type: type as string,
+      status: status as string,
+      creatorId: creator_id as string,
+      page: page ? parseInt(page as string) : 1,
+      limit: limit ? parseInt(limit as string) : 20,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.products,
+      pagination: {
+        page: page ? parseInt(page as string) : 1,
+        limit: limit ? parseInt(limit as string) : 20,
+        total: result.total,
+        totalPages: Math.ceil(result.total / (limit ? parseInt(limit as string) : 20)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Ver detalle de un producto específico
+ */
+router.get('/products/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const product = await productRepository.getProductByIdForAdmin(id);
+
+    if (!product) {
+      throw new AppError('Producto no encontrado', 404);
+    }
+
+    res.status(200).json({ success: true, data: product });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /* --- 2. GESTIÓN DE RETIROS (PAYOUTS) --- */
 router.get('/payouts/pending', async (_req, res, next) => {

@@ -729,9 +729,133 @@ export const productRepository = {
     LEFT JOIN "${schema}".orders o ON o.product_id = p.id AND o.buyer_id = $2 AND o.status = 'paid'
     WHERE l.id = $1 
     AND (o.id IS NOT NULL OR p.creator_id = $2);
-  `;
+    `;
 
     const { rows } = await pool.query(query, [lessonId, userId]);
     return rows[0] || null;
+  },
+
+  // ==========================================
+  // ADMIN - Métodos para panel de admin
+  // ==========================================
+
+  /**
+   * Lista todos los productos de la plataforma con filtros y paginación
+   */
+  async getAllProducts(params: {
+    search?: string;
+    type?: string;
+    status?: string;
+    creatorId?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ products: Product[]; total: number }> {
+    const schema = config.db?.schema || 'public';
+    const { search, type, status, creatorId, page = 1, limit = 20 } = params;
+
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (search) {
+      conditions.push(`(p.title ILIKE $${idx} OR p.description ILIKE $${idx})`);
+      values.push(`%${search}%`);
+      idx++;
+    }
+
+    if (type) {
+      conditions.push(`p.type = $${idx}`);
+      values.push(type);
+      idx++;
+    }
+
+    if (status) {
+      conditions.push(`p.status = $${idx}`);
+      values.push(status);
+      idx++;
+    }
+
+    if (creatorId) {
+      conditions.push(`p.creator_id = $${idx}`);
+      values.push(creatorId);
+      idx++;
+    }
+
+    const whereClause = conditions.length > 0 
+      ? `WHERE ${conditions.join(' AND ')}` 
+      : '';
+
+    // Query para total
+    const countQuery = `
+      SELECT COUNT(*)::int as total
+      FROM "${schema}".products p
+      ${whereClause}
+    `;
+
+    // Query para datos con paginación
+    const offset = (page - 1) * limit;
+    const dataQuery = `
+      SELECT p.*, 
+             COALESCE(
+               (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+                FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+               '[]'::json
+             ) as prices,
+             json_build_object(
+               'id', u.id,
+               'fullname', u.fullname,
+               'email', u.email
+             ) as creator
+      FROM "${schema}".products p
+      LEFT JOIN "${schema}".users u ON p.creator_id = u.id
+      ${whereClause}
+      ORDER BY p.created_at DESC
+      LIMIT $${idx} OFFSET $${idx + 1}
+    `;
+    values.push(limit, offset);
+
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(countQuery, values.slice(0, idx - 1)),
+      pool.query(dataQuery, values),
+    ]);
+
+    const total = countResult.rows[0]?.total || 0;
+    const products = dataResult.rows.map(row => ({
+      ...this.mapRowToProduct(row),
+      creator: row.creator,
+    }));
+
+    return { products, total };
+  },
+
+  /**
+   * Obtiene un producto específico por ID con datos del creador
+   */
+  async getProductByIdForAdmin(productId: string): Promise<Product | null> {
+    const schema = config.db?.schema || 'public';
+    const query = `
+      SELECT p.*, 
+             COALESCE(
+               (SELECT json_agg(json_build_object('currency', pp.currency, 'amount', pp.amount))
+                FROM "${schema}".product_prices pp WHERE pp.product_id = p.id),
+               '[]'::json
+             ) as prices,
+             json_build_object(
+               'id', u.id,
+               'fullname', u.fullname,
+               'email', u.email
+             ) as creator
+      FROM "${schema}".products p
+      LEFT JOIN "${schema}".users u ON p.creator_id = u.id
+      WHERE p.id = $1
+    `;
+
+    const { rows } = await pool.query(query, [productId]);
+    if (!rows[0]) return null;
+
+    return {
+      ...this.mapRowToProduct(rows[0]),
+      creator: rows[0].creator,
+    };
   },
 };
