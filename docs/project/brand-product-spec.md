@@ -54,7 +54,7 @@ Este documento define la identidad de marca, público objetivo, modelo de negoci
 
 | Revenue Stream | Detalle |
 |---------------|---------|
-| **Comisión** | 9.9% + fee fijo por venta |
+| **Comisión** | 10% + fee fijo por venta (450 ARS productos ≤25k, 900 ARS productos >25k) |
 | **Suscripción** | Plan Pro ~$30k ARS (cubre costos + margen) |
 | **AI** | Included en Pro hasta límite → luego credits prepagos |
 
@@ -106,7 +106,7 @@ Todo tipo de info-productos:
 |---------|-------------|
 | **Afiliados externos** | Cualquier persona puede compartir links y ganar comisiones |
 | **Creadores como afiliados** | Un creator puede vender productos de otros |
-| **Comisión** | 10% sobre el precio bruto |
+| **Comisión default** | 5% sobre el precio bruto (configurable por producto) |
 
 ---
 
