@@ -301,6 +301,277 @@ Reporte de cumplimiento LEC.
 
 ---
 
+## Gestión de Productos
+
+### List Products
+
+```
+GET /api/admin/products
+```
+
+Lista todos los productos de la plataforma con filtros y paginación.
+
+**Autenticación:** Requiere access token + rol ADMIN
+
+**Query Params:**
+
+| Param | Tipo | Descripción |
+|-------|------|-------------|
+| `search` | string | Buscar por título |
+| `type` | string | Tipo de producto (course, ebook, etc.) |
+| `status` | string | Estado (draft, published, archived) |
+| `creator_id` | uuid | Filtrar por creador |
+| `page` | number | Página (default: 1) |
+| `limit` | number | Items por página (default: 20) |
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 150,
+    "totalPages": 8
+  }
+}
+```
+
+---
+
+### Get Product
+
+```
+GET /api/admin/products/:id
+```
+
+Ver detalle de un producto específico.
+
+**Autenticación:** Requiere access token + rol ADMIN
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "title": "Curso de React",
+    "description": "...",
+    "status": "published",
+    "creator_id": "uuid",
+    "creator": { "id": "uuid", "fullname": "Juan Pérez", "email": "juan@..." },
+    "price": 25000,
+    "currency": "ARS",
+    "affiliate_commission_percent": 30,
+    "stats": { "total_sales": 150, "total_revenue": 3750000 }
+  }
+}
+```
+
+---
+
+### Update Product
+
+```
+PATCH /api/admin/products/:id
+```
+
+Editar información de un producto.
+
+**Autenticación:** Requiere access token + rol ADMIN
+
+**Request Body:**
+
+```json
+{
+  "title": "Nuevo título",
+  "description": "Nueva descripción",
+  "status": "published",
+  "affiliate_commission_percent": 35
+}
+```
+
+**Campos editables:** `title`, `description`, `status`, `affiliate_commission_percent`
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Producto actualizado correctamente"
+}
+```
+
+---
+
+## Gestión de Órdenes
+
+### List Orders
+
+```
+GET /api/admin/orders
+```
+
+Lista todas las órdenes de la plataforma con filtros y paginación.
+
+**Autenticación:** Requiere access token + rol ADMIN
+
+**Query Params:**
+
+| Param | Tipo | Descripción |
+|-------|------|-------------|
+| `status` | string | Estado (pending, paid, refunded, etc.) |
+| `currency` | string | Moneda (ARS, USDT) |
+| `from` | date | Fecha inicio |
+| `to` | date | Fecha fin |
+| `buyer_id` | uuid | Filtrar por comprador |
+| `product_id` | uuid | Filtrar por producto |
+| `page` | number | Página (default: 1) |
+| `limit` | number | Items por página (default: 20) |
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "buyer_id": "uuid",
+      "product_id": "uuid",
+      "amount": 25000,
+      "currency": "ARS",
+      "status": "paid",
+      "payment_method": "mercadopago",
+      "buyer": { "id": "uuid", "fullname": "Cliente X", "email": "cliente@..." },
+      "product": { "id": "uuid", "title": "Curso de React", "type": "course" },
+      "affiliate": { "id": "uuid", "fullname": "Afiliado Y" },
+      "created_at": "2026-04-06T..."
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 500, "totalPages": 25 }
+}
+```
+
+---
+
+### Get Order
+
+```
+GET /api/admin/orders/:id
+```
+
+Ver detalle de una orden específica con todos los datos relacionados.
+
+**Autenticación:** Requiere access token + rol ADMIN
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "buyer_id": "uuid",
+    "product_id": "uuid",
+    "affiliate_id": "uuid",
+    "amount": 25000,
+    "currency": "ARS",
+    "original_amount": 25000,
+    "discount_applied": 0,
+    "commission_amount": 2500,
+    "status": "paid",
+    "payment_method": "mercadopago",
+    "external_reference": "ref-123",
+    "gateway_fee": 500,
+    "gateway_tax": 200,
+    "net_platform_profit": 1800,
+    "transaction_id": "tx-456",
+    "commissions_calculated": true,
+    "balance_released": false,
+    "is_guarantee_eligible": true,
+    "release_at": "2026-04-13T...",
+    "created_at": "2026-04-06T...",
+    "buyer": { "id": "uuid", "fullname": "Cliente X", "email": "cliente@..." },
+    "product": { "id": "uuid", "title": "Curso de React", "type": "course", "creator_id": "uuid" },
+    "affiliate": { "id": "uuid", "fullname": "Afiliado Y", "email": "afiliado@..." },
+    "creator_commission": { "id": "uuid", "user_id": "uuid", "type": "creator", "amount": 2500, "fee_applied": 250, "net_amount": 2250 },
+    "affiliate_commission": { "id": "uuid", "user_id": "uuid", "type": "affiliate", "amount": 750, "fee_applied": 75, "net_amount": 675 }
+  }
+}
+```
+
+---
+
+## Gestión de Comisiones
+
+### Commission Stats
+
+```
+GET /api/admin/commissions/stats
+```
+
+Obtiene estadísticas de comisiones de la plataforma.
+
+**Autenticación:** Requiere access token + rol ADMIN
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalPaid": 1500000,
+    "totalPending": 250000,
+    "totalRefunded": 50000,
+    "totalCreatorCommissions": 1000000,
+    "totalAffiliateCommissions": 500000
+  }
+}
+```
+
+---
+
+### Top Products by Affiliate Sales
+
+```
+GET /api/admin/commissions/top-products
+```
+
+Obtiene el top de productos por ventas de afiliados.
+
+**Autenticación:** Requiere access token + rol ADMIN
+
+**Query Params:**
+
+| Param | Tipo | Default |
+|-------|------|---------|
+| `limit` | number | 10 |
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "product_id": "uuid",
+      "product_title": "Curso de Marketing",
+      "product_type": "course",
+      "order_count": 45,
+      "affiliate_count": 12,
+      "total_affiliate_earnings": 135000
+    }
+  ]
+}
+```
+
+---
+
 ## Ver También
 
 - [Features: Compliance](../../features/compliance.md)

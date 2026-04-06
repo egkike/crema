@@ -249,6 +249,12 @@ export const getAllOrders = (params: { page?: number; limit?: number; status?: s
 
 export const getOrderById = (id: string) => api.get(`/api/admin/orders/${id}`);
 
+// Commissions (NEW - B-006)
+export const getCommissionStats = () => api.get('/api/admin/commissions/stats');
+
+export const getTopProductsByAffiliateSales = (limit: number = 10) =>
+  api.get(`/api/admin/commissions/top-products?limit=${limit}`);
+
 // Users (STAFF endpoints)
 export const getAllUsers = (params: { page?: number; limit?: number; search?: string; level?: string; status?: string }) =>
   api.get(`/api/users/users?${query.toString()}`);

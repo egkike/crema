@@ -459,14 +459,15 @@ Para implementar estas historias de usuario, se necesitan los siguientes endpoin
 
 | Endpoint | Descripción | Priority |
 |----------|-------------|----------|
-| GET /api/admin/products | Listar todos productos | 🔴 Critical |
+| GET /api/admin/products | Listar todos productos (filtros: search, type, status, creator_id) | 🔴 Critical |
 | GET /api/admin/products/:id | Ver detalle producto | 🔴 Critical |
-| PATCH /api/admin/products/:id | Editar producto | 🟡 Alta |
-| GET /api/admin/orders | Listar todas órdenes | 🔴 Critical |
-| GET /api/admin/orders/:id | Ver detalle orden | 🔴 Critical |
+| PATCH /api/admin/products/:id | Editar producto (title, description, status, affiliate_commission_percent) | 🟡 Alta |
+| GET /api/admin/orders | Listar todas órdenes (filtros: status, currency, from, to, buyer_id, product_id) | 🔴 Critical |
+| GET /api/admin/orders/:id | Ver detalle orden (incluye buyer, product, affiliate, comisiones) | 🔴 Critical |
+| GET /api/admin/commissions/stats | Stats comisiones (totalPaid, totalPending, totalRefunded, por tipo) | 🟢 Media |
+| GET /api/admin/commissions/top-products | Top productos por ventas de afiliados | 🟢 Media |
 | GET /api/admin/refunds | Listar refunds | 🟡 Alta |
 | PATCH /api/admin/refunds/:id | Procesar refund | 🟡 Alta |
-| GET /api/admin/commissions | Stats comisiones | 🟢 Media |
 
 ---
 
