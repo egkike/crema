@@ -5,7 +5,7 @@ import { requireAdmin2FA } from '../../middlewares/auth/admin2fa.middleware';
 // Mock de las dependencias
 vi.mock('../../repositories/user.repository', () => ({
   userRepository: {
-    findById: vi.fn(),
+    getById: vi.fn(),
   },
 }));
 
@@ -40,7 +40,7 @@ describe('requireAdmin2FA Middleware', () => {
   });
 
   it('debería permitir acceso si el admin tiene 2FA habilitado', async () => {
-    vi.mocked(userRepository.findById).mockResolvedValue({
+    vi.mocked(userRepository.getById).mockResolvedValue({
       id: 'admin-123',
       level: 10,
       two_factor_enabled: true,
@@ -50,11 +50,11 @@ describe('requireAdmin2FA Middleware', () => {
     await requireAdmin2FA(mockReq as Request, mockRes as Response, mockNext);
 
     expect(mockNext).toHaveBeenCalledWith();
-    expect(userRepository.findById).toHaveBeenCalledWith('admin-123');
+    expect(userRepository.getById).toHaveBeenCalledWith('admin-123');
   });
 
   it('debería bloquear acceso si el admin NO tiene 2FA habilitado', async () => {
-    vi.mocked(userRepository.findById).mockResolvedValue({
+    vi.mocked(userRepository.getById).mockResolvedValue({
       id: 'admin-123',
       level: 10,
       two_factor_enabled: false,
@@ -70,7 +70,7 @@ describe('requireAdmin2FA Middleware', () => {
   });
 
   it('debería bloquear acceso si el admin tiene level >= 10 sin 2FA', async () => {
-    vi.mocked(userRepository.findById).mockResolvedValue({
+    vi.mocked(userRepository.getById).mockResolvedValue({
       id: 'admin-123',
       level: 99,
       two_factor_enabled: false,
@@ -85,7 +85,7 @@ describe('requireAdmin2FA Middleware', () => {
   });
 
   it('debería permitir acceso si el usuario NO es admin (level < 10)', async () => {
-    vi.mocked(userRepository.findById).mockResolvedValue({
+    vi.mocked(userRepository.getById).mockResolvedValue({
       id: 'user-123',
       level: 1,
       two_factor_enabled: false,
@@ -109,7 +109,7 @@ describe('requireAdmin2FA Middleware', () => {
   });
 
   it('debería bloquear si el usuario no existe', async () => {
-    vi.mocked(userRepository.findById).mockResolvedValue(null);
+    vi.mocked(userRepository.getById).mockResolvedValue(null);
 
     await requireAdmin2FA(mockReq as Request, mockRes as Response, mockNext);
 

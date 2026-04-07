@@ -17,7 +17,7 @@ export const requireAdmin2FA = async (req: Request, _res: Response, next: NextFu
   }
 
     // Obtener usuario con datos de 2FA
-    const user = await userRepository.findById(adminId);
+    const user = await userRepository.getById(adminId);
 
     if (!user) {
       throw new AppError('Usuario no encontrado', 404);
