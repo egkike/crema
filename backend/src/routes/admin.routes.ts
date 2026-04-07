@@ -9,15 +9,19 @@ import { orderRepository } from '../repositories/order.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
-
-import { jwtAuthMiddleware } from './../middlewares/auth/jwt.middleware';
-import { restrictTo } from './../middlewares/auth/role.middleware';
+import { auditMiddleware } from '../middlewares/audit/audit.middleware';
+import { requireAdmin2FA } from '../middlewares/auth/admin2fa.middleware';
+import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
+import { restrictTo } from '../middlewares/auth/role.middleware';
+import { adminReadLimiter, adminWriteLimiter } from '../middlewares/rateLimit/rateLimit';
 
 const router = Router();
 
-// Protección Global: Solo administradores nivel 10
+// Protección Global: Solo administradores nivel 10 + 2FA obligatorio + rate limiting
 router.use(jwtAuthMiddleware);
 router.use(restrictTo('ADMIN'));
+router.use(requireAdmin2FA);
+router.use(adminReadLimiter); // Rate limit para lectura (100 req/min)
 
 /* --- 1. SALUD FINANCIERA Y AUDITORÍA --- */
 router.get('/financial-health', AdminController.getFinancialHealth);
@@ -81,7 +85,7 @@ router.get('/products/:id', async (req: Request, res: Response, next: NextFuncti
 /**
  * Editar un producto (solo campos específicos)
  */
-router.patch('/products/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/products/:id', adminWriteLimiter, auditMiddleware('product_update', 'product'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { title, description, status, affiliate_commission_percent } = req.body;
@@ -223,12 +227,46 @@ router.get('/payouts/pending', async (_req, res, next) => {
   }
 });
 
-router.patch('/payouts/:id/status', AdminController.processPayout);
+router.patch('/payouts/:id/status', adminWriteLimiter, auditMiddleware('payout_update', 'payout'), AdminController.processPayout);
+
+/**
+ * Obtener logs de auditoría
+ */
+router.get('/audit-logs', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { from, to, action, admin_id, page, limit } = req.query;
+
+    // Importar la función del middleware de auditoría
+    const { getAuditLogs } = await import('../middlewares/audit/audit.middleware');
+
+    const result = getAuditLogs({
+      from: from as string,
+      to: to as string,
+      action: action as string,
+      adminId: admin_id as string,
+      page: page ? parseInt(page as string) : 1,
+      limit: limit ? parseInt(limit as string) : 20,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.logs,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * Registro de retiro de fondos de la plataforma (Empresa)
  */
-router.post('/withdraw-platform', async (req: Request & { user?: { id: string } }, res: Response, next: NextFunction) => {
+router.post('/withdraw-platform', adminWriteLimiter, async (req: Request & { user?: { id: string } }, res: Response, next: NextFunction) => {
   try {
     const { amount, currency, description, transaction_receipt } = req.body;
     const adminId = req.user?.id;
@@ -269,8 +307,8 @@ router.get('/lec/projects', AdminController.getRDProjects);
 /**
  * Registro de Logs de I+D: 
  * Aquí es donde el admin vincula horas de desarrollo con commits para la auditoría nacional.
- */
-router.post('/lec/rd-logs', AdminController.logRDActivity);
+  */
+router.post('/lec/rd-logs', adminWriteLimiter, AdminController.logRDActivity);
 
 /**
  * Reporte de Certificación: 

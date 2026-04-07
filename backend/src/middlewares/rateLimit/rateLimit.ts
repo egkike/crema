@@ -109,3 +109,42 @@ export const webhookLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Rate limiter específico para endpoints de ADMIN (más restrictivo)
+// Los endpoints de admin tienen operaciones sensibles
+export const adminReadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 100, // máximo 100 peticiones por minuto para operaciones de lectura
+  message: {
+    success: false,
+    error: 'Límite de peticiones de lectura alcanzado. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => {
+    return req.user?.id || ipKeyGenerator(req) || 'unknown';
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de lectura admin alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
+// Rate limiter aún más restrictivo para operaciones de ESCRITURA de admin
+export const adminWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 50, // máximo 50 peticiones por minuto para operaciones de escritura
+  message: {
+    success: false,
+    error: 'Límite de peticiones de escritura alcanzado. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => {
+    return req.user?.id || ipKeyGenerator(req) || 'unknown';
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de escritura admin alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});

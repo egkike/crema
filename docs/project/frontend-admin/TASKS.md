@@ -229,9 +229,9 @@ Una vez completadas las tareas B-001 a B-006, se procederá con las tareas de fr
 | B-004 | ✅ Completado |
 | B-005 | ✅ Completado |
 | B-006 | ✅ Completado |
-| B-007 | ⏳ Pendiente (Seguridad - Auditoría) |
-| B-008 | ⏳ Pendiente (Seguridad - 2FA) |
-| B-009 | ⏳ Pendiente (Seguridad - Rate Limiting) |
+| B-007 | ✅ Completado (Auditoría) |
+| B-008 | ✅ Completado (2FA obligatorio) |
+| B-009 | ✅ Completado (Rate limiting) |
 | Frontend | ⏳ Esperando Backend |
 
 ---
