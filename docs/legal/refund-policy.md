@@ -61,8 +61,8 @@ Para ser elegible para reembolso, el comprador debe:
 | Motivo | Descripción |
 |--------|-------------|
 | **Producto defectuoso** | El contenido no funciona, está incompleto o corrupto |
-| **Descripción incorrecta** | El producto no es como se описал |
-| **No recibido** | No se получиль acceso al producto |
+| **Descripción incorrecta** | El producto no es como se describió |
+| **No recibido** | No se obtuvo acceso al producto |
 | **Cambio de circunstancias** | Ya no necesita el producto |
 | **Calidad insatisfactoria** | El contenido no cumple expectativas razonables |
 
@@ -71,7 +71,7 @@ Para ser elegible para reembolso, el comprador debe:
 | Motivo | razón |
 |--------|-------|
 | "Cambié de opinión" | Después de acceder al contenido |
-| "Encontré más barato" | Reason personal |
+| "Encontré más barato" | Motivo personal |
 | "No tengo tiempo" | No relacionado con el producto |
 | "El producto no era lo que esperaba" | Sin especificar por qué |
 | "Mi negocio cerró" | Motivo externo |
@@ -131,7 +131,7 @@ Decisión
 |--------|---------------|
 | Acceso al contenido | ¿El usuario accedió al material? |
 | Tiempo de uso | ¿Cuánto tiempo tuvo el producto? |
-| Evidencia | ¿提供了 suficiente información? |
+| Evidencia | ¿El usuario proporcionó suficiente información? |
 | Historial | ¿El usuario tiene múltiples reembolsos? |
 
 ### 5.3 Resultado posible
