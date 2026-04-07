@@ -151,9 +151,11 @@ Decisión
 
 Se devuelve el **100% del precio** cuando:
 - La solicitud está dentro del período de garantía
-- El contenido no ha sido consumido (menos del 30%)
+- El contenido no ha sido consumido (**menos del 30%**)
 - El Creador no ha respondido en 7 días
 - No aplica para pagos con USDT (crypto)
+
+> **Nota sobre consumo:** El sistema verifica automáticamente el progreso del usuario en el producto. Si el comprador ha consumido **más del 30%** del contenido (lecciones vistas, descargas realizadas, quizzes completados), la garantía se invalida automáticamente y el reembolso es denegado. Esta validación aplica solo para productos con contenido estructurado (cursos, membresías).
 
 ### 6.2 Reembolso NO disponible
 
