@@ -1,7 +1,7 @@
 # Política de Reembolsos
 
 **Última actualización:** Abril 2026  
-**Versión:** 1.0
+**Versión:** 1.1
 
 ---
 
@@ -15,23 +15,31 @@ Al realizar una compra, usted acepta los términos de esta política.
 
 ## 2. Período de Garantía
 
-### 2.1 Garantía Estándar
+### 2.1 Garantía configurable por producto
 
-| Tipo de producto | Período de garantía |
-|------------------|---------------------|
-| Cursos | **7 días** desde la compra |
-| E-books | **7 días** desde la compra |
-| Templates/Recursos | **7 días** desde la compra |
-| Membresías | **7 días** desde el inicio del período facturado |
-| Servicios (mentorías) | No aplica (servicio personalizado) |
+Cada Creador puede configurar el período de garantía en su producto:
 
-### 2.2 Garantía Extendida
+| Configuración | Período de garantía |
+|---------------|---------------------|
+| **Por defecto** | **7 días** desde la compra |
+| **Creador define** | El Creador puede establecer 0, 3, 7, 14, 30 días |
+| **Sin garantía** | El Creador puede establecer garantía = 0 |
 
-El Creador puede ofrecer una garantía mayor a su criterio. Esta información se muestra en la página del producto.
+La garantía configurada se muestra en la página de cada producto.
+
+### 2.2 Garantía según método de pago
+
+| Método de pago | Período de garantía |
+|---------------|---------------------|
+| **Mercado Pago (ARS/USD)** | Según configuración del producto |
+| **Tarjeta de crédito/débito** | Según configuración del producto |
+| **USDT (Crypto)** | **SIN GARANTÍA** (0 días) |
+
+> **Nota:** Las transacciones con criptomonedas (USDT via Blockonomics) son irreversibles por naturaleza. Dado que la pasarela de pago crypto no soporta reembolsos, **no se aplica período de garantía** a estas compras.
 
 ### 2.3 Inicio del período
 
-El período de garantía comienza en el momento de la **confirmación del pago**.
+El período de garantía comienza en el momento de la **confirmación del pago** (status "paid" de la orden).
 
 ---
 
@@ -164,6 +172,7 @@ No aplica reembolso cuando:
 - El usuario ya descargó/visualizó el contenido completo
 - Es un servicio personalizado ya prestado
 - El usuario violó los Términos y Condiciones
+- **La compra fue pagada con USDT (criptomonedas)** - Las transacciones crypto son irreversibles
 
 ---
 
@@ -217,7 +226,18 @@ Para productos con contenido descargable:
 | Consultas | No reembolsable |
 | Servicios hechos a medida | No reembolsable |
 
-### 8.4 Promociones/Bundles
+### 8.4 Pagos con Criptomonedas (USDT)
+
+Las compras realizadas con USDT (Tether) a través de la pasarela crypto **NO son reembolsables**.
+
+| Aspecto | Detalle |
+|---------|---------|
+| **Motivo** | Las transacciones blockchain son irreversibles |
+| **Soporte** | La pasarela Blockonomics no soporta refunds |
+| **Garantía** | 0 días (no aplica período de garantía) |
+| **Excepción** | Solo bajo evaluación manual por fraude comprovado |
+
+### 8.5 Promociones/Bundles
 
 Los productos en promoción siguen las mismas reglas, pero el reembolso puede estar limitado al precio realmente pagado.
 
