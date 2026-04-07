@@ -150,21 +150,20 @@ Decisión
 ### 6.1 Reembolso Total
 
 Se devuelve el **100% del precio** cuando:
-- Producto no recibido
-- Producto defectuoso
-- Solicitud dentro de las primeras 24 horas
-- Creador no responde en 7 días
+- La solicitud está dentro del período de garantía
+- El contenido no ha sido consumido (menos del 30%)
+- El Creador no ha respondido en 7 días
+- No aplica para pagos con USDT (crypto)
 
-### 6.2 Reembolso Parcial
+### 6.2 Reembolso NO disponible
 
-Se devuelve un **porcentaje parcial** según uso:
+**Crema no ofrece reembolsos parciales.**
 
-| Tiempo de acceso | Reembolso |
-|------------------|-----------|
-| < 24 horas | 100% |
-| 1-3 días | 70% |
-| 4-7 días | 50% |
-| > 7 días | 0% |
+El sistema evalúa el reembolso de forma binaria:
+- **Aprobado**: Se reembolsa el 100% del monto
+- **Rechazado**: No se realiza ningún reembolso
+
+No existen reembolsos proporcionales según tiempo de acceso o consumo parcial.
 
 ### 6.3 Sin Reembolso
 
