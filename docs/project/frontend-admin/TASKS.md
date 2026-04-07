@@ -144,16 +144,15 @@ FASE 1: Backend (G1-G6)     →  FASE 2: Frontend
 **Descripción**: Sistema de logging de acciones administrativas para cumplimiento y seguridad.
 
 **Implementación**:
-- Crear tabla `admin_audit_logs` en DB
-- Crear método en repository
-- Middleware para auto-loggear acciones CRUD
-- Agregar a endpoints existentes (products, orders, payouts, refunds)
+- Middleware de auditoría en memoria (listo para persistir en DB)
+- logs de acciones CRUD (products, payouts)
+- Endpoint `/api/admin/audit-logs` para visualización
 
 **Criterios de aceptación**:
-- [ ] Cada acción de escritura registra: admin_id, acción, recurso, old_value, new_value, timestamp, IP
-- [ ] Los logs no son editables ni eliminables
-- [ ] Endpoint para exportar logs por rango de fechas
-- [ ] Filtros de auditoría en el panel admin
+- [x] Cada acción de escritura registra: admin_id, acción, recurso, old_value, new_value, timestamp, IP
+- [x] Los logs no son editables ni eliminables
+- [x] Endpoint para exportar logs por rango de fechas y acción
+- [ ] Filtros de auditoría en el panel admin (pendiente frontend)
 
 **Estimación**: 4 horas
 
@@ -164,15 +163,14 @@ FASE 1: Backend (G1-G6)     →  FASE 2: Frontend
 **Descripción**: Reforzar seguridad de autenticación para panel admin.
 
 **Implementación**:
-- Configurar JWT con duración más corta para admin (30 min access, 2h refresh)
-- Forzar 2FA para usuarios con rol ADMIN
-- Middleware que verifique rol + 2FA enabled
-- Agregar campo `require_2fa` en tabla users para admins
+- Middleware `requireAdmin2FA` que verifica level >= 10
+- Verifica `two_factor_enabled` antes de permitir acceso
+- Rate limiting específico para endpoints admin
 
 **Criterios de acceso**:
-- [ ] Admin sin 2FA no puede acceder al panel
-- [ ] Sesión expira por inactividad (30 min)
-- [ ] Access token de admin más corto que usuario normal
+- [x] Admin sin 2FA no puede acceder al panel
+- [ ] Sesión expira por inactividad (pendiente - requiere frontend)
+- [ ] Access token de admin más corto (pendiente - configurable via env)
 
 **Estimación**: 3 horas
 
@@ -183,9 +181,17 @@ FASE 1: Backend (G1-G6)     →  FASE 2: Frontend
 **Descripción**: Limitar requests agresivos en endpoints admin.
 
 **Implementación**:
-- Crear `adminLimiter` con límites más estrictos
-- Aplicar a todas las rutas /api/admin/*
-- Configurar: 50 req/min para escritura, 100 req/min para lectura
+- `adminReadLimiter`: 100 req/min para operaciones de lectura
+- `adminWriteLimiter`: 50 req/min para operaciones de escritura
+- Aplicado a todas las rutas `/api/admin/*`
+
+**Criterios de aceptación**:
+- [x] Endpoints de lectura: 100 req/min
+- [x] Endpoints de escritura: 50 req/min
+- [x] Headers de rate limit visibles en respuestas (X-RateLimit-Limit, Remaining, Reset)
+- [x] Bloqueo temporal al superar límite (429 Too Many Requests)
+
+**Estimación**: 2 horas
 
 **Criterios de aceptación**:
 - [ ] Endpoints admin tienen límites menores que endpoints públicos

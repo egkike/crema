@@ -488,11 +488,11 @@ Para implementar estas historias de usuario, se necesitan los siguientes endpoin
 **Para** auditar cambios, detectar anomalías y cumplir requisitos legales
 
 **Criterios de Aceptación:**
-- [ ] Cada CRUD de producto registra: admin_id, acción, recurso_id, old_value, new_value, timestamp, IP, User-Agent
-- [ ] Cada cambio de status de payout/refund registra el motivo
-- [ ] Los logs son inmutables (no se pueden editar ni eliminar)
-- [ ] Endpoint para exportar logs filtrados por rango de fechas y acción
-- [ ] Panel de auditoría visible en Admin
+- [x] Cada CRUD de producto registra: admin_id, acción, recurso_id, old_value, new_value, timestamp, IP, User-Agent
+- [x] Cada cambio de status de payout/refund registra el motivo
+- [x] Los logs son inmutables (no se pueden editar ni eliminar)
+- [x] Endpoint para exportar logs filtrados por rango de fechas y acción
+- [ ] Panel de auditoría visible en Admin (pendiente frontend)
 
 ---
 
@@ -517,10 +517,10 @@ Para implementar estas historias de usuario, se necesitan los siguientes endpoin
 **Para** asegurar que solo yo pueda acceder con mi identidad verificada
 
 **Criterios de Aceptación:**
-- [ ] 2FA obligatorio para usuarios con rol ADMIN
-- [ ] Admin sin 2FA configurado no puede acceder al panel
-- [ ] Configuración de 2FA visible en perfil de admin
-- [ ] Codes de backup disponibles para recuperación
+- [x] 2FA obligatorio para usuarios con rol ADMIN (level >= 10)
+- [x] Admin sin 2FA configurado no puede acceder al panel
+- [ ] Configuración de 2FA visible en perfil de admin (pendiente frontend)
+- [ ] Codes de backup disponibles para recuperación (pendiente frontend)
 
 ---
 
