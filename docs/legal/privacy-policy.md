@@ -52,7 +52,6 @@ Al acceder o utilizar Crema, usted ("Usuario") acepta las prácticas descritas e
 
 - **Mercado Pago:** Datos de transacción, estado de pago
 - **Blockonomics (Crypto):** Datos de transacción USDT, estado de pago
-- **Pasarela Simulator:** Para testing
 - **Proveedor de hosting:** Datos técnicos del servidor
 
 ---

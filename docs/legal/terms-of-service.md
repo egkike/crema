@@ -144,7 +144,6 @@ Crema se reserva el derecho de:
 |--------|---------|-------------|
 | Mercado Pago | ARS, USD | Principal para Argentina |
 | USDT (Tether) | USDT | Criptomoneda via Blockonomics |
-| Simulator | ARS, USD | Para pruebas |
 
 ### 6.2 Precios
 

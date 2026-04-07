@@ -98,9 +98,9 @@ ON CONFLICT (code) DO UPDATE SET
     is_active = EXCLUDED.is_active;
 
 -- Configuración de Gateway habilitado para Argentina
+-- NOTA: 'simulator' fue eliminado de seeds (solo para testing local)
 INSERT INTO payment_gateways (id, name, liquidity_delay_days, supports_refunds, supports_subscriptions) VALUES 
 ('mercadopago', 'Mercado Pago', 30, TRUE, TRUE),
-('simulator', 'Pay Simulator', 0, TRUE, TRUE),
 ('blockonomics', 'Crypto (USDT)', 0, FALSE, FALSE)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
@@ -111,8 +111,6 @@ ON CONFLICT (id) DO UPDATE SET
 -- Configuración de Moneda y Gateway habilitados para Argentina
 INSERT INTO currency_gateways (currency_code, gateway_id, is_default, priority) VALUES
 ('ARS', 'mercadopago', TRUE, 1),
-('ARS', 'simulator', FALSE, 2),
-('USDT', 'simulator', FALSE, 2),
 ('USDT', 'blockonomics', TRUE, 1)
 ON CONFLICT (currency_code, gateway_id) DO UPDATE SET
     is_default = EXCLUDED.is_default,
