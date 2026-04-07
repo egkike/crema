@@ -157,6 +157,8 @@ Se devuelve el **100% del precio** cuando:
 
 > **Nota sobre consumo:** El sistema verifica automáticamente el progreso del usuario en el producto. Si el comprador ha consumido **más del 30%** del contenido (lecciones vistas, descargas realizadas, quizzes completados), la garantía se invalida automáticamente y el reembolso es denegado. Esta validación aplica solo para productos con contenido estructurado (cursos, membresías).
 
+> **Nota sobre descargas:** Para productos descargables (ebooks, software, audiobooks, archivos), **cualquier descarga** invalida la garantía automáticamente. Esto se debe a que el contenido digital no puede ser devuelto una vez descargado.
+
 ### 6.2 Reembolso NO disponible
 
 **Crema no ofrece reembolsos parciales.**
