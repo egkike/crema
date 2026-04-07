@@ -236,7 +236,7 @@ El Creador es responsable de:
 
 | Aspecto | Limitación |
 |---------|-------------|
-| Disponibilidad |尽力 pero no garantiza 100% uptime |
+| Disponibilidad | Hacemos nuestro mejor esfuerzo, pero no garantiza 100% uptime |
 | Contenido de usuarios | No somos responsables del contenido de terceros |
 | Exactitud de info | Verificamos pero no garantizamos exactitud |
 | Resultados de usuarios | No garantizamos ingresos o resultados |
