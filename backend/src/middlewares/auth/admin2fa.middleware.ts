@@ -23,8 +23,8 @@ export const requireAdmin2FA = async (req: Request, _res: Response, next: NextFu
       throw new AppError('Usuario no encontrado', 404);
     }
 
-    // Verificar si es admin y si tiene 2FA habilitado
-    if (user.level === 10 && !user.two_factor_enabled) {
+    // Verificar si es admin (level >= 10) y si tiene 2FA habilitado
+    if (user.level >= 10 && !user.two_factor_enabled) {
       throw new AppError('2FA es obligatorio para administradores. Por favor configure 2FA en su perfil.', 403);
     }
 

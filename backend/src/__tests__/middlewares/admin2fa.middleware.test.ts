@@ -69,6 +69,21 @@ describe('requireAdmin2FA Middleware', () => {
     expect(error.statusCode).toBe(403);
   });
 
+  it('debería bloquear acceso si el admin tiene level >= 10 sin 2FA', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValue({
+      id: 'admin-123',
+      level: 99,
+      two_factor_enabled: false,
+      two_factor_secret: null,
+    } as any);
+
+    await requireAdmin2FA(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+    const error = mockNext.mock.calls[0][0] as AppError;
+    expect(error.message).toContain('2FA es obligatorio');
+  });
+
   it('debería permitir acceso si el usuario NO es admin (level < 10)', async () => {
     vi.mocked(userRepository.findById).mockResolvedValue({
       id: 'user-123',
