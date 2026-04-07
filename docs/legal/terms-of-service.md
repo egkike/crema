@@ -107,9 +107,10 @@ Crema permite los siguientes tipos de productos:
 |------|-------------|
 | **Curso** | Contenido educativo estructurado en lecciones |
 | **Ebook** | Libro digital en PDF/epub |
-| **Template** | Plantillas, recursos digitales |
 | **Membresía** | Acceso recurrente a contenido |
-| **Servicio** | Consultas, mentoría (digital) |
+| **Podcast** | Contenido de audio episodios |
+| **Software** | Aplicaciones, herramientas digitales |
+| **Audiolibro** | Libro en formato de audio |
 
 ### 5.2 Prohibiciones
 
@@ -141,9 +142,9 @@ Crema se reserva el derecho de:
 
 | Método | Monedas | Descripción |
 |--------|---------|-------------|
-| Mercado Pago | ARS | Principal para Argentina |
-| Mercado Pago | USD | Internacional |
-| USDT (Tether) | USDT | Criptomoneda estable |
+| Mercado Pago | ARS, USD | Principal para Argentina |
+| USDT (Tether) | USDT | Criptomoneda via Blockonomics |
+| Simulator | ARS, USD | Para pruebas |
 
 ### 6.2 Precios
 
@@ -155,9 +156,12 @@ Crema se reserva el derecho de:
 
 | Concepto | Tarifa |
 |----------|--------|
-| **Comisión de plataforma** | 10% del precio de venta + fee fijo |
+| **Comisión de plataforma** | 10% (por defecto) + fee fijo (varía según precio) |
 | **Fee de procesamiento** | Según pasarela (Mercado Pago ~5.4% + IVA) |
+| **Fee fijo** | Configurable por rango de precio |
 | **Comisión de afiliado** | Configurable por el Creador (0-70%) |
+
+> **Nota:** La comisión de plataforma puede ser menor para Creadores con membresía premium activa.
 
 ### 6.4 Distribución de pagos
 
@@ -191,15 +195,23 @@ Los compradores pueden solicitar reembolso según la **Política de Reembolsos**
 
 ### 7.2 Reembolsos por defecto
 
-- **7 días de garantía** para la mayoría de productos
-- El Creador puede ofrecer garantía extendida
+- **7 días de garantía** (por defecto)
+- El Creador puede configurar la garantía (0, 3, 7, 14, 30 días) o no ofrecer garantía
+- **Las compras con USDT (crypto) no tienen garantía** (transacciones irreversibles)
 - Los reembolsos se procesan al método de pago original
 
-### 7.3 Excepciones
+### 7.3 Invalidación de garantía
+
+La garantía se invalida automáticamente cuando:
+- El comprador ha consumido más del 30% del contenido (cursos/membresías)
+- El comprador ha descargado el producto (ebooks/software/audiobooks)
+
+### 7.4 Excepciones
 
 **No aplican reembolsos cuando:**
-- El usuario ya accedió al contenido descargable
+- El usuario ya accedió/descargó el contenido descargable
 - El producto es un servicio ya prestado
+- El pago fue con USDT (crypto)
 - El usuario viola los T&C
 
 ---

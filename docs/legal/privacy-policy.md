@@ -51,7 +51,9 @@ Al acceder o utilizar Crema, usted ("Usuario") acepta las prácticas descritas e
 ### 3.3 Datos de terceros
 
 - **Mercado Pago:** Datos de transacción, estado de pago
-- **Mercado Libre / Analytics:** Comportamiento anonimizado
+- **Blockonomics (Crypto):** Datos de transacción USDT, estado de pago
+- **Pasarela Simulator:** Para testing
+- **Proveedor de hosting:** Datos técnicos del servidor
 
 ---
 
