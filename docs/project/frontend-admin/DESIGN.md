@@ -729,6 +729,63 @@ toast.error('Error al guardar');
 
 ---
 
+## 8.1 Seguridad (Addendum)
+
+### 8.1.1 Autenticación y Sesión
+
+```typescript
+// Timeout de sesión para admin
+const ADMIN_SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutos
+const ADMIN_REFRESH_TOKEN_MAX_AGE = 2 * 60 * 60 * 1000; // 2 horas
+
+// 2FA obligatorio para admins
+const requireAdmin2FA = (user: User) => user.role === 'ADMIN' && user.twoFactorEnabled;
+```
+
+### 8.1.2 CSRF Protection
+
+```typescript
+// En mutations (POST, PUT, PATCH, DELETE)
+const csrfToken = await fetch('/api/csrf-token').then(r => r.json());
+headers['X-CSRF-Token'] = csrfToken.token;
+```
+
+### 8.1.3 XSS Prevention
+
+```typescript
+// Sanitización de inputs en frontend
+import DOMPurify from 'dompurify';
+
+// En componentes que renderizan HTML
+const sanitized = DOMPurify.sanitize(userInput);
+```
+
+### 8.1.4 Rate Limit Display
+
+```typescript
+// Manejar respuesta 429
+if (response.status === 429) {
+  const retryAfter = response.headers.get('Retry-After');
+  throw new Error(`Rate limit exceeded. Retry after ${retryAfter} seconds`);
+}
+```
+
+### 8.1.5 Auditoría - Panel de Visualización
+
+```typescript
+// API endpoints para auditoría
+export const getAuditLogs = (params: {
+  from?: string;
+  to?: string;
+  action?: string;
+  adminId?: string;
+  page?: number;
+  limit?: number;
+}) => api.get(`/api/admin/audit-logs?${query.toString()}`);
+```
+
+---
+
 ## 9. Dependencias Requeridas
 
 ```json
@@ -745,10 +802,12 @@ toast.error('Error al guardar');
     "sonner": "^1.7.0",
     "lucide-react": "^0.468.0",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0"
+    "date-fns": "^4.1.0",
+    "dompurify": "^3.2.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
+    "@types/dompurify": "^3.0.5",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",

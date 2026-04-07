@@ -439,6 +439,12 @@
 - Solo usuarios con rol ADMIN pueden acceder
 - JWT token en memoria (no localStorage)
 - Refresh token automático
+- **2FA obligatorio para admins**
+- **Timeout de sesión: 30 minutos de inactividad**
+- **Auditoría de todas las acciones administrativas**
+- **Rate limiting específico para endpoints admin**
+- CSRF protection en mutations
+- XSS sanitization en inputs
 
 ### 13.3 UX
 
@@ -468,10 +474,69 @@ Para implementar estas historias de usuario, se necesitan los siguientes endpoin
 | GET /api/admin/commissions/top-products | Top productos por ventas de afiliados | 🟢 Media |
 | GET /api/admin/refunds | Listar refunds | 🟡 Alta |
 | PATCH /api/admin/refunds/:id | Procesar refund | 🟡 Alta |
+| GET /api/admin/audit-logs | Logs de auditoría | 🟡 Alta |
+| GET /api/admin/security/2fa-status | Estado 2FA de admins | 🟡 Alta |
 
 ---
 
-## 15. Definition of Done
+## 16. User Stories - Seguridad (Addendum)
+
+### US-SEC-001: Auditoría de acciones admin
+
+**Como** Administrador  
+**Quiero** que todas mis acciones queden registradas en un log de auditoría  
+**Para** auditar cambios, detectar anomalías y cumplir requisitos legales
+
+**Criterios de Aceptación:**
+- [ ] Cada CRUD de producto registra: admin_id, acción, recurso_id, old_value, new_value, timestamp, IP, User-Agent
+- [ ] Cada cambio de status de payout/refund registra el motivo
+- [ ] Los logs son inmutables (no se pueden editar ni eliminar)
+- [ ] Endpoint para exportar logs filtrados por rango de fechas y acción
+- [ ] Panel de auditoría visible en Admin
+
+---
+
+### US-SEC-002: Sesión segura de admin con timeout
+
+**Como** Administrador  
+**Quiero** que mi sesión expire después de inactividad  
+**Para** prevenir acceso no autorizado si dejo la sesión abierta
+
+**Criterios de Aceptación:**
+- [ ] Timeout de 30 minutos de inactividad
+- [ ] Warning a los 25 minutos ofreciendo extender sesión
+- [ ] Auto-logout al vencer timeout
+- [ ] Refresh token de admin tiene duración de 2 horas máximo
+
+---
+
+### US-SEC-003: 2FA obligatorio para admins
+
+**Como** Administrador  
+**Quiero** que el acceso al panel admin requiera autenticación de dos factores  
+**Para** asegurar que solo yo pueda acceder con mi identidad verificada
+
+**Criterios de Aceptación:**
+- [ ] 2FA obligatorio para usuarios con rol ADMIN
+- [ ] Admin sin 2FA configurado no puede acceder al panel
+- [ ] Configuración de 2FA visible en perfil de admin
+- [ ] Codes de backup disponibles para recuperación
+
+---
+
+### US-SEC-004: Rate limiting específico para admin
+
+**Como** Administrador  
+**Quiero** que los endpoints del panel admin tengan límites de requests más estrictos  
+**Para** prevenir ataques de fuerza bruta y abuso de la API
+
+**Criterios de Aceptación:**
+- [ ] Endpoints de lectura: 100 req/min
+- [ ] Endpoints de escritura: 50 req/min
+- [ ] Headers de rate limit visibles en respuestas (X-RateLimit-Limit, Remaining, Reset)
+- [ ] Bloqueo temporal al superar límite (429 Too Many Requests)
+
+## 17. Definition of Done
 
 Una User Story se considera completa cuando:
 - [ ] El código está implementado

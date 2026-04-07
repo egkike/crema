@@ -53,6 +53,15 @@ Para lograr el scope Full, se necesitan los siguientes endpoints que **NO existe
 | **G5** | `GET /api/admin/orders/:id` | Medio | Crear nuevo endpoint |
 | **G6** | `GET /api/admin/commissions` | Medio | Usar existente o crear |
 
+### Gaps de Seguridad Identificados (Adicional)
+
+| Gap | Descripción | Severidad | Solución |
+|-----|-------------|-----------|----------|
+| **G7** | Falta auditoría de acciones admin | 🔴 Alta | Tabla admin_audit_logs + middleware |
+| **G8** | No hay timeout de sesión para admin | 🔴 Alta | JWT más cortos + idle timeout |
+| **G9** | 2FA no obligatorio para admins | 🔴 Alta | Forzar 2FA en login admin |
+| **G10** | Rate limiting general aplicado a admin | 🟡 Media | Admin-specific rate limits |
+
 ### Priorización de Gaps
 
 | Fase | Gaps | work |

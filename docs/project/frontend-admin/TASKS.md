@@ -139,6 +139,63 @@ FASE 1: Backend (G1-G6)     →  FASE 2: Frontend
 
 ---
 
+### Tarea B-007: Auditoría de acciones admin
+
+**Descripción**: Sistema de logging de acciones administrativas para cumplimiento y seguridad.
+
+**Implementación**:
+- Crear tabla `admin_audit_logs` en DB
+- Crear método en repository
+- Middleware para auto-loggear acciones CRUD
+- Agregar a endpoints existentes (products, orders, payouts, refunds)
+
+**Criterios de aceptación**:
+- [ ] Cada acción de escritura registra: admin_id, acción, recurso, old_value, new_value, timestamp, IP
+- [ ] Los logs no son editables ni eliminables
+- [ ] Endpoint para exportar logs por rango de fechas
+- [ ] Filtros de auditoría en el panel admin
+
+**Estimación**: 4 horas
+
+---
+
+### Tarea B-008: Timeout de sesión + 2FA obligatorio para admin
+
+**Descripción**: Reforzar seguridad de autenticación para panel admin.
+
+**Implementación**:
+- Configurar JWT con duración más corta para admin (30 min access, 2h refresh)
+- Forzar 2FA para usuarios con rol ADMIN
+- Middleware que verifique rol + 2FA enabled
+- Agregar campo `require_2fa` en tabla users para admins
+
+**Criterios de acceso**:
+- [ ] Admin sin 2FA no puede acceder al panel
+- [ ] Sesión expira por inactividad (30 min)
+- [ ] Access token de admin más corto que usuario normal
+
+**Estimación**: 3 horas
+
+---
+
+### Tarea B-009: Rate limiting específico para admin
+
+**Descripción**: Limitar requests agresivos en endpoints admin.
+
+**Implementación**:
+- Crear `adminLimiter` con límites más estrictos
+- Aplicar a todas las rutas /api/admin/*
+- Configurar: 50 req/min para escritura, 100 req/min para lectura
+
+**Criterios de aceptación**:
+- [ ] Endpoints admin tienen límites menores que endpoints públicos
+- [ ] Retorna headers X-RateLimit-Limit/Remaining/Reset
+- [ ] Logs cuando se alcanza el límite
+
+**Estimación**: 2 horas
+
+---
+
 ## Resumen Tareas Backend
 
 | # | Tarea | Estimación |
@@ -149,7 +206,10 @@ FASE 1: Backend (G1-G6)     →  FASE 2: Frontend
 | B-004 | GET /api/admin/orders | 2h |
 | B-005 | GET /api/admin/orders/:id | 1h |
 | B-006 | GET /api/admin/commissions | 2h |
-| | **Total Backend** | **~10 horas** |
+| B-007 | Auditoría de acciones admin | 4h |
+| B-008 | Timeout sesión + 2FA admin | 3h |
+| B-009 | Rate limiting admin | 2h |
+| | **Total Backend** | **~19 horas** |
 
 ---
 
@@ -168,7 +228,10 @@ Una vez completadas las tareas B-001 a B-006, se procederá con las tareas de fr
 | B-003 | ✅ Completado |
 | B-004 | ✅ Completado |
 | B-005 | ✅ Completado |
-| B-006 | ⏳ Pendiente |
+| B-006 | ✅ Completado |
+| B-007 | ⏳ Pendiente (Seguridad - Auditoría) |
+| B-008 | ⏳ Pendiente (Seguridad - 2FA) |
+| B-009 | ⏳ Pendiente (Seguridad - Rate Limiting) |
 | Frontend | ⏳ Esperando Backend |
 
 ---
