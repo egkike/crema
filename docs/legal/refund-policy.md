@@ -1,0 +1,287 @@
+# Política de Reembolsos
+
+**Última actualización:** Abril 2026  
+**Versión:** 1.0
+
+---
+
+## 1. Introducción
+
+Esta Política de Reembolsos establece los términos bajo los cuales los compradores pueden solicitar el reembolso de productos adquiridos en **Crema**.
+
+Al realizar una compra, usted acepta los términos de esta política.
+
+---
+
+## 2. Período de Garantía
+
+### 2.1 Garantía Estándar
+
+| Tipo de producto | Período de garantía |
+|------------------|---------------------|
+| Cursos | **7 días** desde la compra |
+| E-books | **7 días** desde la compra |
+| Templates/Recursos | **7 días** desde la compra |
+| Membresías | **7 días** desde el inicio del período facturado |
+| Servicios (mentorías) | No aplica (servicio personalizado) |
+
+### 2.2 Garantía Extendida
+
+El Creador puede ofrecer una garantía mayor a su criterio. Esta información se muestra en la página del producto.
+
+### 2.3 Inicio del período
+
+El período de garantía comienza en el momento de la **confirmación del pago**.
+
+---
+
+## 3. Condiciones para Reembolso
+
+### 3.1 Requisitos
+
+Para ser elegible para reembolso, el comprador debe:
+
+| Requisito | Descripción |
+|-----------|-------------|
+| **Período válido** | Solicitar dentro del período de garantía |
+| **No haber consumido el producto** | No haber visto/descargado el contenido principal |
+| **Motivo válido** | Proporcionar un motivo justificado |
+| **Verificación de compra** | Ser el comprador original |
+
+### 3.2 Motivos válidos para reembolso
+
+| Motivo | Descripción |
+|--------|-------------|
+| **Producto defectuoso** | El contenido no funciona, está incompleto o corrupto |
+| **Descripción incorrecta** | El producto no es como se описал |
+| **No recibido** | No se получиль acceso al producto |
+| **Cambio de circunstancias** | Ya no necesita el producto |
+| **Calidad insatisfactoria** | El contenido no cumple expectativas razonables |
+
+### 3.3 Motivos NO válidos
+
+| Motivo | razón |
+|--------|-------|
+| "Cambié de opinión" | Después de acceder al contenido |
+| "Encontré más barato" | Reason personal |
+| "No tengo tiempo" | No relacionado con el producto |
+| "El producto no era lo que esperaba" | Sin especificar por qué |
+| "Mi negocio cerró" | Motivo externo |
+
+---
+
+## 4. Proceso de Solicitud
+
+### 4.1 Cómo solicitar
+
+| Paso | Acción |
+|------|--------|
+| **1** | Iniciar sesión en tu cuenta |
+| **2** | Ir a "Mis Compras" |
+| **3** | Seleccionar el producto |
+| **4** | Click en "Solicitar Reembolso" |
+| **5** | Completar el formulario |
+
+### 4.2 Información requerida
+
+| Campo | Descripción |
+|-------|-------------|
+| Order ID | ID de la orden de compra |
+| Motivo | Selección del motivo |
+| Descripción | Explicación detallada |
+| Evidencia | Screenshots, videos (si aplica) |
+
+### 4.3 Plazo de respuesta
+
+| Etapa | Plazo |
+|-------|-------|
+| **Confirmación de recepción** | 24-48 horas |
+| **Evaluación inicial** | 3-5 días hábiles |
+| **Decisión final** | 7-10 días hábiles |
+
+---
+
+## 5. Proceso de Evaluación
+
+### 5.1 Revisión
+
+Una vez recibida la solicitud:
+
+```
+Solicitud recibida
+       ↓
+Verificación de elegibilidad
+       ↓
+Revisión de evidencia
+       ↓
+Decisión
+```
+
+### 5.2 Criterios de evaluación
+
+| Factor | Consideración |
+|--------|---------------|
+| Acceso al contenido | ¿El usuario accedió al material? |
+| Tiempo de uso | ¿Cuánto tiempo tuvo el producto? |
+| Evidencia | ¿提供了 suficiente información? |
+| Historial | ¿El usuario tiene múltiples reembolsos? |
+
+### 5.3 Resultado posible
+
+| Resultado | Descripción |
+|-----------|-------------|
+| **Aprobado** | Reembolso procede |
+| **Parcial** | Reembolso parcial (por contenido consumido) |
+| **Rechazado** | No cumple criterios |
+| **Más información** | Se requiere información adicional |
+
+---
+
+## 6. Tipos de Reembolso
+
+### 6.1 Reembolso Total
+
+Se devuelve el **100% del precio** cuando:
+- Producto no recibido
+- Producto defectuoso
+- Solicitud dentro de las primeras 24 horas
+- Creador no responde en 7 días
+
+### 6.2 Reembolso Parcial
+
+Se devuelve un **porcentaje parcial** según uso:
+
+| Tiempo de acceso | Reembolso |
+|------------------|-----------|
+| < 24 horas | 100% |
+| 1-3 días | 70% |
+| 4-7 días | 50% |
+| > 7 días | 0% |
+
+### 6.3 Sin Reembolso
+
+No aplica reembolso cuando:
+- El usuario ya descargó/visualizó el contenido completo
+- Es un servicio personalizado ya prestado
+- El usuario violó los Términos y Condiciones
+
+---
+
+## 7. Procesamiento del Reembolso
+
+### 7.1 Método de devolución
+
+El reembolso se procesa al **mismo método de pago** utilizado en la compra:
+
+| Método de pago | Tiempo de procesamiento |
+|----------------|------------------------|
+| Mercado Pago | 5-10 días hábiles |
+| Tarjeta de crédito | 10-15 días hábiles |
+| USDT | 24-48 horas |
+
+### 7.2 Comisiones
+
+| Concepto | Detalle |
+|----------|---------|
+| **Fee de pasarela** | No se devuelve (comisión de Mercado Pago/crypto) |
+| **Comisión de plataforma** | Puede ser deducida del reembolso |
+| **Currency** | Se devuelve en la misma moneda de compra |
+
+### 7.3 Estado del reembolso
+
+El usuario recibe notificaciones por email en cada etapa:
+- Solicitud recibida
+- En revisión
+- Aprobado/Rechazado
+- Procesado
+
+---
+
+## 8. Excepciones
+
+### 8.1 Productos Digitales
+
+Los productos digitales tienen política de reembolso más restrictiva debido a la naturaleza del producto (no se puede "devolver" contenido ya consumido).
+
+### 8.2 Contenido Descargable
+
+Para productos con contenido descargable:
+- Solo aplica reembolso si NO se ha descargado
+- El acceso al link de descarga cuenta como "consumo"
+
+### 8.3 Servicios Personalizados
+
+| Tipo | Política |
+|------|----------|
+| Mentoría 1:1 | No reembolsable |
+| Consultas | No reembolsable |
+| Servicios hechos a medida | No reembolsable |
+
+### 8.4 Promociones/Bundles
+
+Los productos en promoción siguen las mismas reglas, pero el reembolso puede estar limitado al precio realmente pagado.
+
+---
+
+## 9. Disputas
+
+### 9.1 Si no estás de acuerdo con la decisión
+
+| Paso | Acción |
+|------|--------|
+| **1** | Responder al email con tu desacuerdo |
+| **2** | Proporcionar evidencia adicional |
+| **3** | Esperar revisión de segundo nivel |
+
+### 9.2 Apelación
+
+Si la respuesta no es satisfactoria:
+- Contactar a soporte de Crema
+- Proporcionar documentación completa
+- Plazo máximo para apelación: 14 días desde la decisión
+
+### 9.3 Resolución final
+
+La decisión de Crema es FINAL en casos de reembolso, sin perjuicio de los derechos del consumidor bajo la Ley 24.240.
+
+---
+
+## 10. Derechos del Consumidor
+
+Esta política no afecta los derechos legales del consumidor según la legislación argentina:
+
+| Ley | Derecho |
+|-----|---------|
+| **Ley 24.240** | Protección al consumidor |
+| **Ley 25.326** | Protección de datos personales |
+| **Ley 26.361** | Modificaciones a defensa del consumidor |
+
+En caso de conflicto, las normas de protección al consumidor prevalecen.
+
+---
+
+## 11. Contacto
+
+Para consultas sobre esta política de reembolsos:
+
+| Contacto | Datos |
+|----------|-------|
+| **Email** | soporte@crema.com |
+| **Sección** | Mi Cuenta > Mis Compras > Soporte |
+
+---
+
+## Anexo: Glosario
+
+| Término | Definición |
+|---------|------------|
+| **Reembolso** | Devolución del dinero al comprador |
+| **Garantía** | Período para solicitar reembolso |
+| **Orden** | Registro de la transacción de compra |
+| **Creador** | Vendedor del producto |
+| **Reembolso parcial** | Devolución de solo una parte del precio |
+| **Chargeback** | Reclamo directo al banco/tarjeta |
+
+---
+
+**© 2026 Crema Platform. Todos los derechos reservados.**
