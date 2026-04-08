@@ -106,10 +106,11 @@ export const initMainWorker = () => {
           default:
             logger.warn({ task: name }, 'CRITICAL: Tarea no reconocida');
         }
-      } catch (error: any) {
-        logger.error({ task: name, error: error.message }, '💥 Error en Critical Worker');
-        throw error;
-      }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.error({ task: name, error: errorMessage }, '💥 Error en Critical Worker');
+          throw error;
+        }
     },
     {
       connection: redisConnection,
@@ -196,8 +197,9 @@ export const initMainWorker = () => {
           default:
             logger.warn({ type }, 'NOTIFY: Tipo de email no reconocido');
         }
-      } catch (error: any) {
-        logger.error({ type, to, error: error.message }, '💥 Error en Notification Worker');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error({ type, to, error: errorMessage }, '💥 Error en Notification Worker');
         throw error;
       }
     },

@@ -35,8 +35,9 @@ export class StatsService {
         date: rows[0].next_release_date,
         amount: Number(rows[0].total_amount),
       };
-    } catch (error: any) {
-      logger.error({ userId, error: error.message }, 'Error al obtener próxima liberación');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ userId, error: errorMessage }, 'Error al obtener próxima liberación');
       return null;
     }
   }
@@ -85,8 +86,9 @@ export class StatsService {
         nextRelease,
         currency,
       };
-    } catch (error: any) {
-      throw new Error(`Error al obtener estadísticas: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error al obtener estadísticas: ${errorMessage}`);
     }
   }
 
@@ -126,8 +128,9 @@ export class StatsService {
         refunds: Number(r.total_refunded),
         net: Number(r.gross_income) - Number(r.total_refunded),
       }));
-    } catch (error: any) {
-      throw new Error(`Error al obtener gráfico de ventas: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error al obtener gráfico de ventas: ${errorMessage}`);
     }
   }
 

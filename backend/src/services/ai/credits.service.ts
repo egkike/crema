@@ -73,8 +73,9 @@ export class AICreditService {
       const result = await creditsRepository.useCredits(userId, amount, description, referenceId);
       logger.info({ userId, amount, description }, 'Credits used');
       return result;
-    } catch (error: any) {
-      if (error.message === 'Insufficient credits') {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage === 'Insufficient credits') {
         throw new AppError('Insufficient credits. Please purchase more credits.', 402);
       }
       throw error;
@@ -93,8 +94,9 @@ export class AICreditService {
       const result = await creditsRepository.addCredits(userId, amount, description);
       logger.info({ userId, amount, description }, 'Credits added');
       return result;
-    } catch (error: any) {
-      logger.error({ userId, error: error.message }, 'Failed to add credits');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ userId, error: errorMessage }, 'Failed to add credits');
       throw new AppError('Failed to add credits', 500);
     }
   }

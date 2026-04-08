@@ -101,8 +101,9 @@ export const commissionRepository = {
       const db = client || pool;
       const { rows } = await db.query(query, [newStatus, orderId]);
       return rows.map(row => this.mapRowToCommission(row));
-    } catch (error: any) {
-      logger.error({ error: error.message, orderId }, 'DB Error: updateStatusByOrder falló');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, orderId }, 'DB Error: updateStatusByOrder falló');
       throw error;
     }
   },
@@ -118,8 +119,9 @@ export const commissionRepository = {
         [orderId]
       );
       return rows.map(row => this.mapRowToCommission(row)!);
-    } catch (error: any) {
-      logger.error({ error: error.message, orderId }, 'DB Error: getByOrderId falló');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, orderId }, 'DB Error: getByOrderId falló');
       throw error;
     }
   },
@@ -139,8 +141,9 @@ export const commissionRepository = {
       `;
       const { rows } = await pool.query(query, [userId]);
       return rows.map(row => this.mapRowToCommission(row)!);
-    } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'DB Error: getByUserId falló');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, userId }, 'DB Error: getByUserId falló');
       throw error;
     }
   },

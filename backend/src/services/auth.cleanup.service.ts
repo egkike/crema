@@ -20,8 +20,9 @@ export class AuthCleanupService {
       if (deletedCount > 0) {
         logger.info(`🧹 Limpieza: Se eliminaron ${deletedCount} refresh tokens expirados.`);
       }
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'Error en el Cron de limpieza de tokens');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage }, 'Error en el Cron de limpieza de tokens');
     } finally {
       client.release(); // Liberamos la conexión pase lo que pase
     }

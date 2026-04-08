@@ -22,9 +22,10 @@ class StreamingUtil {
       }
 
       return playbackId;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(
-        { error: error.message, playbackId },
+        { error: errorMessage, playbackId },
         'Error en el proceso de firma de streaming con Mux'
       );
       return playbackId;

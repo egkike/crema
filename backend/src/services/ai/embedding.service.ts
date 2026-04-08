@@ -115,8 +115,9 @@ export class EmbeddingService {
       }
 
       return data.data[0].embedding;
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'Failed to generate OpenAI embedding');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage }, 'Failed to generate OpenAI embedding');
       throw error;
     }
   }
@@ -150,8 +151,9 @@ export class EmbeddingService {
       }
 
       return data.embedding;
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'Failed to generate Ollama embedding');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage }, 'Failed to generate Ollama embedding');
       throw error;
     }
   }
@@ -226,8 +228,9 @@ export class EmbeddingService {
         // Sort by index to maintain order
         const sortedEmbeddings = [...data.data].sort((a, b) => a.index - b.index);
         return sortedEmbeddings.map(e => e.embedding);
-      } catch (error: any) {
-        logger.error({ error: error.message }, 'Failed to generate embeddings batch');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error({ error: errorMessage }, 'Failed to generate embeddings batch');
         throw error;
       }
     }

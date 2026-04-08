@@ -81,8 +81,9 @@ export async function onLessonChange(
 
     await memoryService.embed(embedParams);
     logger.info({ lessonId: lesson.id, action }, 'Embedding created/updated for lesson');
-  } catch (error: any) {
-    logger.error({ lessonId: lesson.id, error: error.message }, 'Failed to sync lesson embedding');
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ lessonId: lesson.id, error: errorMessage }, 'Failed to sync lesson embedding');
   }
 }
 
@@ -137,8 +138,9 @@ export async function onFaqChange(
 
     await memoryService.embed(embedParams);
     logger.info({ faqId: faq.id, action }, 'Embedding created/updated for FAQ');
-  } catch (error: any) {
-    logger.error({ faqId: faq.id, error: error.message }, 'Failed to sync FAQ embedding');
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ faqId: faq.id, error: errorMessage }, 'Failed to sync FAQ embedding');
   }
 }
 
@@ -185,8 +187,9 @@ export async function onQuestionCreated(
 
     await memoryService.embed(embedParams);
     logger.info({ questionId: question.id }, 'Embedding created for question');
-  } catch (error: any) {
-    logger.error({ questionId: question.id, error: error.message }, 'Failed to sync question embedding');
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ questionId: question.id, error: errorMessage }, 'Failed to sync question embedding');
   }
 }
 
@@ -242,8 +245,9 @@ export async function onPolicyChange(
 
     await memoryService.embed(embedParams);
     logger.info({ policyId: policy.id, action }, 'Embedding created/updated for policy');
-  } catch (error: any) {
-    logger.error({ policyId: policy.id, error: error.message }, 'Failed to sync policy embedding');
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ policyId: policy.id, error: errorMessage }, 'Failed to sync policy embedding');
   }
 }
 
@@ -300,8 +304,9 @@ export async function onReviewCreated(
 
     await memoryService.embed(embedParams);
     logger.info({ reviewId: review.id }, 'Embedding created for review');
-  } catch (error: any) {
-    logger.error({ reviewId: review.id, error: error.message }, 'Failed to sync review embedding');
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ reviewId: review.id, error: errorMessage }, 'Failed to sync review embedding');
   }
 }
 

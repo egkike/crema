@@ -43,8 +43,9 @@ export const initScheduler = async () => {
     }
 
     logger.info('📅 Scheduler sincronizado: Tareas programadas en Redis.');
-  } catch (error: any) {
-    logger.error({ error: error.message }, '❌ Error al inicializar Scheduler');
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ error: errorMessage }, '❌ Error al inicializar Scheduler');
   }
 };
 

@@ -3,6 +3,21 @@ import dotenv from 'dotenv';
 
 import logger from '../utils/logger';
 
+// Allowed schemas for SQL injection prevention
+const ALLOWED_SCHEMAS = ['public', 'crema'];
+
+function getValidatedSchema(schemaFromEnv: string | undefined): string {
+  const schema = schemaFromEnv || 'public';
+  if (!ALLOWED_SCHEMAS.includes(schema)) {
+    logger.warn(
+      { schema, allowed: ALLOWED_SCHEMAS },
+      'Invalid schema from config, falling back to public'
+    );
+    return 'public';
+  }
+  return schema;
+}
+
 dotenv.config();
 
 const envSchema = z.object({
@@ -125,7 +140,7 @@ export const config = {
     user: env.DB_USER,
     password: env.DB_PASSWORD,
     database: env.DB_NAME,
-    schema: env.DB_SCHEMA || 'public', // Valor seguro para evitar errores en repositorios
+    schema: getValidatedSchema(env.DB_SCHEMA), // Validated against allowlist
   },
   cors: {
     origins: String(env.CORS_ORIGINS || '')
@@ -173,6 +188,10 @@ export const config = {
     }
     return pepper;
   })(),
+  // Helper for repositories to get validated schema
+  getValidatedSchema,
+  // Export allowed schemas for reference
+  allowedSchemas: ALLOWED_SCHEMAS,
   storage: {
     maxGlobalSizeMb: env.MAX_GLOBAL_UPLOAD_SIZE_MB,
     maxGlobalSizeBytes: Number(process.env.MAX_GLOBAL_SIZE_BYTES) || 100 * 102 * 1024, // 100MB por defecto

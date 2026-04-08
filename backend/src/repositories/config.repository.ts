@@ -35,9 +35,10 @@ export const configRepository = {
         lastFetch = now;
         return cachedLevels!;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error(
-        { msg: err.message },
+        { msg: errorMessage },
         'Error cargando user_levels desde DB, usando fallback estático'
       );
     }
