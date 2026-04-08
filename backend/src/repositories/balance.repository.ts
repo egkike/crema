@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
+import { getErrorMessage } from '../utils/ip.util';
 
 export interface UserBalance {
   total_earned: number;
@@ -41,9 +42,9 @@ export const balanceRepository = {
         currency: row.currency,
         updated_at: row.updated_at,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId, amount, currency },
+        { error: getErrorMessage(error), userId, amount, currency },
         'DB Error: addPendingBalance failed'
       );
       throw error;
@@ -76,8 +77,8 @@ export const balanceRepository = {
         currency: row.currency,
         updated_at: row.updated_at,
       };
-    } catch (error: any) {
-      logger.error({ error: error.message, userId, currency }, 'DB Error: releaseBalance failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), userId, currency }, 'DB Error: releaseBalance failed');
       throw error;
     }
   },
@@ -107,9 +108,9 @@ export const balanceRepository = {
         currency: row.currency,
         updated_at: row.updated_at,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId, currency },
+        { error: getErrorMessage(error), userId, currency },
         'DB Error: subtractAvailableBalance failed'
       );
       throw error;
@@ -141,9 +142,9 @@ export const balanceRepository = {
         currency: row.currency,
         updated_at: row.updated_at,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId, currency },
+        { error: getErrorMessage(error), userId, currency },
         'DB Error: deductPendingEarnings failed'
       );
       throw error;
@@ -173,9 +174,9 @@ export const balanceRepository = {
         currency: row.currency,
         updated_at: row.updated_at,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId, currency },
+        { error: getErrorMessage(error), userId, currency },
         'DB Error: addAvailableBalance failed'
       );
       throw error;
@@ -208,9 +209,9 @@ export const balanceRepository = {
         currency: row.currency,
         updated_at: row.updated_at,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId, currency },
+        { error: getErrorMessage(error), userId, currency },
         'DB Error: getByUserIdAndCurrency failed'
       );
       throw error;
@@ -234,8 +235,8 @@ export const balanceRepository = {
         currency: row.currency,
         updated_at: row.updated_at,
       }));
-    } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'DB Error: getAllBalancesByUserId failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), userId }, 'DB Error: getAllBalancesByUserId failed');
       throw error;
     }
   },
@@ -270,9 +271,9 @@ export const balanceRepository = {
         currency: row.currency,
         updated_at: row.updated_at,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId, currency },
+        { error: getErrorMessage(error), userId, currency },
         'DB Error: getBalanceForUpdate failed'
       );
       throw error;

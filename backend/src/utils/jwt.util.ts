@@ -45,8 +45,10 @@ export function generateRefreshToken(payload: UserTokenPayload): string {
 export function verifyToken(token: string): UserTokenPayload | null {
   try {
     return jwt.verify(token, config.jwt.secret) as UserTokenPayload;
-  } catch (error: any) {
-    logger.debug({ name: error.name, message: error.message }, 'Token inválido');
+  } catch (error: unknown) {
+    // Only log error name, not message to avoid exposing internal JWT library details
+    const errorName = error instanceof Error ? error.name : 'Unknown';
+    logger.debug({ name: errorName }, 'Token inválido');
     return null;
   }
 }
@@ -57,8 +59,10 @@ export function verifyToken(token: string): UserTokenPayload | null {
 export function verifyRefreshToken(token: string): UserTokenPayload | null {
   try {
     return jwt.verify(token, config.jwt.refreshSecret) as UserTokenPayload; // 👈 Llave B
-  } catch (error: any) {
-    logger.debug({ name: error.name, message: error.message }, 'Token refresh inválido');
+  } catch (error: unknown) {
+    // Only log error name, not message to avoid exposing internal JWT library details
+    const errorName = error instanceof Error ? error.name : 'Unknown';
+    logger.debug({ name: errorName }, 'Token refresh inválido');
     return null;
   }
 }

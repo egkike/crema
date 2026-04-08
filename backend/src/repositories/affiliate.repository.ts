@@ -1,6 +1,7 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
+import { getErrorMessage } from '../utils/ip.util';
 
 export const affiliateRepository = {
   /**
@@ -16,9 +17,9 @@ export const affiliateRepository = {
     try {
       await pool.query(query, [affiliateId, productId]);
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, affiliateId, productId },
+        { error: getErrorMessage(error), affiliateId, productId },
         'DB Error: addToPortfolio failed'
       );
       throw error;
@@ -37,9 +38,9 @@ export const affiliateRepository = {
     try {
       const result = await pool.query(query, [affiliateId, productId]);
       return result.rowCount ? result.rowCount > 0 : false;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, affiliateId, productId },
+        { error: getErrorMessage(error), affiliateId, productId },
         'DB Error: removeFromPortfolio failed'
       );
       throw error;
@@ -58,9 +59,9 @@ export const affiliateRepository = {
     try {
       const { rows } = await pool.query(query, [affiliateId, productId]);
       return rows.length > 0;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, affiliateId, productId },
+        { error: getErrorMessage(error), affiliateId, productId },
         'DB Error: isAffiliated failed'
       );
       return false;
@@ -76,9 +77,9 @@ export const affiliateRepository = {
     try {
       const { rows } = await pool.query(query, [affiliateId]);
       return rows.map(r => r.product_id);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, affiliateId },
+        { error: getErrorMessage(error), affiliateId },
         'DB Error: getPortfolioProductIds failed'
       );
       return [];

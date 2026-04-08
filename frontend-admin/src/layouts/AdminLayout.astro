@@ -1,0 +1,106 @@
+---
+import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
+import config from '../config';
+
+interface Props {
+  title?: string;
+}
+
+const { title = 'Dashboard' } = Astro.props;
+const currentPath = Astro.url.pathname;
+
+// Determine the full API URL for auth check
+// Use the full URL from config.apiUrl (e.g., http://localhost:3000/api or https://api.crema.com/api)
+const authCheckUrl = config.apiUrl.startsWith('http') 
+  ? `${config.apiUrl}/auth/me`
+  : '/api/auth/me';
+---
+
+<!doctype html>
+<html lang="es" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Crema Admin Panel - Plataforma de Economía de los Creadores" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <title>{title} | Crema Admin</title>
+    <style is:global>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      html {
+        font-family: 'Inter', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      body {
+        @apply bg-surface-950 text-surface-200;
+        min-height: 100vh;
+      }
+      
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      
+      ::-webkit-scrollbar-track {
+        @apply bg-surface-900;
+      }
+      
+      ::-webkit-scrollbar-thumb {
+        @apply bg-surface-700 rounded-full;
+      }
+      
+      ::-webkit-scrollbar-thumb:hover {
+        @apply bg-surface-600;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Authentication check - verify cookie exists (httpOnly cookies can't be read by JS) -->
+    <!-- Instead, we make an API call to verify auth on mount -->
+    <script is:inline define:vars={{ authCheckUrl }}>
+      // Check auth on page load by calling the API
+      // If not authenticated, the API will return 401 and we'll redirect
+      (async function() {
+        try {
+          const response = await fetch(authCheckUrl, { 
+            credentials: 'include',
+            cache: 'no-store'
+          });
+          if (!response.ok) {
+            window.location.href = '/login';
+          }
+        } catch (e) {
+          // Network error - redirect to login
+          window.location.href = '/login';
+        }
+      })();
+    </script>
+    
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <Sidebar client:load currentPath={currentPath} />
+      
+      <!-- Main Content -->
+      <main class="flex-1 ml-64 min-h-screen transition-all duration-300">
+        <!-- Header -->
+        <Header client:load title={title} />
+        
+        <!-- Page Content -->
+        <div class="p-6">
+          <slot />
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import supertest from 'supertest';
 
 import { app } from '../app';
@@ -7,7 +7,8 @@ import { app } from '../app';
 import { 
   productRepositoryMock as productRepository,
   AccessServiceMock,
-  extractCookies 
+  createMockCookies,
+  USER_ID as SETUP_USER_ID
 } from './setup';
 
 const request = supertest(app);
@@ -16,14 +17,17 @@ const VALID_PROD_ID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_LESSON_ID = '550e8400-e29b-41d4-a716-446655440001';
 
 describe('Quiz Submission API', () => {
-  let userCookies: string = '';
+  // Use pre-generated mock cookies instead of trying to login
+  const userCookies = createMockCookies({
+    id: SETUP_USER_ID,
+    username: 'testuser',
+    email: 'test@test.com',
+    level: 1,
+    active: 1,
+  });
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    const resUser = await request
-      .post('/api/auth/login')
-      .send({ email: 'user@test.com', password: 'p1' });
-    userCookies = extractCookies(resUser);
   });
 
   it('debería procesar el intento de quiz', async () => {

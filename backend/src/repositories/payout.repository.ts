@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 
 import pool from '../db/postgres';
 import logger from '../utils/logger';
+import { getErrorMessage } from '../utils/ip.util';
 import { config } from '../config/index';
 
 // --- INTERFACES ---
@@ -47,8 +48,8 @@ export const payoutRepository = {
     try {
       const { rows } = await client.query(query, [id]);
       return this.mapRow(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, id }, 'DB Error: getByIdForUpdate payout failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), id }, 'DB Error: getByIdForUpdate payout failed');
       throw error;
     }
   },
@@ -119,8 +120,8 @@ export const payoutRepository = {
     try {
       const { rows } = await db.query(query, [status, adminNotes, transactionReceipt, adminId, id]);
       return this.mapRow(rows[0]);
-    } catch (error: any) {
-      logger.error({ error: error.message, id, status }, 'DB Error: updateStatus payout failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), id, status }, 'DB Error: updateStatus payout failed');
       throw error;
     }
   },
@@ -145,9 +146,9 @@ export const payoutRepository = {
     try {
       const { rows } = await pool.query(query, [userId, currency]);
       return parseInt(rows[0].total, 10) >= limit;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId },
+        { error: getErrorMessage(error), userId },
         'DB Error: hasMonthlyPayoutLimitReached failed'
       );
       return true; // Bloqueo por seguridad ante error de DB
@@ -196,8 +197,8 @@ export const payoutRepository = {
     try {
       const { rows } = await pool.query(query, values);
       return rows.map(row => this.mapRow(row) as Payout);
-    } catch (error: any) {
-      logger.error({ error: error.message, currency }, 'DB Error: getForExport failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), currency }, 'DB Error: getForExport failed');
       throw error;
     }
   },
@@ -218,8 +219,8 @@ export const payoutRepository = {
     try {
       const { rows } = await pool.query(query, [status]);
       return rows.map(row => this.mapRow(row) as Payout);
-    } catch (error: any) {
-      logger.error({ error: error.message, status }, 'DB Error: getByStatus failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), status }, 'DB Error: getByStatus failed');
       throw error;
     }
   },
@@ -239,9 +240,9 @@ export const payoutRepository = {
     try {
       const { rows } = await pool.query(query, [userId, statuses]);
       return rows.map(row => this.mapRow(row) as Payout);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId, statuses },
+        { error: getErrorMessage(error), userId, statuses },
         'DB Error: getByStatusAndUser failed'
       );
       throw error;

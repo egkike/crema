@@ -1,0 +1,202 @@
+---
+// Verify Account Page
+import config from '../config';
+
+const API_URL = config.apiUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+const IS_DEV = config.isDev;
+---
+
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verificar Cuenta - Crema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+</head>
+<body class="bg-surface-950 text-surface-100 font-sans antialiased">
+  <div id="app"></div>
+  <script define:vars={{ API_URL, IS_DEV }}>
+    (function() {
+      'use strict';
+
+      // Get token from URL query parameter
+      function getTokenFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('token');
+      }
+
+      // Show message safely (no innerHTML with user data)
+      function showMessage(message, isSuccess) {
+        const app = document.getElementById('app');
+        if (!app) return;
+
+        // Clear existing content
+        while (app.firstChild) {
+          app.removeChild(app.firstChild);
+        }
+
+        const container = document.createElement('div');
+        container.className = 'min-h-screen flex items-center justify-center p-4';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'w-full max-w-md text-center';
+
+        // Icon
+        const icon = document.createElement('div');
+        icon.className = 'text-5xl mb-4';
+        icon.textContent = isSuccess ? '✅' : '❌';
+        wrapper.appendChild(icon);
+
+        // Title
+        const title = document.createElement('h1');
+        title.className = 'text-2xl font-bold text-surface-100 mb-2';
+        title.textContent = isSuccess ? 'Cuenta Verificada' : 'Error de Verificación';
+        wrapper.appendChild(title);
+
+        // Message
+        const messageEl = document.createElement('p');
+        messageEl.className = isSuccess ? 'text-green-400' : 'text-red-400';
+        messageEl.textContent = message;
+        wrapper.appendChild(messageEl);
+
+        // Link to login
+        if (isSuccess) {
+          const loginLink = document.createElement('a');
+          loginLink.href = '/login';
+          loginLink.className = 'inline-block mt-6 py-3 px-6 bg-cream-500 hover:bg-cream-600 text-surface-900 font-semibold rounded-xl transition-colors';
+          loginLink.textContent = 'Ir a Iniciar Sesión';
+          wrapper.appendChild(loginLink);
+        }
+
+        container.appendChild(wrapper);
+        app.appendChild(container);
+      }
+
+      // Show loading state
+      function showLoading() {
+        const app = document.getElementById('app');
+        if (!app) return;
+
+        while (app.firstChild) {
+          app.removeChild(app.firstChild);
+        }
+
+        const container = document.createElement('div');
+        container.className = 'min-h-screen flex items-center justify-center';
+
+        const spinner = document.createElement('div');
+        spinner.className = 'text-surface-400';
+        spinner.textContent = 'Verificando tu cuenta...';
+
+        container.appendChild(spinner);
+        app.appendChild(container);
+      }
+
+      // Show error page
+      function showErrorPage(message) {
+        const app = document.getElementById('app');
+        if (!app) return;
+
+        while (app.firstChild) {
+          app.removeChild(app.firstChild);
+        }
+
+        const container = document.createElement('div');
+        container.className = 'min-h-screen flex items-center justify-center p-4';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'w-full max-w-md text-center';
+
+        const icon = document.createElement('div');
+        icon.className = 'text-5xl mb-4';
+        icon.textContent = '❌';
+        wrapper.appendChild(icon);
+
+        const title = document.createElement('h1');
+        title.className = 'text-2xl font-bold text-surface-100 mb-2';
+        title.textContent = 'Error';
+        wrapper.appendChild(title);
+
+        const messageEl = document.createElement('p');
+        messageEl.className = 'text-surface-400';
+        messageEl.textContent = message;
+        wrapper.appendChild(messageEl);
+
+        const loginLink = document.createElement('a');
+        loginLink.href = '/login';
+        loginLink.className = 'inline-block mt-6 py-3 px-6 bg-surface-800 hover:bg-surface-700 text-surface-100 font-semibold rounded-xl transition-colors';
+        loginLink.textContent = 'Volver al Login';
+        wrapper.appendChild(loginLink);
+
+        container.appendChild(wrapper);
+        app.appendChild(container);
+      }
+
+      // Verify account via POST
+      async function verifyAccount(token) {
+        try {
+          const response = await fetch(`${API_URL}/auth/verify-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ token }),
+            credentials: 'include'
+          });
+
+          // Handle JSON parse explicitly
+          let data = {};
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            if (IS_DEV) {
+              console.warn('JSON parse failed on verify-email response:', parseError);
+            }
+          }
+
+          if (!response.ok) {
+            const errorMessage = data?.message || 'Error de conexión';
+            showMessage(errorMessage, false);
+            return;
+          }
+
+          if (data.success) {
+            showMessage(data.message || 'Tu cuenta ha sido activada correctamente', true);
+          } else {
+            showMessage(data.message || 'Token inválido o expirado', false);
+          }
+        } catch (err) {
+          if (IS_DEV) {
+            console.error('Verify account error:', err);
+          }
+          showMessage('Error de conexión. Intentá más tarde.', false);
+        }
+      }
+
+      // Initialize
+      document.addEventListener('DOMContentLoaded', function() {
+        const token = getTokenFromUrl();
+
+        if (!token) {
+          showErrorPage('Token de verificación no encontrado en la URL');
+          return;
+        }
+
+        // Validate token format (should be 64 hex chars)
+        if (!/^[a-f0-9]{64}$/i.test(token)) {
+          showErrorPage('Token de verificación inválido');
+          return;
+        }
+
+        showLoading();
+        verifyAccount(token);
+      });
+    })();
+  </script>
+</body>
+</html>

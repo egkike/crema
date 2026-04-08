@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { USER_ID } from '../setup';
-// eslint-disable-next-line import/order
+ 
 import { SubscriptionService } from '../../services/subscription.service';
 
 vi.mock('../../repositories/subscription.repository', () => ({

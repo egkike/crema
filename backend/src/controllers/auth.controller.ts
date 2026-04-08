@@ -18,6 +18,7 @@ import { EmailService } from '../services/email.service';
 import { AppError } from '../errors/AppError';
 import { AuthService } from '../services/auth.service';
 import { TwoFactorService } from '../services/twoFactor.service';
+import { extractClientIp } from '../utils/ip.util';
 
 export class AuthController {
   /**
@@ -61,7 +62,10 @@ export class AuthController {
         throw new AppError('Credenciales inválidas', 401);
       }
 
-      const isValidPassword = await bcrypt.compare(password + config.passwordPepper, user.password);
+      const isValidPassword = await bcrypt.compare(
+        crypto.createHmac('sha256', config.passwordPepper).update(password).digest('hex'),
+        user.password
+      );
 
       if (!isValidPassword) {
         const maskedIdentifier = identifier.includes('@') 
@@ -86,8 +90,10 @@ export class AuthController {
 
       // --- LOGICA DE METADATOS PARA SESIÓN ---
       const userAgent = req.headers['user-agent'] || 'Unknown Device';
-      const ip =
-        (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '0.0.0.0';
+      const ip = extractClientIp(
+        req.headers['x-forwarded-for'] as string | undefined,
+        req.socket.remoteAddress
+      );
       const deviceType = userAgent.includes('Mobi') ? 'Mobile' : 'Desktop';
 
       if (user.must_change_password) {
@@ -227,8 +233,10 @@ export class AuthController {
       const { password } = req.body;
       const user = req.user;
       const userAgent = req.headers['user-agent'] || 'Unknown Device';
-      const ip =
-        (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '0.0.0.0';
+      const ip = extractClientIp(
+        req.headers['x-forwarded-for'] as string | undefined,
+        req.socket.remoteAddress
+      );
 
       if (!user) {
         throw new AppError('Usuario requerido', 400);
@@ -239,8 +247,11 @@ export class AuthController {
         throw new AppError(pwdCheck.errors.join('; '), 400);
       }
 
-      const passwordWithPepper = password + config.passwordPepper;
-      const passwordHash = await bcrypt.hash(passwordWithPepper, 12);
+      // Use HMAC for password pepper (same method as login to ensure consistency)
+      const passwordHash = await bcrypt.hash(
+        crypto.createHmac('sha256', config.passwordPepper).update(password).digest('hex'),
+        12
+      );
 
       const success = await userRepository.updatePasswordAndClearFlag(user.id, passwordHash);
 
@@ -280,10 +291,11 @@ export class AuthController {
 
   async verifyEmail(req: Request, res: Response, next: NextFunction) {
     try {
-      const { token } = req.query;
+      // Token ahora viene en el body (POST) en lugar de query string (GET)
+      const { token } = req.body;
       if (!token) throw new AppError('Token de verificación requerido', 400);
 
-      const success = await userRepository.verifyAccount(token as string);
+      const success = await userRepository.verifyAccount(token);
       if (!success) {
         throw new AppError('Token inválido o expirado. Solicita uno nuevo.', 400);
       }
@@ -312,8 +324,9 @@ export class AuthController {
 
         // No bloqueamos la respuesta esperando al email
         EmailService.sendResetPasswordEmail(email, user.fullname, token).catch(err => {
+          // Log error without exposing PII (email)
           const errorMessage = err instanceof Error ? err.message : String(err);
-          logger.error({ error: errorMessage, email }, 'Error enviando reset password email')
+          logger.error({ error: errorMessage }, 'Error enviando reset password email')
         });
       }
 
@@ -335,9 +348,11 @@ export class AuthController {
         throw new AppError(pwdCheck.errors.join('; '), 400);
       }
 
-      // Aplicamos Pepper + Hash
-      const passwordWithPepper = password + config.passwordPepper;
-      const hash = await bcrypt.hash(passwordWithPepper, 12);
+      // Use HMAC for password pepper (same method as login to ensure consistency)
+      const hash = await bcrypt.hash(
+        crypto.createHmac('sha256', config.passwordPepper).update(password).digest('hex'),
+        12
+      );
 
       const success = await userRepository.resetPasswordByToken(token, hash);
 
@@ -617,6 +632,29 @@ export class AuthController {
       res.json({
         success: true,
         message: `Se han cerrado ${deletedCount} sesiones en otros dispositivos.`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get current authenticated user profile
+   */
+  async getProfile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      
+      if (!user) {
+        throw new AppError('No autenticado', 401);
+      }
+
+      // Return user profile without sensitive data (omit password)
+      const publicUser = (({ password: _, ...rest }) => rest)(user as UserWithPassword);
+      
+      res.json({
+        success: true,
+        data: publicUser,
       });
     } catch (error) {
       next(error);

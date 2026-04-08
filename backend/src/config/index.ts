@@ -163,7 +163,16 @@ export const config = {
   apiBaseUrl: (env.API_BASE_URL || `http://localhost:${env.PORT}`).trim().replace(/\/$/, ''),
   frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),
   recaptchaSecretKey: env.RECAPTCHA_SECRET_KEY,
-  passwordPepper: process.env.PASSWORD_PEPPER || 'dev_pepper_fallback_local',
+  passwordPepper: (() => {
+    const pepper = process.env.PASSWORD_PEPPER;
+    if (!pepper) {
+      if (env.NODE_ENV === 'production') {
+        throw new Error('PASSWORD_PEPPER environment variable is required in production');
+      }
+      return 'dev_pepper_fallback_local';
+    }
+    return pepper;
+  })(),
   storage: {
     maxGlobalSizeMb: env.MAX_GLOBAL_UPLOAD_SIZE_MB,
     maxGlobalSizeBytes: Number(process.env.MAX_GLOBAL_SIZE_BYTES) || 100 * 102 * 1024, // 100MB por defecto

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { ORDER_ID, PRODUCT_ID, USER_ID } from '../setup';
-// eslint-disable-next-line import/order
+ 
 import { OrderService } from '../../services/order.service';
 
 vi.mock('../../repositories/order.repository', () => ({

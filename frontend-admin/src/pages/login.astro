@@ -1,5 +1,27 @@
 ---
 // Login Page
+import config from '../config';
+
+// Validate and sanitize COOKIE_DOMAIN to prevent cookie injection
+function sanitizeCookieDomain(domain: string): string {
+  if (!domain) return '';
+  // Only allow valid domain characters: letters, numbers, dots, hyphens
+  // Also allow leading dot for cross-subdomain cookies
+  if (!/^\.?[a-zA-Z0-9.-]+$/.test(domain)) {
+    console.warn('Invalid COOKIE_DOMAIN, ignoring');
+    return '';
+  }
+  // Reject edge cases like "..example.com" or "example..com"
+  if (domain.includes('..') || domain.startsWith('.') && domain.charAt(1) === '.') {
+    console.warn('Invalid COOKIE_DOMAIN with double dots, ignoring');
+    return '';
+  }
+  return domain;
+}
+
+const API_URL = config.apiUrl.replace(/\/api\/?$/, '').replace(/\/+$/, ''); // Remove /api suffix and any trailing slashes
+const IS_DEV = config.isDev;
+const COOKIE_DOMAIN = sanitizeCookieDomain(config.cookieDomain);
 ---
 
 <html lang="es" class="dark">
@@ -10,129 +32,608 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
 </head>
 <body class="bg-surface-950 text-surface-100 font-sans antialiased">
   <div id="app"></div>
-  <script>
-    // Simple React-like app without actual React for quick setup
-    // This is a placeholder - will be replaced with actual React components
-    const app = document.getElementById('app');
-    app.innerHTML = `
-      <div class="min-h-screen flex items-center justify-center p-4">
-        <div class="w-full max-w-md">
-          <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-cream-500">🍦 Crema</h1>
-            <p class="text-surface-400 mt-2">Panel de Administración</p>
-          </div>
-          
-          <div class="bg-surface-900 border border-surface-800 rounded-2xl p-8 shadow-dark">
-            <form id="login-form" class="space-y-6">
-              <div>
-                <label class="block text-sm font-medium text-surface-300 mb-2">Usuario</label>
-                <input 
-                  type="text" 
-                  name="username"
-                  class="w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-surface-100 placeholder-surface-500 focus:outline-none focus:border-cream-500 focus:ring-1 focus:ring-cream-500 transition-colors"
-                  placeholder="admin_crema"
-                  required
-                >
-              </div>
-              
-              <div>
-                <label class="block text-sm font-medium text-surface-300 mb-2">Contraseña</label>
-                <input 
-                  type="password" 
-                  name="password"
-                  class="w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-surface-100 placeholder-surface-500 focus:outline-none focus:border-cream-500 focus:ring-1 focus:ring-cream-500 transition-colors"
-                  placeholder="••••••••••••"
-                  required
-                >
-              </div>
-              
-              <button 
-                type="submit"
-                class="w-full py-3 px-4 bg-cream-500 hover:bg-cream-600 text-surface-900 font-semibold rounded-xl transition-colors shadow-warm hover:shadow-warm-lg"
-              >
-                Iniciar Sesión
-              </button>
-            </form>
-            
-            <div id="error-message" class="mt-4 p-3 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-sm hidden"></div>
-          </div>
-          
-          <p class="text-center text-surface-500 text-sm mt-6">
-            © 2026 Crema Platform
-          </p>
-        </div>
-      </div>
-    `;
-    
-    // Handle form submission
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      const formData = new FormData(form);
-      const errorDiv = document.getElementById('error-message');
-      
-      errorDiv.classList.add('hidden');
-      
-      try {
-        // Use ngrok URL for production, localhost for development
-        const API_BASE = window.location.hostname.includes('localhost') 
-          ? 'http://localhost:3000' 
-          : 'https://unforsworn-skiagraphical-claretta.ngrok-free.dev';
+  <script define:vars={{ API_URL }}>
+    // Secure Login Implementation
+    // Note: CSRF is handled automatically by httpOnly cookies on the backend
+    (function() {
+      'use strict';
 
-        const response = await fetch(`${API_BASE}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: formData.get('username'),
-            password: formData.get('password')
-          }),
-          credentials: 'include'
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          errorDiv.textContent = data.error || 'Error de autenticación';
-          errorDiv.classList.remove('hidden');
-        } else if (data.requires2FA) {
-          // Show 2FA input
-          form.innerHTML = `
-            <div class="text-center mb-6">
-              <div class="text-4xl mb-2">🔐</div>
-              <h2 class="text-xl font-semibold">Verificación de Dos Factores</h2>
-              <p class="text-surface-400 text-sm">Ingresa el código de tu aplicación autenticadora</p>
-            </div>
-            <div class="mb-6">
-              <input 
-                type="text" 
-                name="code"
-                class="w-full px-4 py-3 text-center text-2xl tracking-widest bg-surface-800 border border-surface-700 rounded-xl text-surface-100 placeholder-surface-500 focus:outline-none focus:border-cream-500 focus:ring-1 focus:ring-cream-500"
-                placeholder="000000"
-                maxlength="6"
-                required
-              >
-            </div>
-            <button 
-              type="submit"
-              class="w-full py-3 px-4 bg-cream-500 hover:bg-cream-600 text-surface-900 font-semibold rounded-xl transition-colors"
-            >
-              Verificar
-            </button>
-            <button type="button" id="back-btn" class="w-full mt-3 py-2 text-surface-400 hover:text-surface-300 text-sm">
-              ← Volver
-            </button>
-          `;
-        } else if (data.success) {
-          window.location.href = '/';
-        }
-      } catch (err) {
-        errorDiv.textContent = 'Error de conexión';
-        errorDiv.classList.remove('hidden');
+      // Sanitize error messages from server to prevent any potential XSS
+      function sanitizeErrorMessage(msg) {
+        if (!msg) return 'Error desconocido';
+        // Map server errors to generic messages
+        const errorMap = {
+          'Credenciales inválidas': 'Credenciales incorrectas',
+          'Invalid credentials': 'Credenciales incorrectas',
+          'Usuario no encontrado': 'Usuario no encontrado',
+          'User not found': 'Usuario no encontrado',
+          'Password incorrecto': 'Contraseña incorrecta',
+          'Invalid password': 'Contraseña incorrecta',
+        };
+        // If it's a known error, use the mapped message
+        if (errorMap[msg]) return errorMap[msg];
+        // Otherwise, generic message - don't expose server details
+        return 'Error de autenticación';
       }
-    });
+
+      // Validate input
+      function validateInput(username, password) {
+        const errors = [];
+        if (!username || username.trim().length < 3) {
+          errors.push('El usuario debe tener al menos 3 caracteres');
+        }
+        if (!password || password.length < 8) {
+          errors.push('La contraseña debe tener al menos 8 caracteres');
+        }
+        return errors;
+      }
+
+      // Set error message safely (no XSS)
+      function showError(message) {
+        const errorDiv = document.getElementById('error-message');
+        if (errorDiv) {
+          errorDiv.textContent = message;
+          errorDiv.classList.remove('hidden');
+        }
+      }
+
+      // Hide error message
+      function hideError() {
+        const errorDiv = document.getElementById('error-message');
+        if (errorDiv) {
+          errorDiv.classList.add('hidden');
+        }
+      }
+
+      // Show loading state
+      function setLoading(isLoading, btn) {
+        if (btn) {
+          btn.disabled = isLoading;
+          btn.textContent = isLoading ? 'Ingresando...' : (btn.dataset.originalText || 'Iniciar Sesión');
+        }
+      }
+
+      // Clear auth cookies properly (matching the attributes used by backend)
+      function clearAuthCookies() {
+        const cookieNames = ['access_token', 'refresh_token'];
+        
+        // Base options (no domain)
+        const baseOptions = [
+          '; path=/',
+          '; path=/; SameSite=Strict',
+          '; path=/; SameSite=Lax',
+          '; path=/; Secure',
+          '; path=/; SameSite=Strict; Secure',
+          '; path=/; SameSite=Lax; Secure',
+        ];
+        
+        // Domain-specific options (if configured)
+        const domainOptions = COOKIE_DOMAIN 
+          ? [
+              `; domain=${COOKIE_DOMAIN}; path=/`,
+              `; domain=${COOKIE_DOMAIN}; path=/; SameSite=Strict`,
+              `; domain=${COOKIE_DOMAIN}; path=/; SameSite=Lax`,
+              `; domain=${COOKIE_DOMAIN}; path=/; Secure`,
+            ]
+          : [];
+        
+        const allOptions = [...baseOptions, ...domainOptions];
+        
+        cookieNames.forEach(name => {
+          allOptions.forEach(options => {
+            document.cookie = `${name}=; Max-Age=0${options}`;
+          });
+        });
+      }
+
+      // Clear form content safely using DOM methods instead of innerHTML
+      function clearForm(form) {
+        while (form.firstChild) {
+          form.removeChild(form.firstChild);
+        }
+      }
+
+      // Show 2FA form using DOM methods (no innerHTML)
+      function show2FAForm() {
+        const form = document.getElementById('login-form');
+        if (!form) return;
+
+        // Clear form using DOM methods
+        clearForm(form);
+        form.className = 'space-y-6';
+
+        // Container div
+        const container = document.createElement('div');
+        container.className = 'text-center mb-6';
+
+        // Icon
+        const icon = document.createElement('div');
+        icon.className = 'text-4xl mb-2';
+        icon.textContent = '🔐';
+        container.appendChild(icon);
+
+        // Title
+        const title = document.createElement('h2');
+        title.className = 'text-xl font-semibold text-surface-100';
+        title.textContent = 'Verificación de Dos Factores';
+        container.appendChild(title);
+
+        // Description
+        const desc = document.createElement('p');
+        desc.className = 'text-surface-400 text-sm mt-1';
+        desc.textContent = 'Ingresa el código de tu aplicación autenticadora';
+        container.appendChild(desc);
+
+        form.appendChild(container);
+
+        // Input wrapper
+        const inputWrapper = document.createElement('div');
+        inputWrapper.className = 'mb-6';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = 'code';
+        input.className = 'w-full px-4 py-3 text-center text-2xl tracking-widest bg-surface-800 border border-surface-700 rounded-xl text-surface-100 placeholder-surface-500 focus:outline-none focus:border-cream-500 focus:ring-1 focus:ring-cream-500';
+        input.placeholder = '000000';
+        input.maxLength = 6;
+        input.minLength = 6;
+        input.pattern = '[0-9]{6}';
+        input.required = true;
+        input.autocomplete = 'one-time-code';
+        inputWrapper.appendChild(input);
+        form.appendChild(inputWrapper);
+
+        // Submit button
+        const submitBtn = document.createElement('button');
+        submitBtn.type = 'submit';
+        submitBtn.className = 'w-full py-3 px-4 bg-cream-500 hover:bg-cream-600 text-surface-900 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+        submitBtn.dataset.originalText = 'Verificar';
+        submitBtn.textContent = 'Verificar';
+        form.appendChild(submitBtn);
+
+        // Back button
+        const backBtn = document.createElement('button');
+        backBtn.type = 'button';
+        backBtn.id = 'back-btn';
+        backBtn.className = 'w-full mt-3 py-2 text-surface-400 hover:text-surface-300 text-sm transition-colors';
+        backBtn.textContent = '← Volver';
+        form.appendChild(backBtn);
+
+        backBtn.addEventListener('click', () => {
+          clearAuthCookies();
+          location.reload();
+        });
+      }
+
+      // Show must change password form using DOM methods
+      function showChangePasswordForm() {
+        const form = document.getElementById('login-form');
+        if (!form) return;
+
+        clearForm(form);
+        form.className = 'space-y-6';
+
+        // Container
+        const container = document.createElement('div');
+        container.className = 'text-center mb-6';
+
+        const icon = document.createElement('div');
+        icon.className = 'text-4xl mb-2';
+        icon.textContent = '🔑';
+        container.appendChild(icon);
+
+        const title = document.createElement('h2');
+        title.className = 'text-xl font-semibold text-surface-100';
+        title.textContent = 'Cambiar Contraseña';
+        container.appendChild(title);
+
+        const desc = document.createElement('p');
+        desc.className = 'text-surface-400 text-sm mt-1';
+        desc.textContent = 'Es tu primer inicio de sesión. Debes cambiar tu contraseña.';
+        container.appendChild(desc);
+
+        form.appendChild(container);
+
+        // New password field
+        const newPassWrapper = document.createElement('div');
+        const newPassLabel = document.createElement('label');
+        newPassLabel.htmlFor = 'new-password';
+        newPassLabel.className = 'block text-sm font-medium text-surface-300 mb-2';
+        newPassLabel.textContent = 'Nueva Contraseña';
+        newPassWrapper.appendChild(newPassLabel);
+
+        const newPassInput = document.createElement('input');
+        newPassInput.type = 'password';
+        newPassInput.id = 'new-password';
+        newPassInput.name = 'newPassword';
+        newPassInput.className = 'w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-surface-100 placeholder-surface-500 focus:outline-none focus:border-cream-500 focus:ring-1 focus:ring-cream-500';
+        newPassInput.placeholder = '••••••••••••';
+        newPassInput.minLength = 8;
+        newPassInput.maxLength = 200;
+        newPassInput.required = true;
+        newPassInput.autocomplete = 'new-password';
+        newPassWrapper.appendChild(newPassInput);
+        form.appendChild(newPassWrapper);
+
+        // Confirm password field
+        const confirmPassWrapper = document.createElement('div');
+        const confirmPassLabel = document.createElement('label');
+        confirmPassLabel.htmlFor = 'confirm-password';
+        confirmPassLabel.className = 'block text-sm font-medium text-surface-300 mb-2';
+        confirmPassLabel.textContent = 'Confirmar Contraseña';
+        confirmPassWrapper.appendChild(confirmPassLabel);
+
+        const confirmPassInput = document.createElement('input');
+        confirmPassInput.type = 'password';
+        confirmPassInput.id = 'confirm-password';
+        confirmPassInput.name = 'confirmPassword';
+        confirmPassInput.className = 'w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-surface-100 placeholder-surface-500 focus:outline-none focus:border-cream-500 focus:ring-1 focus:ring-cream-500';
+        confirmPassInput.placeholder = '••••••••••••';
+        confirmPassInput.minLength = 8;
+        confirmPassInput.maxLength = 200;
+        confirmPassInput.required = true;
+        confirmPassInput.autocomplete = 'new-password';
+        confirmPassWrapper.appendChild(confirmPassInput);
+        form.appendChild(confirmPassWrapper);
+
+        // Submit button
+        const submitBtn = document.createElement('button');
+        submitBtn.type = 'submit';
+        submitBtn.className = 'w-full mt-6 py-3 px-4 bg-cream-500 hover:bg-cream-600 text-surface-900 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+        submitBtn.dataset.originalText = 'Cambiar Contraseña';
+        submitBtn.textContent = 'Cambiar Contraseña';
+        form.appendChild(submitBtn);
+      }
+
+      // Handle login submission
+      async function handleLogin(username, password, submitBtn) {
+        const validationErrors = validateInput(username, password);
+        if (validationErrors.length > 0) {
+          showError(validationErrors[0]);
+          return;
+        }
+
+        hideError();
+        setLoading(true, submitBtn);
+
+        try {
+          const response = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              username: username.trim(),
+              password: password
+            }),
+            credentials: 'include'
+          });
+
+          // Handle JSON parse explicitly to avoid silent failures
+          let data = {};
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            if (IS_DEV) {
+              console.warn('JSON parse failed on login response:', parseError);
+            }
+          }
+
+          if (!response.ok) {
+            const errorMsg = sanitizeErrorMessage(data?.error || data?.message);
+            showError(errorMsg);
+            setLoading(false, submitBtn);
+            return;
+          }
+
+          if (data.requires2FA) {
+            show2FAForm();
+            setLoading(false, submitBtn);
+            return;
+          }
+
+          if (data.mustChangePassword) {
+            showChangePasswordForm();
+            setLoading(false, submitBtn);
+            return;
+          }
+
+          if (data.success) {
+            window.location.href = '/';
+            return;
+          }
+
+          showError('Respuesta inválida del servidor');
+        } catch (err) {
+          // Only log in development to avoid leaking error details in production
+          if (IS_DEV) {
+            console.error('Login error:', err);
+          }
+          showError('Error de conexión. Verificá tu conexión a internet.');
+        } finally {
+          setLoading(false, submitBtn);
+        }
+      }
+
+      // Handle 2FA verification
+      async function handle2FA(code, submitBtn) {
+        if (!code || code.length !== 6) {
+          showError('Ingresá un código válido de 6 dígitos');
+          return;
+        }
+
+        setLoading(true, submitBtn);
+        hideError();
+
+        try {
+          const response = await fetch(`${API_URL}/auth/login/2fa`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ code }),
+            credentials: 'include'
+          });
+
+          // Handle JSON parse explicitly to avoid silent failures
+          let data = {};
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            if (IS_DEV) {
+              console.warn('JSON parse failed on 2FA response:', parseError);
+            }
+          }
+
+          if (!response.ok) {
+            const errorMsg = sanitizeErrorMessage(data?.error || data?.message);
+            showError(errorMsg);
+            setLoading(false, submitBtn);
+            return;
+          }
+
+          if (data.success) {
+            window.location.href = '/';
+            return;
+          }
+
+          showError('Verificación fallida');
+        } catch (err) {
+          showError('Error de conexión');
+        } finally {
+          setLoading(false, submitBtn);
+        }
+      }
+
+      // Handle first login password change
+      async function handleChangePassword(newPassword, confirmPassword, submitBtn) {
+        if (newPassword !== confirmPassword) {
+          showError('Las contraseñas no coinciden');
+          return;
+        }
+
+        if (newPassword.length < 8) {
+          showError('La contraseña debe tener al menos 8 caracteres');
+          return;
+        }
+
+        setLoading(true, submitBtn);
+        hideError();
+
+        try {
+          const response = await fetch(`${API_URL}/auth/change-password-first-login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ password: newPassword }),
+            credentials: 'include'
+          });
+
+          // Handle JSON parse explicitly to avoid silent failures
+          let data = {};
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            if (IS_DEV) {
+              console.warn('JSON parse failed on change password response:', parseError);
+            }
+          }
+
+          if (!response.ok) {
+            const errorMsg = sanitizeErrorMessage(data?.error || data?.message);
+            showError(errorMsg);
+            setLoading(false, submitBtn);
+            return;
+          }
+
+          if (data.success) {
+            // Use DOM methods instead of innerHTML for success message
+            const form = document.getElementById('login-form');
+            clearForm(form);
+            form.className = 'text-center py-8';
+
+            const container = document.createElement('div');
+            container.className = 'text-center py-8';
+
+            const icon = document.createElement('div');
+            icon.className = 'text-4xl mb-4';
+            icon.textContent = '✅';
+            container.appendChild(icon);
+
+            const title = document.createElement('h2');
+            title.className = 'text-xl font-semibold text-surface-100 mb-2';
+            title.textContent = 'Contraseña actualizada';
+            container.appendChild(title);
+
+            const desc = document.createElement('p');
+            desc.className = 'text-surface-400 text-sm';
+            desc.textContent = 'Ahora podés iniciar sesión con tu nueva contraseña.';
+            container.appendChild(desc);
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.id = 'login-again';
+            btn.className = 'mt-6 py-2 px-4 bg-cream-500 hover:bg-cream-600 text-surface-900 font-semibold rounded-xl transition-colors';
+            btn.textContent = 'Ir al Login';
+            container.appendChild(btn);
+
+            form.appendChild(container);
+
+            btn.addEventListener('click', () => {
+              location.reload();
+            });
+          }
+        } catch (err) {
+          showError('Error de conexión');
+        } finally {
+          setLoading(false, submitBtn);
+        }
+      }
+
+      // Create login form using DOM methods (no innerHTML for security)
+      function createLoginForm() {
+        const form = document.createElement('form');
+        form.id = 'login-form';
+        form.className = 'space-y-6';
+        form.noValidate = true;
+
+        // Username field wrapper
+        const usernameWrapper = document.createElement('div');
+        const usernameLabel = document.createElement('label');
+        usernameLabel.htmlFor = 'username';
+        usernameLabel.className = 'block text-sm font-medium text-surface-300 mb-2';
+        usernameLabel.textContent = 'Usuario';
+        usernameWrapper.appendChild(usernameLabel);
+
+        const usernameInput = document.createElement('input');
+        usernameInput.type = 'text';
+        usernameInput.id = 'username';
+        usernameInput.name = 'username';
+        usernameInput.className = 'w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-surface-100 placeholder-surface-500 focus:outline-none focus:border-cream-500 focus:ring-1 focus:ring-cream-500 transition-colors';
+        usernameInput.placeholder = 'admin_crema';
+        usernameInput.minLength = 3;
+        usernameInput.maxLength = 100;
+        usernameInput.required = true;
+        usernameInput.autocomplete = 'username';
+        usernameWrapper.appendChild(usernameInput);
+        form.appendChild(usernameWrapper);
+
+        // Password field wrapper
+        const passwordWrapper = document.createElement('div');
+        const passwordLabel = document.createElement('label');
+        passwordLabel.htmlFor = 'password';
+        passwordLabel.className = 'block text-sm font-medium text-surface-300 mb-2';
+        passwordLabel.textContent = 'Contraseña';
+        passwordWrapper.appendChild(passwordLabel);
+
+        const passwordInput = document.createElement('input');
+        passwordInput.type = 'password';
+        passwordInput.id = 'password';
+        passwordInput.name = 'password';
+        passwordInput.className = 'w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-surface-100 placeholder-surface-500 focus:outline-none focus:border-cream-500 focus:ring-1 focus:ring-cream-500 transition-colors';
+        passwordInput.placeholder = '••••••••••••';
+        passwordInput.minLength = 8;
+        passwordInput.maxLength = 200;
+        passwordInput.required = true;
+        passwordInput.autocomplete = 'current-password';
+        passwordWrapper.appendChild(passwordInput);
+        form.appendChild(passwordWrapper);
+
+        // Submit button
+        const submitBtn = document.createElement('button');
+        submitBtn.type = 'submit';
+        submitBtn.className = 'w-full py-3 px-4 bg-cream-500 hover:bg-cream-600 text-surface-900 font-semibold rounded-xl transition-colors shadow-warm hover:shadow-warm-lg disabled:opacity-50 disabled:cursor-not-allowed';
+        submitBtn.dataset.originalText = 'Iniciar Sesión';
+        submitBtn.textContent = 'Iniciar Sesión';
+        form.appendChild(submitBtn);
+
+        return form;
+      }
+
+      // Initialize - remove checkExistingSession since httpOnly cookies can't be read from client
+      document.addEventListener('DOMContentLoaded', function() {
+        const app = document.getElementById('app');
+        if (!app) return;
+
+        // Create container using DOM methods (no innerHTML)
+        const container = document.createElement('div');
+        container.className = 'min-h-screen flex items-center justify-center p-4';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'w-full max-w-md';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'text-center mb-8';
+
+        const title = document.createElement('h1');
+        title.className = 'text-3xl font-bold text-cream-500';
+        title.textContent = '🍦 Crema';
+        header.appendChild(title);
+
+        const subtitle = document.createElement('p');
+        subtitle.className = 'text-surface-400 mt-2';
+        subtitle.textContent = 'Panel de Administración';
+        header.appendChild(subtitle);
+
+        wrapper.appendChild(header);
+
+        // Form container
+        const formContainer = document.createElement('div');
+        formContainer.className = 'bg-surface-900 border border-surface-800 rounded-2xl p-8 shadow-dark';
+
+        // Create login form using DOM methods
+        const loginForm = createLoginForm();
+        formContainer.appendChild(loginForm);
+
+        // Error message div
+        const errorDiv = document.createElement('div');
+        errorDiv.id = 'error-message';
+        errorDiv.className = 'mt-4 p-3 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-sm hidden';
+        errorDiv.setAttribute('role', 'alert');
+        formContainer.appendChild(errorDiv);
+
+        wrapper.appendChild(formContainer);
+
+        // Footer
+        const footer = document.createElement('p');
+        footer.className = 'text-center text-surface-500 text-sm mt-6';
+        footer.textContent = '© 2026 Crema Platform';
+        wrapper.appendChild(footer);
+
+        container.appendChild(wrapper);
+        app.appendChild(container);
+
+        const form = document.getElementById('login-form');
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(form);
+          const username = formData.get('username');
+          const password = formData.get('password');
+          const code = formData.get('code');
+          const newPassword = formData.get('newPassword');
+          const confirmPassword = formData.get('confirmPassword');
+          const submitBtn = form.querySelector('button[type="submit"]');
+
+          if (code) {
+            handle2FA(code, submitBtn);
+          } else if (newPassword) {
+            handleChangePassword(newPassword, confirmPassword, submitBtn);
+          } else {
+            handleLogin(username, password, submitBtn);
+          }
+        });
+      });
+    })();
   </script>
 </body>
 </html>

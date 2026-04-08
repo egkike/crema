@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
+import { getErrorMessage } from '../utils/ip.util';
 
 // --- INTERFACES ---
 
@@ -75,9 +76,9 @@ export const commissionRepository = {
       const db = client || pool;
       const { rows } = await db.query(query, values);
       return this.mapRowToCommission(rows[0]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, orderId: data.orderId, userId: data.userId },
+        { error: getErrorMessage(error), orderId: data.orderId, userId: data.userId },
         'DB Error: Falló la creación de la comisión'
       );
       throw error;

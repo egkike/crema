@@ -1,6 +1,7 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
+import { getErrorMessage } from '../utils/ip.util';
 
 // 1. Añadimos 'payout_refund' para soportar devoluciones de retiros fallidos
 export type HistoryType =
@@ -59,9 +60,9 @@ export const historyRepository = {
         data.description,
       ]);
       return this.mapRow(rows[0]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, userId: data.userId },
+        { error: getErrorMessage(error), userId: data.userId },
         'DB Error: createRecordWithClient history failed'
       );
       throw error;
@@ -105,8 +106,8 @@ export const historyRepository = {
         data: dataRes.rows.map(row => this.mapRow(row)),
         total: parseInt(countRes.rows[0].count, 10),
       };
-    } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'DB Error: getByUserIdWithCount failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), userId }, 'DB Error: getByUserIdWithCount failed');
       throw error;
     }
   },

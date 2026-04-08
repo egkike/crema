@@ -57,5 +57,13 @@ export default tseslint.config(
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       eqeqeq: ['error', 'always'],
     },
+  },
+
+  // Override for test files - disable import/order warnings
+  {
+    files: ['**/*.test.ts', '**/*.spec.ts'],
+    rules: {
+      'import/order': 'off',
+    },
   }
 );

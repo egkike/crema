@@ -54,12 +54,21 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
 });
 
+/**
+ * Esquema para verificación de email (Token)
+ * El token debe ser un string no vacío de al menos 32 caracteres (64 hex chars de randomBytes(32))
+ */
+export const verifyEmailSchema = z.object({
+  token: z.string().min(64, 'Token inválido').max(64, 'Token inválido').regex(/^[a-f0-9]+$/, 'Token debe ser hexadecimal'),
+});
+
 // Tipos para exportar
 export type UserInput = z.infer<typeof userSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterPartnerInput = z.infer<typeof registerPartnerSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
 // --- FUNCIONES DE VALIDACIÓN ---

@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 import { AuthController } from '../controllers/auth.controller';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
-import { loginSchema, registerPartnerSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/users.schema';
+import { loginSchema, registerPartnerSchema, forgotPasswordSchema, resetPasswordSchema, verifyEmailSchema } from '../schemas/users.schema';
 import { validate } from '../middlewares/auth/validate.middleware';
 import { loginLimiter, refreshLimiter, apiLimiter } from '../middlewares/rateLimit/rateLimit';
 
@@ -20,13 +20,13 @@ const authController = new AuthController();
  */
 router.post('/register', apiLimiter, validate(registerPartnerSchema), authController.register.bind(authController));
 
-router.get('/verify-email', apiLimiter, authController.verifyEmail.bind(authController));
+router.post('/verify-email', apiLimiter, validate(verifyEmailSchema), authController.verifyEmail.bind(authController));
 
 router.post('/login', loginLimiter, validate(loginSchema), authController.login.bind(authController));
 
 router.post('/refresh', refreshLimiter, authController.refresh.bind(authController));
 
-router.post('/logout', jwtAuthMiddleware, authController.logout.bind(authController));
+router.post('/logout', apiLimiter, jwtAuthMiddleware, authController.logout.bind(authController));
 
 // --- RECUPERACIÓN Y SEGURIDAD INICIAL ---
 
@@ -46,6 +46,7 @@ router.post(
 
 router.post(
   '/change-password-first-login', 
+  apiLimiter, 
   jwtAuthMiddleware, 
   authController.changePasswordFirstLogin.bind(authController)
 );
@@ -88,5 +89,10 @@ router.delete('/sessions/other', jwtAuthMiddleware, authController.revokeOtherSe
  * Revoca una sesión específica por ID
  */
 router.delete('/sessions/:sessionId', jwtAuthMiddleware, authController.revokeSession.bind(authController));
+
+/**
+ * Get current authenticated user profile
+ */
+router.get('/me', jwtAuthMiddleware, authController.getProfile.bind(authController));
 
 export default router;

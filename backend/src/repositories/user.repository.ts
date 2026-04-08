@@ -209,7 +209,8 @@ export const userRepository = {
     const affiliateSlug = finalUsername;
     const mustChangePassword = Number(level) === 1;
     const rawPassword = password || crypto.randomBytes(12).toString('hex');
-    const passwordWithPepper = rawPassword + config.passwordPepper;
+    // Use HMAC for password pepper (consistent with auth.controller)
+    const passwordWithPepper = crypto.createHmac('sha256', config.passwordPepper).update(rawPassword).digest('hex');
     const hash = await bcrypt.hash(passwordWithPepper, 12);
 
     const verificationToken = active === 0 ? crypto.randomBytes(32).toString('hex') : null;
@@ -301,7 +302,8 @@ export const userRepository = {
 
   async chgPassUser({ id, input }: { id: string; input: { password: string } }): Promise<void> {
     const schema = config.db?.schema || 'public';
-    const passwordWithPepper = input.password + config.passwordPepper;
+    // Use HMAC for password pepper (consistent with auth.controller)
+    const passwordWithPepper = crypto.createHmac('sha256', config.passwordPepper).update(input.password).digest('hex');
     const hash = await bcrypt.hash(passwordWithPepper, 12);
     const query = `UPDATE "${schema}".users SET password = $1, must_change_password = false WHERE id = $2`;
     await pool.query(query, [hash, id]);

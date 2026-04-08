@@ -1,19 +1,61 @@
 import { vi } from 'vitest';
 import bcrypt from 'bcrypt';
-
-// ============================================
-// MOCKS GLOBALES
-// ============================================
-
-// UUIDs constantes y válidos para pasar validaciones de Zod
-export const ADMIN_ID = '00000000-0000-0000-0000-000000000001';
-export const USER_ID = '00000000-0000-0000-0000-000000000002';
-export const CREATOR_ID = '00000000-0000-0000-0000-000000000003';
-export const AFFILIATE_ID = '00000000-0000-0000-0000-000000000004';
-export const PRODUCT_ID = '00000000-0000-0000-0000-000000000099';
-export const ORDER_ID = '00000000-0000-0000-0000-000000000101';
+import jwt from 'jsonwebtoken';
 
 const MOCK_PASSWORD_HASH = bcrypt.hashSync('p1' + 'test-pepper', 10);
+
+// Test JWT secrets (must match the config mock above)
+const TEST_JWT_SECRET = 'static-test-secret-32-chars-long-!!';
+const TEST_REFRESH_SECRET = 'static-refresh-secret-32-chars-long-!!';
+
+/**
+ * Generate a valid JWT access token for testing
+ */
+export const generateTestAccessToken = (payload: {
+  id: string;
+  username: string;
+  email?: string;
+  level: number;
+  active?: number;
+}) => {
+  return jwt.sign(payload, TEST_JWT_SECRET, { expiresIn: '1h' });
+};
+
+/**
+ * Generate a valid JWT refresh token for testing
+ */
+export const generateTestRefreshToken = (payload: {
+  id: string;
+  username: string;
+  email?: string;
+  level: number;
+}) => {
+  return jwt.sign(payload, TEST_REFRESH_SECRET, { expiresIn: '7d' });
+};
+
+/**
+ * Create mock cookies with valid JWT tokens for testing
+ */
+export const createMockCookies = (user: { id: string; username: string; email: string; level: number; active?: number }) => {
+  const accessToken = generateTestAccessToken({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    level: user.level,
+    active: user.active ?? 1,
+  });
+  const refreshToken = generateTestRefreshToken({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    level: user.level,
+  });
+
+  return [
+    `access_token=${accessToken}; Path=/; HttpOnly`,
+    `refresh_token=${refreshToken}; Path=/; HttpOnly`,
+  ].join('; ');
+};
 
 // ============================================
 // TYPES - Typed Mocks for Services Tests
@@ -254,6 +296,10 @@ export const userRepositoryMock = {
   })),
   saveRefreshToken: vi.fn().mockResolvedValue(true),
   addActivityLog: vi.fn().mockResolvedValue(true),
+  verifyAccount: vi.fn(async (token: string) => {
+    // Mock: token válido es cualquier string de 64 hex chars
+    return /^[a-f0-9]{64}$/i.test(token);
+  }),
 };
 
 export const productRepositoryMock = {

@@ -3,20 +3,21 @@ import supertest from 'supertest';
 
 import { app } from '../app';
 
-import { extractCookies } from './setup';
+import { createMockCookies, USER_ID } from './setup';
 
 const request = supertest(app);
 
 describe('Products Routes', () => {
-  let cookies: string = '';
+  // Use pre-generated mock cookies instead of trying to login
+  const cookies = createMockCookies({
+    id: USER_ID,
+    username: 'testuser',
+    email: 'test@test.com',
+    level: 1,
+    active: 1,
+  });
 
-  beforeEach(async () => {
-    // Regular user login
-    const res = await request.post('/api/auth/login').send({
-      email: 'admin@test.com',
-      password: 'p1',
-    });
-    cookies = extractCookies(res);
+  beforeEach(() => {
     vi.clearAllMocks();
   });
 

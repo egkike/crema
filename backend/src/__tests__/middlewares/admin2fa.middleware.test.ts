@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { Request, Response, NextFunction } from 'express';
+
 import { requireAdmin2FA } from '../../middlewares/auth/admin2fa.middleware';
 
 // Mock de las dependencias

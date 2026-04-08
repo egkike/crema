@@ -1,5 +1,6 @@
 import pool from '../db/postgres';
 import logger from '../utils/logger';
+import { getErrorMessage } from '../utils/ip.util';
 import { config } from '../config/index';
 
 // --- Lógica de Caché para Niveles de Usuario ---
@@ -79,8 +80,8 @@ export const configRepository = {
         },
         {} as Record<string, number>
       );
-    } catch (error: any) {
-      logger.error({ error: error.message, currency }, 'DB Error: getConfigsByCurrency failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), currency }, 'DB Error: getConfigsByCurrency failed');
       throw error;
     }
   },
@@ -116,8 +117,8 @@ export const configRepository = {
         },
         {} as Record<string, string>
       );
-    } catch (error: any) {
-      logger.error({ error: error.message }, 'DB Error: getSystemSettings failed');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error) }, 'DB Error: getSystemSettings failed');
       throw error;
     }
   },
@@ -131,8 +132,8 @@ export const configRepository = {
     try {
       const { rows } = await pool.query(query, [key]);
       return rows[0]?.value ?? defaultValue;
-    } catch (error: any) {
-      logger.error({ error: error.message, key }, 'Error fetching setting');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), key }, 'Error fetching setting');
       return defaultValue;
     }
   },
@@ -163,8 +164,8 @@ export const configRepository = {
       lastFieldsFetch = now;
 
       return fields;
-    } catch (error: any) {
-      logger.error({ error: error.message, currencyCode }, 'Error fetching required_payout_fields');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), currencyCode }, 'Error fetching required_payout_fields');
       return [];
     }
   },
@@ -199,8 +200,8 @@ export const configRepository = {
       lastRulesFetch = now;
 
       return rules;
-    } catch (error: any) {
-      logger.error({ error: error.message, currencyCode }, 'Error fetching validation_rules');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), currencyCode }, 'Error fetching validation_rules');
       return {};
     }
   },
@@ -222,8 +223,8 @@ export const configRepository = {
     try {
       const { rows } = await pool.query(query, [currencyCode]);
       return rows;
-    } catch (error: any) {
-      logger.error({ error: error.message, currencyCode }, 'Error fetching gateways for currency');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), currencyCode }, 'Error fetching gateways for currency');
       return [];
     }
   },

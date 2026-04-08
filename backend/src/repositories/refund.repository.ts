@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
+import { getErrorMessage } from '../utils/ip.util';
 
 export interface RefundData {
   orderId: string;
@@ -72,9 +73,9 @@ export const refundRepository = {
       );
 
       return this.mapRow(rows[0]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { error: error.message, orderId: data.orderId },
+        { error: getErrorMessage(error), orderId: data.orderId },
         'DB Error: refundRepository.create failed'
       );
       throw error;

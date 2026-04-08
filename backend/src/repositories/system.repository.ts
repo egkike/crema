@@ -1,6 +1,7 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
 import logger from '../utils/logger';
+import { getErrorMessage } from '../utils/ip.util';
 
 export const systemRepository = {
   async getSetting(key: string, defaultValue: string): Promise<string> {
@@ -9,8 +10,8 @@ export const systemRepository = {
     try {
       const { rows } = await pool.query(query, [key]);
       return rows[0]?.value || defaultValue;
-    } catch (error: any) {
-      logger.error({ key, error: error.message }, 'Error obteniendo system_setting');
+    } catch (error: unknown) {
+      logger.error({ key, error: getErrorMessage(error) }, 'Error obteniendo system_setting');
       return defaultValue;
     }
   },
@@ -32,8 +33,8 @@ export const systemRepository = {
       const globalDaysSetting = await this.getSetting('days_of_guarantee', '7');
 
       return Number(globalDaysSetting);
-    } catch (error: any) {
-      logger.error({ productId, error: error.message }, 'Error resolviendo días de garantía');
+    } catch (error: unknown) {
+      logger.error({ productId, error: getErrorMessage(error) }, 'Error resolviendo días de garantía');
       // 3. Fallback final: Si la DB falla totalmente, devolvemos 7 por defecto
       return 7;
     }

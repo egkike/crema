@@ -1,5 +1,6 @@
 import pool from '../db/postgres';
 import logger from '../utils/logger';
+import { getErrorMessage } from '../utils/ip.util';
 import { config } from '../config/index';
 
 // --- INTERFACES ---
@@ -178,9 +179,9 @@ export const productRepository = {
 
       await client.query('COMMIT');
       return this.mapRowToProduct({ ...productRow, prices: input.prices });
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, title: input.title }, 'Error creando producto');
+      logger.error({ error: getErrorMessage(error), title: input.title }, 'Error creando producto');
       throw error;
     } finally {
       client.release();
@@ -330,9 +331,9 @@ export const productRepository = {
       const updatedProduct = await this.getProductById(id);
       if (!updatedProduct) throw new Error('Error al recuperar el producto actualizado');
       return updatedProduct;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      logger.error({ error: error.message, productId: id }, 'Error actualizando producto');
+      logger.error({ error: getErrorMessage(error), productId: id }, 'Error actualizando producto');
       throw error;
     } finally {
       client.release();
@@ -394,8 +395,8 @@ export const productRepository = {
     try {
       const { rows } = await pool.query(query, [ids]);
       return rows.map(row => this.mapRowToProduct(row));
-    } catch (error: any) {
-      logger.error({ error: error.message, ids }, 'Error obteniendo productos por lista de IDs');
+    } catch (error: unknown) {
+      logger.error({ error: getErrorMessage(error), ids }, 'Error obteniendo productos por lista de IDs');
       throw error;
     }
   },
