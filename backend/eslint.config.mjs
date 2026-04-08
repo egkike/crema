@@ -3,6 +3,10 @@ import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 import importPlugin from 'eslint-plugin-import';
 import typescriptParser from '@typescript-eslint/parser';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default tseslint.config(
   // 1. IGNORES GLOBALES (Debe ir primero y sin otras propiedades)
@@ -33,6 +37,7 @@ export default tseslint.config(
       parser: typescriptParser,
       parserOptions: {
         project: './tsconfig.json',
+        tsconfigRootDir: __dirname,
       },
     },
     settings: {
@@ -53,7 +58,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-empty-object-type': ['off'],
+      '@typescript-eslint/no-empty-object-type': 'off',
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       eqeqeq: ['error', 'always'],
     },

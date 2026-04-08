@@ -8,6 +8,7 @@ import logger from '../utils/logger';
 import { config } from '../config/index';
 import { mainQueue } from '../queues/scheduler';
 import { roundToTwo } from '../utils/rounder.util';
+import { AppError } from '../errors/AppError';
 
 import { EmailService } from './email.service';
 
@@ -27,6 +28,12 @@ export const ReleaseService = {
     targetOrderId?: string
   ): Promise<ReleaseStats> {
     const schema = config.db?.schema || 'public';
+
+    // Validate schema against allowlist to prevent SQL injection
+    const ALLOWED_SCHEMAS = ['public', 'crema'];
+    if (!ALLOWED_SCHEMAS.includes(schema)) {
+      throw new AppError('Invalid schema configuration', 400);
+    }
 
     const stats: ReleaseStats = {
       count: 0,

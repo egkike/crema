@@ -7,12 +7,36 @@ import { payoutMethodRepository } from '../repositories/payout_method.repository
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
+interface ProductModule {
+  title: string;
+  content?: string;
+  videos?: Array<{ title: string; url: string }>;
+}
+
+interface ProductPrice {
+  currency: string;
+  amount: number;
+}
+
+interface CreateProductData {
+  title: string;
+  type: string;
+  prices: ProductPrice[];
+  description?: string;
+  contentUrl?: string;
+  affiliate_commission_percent?: number;
+  sizeBytes?: number;
+  guaranteeDays?: number;
+  modules?: ProductModule[];
+  status?: string;
+}
+
 export class ProductService {
   /**
    * Crea un nuevo producto orquestando validaciones, generación de slug
    * y manejo de contenido estructurado.
    */
-  static async create(creatorId: string, data: any) {
+  static async create(creatorId: string, data: CreateProductData) {
     // 0. Extraer datos
     const {
       title,
@@ -93,9 +117,10 @@ export class ProductService {
         'Producto creado exitosamente vía Service'
       );
       return newProduct;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Error de violación de unicidad (Slug duplicado en DB)
-      if (error.code === '23505') {
+      const dbError = error as { code?: string };
+      if (dbError.code === '23505') {
         throw new AppError(
           'Ya existe un producto con un título muy similar. Intenta variar el nombre.',
           400
@@ -175,9 +200,10 @@ export class ProductService {
           400
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       if (error instanceof AppError) throw error;
-      logger.error({ error: error.message }, 'Error al validar límites de comisión');
+      logger.error({ error: errorMessage }, 'Error al validar límites de comisión');
       throw new AppError('No se pudieron validar los límites de comisión en este momento.', 500);
     }
   }

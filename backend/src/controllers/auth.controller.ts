@@ -79,11 +79,15 @@ export class AuthController {
         throw new AppError('Cuenta no verificada o inactiva. Revisa tu email.', 403);
       }
 
+      // Use 'lax' for SameSite in all non-production environments to allow cookie propagation
+      // For ngrok/testing, 'lax' is needed because it's considered cross-site
       const sameSiteValue = config.nodeEnv === 'production' ? 'strict' : 'lax';
+      // Also set secure to false for non-production to allow HTTP
+      const isSecure = config.nodeEnv === 'production';
 
       const cookieOptions = {
         httpOnly: true,
-        secure: config.nodeEnv === 'production',
+        secure: isSecure,
         sameSite: sameSiteValue as 'strict' | 'lax',
         path: '/',
       };

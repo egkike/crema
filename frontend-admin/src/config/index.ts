@@ -28,12 +28,10 @@ interface AppConfig {
 }
 
 function getEnv(key: string, defaultValue: string): string {
-  // @ts-expect-error - import.meta.env is typed in Astro
   return import.meta.env[key] ?? defaultValue;
 }
 
 function getApiUrl(): string {
-  // @ts-expect-error - import.meta.env is typed in Astro  
   const envUrl = import.meta.env.PUBLIC_API_URL;
   
   if (envUrl && envUrl.trim() !== '') {
@@ -46,7 +44,10 @@ function getApiUrl(): string {
         throw new Error('Invalid protocol');
       }
       // Reconstruct URL to normalize and validate
-      return `${url.protocol}//${url.host}${url.port ? `:${url.port}` : ''}${url.pathname.replace(/\/+$/, '')}`;
+      // Always add /api suffix for backend API
+      const path = url.pathname.replace(/\/+$/, '') || '/api';
+      // Use hostname (without port) to avoid doubling the port
+      return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${path}`;
     } catch {
       throw new Error('PUBLIC_API_URL must be a valid HTTP/HTTPS URL');
     }

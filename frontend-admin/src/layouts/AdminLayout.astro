@@ -12,80 +12,62 @@ const currentPath = Astro.url.pathname;
 
 // Determine the full API URL for auth check
 // Use the full URL from config.apiUrl (e.g., http://localhost:3000/api or https://api.crema.com/api)
-const authCheckUrl = config.apiUrl.startsWith('http') 
-  ? `${config.apiUrl}/auth/me`
-  : '/api/auth/me';
+const apiBaseUrl = config.apiUrl.startsWith('http') 
+  ? config.apiUrl.replace(/\/api\/?$/, '')
+  : '';
+const authCheckUrl = `${apiBaseUrl}/api/auth/me`;
+const refreshUrl = `${apiBaseUrl}/api/auth/refresh`;
 ---
 
 <!doctype html>
 <html lang="es" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Crema Admin Panel - Plataforma de Economía de los Creadores" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <title>{title} | Crema Admin</title>
-    <style is:global>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      
-      html {
-        font-family: 'Inter', system-ui, sans-serif;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-      
-      body {
-        @apply bg-surface-950 text-surface-200;
-        min-height: 100vh;
-      }
-      
-      /* Custom scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      
-      ::-webkit-scrollbar-track {
-        @apply bg-surface-900;
-      }
-      
-      ::-webkit-scrollbar-thumb {
-        @apply bg-surface-700 rounded-full;
-      }
-      
-      ::-webkit-scrollbar-thumb:hover {
-        @apply bg-surface-600;
-      }
-    </style>
-  </head>
-  <body>
-    <!-- Authentication check - verify cookie exists (httpOnly cookies can't be read by JS) -->
-    <!-- Instead, we make an API call to verify auth on mount -->
-    <script is:inline define:vars={{ authCheckUrl }}>
-      // Check auth on page load by calling the API
-      // If not authenticated, the API will return 401 and we'll redirect
-      (async function() {
-        try {
-          const response = await fetch(authCheckUrl, { 
-            credentials: 'include',
-            cache: 'no-store'
-          });
-          if (!response.ok) {
-            window.location.href = '/login';
-          }
-        } catch (e) {
-          // Network error - redirect to login
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title} | Crema Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+</head>
+<body>
+  <!-- Authentication check - verify cookie exists (httpOnly cookies can't be read by JS) -->
+  <!-- Try refresh first to get a fresh access_token, then check auth -->
+  <script is:inline define:vars={{ authCheckUrl, refreshUrl }}>
+    // Check auth on page load by calling the API
+    // If not authenticated, the API will return 401 and we'll redirect
+    (async function() {
+      try {
+        // First, try to refresh the access token using the refresh_token
+        const refreshResponse = await fetch(refreshUrl, { 
+          credentials: 'include',
+          cache: 'no-store',
+          method: 'POST'
+        });
+        
+        // If refresh failed, redirect to login
+        if (!refreshResponse.ok) {
+          window.location.href = '/login';
+          return;
+        }
+        
+        // Now check if we have a valid session
+        const response = await fetch(authCheckUrl, { 
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        
+        if (!response.ok) {
           window.location.href = '/login';
         }
-      })();
-    </script>
+        // If response.ok, user is authenticated - stay on page
+      } catch (e) {
+        // Network error - redirect to login
+        window.location.href = '/login';
+      }
+    })();
+  </script>
     
     <div class="flex min-h-screen">
       <!-- Sidebar -->

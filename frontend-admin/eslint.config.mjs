@@ -14,6 +14,7 @@ export default tseslint.config(
       'node_modules/**',
       '.astro/**',
       '*.log',
+      'src/**/*.astro', // Astro files handled by Astro build
     ],
   },
 
@@ -27,6 +28,33 @@ export default tseslint.config(
     },
     rules: {
       'no-undef': 'off',
+    },
+  },
+
+  // Astro files - use simple JS parser without project
+  {
+    files: ['src/**/*.astro'],
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+      },
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        AbortController: 'readonly',
+        URLSearchParams: 'readonly',
+        import: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 

@@ -8,6 +8,14 @@ const MOCK_PASSWORD_HASH = bcrypt.hashSync('p1' + 'test-pepper', 10);
 const TEST_JWT_SECRET = 'static-test-secret-32-chars-long-!!';
 const TEST_REFRESH_SECRET = 'static-refresh-secret-32-chars-long-!!';
 
+// Test user IDs
+export const USER_ID = '00000000-0000-0000-0000-000000000001';
+export const ADMIN_ID = '00000000-0000-0000-0000-000000000099';
+export const CREATOR_ID = '00000000-0000-0000-0000-000000000003';
+export const AFFILIATE_ID = '00000000-0000-0000-0000-000000000002';
+export const ORDER_ID = '00000000-0000-0000-0000-000000000010';
+export const PRODUCT_ID = '00000000-0000-0000-0000-000000000020';
+
 /**
  * Generate a valid JWT access token for testing
  */

@@ -183,7 +183,7 @@ export class PayoutMethodService {
       const updatedMethod = await payoutMethodRepository.upsert(
         decoded.userId,
         decoded.currency,
-        decoded.type,
+        decoded.type as 'bank_account' | 'crypto_wallet',
         decoded.data
       );
 

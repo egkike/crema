@@ -1,4 +1,4 @@
-import { productRepository } from '../repositories/product.repository';
+import { productRepository, Product } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
@@ -33,37 +33,24 @@ export class AccessService {
     if (product.creator_id !== userId) {
       // Importante: No bloqueamos el await aquí para que el acceso sea instantáneo,
       // pero lo lanzamos para que procese la regla.
-      this.evaluateGuaranteeStatus(userId, productId, product).catch(err =>
-        logger.error({ err }, 'Error silencioso en Safe-Guard')
-      );
+      AccessService.evaluateGuaranteeStatus(userId, productId, product).catch((err) => {
+        logger.error({ err }, 'Error evaluando estado de garantía');
+      });
     }
 
-    let finalUrl = product.content_url;
-
-    // 2. Resolución de Video firmado
-    if (product.type === 'video' && finalUrl && !product.has_structured_content) {
-      try {
-        const { streamingUtil } = await import('../utils/streaming.util');
-        finalUrl = await streamingUtil.getSignedUrl(finalUrl, 'video');
-      } catch (err) {
-        logger.error({ err }, 'Error al firmar URL de video');
-        // No lanzamos error para no romper la experiencia, enviamos la original o null
-      }
-    }
-
-    // 2. Retorno estructurado (Normalizando nombres de propiedades)
+    // 2. Devolver el contenido
     return {
       id: product.id,
       title: product.title,
       type: product.type,
-      contentUrl: finalUrl,
       description: product.description,
-      has_structured_content: !!product.has_structured_content,
-      updatedAt: product.updated_at,
+      contentUrl: product.content_url,
+      hasStructuredContent: product.has_structured_content,
+      // No exposed: prices, creator_id, affiliate_commission_percent
     };
   }
 
-  static async evaluateGuaranteeStatus(userId: string, productId: string, product: any) {
+  static async evaluateGuaranteeStatus(userId: string, productId: string, product: Product) {
     try {
       const order = await orderRepository.getActiveOrderWithBuyer(userId, productId);
 
@@ -153,7 +140,7 @@ export class AccessService {
   /**
    * MÉTODO HELPER: Dispara la evaluación sin bloquear el hilo principal
    */
-  private static triggerSafeGuard(userId: string, productId: string, product: any) {
+  private static triggerSafeGuard(userId: string, productId: string, product: Product) {
     if (product.creator_id !== userId) {
       this.evaluateGuaranteeStatus(userId, productId, product).catch(err =>
         logger.error({ err, userId, productId }, 'Error silencioso en Safe-Guard Centralizado')

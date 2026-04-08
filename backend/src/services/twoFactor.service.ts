@@ -17,7 +17,7 @@ export class TwoFactorService {
       label: userEmail,
       issuer: 'Crema',
       digits: 6,
-      algorithm: 'SHA1',
+      algorithm: 'sha1',
       period: 30,
     });
 
@@ -50,7 +50,8 @@ export class TwoFactorService {
    */
   static verifyToken(token: string, secret: string): boolean {
     try {
-      return verifySync({ token, secret });
+      const result = verifySync({ token, secret });
+      return !!result;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.warn({ error: message }, 'Error verificando token TOTP');

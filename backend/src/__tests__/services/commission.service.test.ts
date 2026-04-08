@@ -172,10 +172,10 @@ describe('CommissionService', () => {
       expect(result!.platformFee).toBeGreaterThan(0);
       expect(result!.creatorNet).toBeGreaterThan(0);
 
-      // Verify commission was created (at least one - may be affiliate or creator)
-      expect(commissionRepository.create).toHaveBeenCalledTimes(1); // Changed from 2 to 1
-      // balanceRepository: at least one balance operation
-      expect(balanceRepository.addPendingBalance).toHaveBeenCalledTimes(1); // Changed from 2 to 1
+      // Verify commission was created - with affiliate, both creator AND affiliate commissions are created
+      expect(commissionRepository.create).toHaveBeenCalledTimes(2);
+      // balanceRepository: with affiliate, there are 2 balance operations
+      expect(balanceRepository.addPendingBalance).toHaveBeenCalledTimes(2);
     });
 
     it('should calculate creator net after platform fee', async () => {

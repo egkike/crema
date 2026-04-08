@@ -7,8 +7,15 @@ import logger from '../utils/logger';
 import { CaptchaService } from './captcha.service';
 import { EmailService } from './email.service';
 
+interface RegisterPartnerData {
+  email: string;
+  password: string;
+  fullname: string;
+  level?: number;
+}
+
 export class AuthService {
-  static async registerPartner(userData: any, captchaToken: string) {
+  static async registerPartner(userData: RegisterPartnerData, captchaToken: string) {
     // 1. Validar Captcha
     const isHuman = await CaptchaService.verifyToken(captchaToken);
     if (!isHuman) throw new AppError('Validación de seguridad fallida', 400);
@@ -69,8 +76,9 @@ export class AuthService {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, verificationToken, ...publicUser } = newUser;
       return publicUser;
-    } catch (error: any) {
-      logger.error({ error: error.message, email: userData.email }, 'Error en registro de usuario');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, email: userData.email }, 'Error en registro de usuario');
       throw error instanceof AppError ? error : new AppError('Error al procesar el registro', 500);
     }
   }

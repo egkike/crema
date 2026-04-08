@@ -8,12 +8,26 @@ import { SpecialValidators } from '../utils/validators.util';
 
 import { EmailService } from './email.service';
 
+interface PayoutMethodData {
+  tax_id?: string;
+  account_number?: string;
+  alias?: string;
+  bank_name?: string;
+  account_type?: string;
+}
+
+interface PayoutData {
+  currency: string;
+  type: string;
+  data: PayoutMethodData;
+}
+
 export class UserService {
   /**
    * Procesa el upgrade de un usuario a Afiliado (2) o Creador (3)
    * Valida datos bancarios, niveles dinámicos y asigna planes iniciales.
    */
-  static async upgradeLevel(userId: string, targetLevel: number, payoutData?: any) {
+  static async upgradeLevel(userId: string, targetLevel: number, payoutData?: PayoutData) {
     // 1. Obtener usuario y niveles configurados
     const [user, levels] = await Promise.all([
       userRepository.getById(userId),
@@ -70,8 +84,9 @@ export class UserService {
 
       try {
         await payoutMethodRepository.upsert(userId, currency, payoutData.type, payoutData.data);
-      } catch (error: any) {
-        logger.error({ userId, error: error.message }, 'Error guardando payout_method en upgrade');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error({ userId, error: errorMessage }, 'Error guardando payout_method en upgrade');
         throw new AppError('Error al guardar los datos de cobro.', 500);
       }
     }
@@ -111,9 +126,10 @@ export class UserService {
             'Upgrade a Creador sin plan asignado: default_creator_plan_id no configurado'
           );
         }
-      } catch (subError: any) {
+      } catch (subError: unknown) {
+        const errorMessage = subError instanceof Error ? subError.message : String(subError);
         logger.error(
-          { userId, error: subError.message },
+          { userId, error: errorMessage },
           'Fallo al asignar suscripción inicial en upgrade'
         );
       }

@@ -19,7 +19,7 @@ function sanitizeCookieDomain(domain: string): string {
   return domain;
 }
 
-const API_URL = config.apiUrl.replace(/\/api\/?$/, '').replace(/\/+$/, ''); // Remove /api suffix and any trailing slashes
+const API_URL = config.apiUrl; // Use the URL as-is (includes /api already)
 const IS_DEV = config.isDev;
 const COOKIE_DOMAIN = sanitizeCookieDomain(config.cookieDomain);
 ---
@@ -37,7 +37,7 @@ const COOKIE_DOMAIN = sanitizeCookieDomain(config.cookieDomain);
 </head>
 <body class="bg-surface-950 text-surface-100 font-sans antialiased">
   <div id="app"></div>
-  <script define:vars={{ API_URL }}>
+  <script define:vars={{ API_URL, IS_DEV }}>
     // Secure Login Implementation
     // Note: CSRF is handled automatically by httpOnly cookies on the backend
     (function() {

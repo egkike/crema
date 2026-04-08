@@ -37,9 +37,10 @@ export class CaptchaService {
       }
 
       return true;
-    } catch (err: any) {
-      // Aquí usamos 'err' para que el linter esté feliz
-      logger.error({ error: err.message }, 'Error en comunicación con Google reCAPTCHA');
+    } catch (err: unknown) {
+      // Here we use the error for logging
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error({ error: errorMessage }, 'Error en comunicación con Google reCAPTCHA');
       throw new AppError('No se pudo completar la validación de seguridad', 500);
     }
   }
