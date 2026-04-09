@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import type { RequestHandler } from 'express';
 
 import logger from '../utils/logger';
 import pool from '../db/postgres';
@@ -47,6 +48,18 @@ import {
   qaChatSchema,
 } from '../schemas/ai.schema';
 
+// Helper to cast middlewares to Express RequestHandler type
+const asMw = (fn: unknown): RequestHandler => fn as RequestHandler;
+
+// Helper to get user ID with proper null check - throws if user not authenticated
+// The jwtAuthMiddleware ensures req.user is set for protected routes
+const uid = (req: Request): string => {
+  if (!req.user) {
+    throw new AppError('Unauthorized', 401);
+  }
+  return req.user.id;
+};
+
 const router = Router();
 
 // ============================================
@@ -57,9 +70,10 @@ const router = Router();
  * GET /api/ai/credits
  * Get user's credit balance
  */
-router.get('/credits', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/credits', jwtAuthMiddleware, aiLimiter, async (req: Request, res: Response) => {
+  
   try {
-    const userId = req.user.id;
+    const userId = uid(req);
     const { balance, expiresAt } = await aiCreditService.getBalance(userId);
 
     res.json({
@@ -99,9 +113,10 @@ router.get('/credits/packages', aiLimiter, async (_req: Request, res: Response) 
  * POST /api/ai/credits/purchase
  * Purchase a credit package - initiates payment flow
  */
-router.post('/credits/purchase', jwtAuthMiddleware, aiLimiter, validate(purchaseCreditsSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/credits/purchase', jwtAuthMiddleware, aiLimiter, validate(purchaseCreditsSchema), async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { packageId, currency = 'ARS', gatewayId } = req.body;
 
     // Get package details
@@ -160,7 +175,7 @@ router.post('/credits/purchase', jwtAuthMiddleware, aiLimiter, validate(purchase
       amount: price,
       currency,
       userId,
-      email: req.user.email,
+      email: req.user!.email,
     };
 
     // Check if provider supports credit preferences
@@ -194,9 +209,10 @@ router.post('/credits/purchase', jwtAuthMiddleware, aiLimiter, validate(purchase
  * GET /api/ai/credits/transactions
  * Get user's credit transaction history
  */
-router.get('/credits/transactions', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/credits/transactions', jwtAuthMiddleware, aiLimiter, async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const limit = parseClamped(req.query.limit, 50, 1, 100);
     const offset = parseClamped(req.query.offset, 0, 0, 10000);
 
@@ -226,9 +242,10 @@ router.get('/credits/transactions', jwtAuthMiddleware, aiLimiter, async (req: Au
  * POST /api/ai/embeddings
  * Create a new embedding
  */
-router.post('/embeddings', jwtAuthMiddleware, validate(createEmbeddingSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/embeddings', asMw(jwtAuthMiddleware), validate(createEmbeddingSchema), async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { sourceType, sourceId, content, metadata } = req.body;
 
     // Validate source type
@@ -254,9 +271,10 @@ router.post('/embeddings', jwtAuthMiddleware, validate(createEmbeddingSchema), a
  * GET /api/ai/embeddings/search
  * Semantic search across embeddings (rate limited)
  */
-router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { query, limit, sourceTypes } = req.query;
 
     if (!query) {
@@ -290,7 +308,7 @@ router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: Authe
  * DELETE /api/ai/embeddings/:sourceType/:sourceId
  * Delete an embedding by source
  */
-router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { sourceType, sourceId } = req.params;
 
@@ -363,10 +381,11 @@ router.get('/products/:productId/questions', aiLimiter, async (req: Request, res
  * POST /api/ai/products/:productId/questions
  * Ask a question on a product (authenticated)
  */
-router.post('/products/:productId/questions', jwtAuthMiddleware, validate(createQuestionSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/questions', jwtAuthMiddleware, validate(createQuestionSchema), async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { question } = req.body;
 
     const result = await qaService.createQuestion(productId, userId, question);
@@ -386,10 +405,10 @@ router.post('/products/:productId/questions', jwtAuthMiddleware, validate(create
  * PUT /api/ai/questions/:questionId/answer
  * Answer a question (creator or admin)
  */
-router.put('/questions/:questionId/answer', jwtAuthMiddleware, validate(answerQuestionSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/questions/:questionId/answer', jwtAuthMiddleware, validate(answerQuestionSchema), async (req: Request, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const answeredBy = req.user.id;
+    const answeredBy = uid(req);
     const { answer } = req.body;
 
     const result = await qaService.answerQuestion(questionId, answer, answeredBy);
@@ -409,10 +428,11 @@ router.put('/questions/:questionId/answer', jwtAuthMiddleware, validate(answerQu
  * PUT /api/ai/questions/:questionId/publish
  * Toggle question publication (creator or admin)
  */
-router.put('/questions/:questionId/publish', jwtAuthMiddleware, validate(publishQuestionSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/questions/:questionId/publish', jwtAuthMiddleware, validate(publishQuestionSchema), async (req: Request, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { is_published } = req.body;
 
     // Verify user owns the product this question belongs to
@@ -443,10 +463,11 @@ router.put('/questions/:questionId/publish', jwtAuthMiddleware, validate(publish
  * DELETE /api/ai/questions/:questionId
  * Delete a question
  */
-router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     // Verify user owns the product this question belongs to
     const ownershipCheck = await pool.query(
@@ -476,10 +497,11 @@ router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Authentic
  * POST /api/ai/questions/:questionId/vote
  * Vote on a question
  */
-router.post('/questions/:questionId/vote', jwtAuthMiddleware, validate(voteQuestionSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/questions/:questionId/vote', jwtAuthMiddleware, validate(voteQuestionSchema), async (req: Request, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { vote_type } = req.body;
 
     const result = await qaService.voteQuestion(questionId, userId, vote_type);
@@ -499,10 +521,11 @@ router.post('/questions/:questionId/vote', jwtAuthMiddleware, validate(voteQuest
  * DELETE /api/ai/questions/:questionId/vote
  * Remove vote from a question
  */
-router.delete('/questions/:questionId/vote', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/questions/:questionId/vote', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     const result = await qaService.removeVote(questionId, userId);
 
@@ -547,7 +570,7 @@ router.get('/products/:productId/faqs', aiLimiter, async (req: Request, res: Res
  * POST /api/ai/products/:productId/faqs
  * Create a FAQ (creator or admin)
  */
-router.post('/products/:productId/faqs', jwtAuthMiddleware, validate(createFAQSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/faqs', jwtAuthMiddleware, validate(createFAQSchema), async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const { question, answer, sort_order } = req.body;
@@ -569,10 +592,11 @@ router.post('/products/:productId/faqs', jwtAuthMiddleware, validate(createFAQSc
  * PUT /api/ai/faqs/:faqId
  * Update a FAQ (creator or admin)
  */
-router.put('/faqs/:faqId', jwtAuthMiddleware, validate(updateFAQSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/faqs/:faqId', jwtAuthMiddleware, validate(updateFAQSchema), async (req: Request, res: Response) => {
   try {
     const faqId = toString(req.params.faqId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { question, answer, sort_order, is_active } = req.body;
 
     // Verify user owns the product this FAQ belongs to
@@ -608,10 +632,11 @@ router.put('/faqs/:faqId', jwtAuthMiddleware, validate(updateFAQSchema), async (
  * DELETE /api/ai/faqs/:faqId
  * Delete a FAQ (creator or admin)
  */
-router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const faqId = toString(req.params.faqId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     // Verify user owns the product this FAQ belongs to
     const ownershipCheck = await pool.query(
@@ -641,7 +666,7 @@ router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: AuthenticatedReques
  * PUT /api/ai/products/:productId/faqs/reorder
  * Reorder FAQs for a product (creator or admin)
  */
-router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, validate(reorderFAQsSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:productId/faqs/reorder', jwtAuthMiddleware, validate(reorderFAQsSchema), async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const { faq_ids } = req.body;
@@ -697,10 +722,11 @@ router.get('/products/:productId/reviews', aiLimiter, async (req: Request, res: 
  * POST /api/ai/products/:productId/reviews
  * Create a review (authenticated)
  */
-router.post('/products/:productId/reviews', jwtAuthMiddleware, validate(createReviewSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/reviews', jwtAuthMiddleware, validate(createReviewSchema), async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { rating, title, content } = req.body;
 
     const result = await reviewService.createReview(productId, userId, rating, content, title);
@@ -720,10 +746,11 @@ router.post('/products/:productId/reviews', jwtAuthMiddleware, validate(createRe
  * PUT /api/ai/reviews/:reviewId
  * Update a review
  */
-router.put('/reviews/:reviewId', jwtAuthMiddleware, validate(updateReviewSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/reviews/:reviewId', jwtAuthMiddleware, validate(updateReviewSchema), async (req: Request, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { rating, title, content, is_published } = req.body;
 
     // Verify user owns the product this review belongs to
@@ -759,10 +786,11 @@ router.put('/reviews/:reviewId', jwtAuthMiddleware, validate(updateReviewSchema)
  * DELETE /api/ai/reviews/:reviewId
  * Delete a review
  */
-router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     // Verify user owns the product this review belongs to
     const ownershipCheck = await pool.query(
@@ -792,10 +820,11 @@ router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Authenticated
  * POST /api/ai/reviews/:reviewId/vote
  * Vote on a review
  */
-router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, validate(voteReviewSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, validate(voteReviewSchema), async (req: Request, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { vote_type } = req.body;
 
     const result = await reviewService.voteReview(reviewId, userId, vote_type);
@@ -815,10 +844,11 @@ router.post('/reviews/:reviewId/vote', jwtAuthMiddleware, validate(voteReviewSch
  * DELETE /api/ai/reviews/:reviewId/vote
  * Remove vote from a review
  */
-router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     const result = await reviewService.removeVote(reviewId, userId);
 
@@ -837,10 +867,11 @@ router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Authenti
  * GET /api/ai/products/:productId/reviews/settings
  * Get review settings for a product
  */
-router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     // Verify product ownership using helper
     await verifyProductOwnership(pool, productId, userId);
@@ -862,10 +893,11 @@ router.get('/products/:productId/reviews/settings', jwtAuthMiddleware, async (re
  * PUT /api/ai/products/:productId/reviews/settings
  * Update review settings for a product
  */
-router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, validate(updateReviewSettingsSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:productId/reviews/settings', jwtAuthMiddleware, validate(updateReviewSettingsSchema), async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { allow_reviews, require_verified_purchase, auto_publish, min_rating, max_rating } = req.body;
 
     // Verify product ownership using helper
@@ -944,9 +976,9 @@ router.get('/reports/reasons', aiLimiter, async (req: Request, res: Response) =>
  * POST /api/ai/reports
  * Create a new report (authenticated)
  */
-router.post('/reports', jwtAuthMiddleware, validate(createReportSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/reports', jwtAuthMiddleware, validate(createReportSchema), async (req: Request, res: Response) => {
   try {
-    const reporterId = req.user.id;
+    const reporterId = uid(req);
     const { content_type, content_id, reason_code, description } = req.body;
 
     const result = await reportService.createReport(reporterId, content_type, content_id, reason_code, description);
@@ -966,7 +998,7 @@ router.post('/reports', jwtAuthMiddleware, validate(createReportSchema), async (
  * GET /api/ai/reports
  * Get reports (admin)
  */
-router.get('/reports', jwtAuthMiddleware, restrictTo('ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/reports', jwtAuthMiddleware, restrictTo('ADMIN'), async (req: Request, res: Response) => {
   try {
     const limit = parseClamped(req.query.limit, 20, 1, 100);
     const offset = parseClamped(req.query.offset, 0, 0, 10000);
@@ -999,7 +1031,7 @@ router.get('/reports', jwtAuthMiddleware, restrictTo('ADMIN'), async (req: Authe
  * GET /api/ai/reports/:reportId
  * Get a single report by ID (admin)
  */
-router.get('/reports/:reportId', jwtAuthMiddleware, restrictTo('ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/reports/:reportId', jwtAuthMiddleware, restrictTo('ADMIN'), async (req: Request, res: Response) => {
   try {
     const reportId = toString(req.params.reportId);
 
@@ -1025,10 +1057,10 @@ router.get('/reports/:reportId', jwtAuthMiddleware, restrictTo('ADMIN'), async (
  * PUT /api/ai/reports/:reportId/resolve
  * Resolve a report (admin)
  */
-router.put('/reports/:reportId/resolve', jwtAuthMiddleware, restrictTo('ADMIN'), validate(resolveReportSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/reports/:reportId/resolve', jwtAuthMiddleware, restrictTo('ADMIN'), validate(resolveReportSchema), async (req: Request, res: Response) => {
   try {
     const reportId = toString(req.params.reportId);
-    const resolvedBy = req.user.id;
+    const resolvedBy = uid(req);
     const { status, resolution_notes } = req.body;
 
     const result = await reportService.resolveReport(reportId, status, resolvedBy, resolution_notes);
@@ -1048,10 +1080,10 @@ router.put('/reports/:reportId/resolve', jwtAuthMiddleware, restrictTo('ADMIN'),
  * POST /api/ai/reports/:reportId/actions
  * Apply action to a report (admin)
  */
-router.post('/reports/:reportId/actions', jwtAuthMiddleware, restrictTo('ADMIN'), validate(reportActionSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/reports/:reportId/actions', jwtAuthMiddleware, restrictTo('ADMIN'), validate(reportActionSchema), async (req: Request, res: Response) => {
   try {
     const reportId = toString(req.params.reportId);
-    const performedBy = req.user.id;
+    const performedBy = uid(req);
     const { action_type, notes } = req.body;
 
     const validActions = ['warning', 'suspend', 'ban', 'delete_content', 'hide_content', 'no_action'];
@@ -1101,10 +1133,11 @@ router.get('/content/policies', aiLimiter, async (req: Request, res: Response) =
  * GET /api/ai/products/:productId/qa-agent/config
  * Get QA agent config for a product
  */
-router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     // Verify product ownership using helper
     await verifyProductOwnership(pool, productId, userId);
@@ -1126,10 +1159,11 @@ router.get('/products/:productId/qa-agent/config', jwtAuthMiddleware, async (req
  * PUT /api/ai/products/:productId/qa-agent/config
  * Update QA agent config for a product
  */
-router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, validate(updateQAConfigSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, validate(updateQAConfigSchema), async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { is_enabled, model, system_prompt, temperature, max_tokens, use_memory, use_faqs } = req.body;
 
     // Verify product ownership using helper
@@ -1160,9 +1194,10 @@ router.put('/products/:productId/qa-agent/config', jwtAuthMiddleware, validate(u
  * POST /api/ai/agents/qa/chat
  * Chat with QA agent (uses credits - rate limited)
  */
-router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, validate(qaChatSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, validate(qaChatSchema), async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { product_id, message } = req.body;
 
     // Verify user has access to this product (creator, buyer, or affiliate)
@@ -1185,8 +1220,9 @@ router.post('/agents/qa/chat', jwtAuthMiddleware, aiChatLimiter, validate(qaChat
  * POST /api/ai/agents/qa/chat/stream
  * SSE streaming for QA Agent
  */
-router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, validate(qaChatSchema), async (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user.id;
+router.post('/agents/qa/chat/stream', jwtAuthMiddleware, aiChatLimiter, validate(qaChatSchema), async (req: Request, res: Response) => {
+  
+    const userId = uid(req);
   const { product_id, message } = req.body;
 
   // Verify product access (creator, buyer, or affiliate) - can't throw AppError in SSE
@@ -1295,9 +1331,10 @@ function sendSSE(res: Response, event: string, data: Record<string, unknown>) {
  * GET /api/ai/agents/conversations
  * Get user's conversations
  */
-router.get('/agents/conversations', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/agents/conversations', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const agentType = req.query.agent_type as string | undefined;
     const limit = parseClamped(req.query.limit, 20, 1, 100);
 
@@ -1318,10 +1355,11 @@ router.get('/agents/conversations', jwtAuthMiddleware, async (req: Authenticated
  * GET /api/ai/agents/conversations/:conversationId
  * Get a conversation with messages
  */
-router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const conversationId = toString(req.params.conversationId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     const result = await qaAgentService.getConversation(conversationId);
     if (!result) {
@@ -1352,9 +1390,10 @@ router.get('/agents/conversations/:conversationId', jwtAuthMiddleware, async (re
  * GET /api/ai/analytics/dashboard
  * Get dashboard metrics for creator (rate limited)
  */
-router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const startDate = parseDate(req.query.start_date);
     const endDate = parseDate(req.query.end_date);
 
@@ -1379,10 +1418,11 @@ router.get('/analytics/dashboard', jwtAuthMiddleware, aiLimiter, async (req: Aut
  * GET /api/ai/products/:productId/tutor/config
  * Get tutor config for a product
  */
-router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     // Verify product ownership using helper
     await verifyProductOwnership(pool, productId, userId);
@@ -1404,10 +1444,11 @@ router.get('/products/:productId/tutor/config', jwtAuthMiddleware, async (req: A
  * PUT /api/ai/products/:productId/tutor/config
  * Update tutor config for a product
  */
-router.put('/products/:productId/tutor/config', jwtAuthMiddleware, validate(updateTutorConfigSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:productId/tutor/config', jwtAuthMiddleware, validate(updateTutorConfigSchema), async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { is_enabled, model, system_prompt, temperature, max_tokens } = req.body;
 
     // Verify product ownership using helper
@@ -1436,10 +1477,11 @@ router.put('/products/:productId/tutor/config', jwtAuthMiddleware, validate(upda
  * GET /api/ai/products/:productId/tutor/insights
  * Get insights for a user/product
  */
-router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     const result = await tutorService.getInsights(userId, productId);
 
@@ -1458,10 +1500,11 @@ router.get('/products/:productId/tutor/insights', jwtAuthMiddleware, async (req:
  * POST /api/ai/products/:productId/tutor/chat
  * Chat with Tutor AI
  */
-router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter, validate(chatMessageSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter, validate(chatMessageSchema), async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { message } = req.body;
 
     // Verify user has access to this product (creator, buyer, or affiliate)
@@ -1484,9 +1527,10 @@ router.post('/products/:productId/tutor/chat', jwtAuthMiddleware, aiChatLimiter,
  * POST /api/ai/products/:productId/tutor/chat/stream
  * SSE streaming for Tutor AI
  */
-router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatLimiter, validate(chatMessageSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatLimiter, validate(chatMessageSchema), async (req: Request, res: Response) => {
   const productId = toString(req.params.productId);
-  const userId = req.user.id;
+  
+    const userId = uid(req);
   const { message } = req.body;
 
   // Verify product access (creator, buyer, or affiliate) - can't throw AppError in SSE
@@ -1568,9 +1612,10 @@ router.post('/products/:productId/tutor/chat/stream', jwtAuthMiddleware, aiChatL
  * GET /api/ai/insights/dashboards
  * Get user's insight dashboards
  */
-router.get('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/insights/dashboards', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     const result = await insightsService.getDashboards(userId);
 
@@ -1589,9 +1634,10 @@ router.get('/insights/dashboards', jwtAuthMiddleware, async (req: AuthenticatedR
  * POST /api/ai/insights/dashboards
  * Create an insight dashboard
  */
-router.post('/insights/dashboards', jwtAuthMiddleware, validate(createDashboardSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/insights/dashboards', jwtAuthMiddleware, validate(createDashboardSchema), async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { name, description } = req.body;
 
     const result = await insightsService.createDashboard(userId, name, description);
@@ -1611,10 +1657,11 @@ router.post('/insights/dashboards', jwtAuthMiddleware, validate(createDashboardS
  * PUT /api/ai/insights/dashboards/:dashboardId
  * Update an insight dashboard
  */
-router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, validate(updateDashboardSchema), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, validate(updateDashboardSchema), async (req: Request, res: Response) => {
   try {
     const dashboardId = toString(req.params.dashboardId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { name, description, config } = req.body;
 
     // Verify ownership
@@ -1643,10 +1690,11 @@ router.put('/insights/dashboards/:dashboardId', jwtAuthMiddleware, validate(upda
  * DELETE /api/ai/insights/dashboards/:dashboardId
  * Delete an insight dashboard
  */
-router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const dashboardId = toString(req.params.dashboardId);
-    const userId = req.user.id;
+    
+    const userId = uid(req);
 
     // Verify ownership
     const dashboard = await insightsService.getDashboardById(dashboardId);
@@ -1674,9 +1722,10 @@ router.delete('/insights/dashboards/:dashboardId', jwtAuthMiddleware, async (req
  * POST /api/ai/insights/query
  * Query data with AI (rate limited - uses credits)
  */
-router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, validate(insightsQuerySchema), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, validate(insightsQuerySchema), async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    
+    const userId = uid(req);
     const { query } = req.body;
 
     const result = await insightsService.query(userId, query);
@@ -1696,8 +1745,9 @@ router.post('/insights/query', jwtAuthMiddleware, aiChatLimiter, validate(insigh
  * POST /api/ai/insights/query/stream
  * Query data with AI using SSE streaming
  */
-router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, validate(insightsQuerySchema), async (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user.id;
+router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, validate(insightsQuerySchema), async (req: Request, res: Response) => {
+  
+    const userId = uid(req);
   const { query } = req.body;
 
   // Verify user has creator-level access (has at least one product)

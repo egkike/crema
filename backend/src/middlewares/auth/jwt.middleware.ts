@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 
 import { verifyToken } from '../../utils/jwt.util';
 import { UserPayload } from '../../types/express';
@@ -9,9 +9,11 @@ import logger from '../../utils/logger';
  * - Busca el token en la cookie 'access_token' (nuevo sistema)
  * - Verifica el token y adjunta el usuario en req.user
  */
-export const jwtAuthMiddleware = (req: Request, res: Response, next: NextFunction) => {
+export const jwtAuthMiddleware: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
   // --- EXCLUSIÓN DE RUTAS PÚBLICAS ---
-  if (req.path.includes('/certificate/verify')) {
+  // Use exact path match to avoid matching unintended paths like /certificate/verify-fake
+  const PUBLIC_PATHS = ['/certificate/verify', '/api/certificate/verify'];
+  if (PUBLIC_PATHS.some(path => req.path === path)) {
     return next();
   }
 

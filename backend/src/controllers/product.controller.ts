@@ -2,12 +2,12 @@ import fs from 'fs';
 import path from 'path';
 
 import { Request, Response, NextFunction } from 'express';
-import type { Multer } from 'multer';
 import { z } from 'zod';
 
 import { productRepository } from '../repositories/product.repository';
 import { couponRepository } from '../repositories/coupon.repository';
 import { ProductService } from '../services/product.service';
+import type { CreateProductData } from '../services/product.service';
 import { AppError } from '../errors/AppError';
 import { createProductSchema } from '../schemas/products.schema';
 import pool from '../db/postgres';
@@ -33,7 +33,8 @@ const upsertQuizSchema = z.object({
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
-    const file = (req as Request & { file?: Multer.File }).file;
+    const reqWithFile = req as Request & { file?: { size: number; filename: string; path: string } };
+    const file = reqWithFile.file;
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
@@ -42,12 +43,17 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     // 2. Preparar datos para el Service (incluyendo el tamaño real del archivo)
     const serviceData = {
-      ...validatedData,
+      title: validatedData.title,
+      type: validatedData.type,
+      prices: validatedData.prices,
       sizeBytes: file ? file.size : 0,
     };
 
     // 3. Crear mediante Service (valida monedas, comisiones, genera slug e inserta)
-    const product = await ProductService.create(user.id, serviceData);
+    const product = await ProductService.create(
+      user.id,
+      serviceData as CreateProductData
+    );
 
     // 4. Mover archivo de TEMP a destino FINAL
     if (file) {
@@ -68,6 +74,8 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     res.status(201).json({ success: true, data: product });
   } catch (error: unknown) {
+    const reqWithFile = req as Request & { file?: { size: number; filename: string; path: string } };
+    const file = reqWithFile.file;
     if (file && fs.existsSync(file.path)) {
       fs.unlinkSync(file.path);
     }
@@ -81,7 +89,9 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
-    const file = (req as Request & { file?: Multer.File }).file;
+    const productId = req.params.productId as string;
+    const reqWithFile = req as Request & { file?: { size: number; filename: string; path: string } };
+    const file = reqWithFile.file;
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
 
@@ -142,7 +152,9 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
     const updated = await productRepository.updateProduct(productId, productInput);
     res.status(200).json({ success: true, data: updated });
-  } catch (error) {
+  } catch (error: unknown) {
+    const reqWithFile = req as Request & { file?: { size: number; filename: string; path: string } };
+    const file = reqWithFile.file;
     if (file && fs.existsSync(file.path)) {
       fs.unlinkSync(file.path);
     }

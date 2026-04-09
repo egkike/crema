@@ -2,7 +2,7 @@ import slugify from 'slugify';
 
 import { configRepository } from '../repositories/config.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
-import { productRepository, ProductInput } from '../repositories/product.repository';
+import { productRepository, ProductInput, ModuleInput } from '../repositories/product.repository';
 import { payoutMethodRepository } from '../repositories/payout_method.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
@@ -11,6 +11,7 @@ interface ProductModule {
   title: string;
   content?: string;
   videos?: Array<{ title: string; url: string }>;
+  lessons?: Array<{ title: string; content?: string }>;
 }
 
 interface ProductPrice {
@@ -18,10 +19,11 @@ interface ProductPrice {
   amount: number;
 }
 
-interface CreateProductData {
+export interface CreateProductData {
   title: string;
   type: string;
   prices: ProductPrice[];
+  hasStructuredContent?: boolean;
   description?: string;
   contentUrl?: string;
   affiliate_commission_percent?: number;
@@ -100,14 +102,14 @@ export class ProductService {
       slug: uniqueSlug,
       type,
       prices,
-      description: description || null,
-      contentUrl: isStructured ? null : contentUrl,
+      description: description ?? undefined,
+      contentUrl: isStructured ? undefined : (contentUrl ?? undefined),
       affiliate_commission_percent: commToValidate,
       status: status,
-      sizeBytes: Number(sizeBytes),
-      guaranteeDays: guaranteeDays || null,
+      sizeBytes: sizeBytes ? Number(sizeBytes) : undefined,
+      guaranteeDays: guaranteeDays || undefined,
       hasStructuredContent: isStructured,
-      modules: modules,
+      modules: modules?.map(m => ({ title: m.title, lessons: m.lessons ?? [] })) as ModuleInput[],
     };
 
     try {
