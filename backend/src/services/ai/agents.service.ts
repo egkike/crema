@@ -10,7 +10,7 @@ import logger from '../../utils/logger';
 import { getValidatedSchema } from '../../utils/validators.util';
 
 import { aiCreditService } from './credits.service';
-import { llmService } from './llm.service';
+import { llmService, type LLMMessage } from './llm.service';
 
 // Default system prompt for QA Agent
 const DEFAULT_QA_SYSTEM_PROMPT = `Eres un asistente de IA especializado en ayudar a usuarios con preguntas sobre productos digitales.
@@ -438,17 +438,25 @@ export const qaAgentService = {
 
     // 8. Call LLM with streaming
     let fullResponse = '';
+    const streamOptions: {
+      messages: LLMMessage[];
+      temperature?: number;
+      maxTokens?: number;
+      onChunk?: (chunk: string) => void;
+      signal?: AbortSignal;
+    } = {
+      messages,
+      onChunk: (chunk) => {
+        fullResponse += chunk;
+        onChunk(chunk);
+      },
+    };
+    if (config.temperature !== undefined) streamOptions.temperature = config.temperature;
+    if (config.max_tokens !== undefined) streamOptions.maxTokens = config.max_tokens;
+    if (signal) streamOptions.signal = signal;
+
     try {
-      await llmService.chatStream({
-        messages,
-        temperature: config.temperature,
-        maxTokens: config.max_tokens,
-        onChunk: (chunk) => {
-          fullResponse += chunk;
-          onChunk(chunk);
-        },
-        signal,
-      });
+      await llmService.chatStream(streamOptions);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled - refund credits
@@ -823,17 +831,25 @@ export const tutorService = {
 
     // Call LLM with streaming
     let fullResponse = '';
+    const streamOptions: {
+      messages: LLMMessage[];
+      temperature?: number;
+      maxTokens?: number;
+      onChunk?: (chunk: string) => void;
+      signal?: AbortSignal;
+    } = {
+      messages,
+      onChunk: (chunk) => {
+        fullResponse += chunk;
+        onChunk(chunk);
+      },
+    };
+    if (config.temperature !== undefined) streamOptions.temperature = config.temperature;
+    if (config.maxTokens !== undefined) streamOptions.maxTokens = config.maxTokens;
+    if (signal) streamOptions.signal = signal;
+
     try {
-      await llmService.chatStream({
-        messages,
-        temperature: config.temperature,
-        maxTokens: config.maxTokens,
-        onChunk: (chunk) => {
-          fullResponse += chunk;
-          onChunk(chunk);
-        },
-        signal,
-      });
+      await llmService.chatStream(streamOptions);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled - refund credits
@@ -1285,7 +1301,13 @@ REGLAS:
       try {
         // Use buildPrompt for consistency and security (validates + wraps)
         const messages = llmService.buildPrompt(sqlPrompt, '', naturalLanguageQuery);
-        await llmService.chatStream({
+        const insightsStreamOptions: {
+          messages: LLMMessage[];
+          temperature?: number;
+          maxTokens?: number;
+          onChunk?: (chunk: string) => void;
+          signal?: AbortSignal;
+        } = {
           messages,
           temperature: 0.2,
           maxTokens: 500,
@@ -1294,8 +1316,10 @@ REGLAS:
             // Try to extract explanation as it's being generated
             onChunk(chunk, 'explanation');
           },
-          signal,
-        });
+        };
+        if (signal) insightsStreamOptions.signal = signal;
+        
+        await llmService.chatStream(insightsStreamOptions);
       } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
           // User cancelled - refund credits

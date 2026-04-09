@@ -42,12 +42,17 @@ export class SimulatorProvider implements PaymentProvider {
   }
 
   async handleWebhook({ body }: { body: Record<string, unknown>; headers: Record<string, string>; query: Record<string, string> }): Promise<WebhookResult | null> {
+    const externalRef = body.externalReference as string;
+    const status = (body.status as string) || 'approved';
+    const txId = (body.transactionId as string) || `SIM-TX-${Date.now()}`;
+    const tempPwd = body.tempPassword as string | undefined;
+    
     return {
-      externalReference: body.externalReference,
-      status: body.status || 'approved',
-      transactionId: body.transactionId || `SIM-TX-${Date.now()}`,
-      metadata: { temp_password: body.tempPassword },
-      type: body.externalReference.startsWith('SUB:') ? 'subscription' : 'payment',
+      externalReference: externalRef,
+      status,
+      transactionId: txId,
+      metadata: { temp_password: tempPwd },
+      type: externalRef.startsWith('SUB:') ? 'subscription' : 'payment',
     };
   }
 }

@@ -308,8 +308,9 @@ export class BlockonomicsProvider implements PaymentProvider {
 
       // Fallback: para BTC, usar el mapeo address->orderRef almacenado en createPreference
       if (!orderRef && address) {
-        orderRef = this.addressOrderMap.get(address);
-        if (orderRef) {
+        const mappedRef = this.addressOrderMap.get(address);
+        if (mappedRef) {
+          orderRef = mappedRef;
           logger.info({ address, orderRef }, '📌 order_ref resuelto desde addressOrderMap (BTC fallback)');
         }
       }

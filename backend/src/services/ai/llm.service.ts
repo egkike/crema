@@ -138,17 +138,22 @@ export class LLMService {
     const { messages, onChunk, signal, ...requestOptions } = options;
 
     try {
+      const streamBase = { messages, ...requestOptions };
+      const streamWithExtras: { messages: LLMMessage[]; onChunk?: (chunk: string) => void; signal?: AbortSignal; model?: string; temperature?: number; maxTokens?: number } = streamBase;
+      if (onChunk) streamWithExtras.onChunk = onChunk;
+      if (signal) streamWithExtras.signal = signal;
+
       switch (this.provider) {
         case 'openai':
-          return await this.openAIStream({ ...requestOptions, messages, onChunk, signal });
+          return await this.openAIStream(streamWithExtras);
         case 'ollama':
-          return await this.ollamaStream({ ...requestOptions, messages, onChunk, signal });
+          return await this.ollamaStream(streamWithExtras);
         case 'anthropic':
-          return await this.anthropicStream({ ...requestOptions, messages, onChunk, signal });
+          return await this.anthropicStream(streamWithExtras);
         case 'gemini':
-          return await this.geminiStream({ ...requestOptions, messages, onChunk, signal });
+          return await this.geminiStream(streamWithExtras);
         case 'simulator':
-          return await this.simulatorStream({ ...requestOptions, messages, onChunk, signal });
+          return await this.simulatorStream(streamWithExtras);
         default:
           throw new Error(`Streaming not supported for provider: ${this.provider}`);
       }
@@ -158,19 +163,27 @@ export class LLMService {
       if (!signal?.aborted && err.message.includes('stream')) {
         logger.warn({ provider: this.provider, error: err.message }, 'Stream failed, falling back to non-streaming');
         
-        const response = await this.chat({
+        const chatRequest: { messages: LLMMessage[]; model?: string; temperature?: number; maxTokens?: number } = {
           messages: options.messages,
-          model: options.model,
-          temperature: options.temperature,
-          maxTokens: options.maxTokens,
-        });
+        };
+        if (options.model !== undefined) chatRequest.model = options.model;
+        if (options.temperature !== undefined) chatRequest.temperature = options.temperature;
+        if (options.maxTokens !== undefined) chatRequest.maxTokens = options.maxTokens;
+        
+        const response = await this.chat(chatRequest);
         
         // Simulate streaming with full response
         if (onChunk) {
           onChunk(response.content);
         }
         
-        return { content: response.content, usage: response.usage };
+        const streamResponse: { content: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } } = {
+          content: response.content,
+        };
+        if (response.usage) {
+          streamResponse.usage = response.usage;
+        }
+        return streamResponse;
       }
       
       throw err;
@@ -477,7 +490,7 @@ export class LLMService {
 
     const model = options.model || OPENAI_MODEL;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -490,8 +503,12 @@ export class LLMService {
         max_tokens: options.maxTokens ?? 500,
         stream: true,
       }),
-      signal: options.signal,
-    });
+    };
+    if (options.signal) {
+      fetchOptions.signal = options.signal;
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', fetchOptions);
 
     if (!response.ok) {
       const error = await response.text();
@@ -568,7 +585,7 @@ export class LLMService {
   }): Promise<ChatStreamResponse> {
     const model = options.model || OLLAMA_MODEL;
 
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -577,8 +594,12 @@ export class LLMService {
         temperature: options.temperature ?? 0.7,
         stream: true,
       }),
-      signal: options.signal,
-    });
+    };
+    if (options.signal) {
+      fetchOptions.signal = options.signal;
+    }
+
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, fetchOptions);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -656,7 +677,7 @@ export class LLMService {
 
     const systemPrompt = options.messages.find(m => m.role === 'system')?.content || '';
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -671,8 +692,12 @@ export class LLMService {
         system: systemPrompt,
         messages: anthropicMessages,
       }),
-      signal: options.signal,
-    });
+    };
+    if (options.signal) {
+      fetchOptions.signal = options.signal;
+    }
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', fetchOptions);
 
     if (!response.ok) {
       const error = await response.text();
@@ -769,7 +794,7 @@ export class LLMService {
 
     const url = `https://generativelanguage.googleapis.com/v1beta/${model}:streamGenerateContent?key=${apiKey}`;
 
-    const response = await fetch(url, {
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -782,8 +807,12 @@ export class LLMService {
           maxOutputTokens: options.maxTokens ?? 1024,
         },
       }),
-      signal: options.signal,
-    });
+    };
+    if (options.signal) {
+      fetchOptions.signal = options.signal;
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
       const error = await response.text();

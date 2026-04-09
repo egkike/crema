@@ -150,7 +150,9 @@ export class MercadoPagoProvider implements PaymentProvider {
   }
 
   async handleWebhook({ body, headers, query }: { body: Record<string, unknown>; headers: Record<string, string>; query: Record<string, string> }): Promise<WebhookResult | null> {
-    const { action, type, data } = body;
+    const action = body.action as string | undefined;
+    const type = body.type as string | undefined;
+    const data = body.data as { id?: string } | undefined;
     const xSignature = headers['x-signature'] as string;
     const xRequestId = headers['x-request-id'] as string;
 
@@ -168,7 +170,7 @@ export class MercadoPagoProvider implements PaymentProvider {
         });
 
         if (ts && hash) {
-          const resourceId = (data?.id || query.id || body.id) as string;
+          const resourceId = data?.id || query.id || (body.id as string);
           if (resourceId) {
             const manifest = `id:${resourceId};request-id:${xRequestId};ts:${ts};`;
             const hmac = crypto
@@ -190,7 +192,7 @@ export class MercadoPagoProvider implements PaymentProvider {
     }
 
     // 2. OBTENCIÓN DEL ID DEL RECURSO
-    const rawId = (data?.id || query.id) as string;
+    const rawId = data?.id || query.id;
     if (!rawId) return null;
 
     try {
