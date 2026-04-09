@@ -3,29 +3,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock productRepository
 vi.mock('../../repositories/product.repository', () => ({
   productRepository: {
-    getProductById: vi.fn(),
+    getProductById: vi.fn() as any,
   },
 }));
 
 // Mock qaRepository
 vi.mock('../../repositories/ai/qa.repository', () => ({
   qaRepository: {
-    createQuestion: vi.fn(),
-    getQuestionsByProduct: vi.fn(),
-    getQuestionById: vi.fn(),
-    answerQuestion: vi.fn(),
-    togglePublish: vi.fn(),
-    deleteQuestion: vi.fn(),
-    vote: vi.fn(),
-    getVoteCounts: vi.fn(),
-    getUserVote: vi.fn(),
-    removeVote: vi.fn(),
-    createFAQ: vi.fn(),
-    getFAQsByProduct: vi.fn(),
-    getFAQById: vi.fn(),
-    updateFAQ: vi.fn(),
-    deleteFAQ: vi.fn(),
-    reorderFAQs: vi.fn(),
+    createQuestion: vi.fn() as any,
+    getQuestionsByProduct: vi.fn() as any,
+    getQuestionById: vi.fn() as any,
+    answerQuestion: vi.fn() as any,
+    togglePublish: vi.fn() as any,
+    deleteQuestion: vi.fn() as any,
+    vote: vi.fn() as any,
+    getVoteCounts: vi.fn() as any,
+    getUserVote: vi.fn() as any,
+    removeVote: vi.fn() as any,
+    createFAQ: vi.fn() as any,
+    getFAQsByProduct: vi.fn() as any,
+    getFAQById: vi.fn() as any,
+    updateFAQ: vi.fn() as any,
+    deleteFAQ: vi.fn() as any,
+    reorderFAQs: vi.fn() as any,
   },
 }));
 

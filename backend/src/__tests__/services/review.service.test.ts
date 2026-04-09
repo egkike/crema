@@ -3,33 +3,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock productRepository
 vi.mock('../../repositories/product.repository', () => ({
   productRepository: {
-    getProductById: vi.fn(),
+    getProductById: vi.fn() as any,
   },
 }));
 
 // Mock reviewRepository
 vi.mock('../../repositories/ai/review.repository', () => ({
   reviewRepository: {
-    createReview: vi.fn(),
-    getReviewsByProduct: vi.fn(),
-    getReviewById: vi.fn(),
-    getUserReview: vi.fn(),
-    updateReview: vi.fn(),
-    deleteReview: vi.fn(),
-    vote: vi.fn(),
-    getVoteCounts: vi.fn(),
-    getUserVote: vi.fn(),
-    removeVote: vi.fn(),
-    getSettings: vi.fn(),
-    upsertSettings: vi.fn(),
-    getRatingDistribution: vi.fn(),
+    createReview: vi.fn() as any,
+    getReviewsByProduct: vi.fn() as any,
+    getReviewById: vi.fn() as any,
+    getUserReview: vi.fn() as any,
+    updateReview: vi.fn() as any,
+    deleteReview: vi.fn() as any,
+    vote: vi.fn() as any,
+    getVoteCounts: vi.fn() as any,
+    getUserVote: vi.fn() as any,
+    removeVote: vi.fn() as any,
+    getSettings: vi.fn() as any,
+    upsertSettings: vi.fn() as any,
+    getRatingDistribution: vi.fn() as any,
   },
 }));
 
 // Mock orderRepository
 vi.mock('../../repositories/order.repository', () => ({
   orderRepository: {
-    checkAccess: vi.fn(),
+    checkAccess: vi.fn() as any,
   },
 }));
 

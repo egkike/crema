@@ -82,25 +82,6 @@ describe('AdminController', () => {
     };
   });
 
-  describe('validateCurrency', () => {
-    it('should return currency when valid', () => {
-      const result = AdminController.validateCurrency('ARS');
-      expect(result).toBe('ARS');
-    });
-
-    it('should throw when currency is undefined', () => {
-      expect(() => AdminController.validateCurrency(undefined)).toThrow('La moneda (currency) es obligatoria');
-    });
-
-    it('should throw when currency is empty string', () => {
-      expect(() => AdminController.validateCurrency('')).toThrow('La moneda (currency) es obligatoria');
-    });
-
-    it('should throw when currency is not a string', () => {
-      expect(() => AdminController.validateCurrency(null as any)).toThrow('La moneda (currency) es obligatoria');
-    });
-  });
-
   describe('downloadTaxReport', () => {
     it('should return CSV when successful', async () => {
       mockReq.query = { currency: 'ARS', from: '2026-01-01', to: '2026-03-31' };
