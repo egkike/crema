@@ -9,6 +9,7 @@ export type AuditAction =
   | 'product_delete'
   | 'order_view'
   | 'order_update'
+  | 'payout_update'
   | 'payout_approve'
   | 'payout_reject'
   | 'refund_approve'
@@ -186,7 +187,8 @@ function extractNewValue(req: Request, _res: Response): Record<string, unknown> 
 
 function extractResourceId(req: Request): string | null {
   // De los params de la ruta
-  return req.params.id || req.params.orderId || req.params.userId || null;
+  const id = req.params.id || req.params.orderId || req.params.userId;
+  return id ? String(id) : null;
 }
 
 function filterSensitiveFields(data: Record<string, unknown>): Record<string, unknown> {

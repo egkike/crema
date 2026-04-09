@@ -3,6 +3,11 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../errors/AppError';
 import { userRepository } from '../../repositories/user.repository';
 
+interface UserWith2FA {
+  level: number;
+  two_factor_enabled?: boolean;
+}
+
 /**
  * Middleware que verifica que los usuarios con rol ADMIN tengan 2FA habilitado
  * Debe ejecutarse DESPUÉS de jwtAuthMiddleware (para tener req.user) 
@@ -14,10 +19,10 @@ export const requireAdmin2FA = async (req: Request, _res: Response, next: NextFu
 
     if (!adminId) {
       throw new AppError('Admin no autenticado', 401);
-  }
+    }
 
     // Obtener usuario con datos de 2FA
-    const user = await userRepository.getById(adminId);
+    const user = await userRepository.getById(adminId) as UserWith2FA | null;
 
     if (!user) {
       throw new AppError('Usuario no encontrado', 404);

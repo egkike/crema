@@ -114,7 +114,7 @@ function isAllowedMimeType(mimeType: string): boolean {
 // ============================================================================
 
 const storage = multer.diskStorage({
-  destination: (_req, file, cb) => {
+  destination: (_req, _file, cb) => {
     // Use originalname to create subdirs - this is safe after sanitization
     const tempPath = path.join(process.cwd(), 'uploads', 'temp');
     if (!fs.existsSync(tempPath)) {
@@ -131,7 +131,7 @@ const storage = multer.diskStorage({
 });
 
 // File filter for upload validation
-function fileFilter(_req: Express.Multer.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
+function fileFilter(_req: any, file: { originalname: string; mimetype: string }, cb: (error: Error | null, acceptFile: boolean) => void) {
   const ext = getSafeExtension(file.originalname);
   const mimeType = file.mimetype.toLowerCase();
   
@@ -163,7 +163,7 @@ function fileFilter(_req: Express.Multer.Request, file: Express.Multer.File, cb:
 
 export const upload = multer({
   storage,
-  fileFilter,
+  fileFilter: (req: any, file: any, cb: any) => fileFilter(req, file, cb),
   limits: { 
     fileSize: config?.storage?.maxGlobalSizeBytes || 100 * 1024 * 1024,
     files: 10,  // Max 10 files per request
