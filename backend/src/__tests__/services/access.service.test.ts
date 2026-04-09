@@ -200,7 +200,7 @@ describe('AccessService', () => {
       await AccessService.evaluateGuaranteeStatus(
         USER_ID,
         PRODUCT_ID,
-        { id: PRODUCT_ID, has_structured_content: true }
+        { title: 'Test Product', hasStructuredContent: true, type: 'course' }
       );
 
       expect(mockInvalidateGuarantee).not.toHaveBeenCalled();
@@ -216,7 +216,7 @@ describe('AccessService', () => {
       await AccessService.evaluateGuaranteeStatus(
         USER_ID,
         PRODUCT_ID,
-        { id: PRODUCT_ID, has_structured_content: true }
+        { title: 'Test Product', hasStructuredContent: true, type: 'course' }
       );
 
       expect(mockGetUserProductProgress).not.toHaveBeenCalled();
@@ -236,7 +236,7 @@ describe('AccessService', () => {
       await AccessService.evaluateGuaranteeStatus(
         USER_ID,
         PRODUCT_ID,
-        { id: PRODUCT_ID, title: 'Test Product', has_structured_content: true }
+        { title: 'Test Product', hasStructuredContent: true, type: 'course' }
       );
 
       expect(mockInvalidateGuarantee).toHaveBeenCalledWith('order-1');
@@ -255,7 +255,7 @@ describe('AccessService', () => {
       await AccessService.evaluateGuaranteeStatus(
         USER_ID,
         PRODUCT_ID,
-        { id: PRODUCT_ID, title: 'Test Product', type: 'ebook', has_structured_content: false }
+        { title: 'Test Product', hasStructuredContent: false, type: 'ebook' }
       );
 
       expect(mockInvalidateGuarantee).toHaveBeenCalledWith('order-2');
@@ -272,7 +272,7 @@ describe('AccessService', () => {
       await AccessService.evaluateGuaranteeStatus(
         USER_ID,
         PRODUCT_ID,
-        { id: PRODUCT_ID, has_structured_content: true }
+        { title: 'Test Product', hasStructuredContent: true, type: 'course' }
       );
 
       expect(mockInvalidateGuarantee).not.toHaveBeenCalled();

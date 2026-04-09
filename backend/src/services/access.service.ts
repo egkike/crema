@@ -6,6 +6,13 @@ import { mainQueue } from '../queues/scheduler';
 
 import { EmailService } from './email.service';
 
+// Interface matching the return type from getProtectedContent
+interface ProductGuaranteeInfo {
+  title: string;
+  hasStructuredContent: boolean;
+  type: string;
+}
+
 export class AccessService {
   /**
    * Retorna el contenido del producto.
@@ -33,7 +40,11 @@ export class AccessService {
     if (product.creator_id !== userId) {
       // Importante: No bloqueamos el await aquí para que el acceso sea instantáneo,
       // pero lo lanzamos para que procese la regla.
-      AccessService.evaluateGuaranteeStatus(userId, productId, product).catch((err) => {
+      AccessService.evaluateGuaranteeStatus(userId, productId, {
+        title: product.title,
+        hasStructuredContent: product.has_structured_content,
+        type: product.type,
+      }).catch((err) => {
         logger.error({ err }, 'Error evaluando estado de garantía');
       });
     }
@@ -46,11 +57,12 @@ export class AccessService {
       description: product.description,
       contentUrl: product.content_url,
       hasStructuredContent: product.has_structured_content,
-      // No exposed: prices, creator_id, affiliate_commission_percent
+      creator_id: product.creator_id,
+      // No exposed: prices, affiliate_commission_percent
     };
   }
 
-  static async evaluateGuaranteeStatus(userId: string, productId: string, product: Product) {
+  static async evaluateGuaranteeStatus(userId: string, productId: string, product: ProductGuaranteeInfo) {
     try {
       const order = await orderRepository.getActiveOrderWithBuyer(userId, productId);
 
@@ -61,7 +73,7 @@ export class AccessService {
       let reason: 'progress' | 'download' = 'progress';
 
       // REGLA A: Cursos (Umbral de progreso)
-      if (product.has_structured_content) {
+      if (product.hasStructuredContent) {
         const progress = await productRepository.getUserProductProgress(productId, userId);
         if (progress.percent > 30) {
           shouldInvalidate = true;
@@ -142,7 +154,11 @@ export class AccessService {
    */
   private static triggerSafeGuard(userId: string, productId: string, product: Product) {
     if (product.creator_id !== userId) {
-      this.evaluateGuaranteeStatus(userId, productId, product).catch(err =>
+      this.evaluateGuaranteeStatus(userId, productId, {
+        title: product.title,
+        hasStructuredContent: product.has_structured_content,
+        type: product.type,
+      }).catch(err =>
         logger.error({ err, userId, productId }, 'Error silencioso en Safe-Guard Centralizado')
       );
     }

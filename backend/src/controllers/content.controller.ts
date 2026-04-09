@@ -128,7 +128,7 @@ export const getProductContent = async (req: Request, res: Response, next: NextF
     const accessInfo = await AccessService.getProtectedContent(user.id, productId);
 
     // 2. CURSOS: Contenido estructurado
-    if (accessInfo.has_structured_content) {
+    if (accessInfo.hasStructuredContent) {
       const fullContent = await productRepository.getProductWithNestedContent(productId, user.id);
       const progress = await productRepository.getUserProductProgress(productId, user.id);
 
@@ -287,7 +287,7 @@ export const submitLessonQuiz = async (req: Request, res: Response, next: NextFu
     // 5. Guardar el intento
     await productRepository.saveQuizAttempt({
       userId: user.id,
-      quizId: quiz.id,
+      quizId: String(quiz.id),
       score,
       passed,
       answers,
