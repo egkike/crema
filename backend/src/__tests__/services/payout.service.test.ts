@@ -106,11 +106,11 @@ describe('PayoutService', () => {
     it('should throw error for amount below minimum', async () => {
       vi.mocked(configRepository.getUserLevels).mockResolvedValue({
         GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99,
-      });
+      } as any);
 
       vi.mocked(configRepository.getConfigsByCurrency).mockResolvedValue({
         min_payout_amount: 1000,
-      });
+      } as any);
 
       vi.mocked(configRepository.getRequiredFieldsByCurrency).mockResolvedValue([]);
 
@@ -121,7 +121,7 @@ describe('PayoutService', () => {
         is_active: true,
         is_verified: true,
         data: {},
-      });
+      } as any);
 
       await expect(
         PayoutService.requestPayout(USER_ID, 500, 'ARS', METHOD_ID, 2)
@@ -131,12 +131,12 @@ describe('PayoutService', () => {
     it('should throw error for amount above maximum', async () => {
       vi.mocked(configRepository.getUserLevels).mockResolvedValue({
         GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99,
-      });
+      } as any);
 
       vi.mocked(configRepository.getConfigsByCurrency).mockResolvedValue({
         min_payout_amount: 1000,
         max_payout_amount: 5000,
-      });
+      } as any);
 
       vi.mocked(configRepository.getRequiredFieldsByCurrency).mockResolvedValue([]);
 
@@ -147,7 +147,7 @@ describe('PayoutService', () => {
         is_active: true,
         is_verified: true,
         data: {},
-      });
+      } as any);
 
       await expect(
         PayoutService.requestPayout(USER_ID, 10000, 'ARS', METHOD_ID, 2)
@@ -157,7 +157,7 @@ describe('PayoutService', () => {
     it('should throw error for invalid payout method', async () => {
       vi.mocked(configRepository.getUserLevels).mockResolvedValue({
         GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99,
-      });
+      } as any);
 
       vi.mocked(configRepository.getConfigsByCurrency).mockResolvedValue({});
 
@@ -171,7 +171,7 @@ describe('PayoutService', () => {
     it('should throw error when user level is too low (USER level)', async () => {
       vi.mocked(configRepository.getUserLevels).mockResolvedValue({
         GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99,
-      });
+      } as any);
 
       await expect(
         PayoutService.requestPayout(USER_ID, 2000, 'ARS', METHOD_ID, 1)
@@ -181,11 +181,11 @@ describe('PayoutService', () => {
     it('should throw error when payout method belongs to different user', async () => {
       vi.mocked(configRepository.getUserLevels).mockResolvedValue({
         GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99,
-      });
+      } as any);
 
       vi.mocked(configRepository.getConfigsByCurrency).mockResolvedValue({
         min_payout_amount: 1000,
-      });
+      } as any);
 
       vi.mocked(configRepository.getRequiredFieldsByCurrency).mockResolvedValue([]);
 
@@ -196,7 +196,7 @@ describe('PayoutService', () => {
         is_active: true,
         is_verified: true,
         data: {},
-      });
+      } as any);
 
       await expect(
         PayoutService.requestPayout(USER_ID, 2000, 'ARS', METHOD_ID, 2)
@@ -206,11 +206,11 @@ describe('PayoutService', () => {
     it('should throw error when payout method is inactive', async () => {
       vi.mocked(configRepository.getUserLevels).mockResolvedValue({
         GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99,
-      });
+      } as any);
 
       vi.mocked(configRepository.getConfigsByCurrency).mockResolvedValue({
         min_payout_amount: 1000,
-      });
+      } as any);
 
       vi.mocked(configRepository.getRequiredFieldsByCurrency).mockResolvedValue([]);
 
@@ -221,7 +221,7 @@ describe('PayoutService', () => {
         is_active: false,
         is_verified: true,
         data: {},
-      });
+      } as any);
 
       await expect(
         PayoutService.requestPayout(USER_ID, 2000, 'ARS', METHOD_ID, 2)
@@ -231,11 +231,11 @@ describe('PayoutService', () => {
     it('should throw error when payout method is not verified', async () => {
       vi.mocked(configRepository.getUserLevels).mockResolvedValue({
         GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99,
-      });
+      } as any);
 
       vi.mocked(configRepository.getConfigsByCurrency).mockResolvedValue({
         min_payout_amount: 1000,
-      });
+      } as any);
 
       vi.mocked(configRepository.getRequiredFieldsByCurrency).mockResolvedValue([]);
 
@@ -246,7 +246,7 @@ describe('PayoutService', () => {
         is_active: true,
         is_verified: false,
         data: {},
-      });
+      } as any);
 
       await expect(
         PayoutService.requestPayout(USER_ID, 2000, 'ARS', METHOD_ID, 2)
@@ -256,12 +256,12 @@ describe('PayoutService', () => {
     it('should throw error when monthly limit reached', async () => {
       vi.mocked(configRepository.getUserLevels).mockResolvedValue({
         GUEST: 0, USER: 1, AFFILIATE: 2, CREATOR: 3, STAFF: 10, ADMIN: 99,
-      });
+      } as any);
 
       vi.mocked(configRepository.getConfigsByCurrency).mockResolvedValue({
         min_payout_amount: 1000,
         payout_frequency_limit: 1,
-      });
+      } as any);
 
       vi.mocked(configRepository.getRequiredFieldsByCurrency).mockResolvedValue([]);
 
@@ -272,7 +272,7 @@ describe('PayoutService', () => {
         is_active: true,
         is_verified: true,
         data: {},
-      });
+      } as any);
 
       vi.mocked(balanceRepository.getBalanceForUpdate).mockResolvedValue({
         available_balance: 10000,
@@ -353,7 +353,7 @@ describe('PayoutService', () => {
         user_id: USER_ID,
         amount: 1000,
         currency: 'ARS',
-      });
+      } as any);
 
       await expect(
         PayoutService.updatePayoutStatus('payout-1', 'completed', 'admin-1', undefined, '')
@@ -402,7 +402,7 @@ describe('PayoutService', () => {
       const result = await PayoutService.notifyAdminPendingPayouts();
 
       expect(result.pendingCount).toBe(5);
-      expect(vi.mocked(mainQueue.add)).toHaveBeenCalled();
+      expect(vi.mocked(mainQueue!.add)).toHaveBeenCalled();
     });
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 
 // Mock dependencies
 const mockQuery = vi.fn();
@@ -58,7 +58,7 @@ import { AccessService } from '../../services/access.service';
 describe('content.controller.ts', () => {
   let req: Partial<Request>;
   let res: Partial<Response>;
-  let next: ReturnType<typeof vi.fn>;
+  let next: NextFunction;
 
   beforeEach(() => {
     vi.clearAllMocks();

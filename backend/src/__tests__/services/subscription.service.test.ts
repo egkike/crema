@@ -190,8 +190,8 @@ describe('SubscriptionService', () => {
       vi.mocked(configRepository.getCurrencyValidationRules).mockResolvedValue({
         tax_config: { enabled: false },
       });
-      vi.mocked(subscriptionRepository.upgradeUserPlan).mockResolvedValue(true);
-      vi.mocked(subscriptionRepository.recordSubscriptionEarning).mockResolvedValue(true);
+      vi.mocked(subscriptionRepository.upgradeUserPlan).mockResolvedValue(undefined);
+      vi.mocked(subscriptionRepository.recordSubscriptionEarning).mockResolvedValue(undefined);
 
       await SubscriptionService.handleSubscriptionPayment(
         USER_ID,
@@ -218,8 +218,8 @@ describe('SubscriptionService', () => {
       vi.mocked(configRepository.getCurrencyValidationRules).mockResolvedValue({
         tax_config: { enabled: true, calculation: 'inside', tax_factor: 1.21 },
       });
-      vi.mocked(subscriptionRepository.upgradeUserPlan).mockResolvedValue(true);
-      vi.mocked(subscriptionRepository.recordSubscriptionEarning).mockResolvedValue(true);
+      vi.mocked(subscriptionRepository.upgradeUserPlan).mockResolvedValue(undefined);
+      vi.mocked(subscriptionRepository.recordSubscriptionEarning).mockResolvedValue(undefined);
 
       await SubscriptionService.handleSubscriptionPayment(
         USER_ID,
@@ -239,7 +239,7 @@ describe('SubscriptionService', () => {
   describe('cancelSubscription', () => {
     it('should return message if no active subscription', async () => {
       vi.mocked(subscriptionRepository.getActiveSubscription).mockResolvedValue(null);
-      vi.mocked(subscriptionRepository.forceDowngrade).mockResolvedValue(true);
+      vi.mocked(subscriptionRepository.forceDowngrade).mockResolvedValue(undefined);
 
       const result = await SubscriptionService.cancelSubscription(USER_ID);
 
@@ -255,7 +255,7 @@ describe('SubscriptionService', () => {
         currency: 'ARS',
       } as any);
       vi.mocked(configRepository.getGatewaysByCurrency).mockResolvedValue([{ id: 'mercadopago' }]);
-      vi.mocked(subscriptionRepository.forceDowngrade).mockResolvedValue(true);
+      vi.mocked(subscriptionRepository.forceDowngrade).mockResolvedValue(undefined);
       vi.mocked(userRepository.getById).mockResolvedValue({
         id: USER_ID,
         email: 'test@test.com',
@@ -276,7 +276,7 @@ describe('SubscriptionService', () => {
         currency: 'ARS',
       } as any);
       vi.mocked(configRepository.getGatewaysByCurrency).mockResolvedValue([{ id: 'simulator' }]);
-      vi.mocked(subscriptionRepository.forceDowngrade).mockResolvedValue(true);
+      vi.mocked(subscriptionRepository.forceDowngrade).mockResolvedValue(undefined);
       vi.mocked(userRepository.getById).mockResolvedValue({
         id: USER_ID,
         email: 'test@test.com',

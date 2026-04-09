@@ -112,7 +112,7 @@ describe('UserService', () => {
 
       const payoutData = {
         currency: 'ARS',
-        type: 'BANK',
+        type: 'bank_account' as const,
         data: {
           tax_id: '20304050607',
           account_number: '1234567890123456789012',

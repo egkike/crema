@@ -94,6 +94,7 @@ describe('EmailService', () => {
       const result = await EmailService.sendWelcomePurchaseEmail(
         'user@test.com',
         'Test User',
+        'tempPassword123',
         'Course Name'
       );
 
@@ -106,9 +107,7 @@ describe('EmailService', () => {
       const result = await EmailService.sendPurchaseConfirmationEmail(
         'user@test.com',
         'Test User',
-        'Product Name',
-        5000,
-        'ARS'
+        'Product Name'
       );
 
       expect(result).toBe(true);
@@ -119,7 +118,9 @@ describe('EmailService', () => {
     it('should send payout method change email', async () => {
       const result = await EmailService.sendPayoutMethodChangeEmail(
         'user@test.com',
-        'Test User'
+        'Test User',
+        'ARS',
+        'https://crema.app/confirm'
       );
 
       expect(result).toBe(true);
@@ -132,7 +133,9 @@ describe('EmailService', () => {
         'user@test.com',
         'Test User',
         1000,
-        'ARS'
+        'ARS',
+        'Account ****1234',
+        'TXN-123456'
       );
 
       expect(result).toBe(true);
@@ -192,6 +195,7 @@ describe('EmailService', () => {
       const result = await EmailService.sendExpirationWarning(
         'user@test.com',
         'Test User',
+        'Pro',
         7
       );
 
@@ -216,7 +220,8 @@ describe('EmailService', () => {
         'user@test.com',
         'Test User',
         5000,
-        'ARS'
+        'ARS',
+        'Account ****1234'
       );
 
       expect(result).toBe(true);
@@ -228,7 +233,8 @@ describe('EmailService', () => {
       const result = await EmailService.sendPayoutCancelledEmail(
         'user@test.com',
         'Test User',
-        'Bank transfer failed'
+        5000,
+        'ARS'
       );
 
       expect(result).toBe(true);
@@ -263,7 +269,8 @@ describe('EmailService', () => {
       const result = await EmailService.sendGuaranteeInvalidatedEmail(
         'user@test.com',
         'Test User',
-        'Product Name'
+        'Product Name',
+        'progress'
       );
 
       expect(result).toBe(true);
@@ -275,6 +282,8 @@ describe('EmailService', () => {
       const result = await EmailService.sendPayoutRejectedEmail(
         'user@test.com',
         'Test User',
+        1000,
+        'ARS',
         'Invalid account details'
       );
 
@@ -286,7 +295,6 @@ describe('EmailService', () => {
     it('should send sale notification email', async () => {
       const result = await EmailService.sendSaleNotificationEmail(
         'creator@test.com',
-        'Creator User',
         'Product Name',
         5000,
         'ARS'
@@ -311,9 +319,7 @@ describe('EmailService', () => {
       const result = await EmailService.sendPurchaseConfirmationEmail(
         'user@test.com',
         'Test User',
-        'Very Long Product Name That Goes On And On',
-        5000,
-        'ARS'
+        'Very Long Product Name That Goes On And On'
       );
 
       expect(result).toBe(true);

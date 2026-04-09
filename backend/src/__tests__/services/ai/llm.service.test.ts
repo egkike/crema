@@ -370,7 +370,7 @@ describe('LLMService - OpenAI Provider (with mocked fetch)', () => {
 
     const { config } = await import('../../../config/index');
     const originalProvider = config.ai.provider;
-    config.ai.provider = 'openai';
+    (config.ai as any).provider = 'openai';
 
     const chunks: string[] = [];
     const result = await llmService.chatStream({
@@ -395,7 +395,7 @@ describe('LLMService - Error Handling', () => {
 
     const { config } = await import('../../../config/index');
     const originalProvider = config.ai.provider;
-    config.ai.provider = 'ollama';
+    (config.ai as any).provider = 'ollama';
 
     const result = await llmService.chatStream({
       messages: [{ role: 'user' as const, content: 'Test' }],

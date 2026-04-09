@@ -297,11 +297,14 @@ describe('ProductService', () => {
         fee_percent: 0.1,
       });
       vi.mocked(subscriptionRepository.getCreatorPlanLimits).mockResolvedValue({
-        id: 'plan-pro',
-        name: 'Pro',
+        planId: 'plan-pro',
+        planName: 'Pro',
         features: {
           custom_fee_percent: 0.05, // 5% instead of 10%
         },
+        allowedTypes: [],
+        currentStorageBytes: 0,
+        currentStorageMb: 0,
       });
       vi.mocked(productRepository.createProduct).mockResolvedValue({
         id: 'product-1',
@@ -427,11 +430,14 @@ describe('ProductService', () => {
         fee_percent: 0.1,
       });
       vi.mocked(subscriptionRepository.getCreatorPlanLimits).mockResolvedValue({
-        id: 'plan-pro',
-        name: 'Pro',
+        planId: 'plan-pro',
+        planName: 'Pro',
         features: {
           custom_fee_percent: 0.05,
         },
+        allowedTypes: [],
+        currentStorageBytes: 0,
+        currentStorageMb: 0,
       });
 
       // With 5% platform fee + 5% creator margin = 90% max commission

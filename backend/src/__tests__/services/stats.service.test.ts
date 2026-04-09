@@ -137,8 +137,28 @@ describe('StatsService', () => {
   describe('getAdminHealthCheck', () => {
     it('should return health check with correct structure', async () => {
       const mockStats = {
-        platform: { totalEarnedInPeriod: 100000, taxCollectedPeriod: 21000 },
-        systemIntegrity: { isHealthy: true, discrepanciesCount: 0 },
+        currency: 'ARS',
+        platform: {
+          pending: 5000,
+          available: 95000,
+          withdrawnPeriod: 10000,
+          taxCollectedPeriod: 21000,
+          totalEarnedInPeriod: 100000,
+          subscriptionsVolume: 30000,
+          totalEarnedHistorical: 150000,
+        },
+        users: {
+          pending: 20000,
+          available: 80000,
+          totalInSystem: 100000,
+        },
+        systemIntegrity: {
+          totalOrdersVolume: 100000,
+          totalInflow: 130000,
+          totalAccountability: 130000,
+          discrepanciesCount: 0,
+          isHealthy: true,
+        },
       };
 
       const mockOrders = [
@@ -158,8 +178,28 @@ describe('StatsService', () => {
 
     it('should return unhealthy when there are pending releases', async () => {
       const mockStats = {
-        platform: { totalEarnedInPeriod: 100000, taxCollectedPeriod: 21000 },
-        systemIntegrity: { isHealthy: true, discrepanciesCount: 0 },
+        currency: 'ARS',
+        platform: {
+          pending: 5000,
+          available: 95000,
+          withdrawnPeriod: 10000,
+          taxCollectedPeriod: 21000,
+          totalEarnedInPeriod: 100000,
+          subscriptionsVolume: 30000,
+          totalEarnedHistorical: 150000,
+        },
+        users: {
+          pending: 20000,
+          available: 80000,
+          totalInSystem: 100000,
+        },
+        systemIntegrity: {
+          totalOrdersVolume: 100000,
+          totalInflow: 130000,
+          totalAccountability: 130000,
+          discrepanciesCount: 0,
+          isHealthy: true,
+        },
       };
 
       const mockOrders = [
