@@ -86,7 +86,10 @@ describe('content.controller.ts', () => {
 
     it('should return structured content for courses', async () => {
       (AccessService.getProtectedContent as ReturnType<typeof vi.fn>).mockResolvedValue({
-        has_structured_content: true,
+        hasStructuredContent: true,
+        has_structured_content: true, // backwards compatibility
+        title: 'Test Course',
+        type: 'course',
       });
       (productRepository.getProductWithNestedContent as ReturnType<typeof vi.fn>).mockResolvedValue({
         title: 'Test Course',

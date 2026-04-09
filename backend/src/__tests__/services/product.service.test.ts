@@ -270,8 +270,8 @@ describe('ProductService', () => {
         prices: [{ currency: 'ARS', amount: 10000 }],
         affiliate_commission_percent: 30,
         modules: [
-          { title: 'Module 1', content: '...' },
-          { title: 'Module 2', content: '...' },
+          { title: 'Module 1', lessons: [] },
+          { title: 'Module 2', lessons: [] },
         ],
       };
 
