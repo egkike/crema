@@ -38,12 +38,12 @@ export const getMySubscriptionStatus = async (req: Request, res: Response, next:
           products: {
             used: currentProducts.length,
             limit: limits.max_products,
-            remaining: Math.max(0, (limits.max_products || 0) - currentProducts.length),
+            remaining: Math.max(0, (Number(limits.max_products) || 0) - currentProducts.length),
           },
           storage: {
             usedMB: storageUsedNum,
             limitMB: limits.storage_mb,
-            remainingMB: Number(((limits.storage_mb || 0) - storageUsedNum).toFixed(2)),
+            remainingMB: Number(((Number(limits.storage_mb) || 0) - storageUsedNum).toFixed(2)),
           },
         },
         allowedTypes: subscription.allowed_types,

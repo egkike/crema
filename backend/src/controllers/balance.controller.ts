@@ -12,6 +12,9 @@ export class BalanceController {
   async getDashboardStats(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
+      if (!userId) {
+        throw new AppError('Usuario no autenticado', 401);
+      }
       const currency = (req.query.currency as string) || 'ARS';
 
       // Ejecutamos ambas en paralelo para que el dashboard cargue rápido

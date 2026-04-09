@@ -13,11 +13,18 @@ export class AdminController {
   /**
    * Helper para validar moneda obligatoria
    */
-  private static validateCurrency(currency: string | undefined): string {
-    if (!currency || typeof currency !== 'string') {
+  private static validateCurrency(currency: unknown): string {
+    if (!currency) {
       throw new AppError('La moneda (currency) es obligatoria para esta consulta.', 400);
     }
-    return currency;
+    if (Array.isArray(currency)) {
+      throw new AppError('La moneda (currency) debe ser un solo valor.', 400);
+    }
+    const currencyStr = typeof currency === 'string' ? currency : String(currency);
+    if (!currencyStr) {
+      throw new AppError('La moneda (currency) es obligatoria para esta consulta.', 400);
+    }
+    return currencyStr;
   }
 
   /**

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 
 import { PayoutMethodService } from '../services/payout_method.service';
 import { payoutMethodRepository } from '../repositories/payout_method.repository';
+import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
 export const requestPayoutMethodUpdate = async (
@@ -11,6 +12,9 @@ export const requestPayoutMethodUpdate = async (
 ) => {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError('Usuario no autenticado', 401);
+    }
     const { currency, type, data } = req.body;
 
     // Iniciamos el flujo de seguridad (envío de email)
@@ -57,6 +61,9 @@ export const confirmPayoutMethodUpdate = async (
 export const getMyPayoutMethods = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError('Usuario no autenticado', 401);
+    }
     const methods = await payoutMethodRepository.getByUserId(userId);
 
     return res.status(200).json({

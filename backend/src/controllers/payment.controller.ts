@@ -142,7 +142,7 @@ export const createPaymentPreference = async (req: Request, res: Response, next:
     // 3. USO DE LA FACTORY (Aquí delegamos la complejidad de la pasarela)
     const provider = PaymentProviderFactory.getProvider(gatewayId);
     const paymentResponse = await provider.createPreference({
-      product,
+      product: product as unknown as Record<string, unknown>,
       amount: finalAmount,
       currency,
       externalReference,
@@ -183,11 +183,11 @@ export const handleProviderWebhook = async (req: Request, res: Response) => {
       const provider = PaymentProviderFactory.getProvider(gatewayId);
 
       const result = await provider.handleWebhook({
-        body: req.body,
-        headers: req.headers,
+        body: req.body as Record<string, unknown>,
+        headers: req.headers as Record<string, string>,
         query: Object.fromEntries(
           Object.entries(req.query).map(([k, v]) => [k, Array.isArray(v) ? v[0] : String(v)])
-        ),
+        ) as Record<string, string>,
       });
 
       // Si la firma falló o el ID no existe en MP, 'result' será null y salimos.
@@ -226,10 +226,10 @@ export const handleProviderWebhook = async (req: Request, res: Response) => {
         await OrderService.processPaymentNotification({
           externalReference: result.externalReference,
           status: result.status,
-          transactionId: result.transactionId,
-          tempPassword: result.metadata?.temp_password,
-          gatewayFee: result.gatewayFee,
-          gatewayTax: result.gatewayTax,
+          transactionId: result.transactionId ?? undefined,
+          tempPassword: (result.metadata?.temp_password as string) ?? undefined,
+          gatewayFee: result.gatewayFee ?? undefined,
+          gatewayTax: result.gatewayTax ?? undefined,
         });
       }
     } catch (error: unknown) {
