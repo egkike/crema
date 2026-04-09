@@ -69,7 +69,7 @@ router.get('/products', async (req: Request, res: Response, next: NextFunction) 
  */
 router.get('/products/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const product = await productRepository.getProductByIdForAdmin(id);
 
     if (!product) {
@@ -87,7 +87,7 @@ router.get('/products/:id', async (req: Request, res: Response, next: NextFuncti
  */
 router.patch('/products/:id', adminWriteLimiter, auditMiddleware('product_update', 'product'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { title, description, status, affiliate_commission_percent } = req.body;
 
     // Verificar que el producto existe
@@ -171,7 +171,7 @@ router.get('/orders', async (req: Request, res: Response, next: NextFunction) =>
  */
 router.get('/orders/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const order = await orderRepository.getOrderByIdForAdmin(id);
 
     if (!order) {
@@ -187,7 +187,7 @@ router.get('/orders/:id', async (req: Request, res: Response, next: NextFunction
 /**
  * Obtiene estadísticas de comisiones de la plataforma
  */
-router.get('/commissions/stats', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/commissions/stats', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const stats = await commissionRepository.getStats();
 

@@ -45,6 +45,7 @@ export interface Product {
   created_at: Date;
   updated_at: Date;
   prices: ProductPrice[];
+  creator?: { id: string; username: string } | null;
 }
 
 export interface ProductInput {
