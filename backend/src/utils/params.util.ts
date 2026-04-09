@@ -1,12 +1,14 @@
 /**
  * Utility functions for parameter handling
  */
+import type { ParsedQs } from 'qs';
 
 /**
  * Convert express parameter to string (handles string | string[])
  */
-export function toString(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0];
+export function toString(value: string | string[] | ParsedQs | (string | ParsedQs)[] | undefined): string {
+  if (Array.isArray(value)) return toString(value[0]);
+  if (typeof value === 'object' && value !== null) return '';
   return value || '';
 }
 
@@ -15,7 +17,7 @@ export function toString(value: string | string[] | undefined): string {
  * Prevents DoS via excessively large values.
  */
 export function parseClamped(
-  value: string | string[] | undefined,
+  value: string | string[] | ParsedQs | (string | ParsedQs)[] | undefined,
   defaultValue: number,
   min: number,
   max: number
@@ -29,7 +31,7 @@ export function parseClamped(
  * Parse a date query parameter safely.
  * Returns undefined for invalid dates.
  */
-export function parseDate(value: string | string[] | undefined): Date | undefined {
+export function parseDate(value: string | string[] | ParsedQs | (string | ParsedQs)[] | undefined): Date | undefined {
   if (!value) return undefined;
   const date = new Date(toString(value));
   return Number.isNaN(date.getTime()) ? undefined : date;

@@ -71,14 +71,14 @@ export class PayoutService {
     });
 
     // 3. Mantenemos compatibilidad con columnas fijas y definimos la cuenta de destino principal
+    const destAccount = dynamicData.cbu || dynamicData.address || dynamicData.alias || 'Ver detalle';
     const payoutData = {
       ...dynamicData, // Inyectamos dinámicamente cbu, address, network, etc.
-      destination_account:
-        dynamicData.cbu || dynamicData.address || dynamicData.alias || 'Ver detalle',
-      bank_name: method.data.bank_name || null,
-      account_holder: method.data.holder || method.data.account_holder || null,
-      tax_id: method.data.tax_id || null,
-      alias: method.data.alias || null,
+      destination_account: String(destAccount),
+      bank_name: (method.data.bank_name as string) || null,
+      account_holder: (method.data.holder as string) || (method.data.account_holder as string) || null,
+      tax_id: (method.data.tax_id as string) || null,
+      alias: (method.data.alias as string) || null,
     };
 
     const configs = await configRepository.getConfigsByCurrency(currency);

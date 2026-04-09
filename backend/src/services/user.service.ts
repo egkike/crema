@@ -18,7 +18,7 @@ interface PayoutMethodData {
 
 interface PayoutData {
   currency: string;
-  type: string;
+  type: 'bank_account' | 'crypto_wallet';
   data: PayoutMethodData;
 }
 
@@ -75,7 +75,7 @@ export class UserService {
         }
 
         // 2. Validar CBU si es transferencia bancaria en ARS
-        if (payoutData.type === 'BANK' && validators.cbu && payoutData.data.account_number) {
+        if (payoutData.type === 'bank_account' && validators.cbu && payoutData.data.account_number) {
           if (!validators.cbu(payoutData.data.account_number)) {
             throw new AppError('El CBU ingresado no tiene un formato válido.', 400);
           }

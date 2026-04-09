@@ -58,4 +58,29 @@ export class TwoFactorService {
       return false;
     }
   }
+
+  /**
+   * Verifica si un código de respaldo es válido
+   * @returns Objeto con valid y remainingCodes (sin el código usado)
+   */
+  static verifyBackupCode(
+    token: string,
+    backupCodes: string[]
+  ): { valid: boolean; remainingCodes: string[] } {
+    const normalizedToken = token.toUpperCase();
+    const validIndex = backupCodes.findIndex(
+      (code) => code.toUpperCase() === normalizedToken
+    );
+
+    if (validIndex === -1) {
+      return { valid: false, remainingCodes: backupCodes };
+    }
+
+    // Remove the used code from the remaining codes
+    const remainingCodes = backupCodes.filter(
+      (_, index) => index !== validIndex
+    );
+
+    return { valid: true, remainingCodes };
+  }
 }
