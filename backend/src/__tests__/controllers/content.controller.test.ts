@@ -63,7 +63,7 @@ describe('content.controller.ts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     req = {
-      user: { id: 'user-123', email: 'test@test.com' },
+      user: { id: 'user-123', email: 'test@test.com', username: 'testuser', level: 1, active: 1 },
       params: {},
       body: {},
     };
@@ -77,7 +77,7 @@ describe('content.controller.ts', () => {
 
   describe('getProductContent', () => {
     it('should return 401 when user not authenticated', async () => {
-      req.user = undefined;
+      req.user = undefined as any;
 
       await getProductContent(req as Request, res as Response, next);
 
@@ -151,7 +151,7 @@ describe('content.controller.ts', () => {
 
   describe('updateLessonProgress', () => {
     it('should return 401 when user not authenticated', async () => {
-      req.user = undefined;
+      req.user = undefined as any;
 
       await updateLessonProgress(req as Request, res as Response, next);
 
@@ -202,7 +202,7 @@ describe('content.controller.ts', () => {
 
   describe('getMyLearningDashboard', () => {
     it('should return 401 when user not authenticated', async () => {
-      req.user = undefined;
+      req.user = undefined as any;
 
       await getMyLearningDashboard(req as Request, res as Response, next);
 
@@ -229,7 +229,7 @@ describe('content.controller.ts', () => {
 
   describe('submitLessonQuiz', () => {
     it('should return 401 when user not authenticated', async () => {
-      req.user = undefined;
+      req.user = undefined as any;
 
       await submitLessonQuiz(req as Request, res as Response, next);
 
@@ -398,7 +398,7 @@ describe('content.controller.ts', () => {
 
   describe('getLessonDetail', () => {
     it('should return 401 when user not authenticated', async () => {
-      req.user = undefined;
+      req.user = undefined as any;
 
       await getLessonDetail(req as Request, res as Response, next);
 

@@ -124,7 +124,7 @@ describe('commissionRepository', () => {
       const result = await commissionRepository.updateStatusByOrder('order-1', 'paid');
 
       expect(result).toHaveLength(1);
-      expect(result[0].status).toBe('paid');
+      expect(result[0]!.status).toBe('paid');
     });
 
     it('should set paidAt when status is paid', async () => {

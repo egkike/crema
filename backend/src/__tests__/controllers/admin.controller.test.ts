@@ -139,7 +139,7 @@ describe('AdminController', () => {
     it('should return health data when successful', async () => {
       mockReq.query = { currency: 'ARS', from: '2026-01-01', to: '2026-03-31' };
       
-      const mockHealth = { totalRevenue: 50000, totalPayouts: 10000 };
+      const mockHealth = { totalRevenue: 50000, totalPayouts: 10000 } as any;
       vi.mocked(StatsService.getAdminHealthCheck).mockResolvedValue(mockHealth);
 
       await AdminController.getFinancialHealth(mockReq, mockRes);
@@ -160,7 +160,7 @@ describe('AdminController', () => {
     it('should return ledger when successful', async () => {
       mockReq.query = { currency: 'ARS', from: '2026-01-01', to: '2026-03-31' };
       
-      const mockLedger = { entries: [] };
+      const mockLedger = { entries: [] } as any;
       vi.mocked(adminRepository.getPlatformLedger).mockResolvedValue(mockLedger);
 
       await AdminController.getPlatformLedger(mockReq, mockRes);
@@ -224,7 +224,7 @@ describe('AdminController', () => {
       mockReq.params = { userId: 'user-123' };
       mockReq.query = { currency: 'ARS' };
       
-      const mockStats = { totalSales: 5000 };
+      const mockStats = { totalSales: 5000 } as any;
       vi.mocked(StatsService.getCreatorStats).mockResolvedValue(mockStats);
 
       await AdminController.getUserStats(mockReq, mockRes);
@@ -255,7 +255,7 @@ describe('AdminController', () => {
     it('should return payouts when successful', async () => {
       mockReq.query = { status: 'completed' };
       
-      const mockPayouts = [{ id: 'payout-1', amount: 1000 }];
+      const mockPayouts = [{ id: 'payout-1', amount: 1000 }] as any;
       vi.mocked(payoutRepository.getByStatus).mockResolvedValue(mockPayouts);
 
       await AdminController.getPayoutsByStatus(mockReq, mockRes);

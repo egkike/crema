@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 
 import { auditMiddleware, logAudit, getAuditLogs, clearAuditLogs } from '../../middlewares/audit/audit.middleware';
 
@@ -14,9 +14,9 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 describe('Audit Middleware', () => {
-  let mockReq: Partial<Request>;
-  let mockRes: Partial<Response>;
-  let mockNext: NextFunction;
+  let mockReq: any;
+  let mockRes: any;
+  let mockNext: any;
 
   beforeEach(() => {
     clearAuditLogs();
@@ -28,7 +28,7 @@ describe('Audit Middleware', () => {
       ip: '127.0.0.1',
       headers: { 'user-agent': 'test-agent' },
       user: { id: 'admin-123' },
-    } as Partial<Request>;
+    } as any;
 
     mockRes = {
       statusCode: 200,
@@ -47,7 +47,7 @@ describe('Audit Middleware', () => {
     });
 
     it('no debería registrar si no hay usuario admin', async () => {
-      mockReq.user = undefined;
+      mockReq.user = undefined as any;
       const middleware = auditMiddleware('product_update', 'product');
 
       await middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -76,7 +76,7 @@ describe('Audit Middleware', () => {
         new_value: { title: 'New' },
         ip_address: '127.0.0.1',
         user_agent: 'test-agent',
-      });
+      } as any);
 
       const logs = getAuditLogs({});
       expect(logs.logs.length).toBe(1);
@@ -95,6 +95,7 @@ describe('Audit Middleware', () => {
         new_value: { title: 'Test' },
         ip_address: '127.0.0.1',
         user_agent: 'test-agent',
+        // @ts-expect-error - created_at is not in the type but the test needs it
         created_at: new Date('2026-04-01'),
       });
 
@@ -107,6 +108,7 @@ describe('Audit Middleware', () => {
         new_value: { status: 'approved' },
         ip_address: '127.0.0.1',
         user_agent: 'test-agent',
+        // @ts-expect-error - created_at is not in the type but the test needs it
         created_at: new Date('2026-04-07'),
       });
 
@@ -129,7 +131,7 @@ describe('Audit Middleware', () => {
         new_value: { title: 'Test' },
         ip_address: '127.0.0.1',
         user_agent: 'test-agent',
-      });
+      } as any);
 
       const logs = getAuditLogs({ action: 'product_update' });
       expect(logs.logs.length).toBe(1);
@@ -146,7 +148,7 @@ describe('Audit Middleware', () => {
           new_value: { title: `Test ${i}` },
           ip_address: '127.0.0.1',
           user_agent: 'test-agent',
-        });
+        } as any);
       }
 
       const page1 = getAuditLogs({ page: 1, limit: 10 });

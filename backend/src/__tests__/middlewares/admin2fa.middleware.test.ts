@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 
 import { requireAdmin2FA } from '../../middlewares/auth/admin2fa.middleware';
 
@@ -13,10 +13,13 @@ vi.mock('../../repositories/user.repository', () => ({
 
 vi.mock('../../errors/AppError', () => ({
   AppError: class AppError extends Error {
+    public statusCode: number;
+    public isOperational: boolean;
     constructor(message: string, statusCode: number) {
       super(message);
       this.name = 'AppError';
       this.statusCode = statusCode;
+      this.isOperational = true;
     }
   },
 }));
@@ -27,7 +30,7 @@ import { AppError } from '../../errors/AppError';
 describe('requireAdmin2FA Middleware', () => {
   let mockReq: Partial<Request>;
   let mockRes: Partial<Response>;
-  let mockNext: NextFunction;
+  let mockNext: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -101,7 +104,7 @@ describe('requireAdmin2FA Middleware', () => {
   });
 
   it('debería bloquear si no hay usuario en el request', async () => {
-    mockReq.user = undefined;
+    mockReq.user = undefined as any;
 
     await requireAdmin2FA(mockReq as Request, mockRes as Response, mockNext);
 
