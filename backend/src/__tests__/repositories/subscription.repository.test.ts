@@ -9,7 +9,7 @@ let mockConnect = createMockConnect();
 vi.mock('../../db/postgres', () => ({
   default: { 
     query: (...args: any[]) => mockQuery(...args),
-    connect: (() => ({ query: mockConnect, release: vi.fn(), query: mockConnect })) 
+    connect: (() => ({ query: mockConnect, release: vi.fn() })) 
   },
 }));
 

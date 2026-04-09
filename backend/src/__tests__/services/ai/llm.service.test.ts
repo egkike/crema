@@ -306,13 +306,13 @@ describe('LLMService - Ollama Provider (with mocked fetch)', () => {
     // Create new service with Ollama provider
     const { config } = await import('../../../config/index');
     const originalProvider = config.ai.provider;
-    config.ai.provider = 'ollama';
+    (config.ai as any).provider = 'ollama';
 
     const result = await llmService.chat({ 
       messages: [{ role: 'user' as const, content: 'Hello' }] 
     });
 
-    config.ai.provider = originalProvider;
+    (config.ai as any).provider = originalProvider;
     expect(result).toBeDefined();
   });
 
@@ -378,7 +378,7 @@ describe('LLMService - OpenAI Provider (with mocked fetch)', () => {
       onChunk: (chunk) => chunks.push(chunk),
     });
 
-    config.ai.provider = originalProvider;
+    (config.ai as any).provider = originalProvider;
     expect(result).toBeDefined();
   });
 });
@@ -401,7 +401,7 @@ describe('LLMService - Error Handling', () => {
       messages: [{ role: 'user' as const, content: 'Test' }],
     });
 
-    config.ai.provider = originalProvider;
+    (config.ai as any).provider = originalProvider;
     expect(result).toBeDefined();
   });
 

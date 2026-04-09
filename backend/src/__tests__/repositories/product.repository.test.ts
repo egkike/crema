@@ -503,7 +503,7 @@ describe('productRepository', () => {
 
       expect(result).not.toBeNull();
       expect(result?.title).toBe('Test Product');
-      expect(result?.creator?.fullname).toBe('Test User');
+      expect(result?.creator?.username).toBe('Test User');
     });
 
     it('should return null when product not found', async () => {

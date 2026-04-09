@@ -305,7 +305,7 @@ describe('PayoutService', () => {
         status: 'pending',
         amount: 1000,
         currency: 'ARS',
-      });
+      } as any);
 
       await expect(PayoutService.cancelUserPayout('payout-1', USER_ID))
         .rejects.toThrow('No autorizado');
@@ -318,7 +318,7 @@ describe('PayoutService', () => {
         status: 'completed',
         amount: 1000,
         currency: 'ARS',
-      });
+      } as any);
 
       await expect(PayoutService.cancelUserPayout('payout-1', USER_ID))
         .rejects.toThrow('No es anulable');
@@ -340,7 +340,7 @@ describe('PayoutService', () => {
         user_id: USER_ID,
         amount: 1000,
         currency: 'ARS',
-      });
+      } as any);
 
       await expect(PayoutService.updatePayoutStatus('payout-1', 'completed', 'admin-1'))
         .rejects.toThrow('Ya procesado');

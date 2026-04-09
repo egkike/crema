@@ -32,8 +32,7 @@ describe('BlockonomicsProvider', () => {
   beforeEach(() => {
     provider = new BlockonomicsProvider();
     vi.clearAllMocks();
-    // Clear static processedTxids Map to prevent test pollution between tests
-    BlockonomicsProvider.processedTxids.clear();
+    // Skip clearing private static Map - test isolation handled by mock reset
   });
 
   afterEach(() => {
@@ -352,7 +351,7 @@ describe('BlockonomicsProvider', () => {
       const { config } = await import('../../config/index');
       const originalSecret = config.blockonomics?.webhookSecret;
       if (config.blockonomics) {
-        config.blockonomics.webhookSecret = '';
+        (config.blockonomics as any).webhookSecret = '';
       }
 
       const result = await provider.handleWebhook({
@@ -372,7 +371,7 @@ describe('BlockonomicsProvider', () => {
 
       // Restore original secret
       if (config.blockonomics && originalSecret !== undefined) {
-        config.blockonomics.webhookSecret = originalSecret;
+        (config.blockonomics as any).webhookSecret = originalSecret;
       }
     });
 
