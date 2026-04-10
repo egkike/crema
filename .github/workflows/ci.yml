@@ -1,22 +1,26 @@
-name: Crema CI - Backend
+name: Crema CI
 
 on:
   push:
     branches: [ master ]
-    # El CI solo corre si hay cambios en backend o shared
     paths:
       - 'backend/**'
       - 'shared/**'
+      - 'frontend-admin/**'
   pull_request:
     branches: [ master ]
     paths:
       - 'backend/**'
+      - 'shared/**'
+      - 'frontend-admin/**'
 
 jobs:
+  # =========================================================================
+  # Backend QA
+  # =========================================================================
   backend-qa:
     runs-on: ubuntu-latest
     
-    # Configuramos que todos los 'run' se ejecuten dentro de la carpeta backend
     defaults:
       run:
         working-directory: backend
@@ -28,7 +32,6 @@ jobs:
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
       with:
-        # Especificamos la versión 10 usada localmente
         version: 10
 
     - name: Setup Node.js
@@ -36,11 +39,13 @@ jobs:
       with:
         node-version: 22
         cache: 'pnpm'
-        # Indicamos dónde está el lockfile para el cache
         cache-dependency-path: backend/pnpm-lock.yaml
 
     - name: Install dependencies
       run: pnpm install
+
+    - name: TypeScript check
+      run: pnpm tsc --noEmit
 
     - name: Lint code
       run: pnpm lint
@@ -49,11 +54,48 @@ jobs:
       run: pnpm test
       env:
         NODE_ENV: test
-        # Seteamos esto para evitar el warning de deprecación de Node 20 en los runners
         FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         SECRET_JWT_KEY: 'test-secret-super-largo-para-tests'
         SECRET_REFRESH_JWT_KEY: 'test-secret-refresh-super-largo-para-tests'
         PASSWORD_PEPPER: 'test-pepper'
+
+    - name: Build project
+      run: pnpm build
+
+  # =========================================================================
+  # Frontend Admin QA
+  # =========================================================================
+  frontend-admin-qa:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: frontend-admin
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'pnpm'
+        cache-dependency-path: frontend-admin/pnpm-lock.yaml
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: TypeScript check
+      run: pnpm tsc --noEmit
+
+    - name: Lint code
+      run: pnpm lint
 
     - name: Build project
       run: pnpm build
