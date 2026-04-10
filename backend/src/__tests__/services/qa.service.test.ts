@@ -69,8 +69,8 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      qaRepository.createQuestion.mockResolvedValue(mockQuestion);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(qaRepository.createQuestion).mockResolvedValue(mockQuestion as any);
 
       const result = await qaService.createQuestion('prod-1', 'user-1', 'What is this?');
 
@@ -84,7 +84,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(qaService.createQuestion('prod-1', 'user-1', 'What is this?'))
         .rejects.toThrow(AppError);
@@ -115,8 +115,8 @@ describe('qa.service.ts', () => {
         total: 1,
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      qaRepository.getQuestionsByProduct.mockResolvedValue(mockResult);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(qaRepository.getQuestionsByProduct).mockResolvedValue(mockResult as any);
 
       const result = await qaService.getQuestions('prod-1');
 
@@ -125,7 +125,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(qaService.getQuestions('prod-1'))
         .rejects.toThrow(AppError);
@@ -135,8 +135,8 @@ describe('qa.service.ts', () => {
 
     it('should pass includeUnpublished parameter', async () => {
       const mockProduct = { id: 'prod-1', title: 'Test Product' };
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      qaRepository.getQuestionsByProduct.mockResolvedValue({ questions: [], total: 0 });
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(qaRepository.getQuestionsByProduct).mockResolvedValue({ questions: [], total: 0 } as any);
 
       await qaService.getQuestions('prod-1', true, 50, 10);
 
@@ -160,7 +160,7 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      qaRepository.getQuestionById.mockResolvedValue(mockQuestion);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(mockQuestion as any);
 
       const result = await qaService.getQuestionById('q-1');
 
@@ -168,7 +168,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should return null when not found', async () => {
-      qaRepository.getQuestionById.mockResolvedValue(null);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(null);
 
       const result = await qaService.getQuestionById('q-1');
 
@@ -199,8 +199,8 @@ describe('qa.service.ts', () => {
         answered_at: new Date(),
       };
 
-      qaRepository.getQuestionById.mockResolvedValue(mockQuestion);
-      qaRepository.answerQuestion.mockResolvedValue(mockAnswered);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(mockQuestion as any);
+      vi.mocked(qaRepository.answerQuestion).mockResolvedValue(mockAnswered as any);
 
       const result = await qaService.answerQuestion('q-1', 'This is the answer', 'creator-1');
 
@@ -212,7 +212,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when question not found', async () => {
-      qaRepository.getQuestionById.mockResolvedValue(null);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(null);
 
       await expect(qaService.answerQuestion('q-1', 'Answer', 'user-1'))
         .rejects.toThrow(AppError);
@@ -235,8 +235,8 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      qaRepository.getQuestionById.mockResolvedValue(mockQuestion);
-      qaRepository.answerQuestion.mockResolvedValue(null);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(mockQuestion as any);
+      vi.mocked(qaRepository.answerQuestion).mockResolvedValue(null);
 
       await expect(qaService.answerQuestion('q-1', 'Answer', 'user-1'))
         .rejects.toThrow(AppError);
@@ -263,8 +263,8 @@ describe('qa.service.ts', () => {
 
       const mockPublished = { ...mockQuestion, is_published: true };
 
-      qaRepository.getQuestionById.mockResolvedValue(mockQuestion);
-      qaRepository.togglePublish.mockResolvedValue(mockPublished);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(mockQuestion as any);
+      vi.mocked(qaRepository.togglePublish).mockResolvedValue(mockPublished as any);
 
       const result = await qaService.togglePublishQuestion('q-1', true);
 
@@ -272,7 +272,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when question not found', async () => {
-      qaRepository.getQuestionById.mockResolvedValue(null);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(null);
 
       await expect(qaService.togglePublishQuestion('q-1', true))
         .rejects.toThrow(AppError);
@@ -293,8 +293,8 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      qaRepository.getQuestionById.mockResolvedValue(mockQuestion);
-      qaRepository.togglePublish.mockResolvedValue(null);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(mockQuestion as any);
+      vi.mocked(qaRepository.togglePublish).mockResolvedValue(null);
 
       await expect(qaService.togglePublishQuestion('q-1', true))
         .rejects.toThrow(AppError);
@@ -317,8 +317,8 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      qaRepository.getQuestionById.mockResolvedValue(mockQuestion);
-      qaRepository.deleteQuestion.mockResolvedValue(true);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(mockQuestion as any);
+      vi.mocked(qaRepository.deleteQuestion).mockResolvedValue(true);
 
       const result = await qaService.deleteQuestion('q-1');
 
@@ -326,7 +326,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when question not found', async () => {
-      qaRepository.getQuestionById.mockResolvedValue(null);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(null);
 
       await expect(qaService.deleteQuestion('q-1'))
         .rejects.toThrow(AppError);
@@ -361,10 +361,10 @@ describe('qa.service.ts', () => {
         created_at: new Date(),
       };
 
-      qaRepository.getQuestionById.mockResolvedValue(mockQuestion);
-      qaRepository.vote.mockResolvedValue(mockUserVote);
-      qaRepository.getVoteCounts.mockResolvedValue({ helpful: 5, not_helpful: 2 });
-      qaRepository.getUserVote.mockResolvedValue(mockUserVote);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(mockQuestion as any);
+      vi.mocked(qaRepository.vote).mockResolvedValue(mockUserVote as any);
+      vi.mocked(qaRepository.getVoteCounts).mockResolvedValue({ helpful: 5, not_helpful: 2 });
+      vi.mocked(qaRepository.getUserVote).mockResolvedValue(mockUserVote as any);
 
       const result = await qaService.voteQuestion('q-1', 'user-1', 'helpful');
 
@@ -374,7 +374,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when question not found', async () => {
-      qaRepository.getQuestionById.mockResolvedValue(null);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(null);
 
       await expect(qaService.voteQuestion('q-1', 'user-1', 'helpful'))
         .rejects.toThrow(AppError);
@@ -403,10 +403,10 @@ describe('qa.service.ts', () => {
         created_at: new Date(),
       };
 
-      qaRepository.getQuestionById.mockResolvedValue(mockQuestion);
-      qaRepository.vote.mockResolvedValue(mockUserVote);
-      qaRepository.getVoteCounts.mockResolvedValue({ helpful: 5, not_helpful: 2 });
-      qaRepository.getUserVote.mockResolvedValue(null);
+      vi.mocked(qaRepository.getQuestionById).mockResolvedValue(mockQuestion as any);
+      vi.mocked(qaRepository.vote).mockResolvedValue(mockUserVote as any);
+      vi.mocked(qaRepository.getVoteCounts).mockResolvedValue({ helpful: 5, not_helpful: 2 });
+      vi.mocked(qaRepository.getUserVote).mockResolvedValue(null);
 
       const result = await qaService.voteQuestion('q-1', 'user-1', 'helpful');
 
@@ -416,8 +416,8 @@ describe('qa.service.ts', () => {
 
   describe('removeVote', () => {
     it('should remove vote and return counts', async () => {
-      qaRepository.removeVote.mockResolvedValue(true);
-      qaRepository.getVoteCounts.mockResolvedValue({ helpful: 4, not_helpful: 2 });
+      vi.mocked(qaRepository.removeVote).mockResolvedValue(true);
+      vi.mocked(qaRepository.getVoteCounts).mockResolvedValue({ helpful: 4, not_helpful: 2 });
 
       const result = await qaService.removeVote('q-1', 'user-1');
 
@@ -446,8 +446,8 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      qaRepository.createFAQ.mockResolvedValue(mockFAQ);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(qaRepository.createFAQ).mockResolvedValue(mockFAQ as any);
 
       const result = await qaService.createFAQ('prod-1', 'What is this?', 'It is a test');
 
@@ -455,7 +455,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(qaService.createFAQ('prod-1', 'Q', 'A'))
         .rejects.toThrow(AppError);
@@ -474,8 +474,8 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      qaRepository.createFAQ.mockResolvedValue(mockFAQ);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(qaRepository.createFAQ).mockResolvedValue(mockFAQ as any);
 
       await qaService.createFAQ('prod-1', 'Q', 'A', 5);
 
@@ -504,8 +504,8 @@ describe('qa.service.ts', () => {
         },
       ];
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      qaRepository.getFAQsByProduct.mockResolvedValue(mockFAQs);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(qaRepository.getFAQsByProduct).mockResolvedValue(mockFAQs as any);
 
       const result = await qaService.getFAQs('prod-1');
 
@@ -513,7 +513,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(qaService.getFAQs('prod-1'))
         .rejects.toThrow(AppError);
@@ -521,8 +521,8 @@ describe('qa.service.ts', () => {
 
     it('should pass includeInactive parameter', async () => {
       const mockProduct = { id: 'prod-1', title: 'Test Product' };
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      qaRepository.getFAQsByProduct.mockResolvedValue([]);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(qaRepository.getFAQsByProduct).mockResolvedValue([] as any);
 
       await qaService.getFAQs('prod-1', true);
 
@@ -543,7 +543,7 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      qaRepository.getFAQById.mockResolvedValue(mockFAQ);
+      vi.mocked(qaRepository.getFAQById).mockResolvedValue(mockFAQ as any);
 
       const result = await qaService.getFAQById('faq-1');
 
@@ -551,7 +551,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should return null when not found', async () => {
-      qaRepository.getFAQById.mockResolvedValue(null);
+      vi.mocked(qaRepository.getFAQById).mockResolvedValue(null);
 
       const result = await qaService.getFAQById('faq-1');
 
@@ -574,8 +574,8 @@ describe('qa.service.ts', () => {
 
       const mockUpdated = { ...mockFAQ, question: 'Updated Q' };
 
-      qaRepository.getFAQById.mockResolvedValue(mockFAQ);
-      qaRepository.updateFAQ.mockResolvedValue(mockUpdated);
+      vi.mocked(qaRepository.getFAQById).mockResolvedValue(mockFAQ as any);
+      vi.mocked(qaRepository.updateFAQ).mockResolvedValue(mockUpdated as any);
 
       const result = await qaService.updateFAQ('faq-1', { question: 'Updated Q' });
 
@@ -583,7 +583,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when FAQ not found', async () => {
-      qaRepository.getFAQById.mockResolvedValue(null);
+      vi.mocked(qaRepository.getFAQById).mockResolvedValue(null);
 
       await expect(qaService.updateFAQ('faq-1', { question: 'Q' }))
         .rejects.toThrow(AppError);
@@ -601,8 +601,8 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      qaRepository.getFAQById.mockResolvedValue(mockFAQ);
-      qaRepository.updateFAQ.mockResolvedValue(null);
+      vi.mocked(qaRepository.getFAQById).mockResolvedValue(mockFAQ as any);
+      vi.mocked(qaRepository.updateFAQ).mockResolvedValue(null);
 
       await expect(qaService.updateFAQ('faq-1', { question: 'Q' }))
         .rejects.toThrow(AppError);
@@ -622,8 +622,8 @@ describe('qa.service.ts', () => {
 
       const mockUpdated = { ...mockFAQ, question: 'Q2', answer: 'A2', sortOrder: 1, isActive: false };
 
-      qaRepository.getFAQById.mockResolvedValue(mockFAQ);
-      qaRepository.updateFAQ.mockResolvedValue(mockUpdated);
+      vi.mocked(qaRepository.getFAQById).mockResolvedValue(mockFAQ as any);
+      vi.mocked(qaRepository.updateFAQ).mockResolvedValue(mockUpdated as any);
 
       const result = await qaService.updateFAQ('faq-1', {
         question: 'Q2',
@@ -650,8 +650,8 @@ describe('qa.service.ts', () => {
         updated_at: new Date(),
       };
 
-      qaRepository.getFAQById.mockResolvedValue(mockFAQ);
-      qaRepository.deleteFAQ.mockResolvedValue(true);
+      vi.mocked(qaRepository.getFAQById).mockResolvedValue(mockFAQ as any);
+      vi.mocked(qaRepository.deleteFAQ).mockResolvedValue(true);
 
       const result = await qaService.deleteFAQ('faq-1');
 
@@ -659,7 +659,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when FAQ not found', async () => {
-      qaRepository.getFAQById.mockResolvedValue(null);
+      vi.mocked(qaRepository.getFAQById).mockResolvedValue(null);
 
       await expect(qaService.deleteFAQ('faq-1'))
         .rejects.toThrow(AppError);
@@ -671,8 +671,8 @@ describe('qa.service.ts', () => {
       const mockProduct = { id: 'prod-1', title: 'Test Product' };
       const faqIds = ['faq-1', 'faq-2', 'faq-3'];
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      qaRepository.reorderFAQs.mockResolvedValue(undefined);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(qaRepository.reorderFAQs).mockResolvedValue(undefined);
 
       await qaService.reorderFAQs('prod-1', faqIds);
 
@@ -680,7 +680,7 @@ describe('qa.service.ts', () => {
     });
 
     it('should throw AppError when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(qaService.reorderFAQs('prod-1', ['faq-1']))
         .rejects.toThrow(AppError);

@@ -74,11 +74,11 @@ describe('review.service.ts', () => {
         updated_at: new Date(),
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getUserReview.mockResolvedValue(null);
-      orderRepository.checkAccess.mockResolvedValue(true);
-      reviewRepository.getSettings.mockResolvedValue(mockSettings);
-      reviewRepository.createReview.mockResolvedValue(mockReview);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getUserReview).mockResolvedValue(null);
+      vi.mocked(orderRepository.checkAccess).mockResolvedValue(true);
+      vi.mocked(reviewRepository.getSettings).mockResolvedValue(mockSettings as any);
+      vi.mocked(reviewRepository.createReview).mockResolvedValue(mockReview as any);
 
       const result = await reviewService.createReview('prod-1', 'user-1', 5, 'Loved it!', 'Great product');
 
@@ -86,7 +86,7 @@ describe('review.service.ts', () => {
     });
 
     it('should throw when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(reviewService.createReview('prod-1', 'user-1', 5, 'content'))
         .rejects.toThrow(AppError);
@@ -96,8 +96,8 @@ describe('review.service.ts', () => {
 
     it('should throw when user already reviewed', async () => {
       const mockProduct = { id: 'prod-1', title: 'Test Product' };
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getUserReview.mockResolvedValue({ id: 'r-1' });
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getUserReview).mockResolvedValue({ id: 'r-1' } as any);
 
       await expect(reviewService.createReview('prod-1', 'user-1', 5, 'content'))
         .rejects.toThrow('Ya has publicado una review para este producto');
@@ -107,9 +107,9 @@ describe('review.service.ts', () => {
       const mockProduct = { id: 'prod-1', title: 'Test Product' };
       const mockSettings = { allow_reviews: false };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getUserReview.mockResolvedValue(null);
-      reviewRepository.getSettings.mockResolvedValue(mockSettings);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getUserReview).mockResolvedValue(null);
+      vi.mocked(reviewRepository.getSettings).mockResolvedValue(mockSettings as any);
 
       await expect(reviewService.createReview('prod-1', 'user-1', 5, 'content'))
         .rejects.toThrow('Las reviews están desactivadas para este producto');
@@ -119,10 +119,10 @@ describe('review.service.ts', () => {
       const mockProduct = { id: 'prod-1', title: 'Test Product' };
       const mockSettings = { allow_reviews: true, require_verified_purchase: true };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getUserReview.mockResolvedValue(null);
-      orderRepository.checkAccess.mockResolvedValue(false);
-      reviewRepository.getSettings.mockResolvedValue(mockSettings);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getUserReview).mockResolvedValue(null);
+      vi.mocked(orderRepository.checkAccess).mockResolvedValue(false);
+      vi.mocked(reviewRepository.getSettings).mockResolvedValue(mockSettings as any);
 
       await expect(reviewService.createReview('prod-1', 'user-1', 5, 'content'))
         .rejects.toThrow('Necesitas haber comprado el producto para publicar una review');
@@ -143,12 +143,12 @@ describe('review.service.ts', () => {
         updated_at: new Date(),
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getUserReview.mockResolvedValue(null);
-      orderRepository.checkAccess.mockResolvedValue(false);
-      reviewRepository.getSettings.mockResolvedValue(mockSettings);
-      reviewRepository.createReview.mockResolvedValue(mockReview);
-      reviewRepository.updateReview.mockResolvedValue({ ...mockReview, is_published: true });
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getUserReview).mockResolvedValue(null);
+      vi.mocked(orderRepository.checkAccess).mockResolvedValue(false);
+      vi.mocked(reviewRepository.getSettings).mockResolvedValue(mockSettings as any);
+      vi.mocked(reviewRepository.createReview).mockResolvedValue(mockReview as any);
+      vi.mocked(reviewRepository.updateReview).mockResolvedValue({ ...mockReview, is_published: true } as any);
 
       await reviewService.createReview('prod-1', 'user-1', 5, 'Loved it!');
 
@@ -176,8 +176,8 @@ describe('review.service.ts', () => {
         avgRating: 5,
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getReviewsByProduct.mockResolvedValue(mockResult);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getReviewsByProduct).mockResolvedValue(mockResult as any);
 
       const result = await reviewService.getReviews('prod-1');
 
@@ -186,7 +186,7 @@ describe('review.service.ts', () => {
     });
 
     it('should throw when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(reviewService.getReviews('prod-1'))
         .rejects.toThrow(AppError);
@@ -194,8 +194,8 @@ describe('review.service.ts', () => {
 
     it('should pass includeUnpublished parameter', async () => {
       const mockProduct = { id: 'prod-1', title: 'Test Product' };
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getReviewsByProduct.mockResolvedValue({ reviews: [], total: 0, avgRating: 0 });
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getReviewsByProduct).mockResolvedValue({ reviews: [], total: 0, avgRating: 0 } as any);
 
       await reviewService.getReviews('prod-1', true, 50, 10);
 
@@ -216,7 +216,7 @@ describe('review.service.ts', () => {
         updated_at: new Date(),
       };
 
-      reviewRepository.getReviewById.mockResolvedValue(mockReview);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(mockReview as any);
 
       const result = await reviewService.getReviewById('r-1');
 
@@ -224,7 +224,7 @@ describe('review.service.ts', () => {
     });
 
     it('should return null when not found', async () => {
-      reviewRepository.getReviewById.mockResolvedValue(null);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(null);
 
       const result = await reviewService.getReviewById('r-1');
 
@@ -247,8 +247,8 @@ describe('review.service.ts', () => {
 
       const mockUpdated = { ...mockReview, rating: 4 };
 
-      reviewRepository.getReviewById.mockResolvedValue(mockReview);
-      reviewRepository.updateReview.mockResolvedValue(mockUpdated);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(mockReview as any);
+      vi.mocked(reviewRepository.updateReview).mockResolvedValue(mockUpdated as any);
 
       const result = await reviewService.updateReview('r-1', { rating: 4 });
 
@@ -256,7 +256,7 @@ describe('review.service.ts', () => {
     });
 
     it('should throw when review not found', async () => {
-      reviewRepository.getReviewById.mockResolvedValue(null);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(null);
 
       await expect(reviewService.updateReview('r-1', { rating: 4 }))
         .rejects.toThrow(AppError);
@@ -274,8 +274,8 @@ describe('review.service.ts', () => {
         updated_at: new Date(),
       };
 
-      reviewRepository.getReviewById.mockResolvedValue(mockReview);
-      reviewRepository.updateReview.mockResolvedValue(null);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(mockReview as any);
+      vi.mocked(reviewRepository.updateReview).mockResolvedValue(null);
 
       await expect(reviewService.updateReview('r-1', { rating: 4 }))
         .rejects.toThrow(AppError);
@@ -295,8 +295,8 @@ describe('review.service.ts', () => {
         updated_at: new Date(),
       };
 
-      reviewRepository.getReviewById.mockResolvedValue(mockReview);
-      reviewRepository.deleteReview.mockResolvedValue(true);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(mockReview as any);
+      vi.mocked(reviewRepository.deleteReview).mockResolvedValue(true);
 
       const result = await reviewService.deleteReview('r-1');
 
@@ -304,7 +304,7 @@ describe('review.service.ts', () => {
     });
 
     it('should throw when review not found', async () => {
-      reviewRepository.getReviewById.mockResolvedValue(null);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(null);
 
       await expect(reviewService.deleteReview('r-1'))
         .rejects.toThrow(AppError);
@@ -336,10 +336,10 @@ describe('review.service.ts', () => {
         created_at: new Date(),
       };
 
-      reviewRepository.getReviewById.mockResolvedValue(mockReview);
-      reviewRepository.vote.mockResolvedValue(mockUserVote);
-      reviewRepository.getVoteCounts.mockResolvedValue({ helpful: 5, not_helpful: 2 });
-      reviewRepository.getUserVote.mockResolvedValue(mockUserVote);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(mockReview as any);
+      vi.mocked(reviewRepository.vote).mockResolvedValue(mockUserVote as any);
+      vi.mocked(reviewRepository.getVoteCounts).mockResolvedValue({ helpful: 5, not_helpful: 2 });
+      vi.mocked(reviewRepository.getUserVote).mockResolvedValue(mockUserVote as any);
 
       const result = await reviewService.voteReview('r-1', 'user-1', 'helpful');
 
@@ -349,7 +349,7 @@ describe('review.service.ts', () => {
     });
 
     it('should throw when review not found', async () => {
-      reviewRepository.getReviewById.mockResolvedValue(null);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(null);
 
       await expect(reviewService.voteReview('r-1', 'user-1', 'helpful'))
         .rejects.toThrow(AppError);
@@ -375,10 +375,10 @@ describe('review.service.ts', () => {
         created_at: new Date(),
       };
 
-      reviewRepository.getReviewById.mockResolvedValue(mockReview);
-      reviewRepository.vote.mockResolvedValue(mockUserVote);
-      reviewRepository.getVoteCounts.mockResolvedValue({ helpful: 5, not_helpful: 2 });
-      reviewRepository.getUserVote.mockResolvedValue(null);
+      vi.mocked(reviewRepository.getReviewById).mockResolvedValue(mockReview as any);
+      vi.mocked(reviewRepository.vote).mockResolvedValue(mockUserVote as any);
+      vi.mocked(reviewRepository.getVoteCounts).mockResolvedValue({ helpful: 5, not_helpful: 2 });
+      vi.mocked(reviewRepository.getUserVote).mockResolvedValue(null);
 
       const result = await reviewService.voteReview('r-1', 'user-1', 'helpful');
 
@@ -388,8 +388,8 @@ describe('review.service.ts', () => {
 
   describe('removeVote', () => {
     it('should remove vote and return counts', async () => {
-      reviewRepository.removeVote.mockResolvedValue(true);
-      reviewRepository.getVoteCounts.mockResolvedValue({ helpful: 4, not_helpful: 2 });
+      vi.mocked(reviewRepository.removeVote).mockResolvedValue(true);
+      vi.mocked(reviewRepository.getVoteCounts).mockResolvedValue({ helpful: 4, not_helpful: 2 });
 
       const result = await reviewService.removeVote('r-1', 'user-1');
 
@@ -417,8 +417,8 @@ describe('review.service.ts', () => {
         updated_at: new Date(),
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getSettings.mockResolvedValue(mockSettings);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getSettings).mockResolvedValue(mockSettings as any);
 
       const result = await reviewService.getSettings('prod-1');
 
@@ -426,7 +426,7 @@ describe('review.service.ts', () => {
     });
 
     it('should throw when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(reviewService.getSettings('prod-1'))
         .rejects.toThrow(AppError);
@@ -447,8 +447,8 @@ describe('review.service.ts', () => {
         updated_at: new Date(),
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.upsertSettings.mockResolvedValue(mockSettings);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.upsertSettings).mockResolvedValue(mockSettings as any);
 
       const result = await reviewService.updateSettings('prod-1', { allowReviews: false });
 
@@ -456,7 +456,7 @@ describe('review.service.ts', () => {
     });
 
     it('should throw when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(reviewService.updateSettings('prod-1', { allowReviews: false }))
         .rejects.toThrow(AppError);
@@ -475,8 +475,8 @@ describe('review.service.ts', () => {
         updated_at: new Date(),
       };
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.upsertSettings.mockResolvedValue(mockSettings);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.upsertSettings).mockResolvedValue(mockSettings as any);
 
       await reviewService.updateSettings('prod-1', {
         allowReviews: true,
@@ -501,8 +501,8 @@ describe('review.service.ts', () => {
         { rating: 3, count: 2 },
       ];
 
-      productRepository.getProductById.mockResolvedValue(mockProduct);
-      reviewRepository.getRatingDistribution.mockResolvedValue(mockDistribution);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(mockProduct as any);
+      vi.mocked(reviewRepository.getRatingDistribution).mockResolvedValue(mockDistribution as any);
 
       const result = await reviewService.getRatingDistribution('prod-1');
 
@@ -511,7 +511,7 @@ describe('review.service.ts', () => {
     });
 
     it('should throw when product not found', async () => {
-      productRepository.getProductById.mockResolvedValue(null);
+      vi.mocked(productRepository.getProductById).mockResolvedValue(null);
 
       await expect(reviewService.getRatingDistribution('prod-1'))
         .rejects.toThrow(AppError);
