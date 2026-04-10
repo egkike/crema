@@ -44,7 +44,7 @@ jobs:
         cache-dependency-path: pnpm-lock.yaml
 
     - name: Install dependencies
-      run: pnpm install
+      run: pnpm install --frozen-lockfile
 
     - name: TypeScript check
       run: pnpm tsc --noEmit
@@ -90,10 +90,10 @@ jobs:
       run: pnpm install --frozen-lockfile
 
     - name: TypeScript check
-      run: pnpm tsc --noEmit --filter=frontend-admin
+      run: pnpm --filter frontend-admin tsc --noEmit
 
     - name: Lint code
-      run: pnpm lint --filter=frontend-admin
+      run: pnpm --filter frontend-admin lint
 
     - name: Build project
-      run: pnpm build --filter=frontend-admin
+      run: pnpm --filter frontend-admin build
