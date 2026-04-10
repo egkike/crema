@@ -7,12 +7,14 @@ on:
       - 'backend/**'
       - 'shared/**'
       - 'frontend-admin/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [ master ]
     paths:
       - 'backend/**'
       - 'shared/**'
       - 'frontend-admin/**'
+      - '.github/workflows/**'
 
 jobs:
   # =========================================================================
