@@ -37,7 +37,7 @@ const COOKIE_DOMAIN = sanitizeCookieDomain(config.cookieDomain);
 </head>
 <body class="bg-surface-950 text-surface-100 font-sans antialiased">
   <div id="app"></div>
-  <script define:vars={{ API_URL, IS_DEV }}>
+  <script define:vars={{ API_URL, IS_DEV, COOKIE_DOMAIN }}>
     // Secure Login Implementation
     // Note: CSRF is handled automatically by httpOnly cookies on the backend
     (function() {
