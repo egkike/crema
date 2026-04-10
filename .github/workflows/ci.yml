@@ -41,7 +41,7 @@ jobs:
       with:
         node-version: 22
         cache: 'pnpm'
-        cache-dependency-path: backend/pnpm-lock.yaml
+        cache-dependency-path: pnpm-lock.yaml
 
     - name: Install dependencies
       run: pnpm install
@@ -70,10 +70,6 @@ jobs:
   frontend-admin-qa:
     runs-on: ubuntu-latest
     
-    defaults:
-      run:
-        working-directory: frontend-admin
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -88,16 +84,16 @@ jobs:
       with:
         node-version: 22
         cache: 'pnpm'
-        cache-dependency-path: frontend-admin/pnpm-lock.yaml
+        cache-dependency-path: pnpm-lock.yaml
 
     - name: Install dependencies
-      run: pnpm install
+      run: pnpm install --frozen-lockfile
 
     - name: TypeScript check
-      run: pnpm tsc --noEmit
+      run: pnpm tsc --noEmit --filter=frontend-admin
 
     - name: Lint code
-      run: pnpm lint
+      run: pnpm lint --filter=frontend-admin
 
     - name: Build project
-      run: pnpm build
+      run: pnpm build --filter=frontend-admin
