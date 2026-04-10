@@ -90,7 +90,7 @@ jobs:
       run: pnpm install --frozen-lockfile
 
     - name: TypeScript check
-      run: pnpm --filter frontend-admin tsc --noEmit
+      run: pnpm --filter frontend-admin run check
 
     - name: Lint code
       run: pnpm --filter frontend-admin lint
