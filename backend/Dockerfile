@@ -8,17 +8,22 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Configuramos pnpm para que use una estructura plana (hoisted)
-# Esto garantiza que 'pino' esté donde Node lo busca
 RUN pnpm config set node-linker hoisted
 
-COPY package.json pnpm-lock.yaml ./
-COPY tsconfig.json tsconfig.build.json ./
+# Copiamos archivos del workspace (raíz)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
+# Instalamos todas las dependencias del workspace
 RUN pnpm install --frozen-lockfile
 
-COPY src/ ./src/
+# Copiamos el código fuente del backend
+COPY backend/src/ ./backend/src/
+COPY backend/package.json ./backend/package.json
+COPY backend/tsconfig.json ./backend/tsconfig.json
+COPY backend/tsconfig.build.json ./backend/tsconfig.build.json
 
-# Compila el proyecto
+# Compila el proyecto desde el directorio backend
+WORKDIR /app/backend
 RUN pnpm build
 
 # Etapa 2: Imagen final
@@ -27,20 +32,22 @@ RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
-# Copiamos lo que construiste (ahora son archivos reales, no links)
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
+# Copiamos archivos del workspace para instalar dependencias
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY backend/package.json ./backend/
 
-# --- PREPARACIÓN DE CARPETAS Y PERMISOS ---
-# Creamos logs y uploads en una sola línea para optimizar la imagen
-RUN mkdir -p /app/logs /app/uploads && \
-    addgroup -S crema && \
-    adduser -S crema -G crema && \
-    chown -R crema:crema /app
+# Activar pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN pnpm config set node-linker hoisted
 
-# Cambiamos al usuario
-USER crema
+# Instalamos todas las dependencias del workspace
+RUN pnpm install --frozen-lockfile
+
+# Copiamos el build
+COPY --from=builder /app/backend/dist ./dist
+
+# --- PREPARACIÓN DE CARPETAS ---
+RUN mkdir -p /app/logs /app/uploads
 
 ENV NODE_ENV=production
 ENV PORT=3000

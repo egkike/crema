@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const MOCK_PASSWORD_HASH = bcrypt.hashSync('p1' + 'test-pepper', 10);

@@ -3,8 +3,8 @@ version: '3.9'
 services:
   api:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
       network: host 
     container_name: crema-api
     restart: unless-stopped

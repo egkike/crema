@@ -2,19 +2,8 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2023", "DOM"],
-    "module": "ESNext",              // ← Cambia a ESNext (o NodeNext si preferís estrictamente Node)
-    "moduleResolution": "Bundler",   // ← Ahora sí: Bundler permite imports sin extensión
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "sourceMap": true,
-    "noImplicitAny": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "exactOptionalPropertyTypes": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "noEmit": true,
     "typeRoots": [
       "./node_modules/@types",

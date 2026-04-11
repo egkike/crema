@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 import { Request, Response, NextFunction } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { UAParser } from 'ua-parser-js';
 
 import {

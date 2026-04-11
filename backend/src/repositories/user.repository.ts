@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 import type { PoolClient } from 'pg';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 import pool from '../db/postgres';
 import { config } from '../config/index';

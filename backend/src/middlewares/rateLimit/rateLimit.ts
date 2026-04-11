@@ -1,6 +1,6 @@
 // Rate Limiting avanzado, sirve para proteger tu API contra ataques de fuerza bruta,
 // spam y sobrecarga (especialmente en rutas sensibles como /login y /refresh).
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 import logger from '../../utils/logger';
 
@@ -17,7 +17,7 @@ export const loginLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || (req.ip ? String(req.ip) : 'unknown');
+    return userId || ipKeyGenerator(req.ip || '', 56);
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, ip: req.ip }, 'Límite de login alcanzado');
@@ -38,7 +38,7 @@ export const refreshLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || (req.ip ? String(req.ip) : 'unknown');
+    return userId || ipKeyGenerator(req.ip || '', 56);
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, ip: req.ip }, 'Límite de refresh alcanzado');
@@ -71,7 +71,7 @@ export const aiLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || (req.ip ? String(req.ip) : 'unknown');
+    return userId || ipKeyGenerator(req.ip || '', 56);
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de AI alcanzado');
@@ -92,7 +92,7 @@ export const aiChatLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || (req.ip ? String(req.ip) : 'unknown');
+    return userId || ipKeyGenerator(req.ip || '', 56);
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de chat AI alcanzado');
@@ -126,7 +126,7 @@ export const adminReadLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || (req.ip ? String(req.ip) : 'unknown');
+    return userId || ipKeyGenerator(req.ip || '', 56);
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de lectura admin alcanzado');
@@ -146,10 +146,10 @@ export const adminWriteLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || (req.ip ? String(req.ip) : 'unknown');
+    return userId || ipKeyGenerator(req.ip || '', 56);
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de escritura admin alcanzado');
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de lectura admin alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
