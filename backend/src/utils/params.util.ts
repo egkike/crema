@@ -9,7 +9,7 @@ import type { ParsedQs } from 'qs';
 export function toString(value: string | string[] | ParsedQs | (string | ParsedQs)[] | undefined): string {
   if (Array.isArray(value)) return toString(value[0]);
   if (typeof value === 'object' && value !== null) return '';
-  return value || '';
+  return (value as string) || '';
 }
 
 /**
