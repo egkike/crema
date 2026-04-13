@@ -25,17 +25,6 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 | When orchestrator launches you to verify a completed (or partially completed) change | sdd-verify | /home/kike/.config/opencode/skills/sdd-verify/SKILL.md |
 | When user asks to create a new skill, add agent instructions, or document patterns for AI | skill-creator | /home/kike/.config/opencode/skills/skill-creator/SKILL.md |
 | When user says "update skills", "skill registry", "actualizar skills", "update registry" | skill-registry | /home/kike/.config/opencode/skills/skill-registry/SKILL.md |
-| "improve accessibility", "a11y audit", "WCAG compliance", "screen reader support", "keyboard navigation", "make accessible" | accessibility | .agents/skills/accessibility/SKILL.md |
-| "Astro", ".astro files", "static site generation", "islands architecture", "content collections", "deploy Astro" | astro | .agents/skills/astro/SKILL.md |
-| "improve SEO", "optimize for search", "fix meta tags", "add structured data", "sitemap" | seo | .agents/skills/seo/SKILL.md |
-| Tailwind CSS, styling, responsive design, CSS utilities | tailwind-css-patterns | .agents/skills/tailwind-css-patterns/SKILL.md |
-| TypeScript advanced types, generics, conditional types | typescript-advanced-types | .agents/skills/typescript-advanced-types/SKILL.md |
-| Writing tests, vitest, mocking, coverage, test patterns | vitest | .agents/skills/vitest/SKILL.md |
-| React/Next.js performance, re-renders, bundle optimization | vercel-react-best-practices | .agents/skills/vercel-react-best-practices/SKILL.md |
-| React compound components, render props, context provider, component architecture | vercel-composition-patterns | .agents/skills/vercel-composition-patterns/SKILL.md |
-| Node.js principles, framework selection, async patterns, security | nodejs-best-practices | .agents/skills/nodejs-best-practices/SKILL.md |
-| Express.js server, REST API, middleware, authentication | nodejs-express-server | .agents/skills/nodejs-express-server/SKILL.md |
-| Backend architecture, Node.js patterns, microservices | nodejs-backend-patterns | .agents/skills/nodejs-backend-patterns/SKILL.md |
 
 ## Compact Rules
 
@@ -163,129 +152,10 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Write .atl/skill-registry.md
 - Save to engram if available
 
-### accessibility
-- WCAG 2.2: follow POUR principles (Perceivable, Operable, Understandable, Robust)
-- Target AA compliance minimum (4.5:1 contrast for text, 3:1 for large text/UI)
-- All images need alt text (descriptive or alt="" for decorative)
-- Icon buttons need aria-label or visually-hidden text
-- All functionality must be keyboard accessible (Enter/Space support)
-- Use :focus-visible for visible focus indicators (never remove outlines)
-- Form inputs need programmatically associated labels
-- Use aria-live for dynamic content announcements
-- Respect prefers-reduced-motion for animations
-- Interactive targets minimum 24x24px (44x44 recommended)
-
-### astro
-- Use --config flag for custom config path if needed
-- Run `npx astro sync` after adding/changing integrations for TypeScript types
-- Deploy with adapter: `npx astro add vercel/node/cloudflare/netlify`
-- Pages go in src/pages/ (filename = route)
-- Components go in src/components/ (convention)
-- Public assets go in public/ (copied as-is to build)
-- Use `npx astro check` before build to catch errors
-- Set site config for sitemaps and canonical URLs
-
-### frontend-design
-- Commit to a bold aesthetic direction (maximalist, minimalist, retro-futuristic, etc.)
-- Choose distinctive fonts (avoid Inter, Roboto, Arial, system fonts)
-- Use CSS variables for consistent theming
-- Prioritize high-impact animations over scattered micro-interactions
-- Use Motion library for React, CSS-only for HTML
-- Create atmosphere with gradients, textures, noise, shadows vs solid colors
-- Unexpected layouts: asymmetry, overlap, diagonal flow, grid-breaking
-- Match implementation complexity to aesthetic vision
-
-### nodejs-backend-patterns
-- Apply Clean Architecture: controllers → services → repositories
-- Use dependency injection for testability
-- Implement proper error handling with custom error classes
-- Use Zod for input validation at API boundaries
-- Apply rate limiting on all public endpoints
-- Implement proper logging with correlation IDs
-- Use parameterized queries for all database operations
-
-### nodejs-best-practices
-- Choose framework based on context (Hono for edge, Fastify for performance, Express for legacy)
-- Use layered architecture for growing projects
-- Fail fast: validate early at boundaries
-- Don't trust any input (even "internal" data)
-- Use async/await for sequential, Promise.all for parallel independent operations
-- Never use sync methods in production (fs.readFileSync, etc.)
-- Centralized error handling with consistent response format
-
-### nodejs-express-server
-- Use express-validator or Zod for input validation
-- Implement proper security headers with Helmet.js
-- Use httpOnly, secure, sameSite cookies for auth tokens
-- Implement rate limiting with express-rate-limit
-- Proper CORS configuration with explicit allowed origins
-- Centralized error handling middleware
-- Use controller → service → repository pattern
-
-### seo
-- Title tags: 50-60 chars, primary keyword near start, unique per page
-- Meta descriptions: 150-160 chars, compelling with CTA, unique per page
-- Single h1 per page with logical heading hierarchy
-- Use semantic HTML (header, nav, main, footer, article)
-- Implement structured data (JSON-LD) for rich snippets
-- robots.txt: allow public paths, disallow admin/api/private
-- XML sitemap: max 50k URLs, include lastmod
-- Canonical URLs to prevent duplicate content
-
-### tailwind-css-patterns
-- Use utility classes for composition over custom CSS
-- Apply responsive prefixes: md:, lg:, xl: for breakpoints
-- Use @apply for repeated patterns, utility classes for one-offs
-- Implement dark mode with dark: prefix
-- Use group and group-hover for parent-child hover states
-- Use focus:, active:, disabled: for interaction states
-- Apply container queries with @container when needed
-
-### typescript-advanced-types
-- Use generics for reusable type-safe components
-- Prefer readonly arrays and const assertions
-- Use satisfies for validation without narrowing
-- Utility types: Partial, Required, Pick, Omit, Record
-- Conditional types for type inference from functions
-- Template literal types for string patterns
-- Use never for exhaustive type checking
-
-### vercel-composition-patterns
-- Avoid boolean prop proliferation (use explicit variants)
-- Use compound components for related UI pieces
-- Prefer children over render props
-- Decouple state from implementation with context
-- Lift state up only when shared, keep local otherwise
-- Use explicit variant props over optional booleans
-- React 19: no forwardRef needed, ref is regular prop
-- Use useActionState for form mutations, useOptimistic for optimistic UI
-
-### vercel-react-best-practices
-- No useMemo/useCallback unless proven necessary (React Compiler handles it)
-- use() hook for promises/context, replaces useEffect for data fetching
-- Server Components by default, add 'use client' only for interactivity
-- Server actions: use useActionState, proper error boundaries
-- Use Suspense boundaries for streaming
-- Implement proper error boundaries with error.tsx
-- Prefetch with link rel="prefetch" for visible links
-- Avoid passing object/function props that cause re-renders
-
-### vitest
-- Use describe/it for test structure
-- Use beforeEach/afterEach for setup/teardown
-- Use vi.fn() for mocking, vi.spyOn() for existing methods
-- Use fake timers with vi.useFakeTimers() for time-dependent tests
-- Use toEqual for objects/arrays, toBe for primitives
-- Use test.each for parameterized tests
-- Use skip/only to control test execution
-- Coverage: --coverage flag with v8 or istanbul provider
-
 ## Project Conventions
 
 | File | Path | Notes |
 |------|------|-------|
-| AGENTS.md | AGENTS.md | Project agent instructions |
-| Vercel React Best Practices | .agents/skills/vercel-react-best-practices/AGENTS.md | Referenced by AGENTS.md |
-| Vercel Composition Patterns | .agents/skills/vercel-composition-patterns/AGENTS.md | Referenced by AGENTS.md |
+| AGENTS.md | /home/kike/Documentos/Kike/Desarrollos_Software/Proyectos/crema/AGENTS.md | Project agent instructions |
 
 Read the convention files listed above for project-specific patterns and rules. All referenced paths have been extracted — no need to read index files to discover more.
