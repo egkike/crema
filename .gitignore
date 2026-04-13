@@ -50,4 +50,4 @@ uploads/*
 *.bak
 *.http
 .eslintcache
-tsconfig.tsbuildinfo
+.tsconfig.tsbuildinfo
