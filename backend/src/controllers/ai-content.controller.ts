@@ -14,8 +14,6 @@ import { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger';
 import { AppError } from '../errors/AppError';
 import { aiContentConfig } from '../config/ai-content.config';
-
-// Services
 import { contentReaderService } from '../services/ai/content/content-reader.service';
 import { contentAssistantService, ProductType } from '../services/ai/content/content-assistant.service';
 import { quizGeneratorService } from '../services/ai/content/quiz-generator.service';

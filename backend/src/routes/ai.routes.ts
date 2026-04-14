@@ -21,6 +21,7 @@ import type { AuthenticatedRequest } from '../types/express';
 import type { EmbeddingSourceType } from '../types/ai.types';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
 import { configRepository } from '../repositories/config.repository';
+
 // Zod schemas for input validation
 import {
   purchaseCreditsSchema,
