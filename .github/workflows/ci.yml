@@ -27,6 +27,9 @@ jobs:
   backend-qa:
     runs-on: ubuntu-latest
     
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    
     defaults:
       run:
         working-directory: backend
@@ -60,7 +63,6 @@ jobs:
       run: pnpm test
       env:
         NODE_ENV: test
-        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         SECRET_JWT_KEY: 'test-secret-super-largo-para-tests'
         SECRET_REFRESH_JWT_KEY: 'test-secret-refresh-super-largo-para-tests'
         PASSWORD_PEPPER: 'test-pepper'
@@ -73,6 +75,9 @@ jobs:
   # =========================================================================
   frontend-admin-qa:
     runs-on: ubuntu-latest
+    
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
     - name: Checkout code
