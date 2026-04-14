@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import type { RequestHandler } from 'express';
 
 import logger from '../utils/logger';
@@ -14,7 +14,7 @@ import { reportService } from '../services/ai/denunciation.service';
 import { qaAgentService, analyticsService, tutorService, insightsService } from '../services/ai/agents.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
-import { aiLimiter, aiChatLimiter } from '../middlewares/rateLimit/rateLimit';
+import { aiLimiter, aiChatLimiter, aiContentLimiter } from '../middlewares/rateLimit/rateLimit';
 import { validate } from '../middlewares/auth/validate.middleware';
 import { AppError } from '../errors/AppError';
 import type { AuthenticatedRequest } from '../types/express';
@@ -1804,5 +1804,81 @@ router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, validate
     res.end();
   }
 });
+
+// ============================================================================
+// AI Content Assistant Routes (Phase 6)
+// ============================================================================
+
+import { aiContentController } from '../controllers/ai-content.controller';
+import { upload } from '../middlewares/storage/upload.middleware';
+
+/**
+ * POST /api/ai/content/assist
+ * Analyze content using AI
+ * 
+ * Body:
+ * - content: string (required) - Text content to analyze
+ * - filePath?: string - Optional file path for content extraction
+ * - productType?: 'course' | 'book' | 'article' | 'document' | 'podcast' | 'video'
+ * - analysisType?: 'summary' | 'topics' | 'questions' | 'full' (default: 'full')
+ * - maxSummaryLength?: number (50-5000)
+ */
+router.post(
+  '/content/assist',
+  jwtAuthMiddleware,
+  aiContentLimiter,
+  async (req: Request, res: Response, next: NextFunction) => {
+    await aiContentController.assist(req, res, next);
+  }
+);
+
+/**
+ * POST /api/ai/quiz/generate
+ * Generate quiz from content
+ * 
+ * Body:
+ * - content: string (required)
+ * - filePath?: string
+ * - productType?: 'course' | 'book' | 'article' | 'document' | 'podcast' | 'video'
+ * - options?: { questionCount, questionTypes, difficulty, language }
+ */
+router.post(
+  '/quiz/generate',
+  jwtAuthMiddleware,
+  aiContentLimiter,
+  async (req: Request, res: Response, next: NextFunction) => {
+    await aiContentController.generateQuiz(req, res, next);
+  }
+);
+
+/**
+ * POST /api/ai/transcribe
+ * Transcribe audio/video file
+ * 
+ * Multipart form-data:
+ * - file: File (required)
+ */
+router.post(
+  '/transcribe',
+  jwtAuthMiddleware,
+  aiContentLimiter,
+  upload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    await aiContentController.transcribe(req, res, next);
+  }
+);
+
+/**
+ * GET /api/ai/transcription/usage
+ * Get transcription usage for current month
+ */
+router.get(
+  '/transcription/usage',
+  jwtAuthMiddleware,
+  aiContentLimiter,
+  async (req: Request, res: Response, next: NextFunction) => {
+    await aiContentController.getTranscriptionUsage(req, res, next);
+  }
+);
 
 export default router;

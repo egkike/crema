@@ -16,8 +16,8 @@
 | Phase 3 | ContentAssistantService | ✅ Completado |
 | Phase 4 | QuizGeneratorService | ✅ Completado |
 | Phase 5 | TranscriptionService | ✅ Completado |
-| Phase 6 | API Routes | 📋 Pendiente |
-| Phase 7 | Rate Limiting | 📋 Pendiente |
+| Phase 6 | API Routes | ✅ Completado |
+| Phase 7 | Rate Limiting | ✅ Completado |
 | Phase 8 | Testing | 📋 Pendiente |
 | Phase 9 | Documentation | 📋 En progreso |
 
@@ -74,27 +74,27 @@
 
 ---
 
-## Phase 6: API Routes 📋
+## Phase 6: API Routes ✅
 
 | Task | Descripción | Status |
 |------|-------------|--------|
-| 6.1 | Agregar endpoint POST `/api/ai/content/assist` | 📋 |
-| 6.2 | Agregar endpoint POST `/api/ai/quiz/generate` | 📋 |
-| 6.3 | Agregar endpoint POST `/api/ai/transcribe` | 📋 |
-| 6.4 | Agregar endpoint GET `/api/ai/transcription/usage` | 📋 |
+| 6.1 | Agregar endpoint POST `/api/ai/content/assist` | ✅ |
+| 6.2 | Agregar endpoint POST `/api/ai/quiz/generate` | ✅ |
+| 6.3 | Agregar endpoint POST `/api/ai/transcribe` | ✅ |
+| 6.4 | Agregar endpoint GET `/api/ai/transcription/usage` | ✅ |
 
 **Dependencies**: Phase 1-5 completados
 
 ---
 
-## Phase 7: Rate Limiting 📋
+## Phase 7: Rate Limiting ✅
 
 | Task | Descripción | Status |
 |------|-------------|--------|
-| 7.1 | Configurar rate limiter para `/ai/content/assist` (10/min) | 📋 |
-| 7.2 | Configurar rate limiter para `/ai/quiz/generate` (5/min) | 📋 |
-| 7.3 | Configurar rate limiter para `/ai/transcribe` (3/min) | 📋 |
-| 7.4 | Implementar Plan-based limits | 📋 |
+| 7.1 | Configurar rate limiter para `/ai/content/assist` (10/min) | ✅ |
+| 7.2 | Configurar rate limiter para `/ai/quiz/generate` (5/min) | ✅ |
+| 7.3 | Configurar rate limiter para `/ai/transcribe` (3/min) | ✅ |
+| 7.4 | Implementar Plan-based limits | ✅ |
 
 **Dependencies**: Phase 6 (API Routes)
 

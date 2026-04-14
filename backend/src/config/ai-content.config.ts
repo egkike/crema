@@ -110,6 +110,12 @@ export const aiContentConfig = {
   transcriptionProMonthlyMinutes: env.TRANSCRIPTION_PRO_MONTHLY_MINUTES,
   transcriptionExtraCostPerMinuteArs: env.TRANSCRIPTION_EXTRA_COST_PER_MINUTE_ARS,
   transcriptionExtraCostPerMinuteCredits: env.TRANSCRIPTION_EXTRA_COST_PER_MINUTE_CREDITS,
+
+  // Credit Costs (Phase 6)
+  creditsPerAnalysis: 1,
+  creditsPerQuiz: 2,
+  creditsPerTranscriptionMinute: 3,
+  maxContentLength: 500000,
 } as const;
 
 // ============================================

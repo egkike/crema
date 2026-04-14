@@ -19,8 +19,32 @@ export const loginLimiter = rateLimit({
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '', 56);
   },
+handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de lectura admin alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
+// Rate limiter para AI Content Assistant (Phase 6)
+// Más restrictivo que aiLimiter general:
+// - 10/min for content assist
+// - 5/min for quiz generation  
+// - 3/min for transcription
+export const aiContentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 10, // 10 requests por minuto por usuario
+  message: {
+    success: false,
+    error: 'Límite de contenido AI alcanzado. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId || ipKeyGenerator(req.ip || '', 56);
+  },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, ip: req.ip }, 'Límite de login alcanzado');
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de AI content alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
