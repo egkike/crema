@@ -51,10 +51,17 @@ jobs:
         cache-dependency-path: pnpm-lock.yaml
 
     - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      run: |
+        echo "=== Install start ==="
+        pnpm install --frozen-lockfile
+        echo "=== Install done ==="
+        pnpm list --depth=0 || true
 
     - name: TypeScript check
-      run: pnpm tsc --noEmit
+      run: |
+        echo "=== TS check start ==="
+        pnpm tsc --noEmit
+        echo "=== TS check done ==="
 
     - name: Lint code
       run: pnpm lint
@@ -96,10 +103,17 @@ jobs:
         cache-dependency-path: pnpm-lock.yaml
 
     - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      run: |
+        echo "=== Install start ==="
+        pnpm install --frozen-lockfile
+        echo "=== Install done ==="
+        pnpm list --depth=0 || true
 
     - name: TypeScript check
-      run: pnpm --filter frontend-admin run check
+      run: |
+        echo "=== TS check start ==="
+        pnpm --filter frontend-admin run check
+        echo "=== TS check done ==="
 
     - name: Lint code
       run: pnpm --filter frontend-admin lint
