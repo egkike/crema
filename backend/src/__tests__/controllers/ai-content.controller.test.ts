@@ -36,32 +36,32 @@ describe('AIContentController - Endpoints Definition', () => {
       'generateQuiz',
       'transcribe',
       'getTranscriptionUsage',
-    ];
+    ] as const;
     
     methods.forEach(method => {
-      expect(typeof aiContentController[method]).toBe('function');
+      expect(typeof (aiContentController as any)[method]).toBe('function');
     });
   });
 });
 
 describe('AIContentController - Route Registration', () => {
-  it('should have assist method as async function', async () => {
-    const { aiContentController } = await import('../../controllers/ai-content.controller');
-    expect(aiContentController.assist.constructor.name).toBe('AsyncFunction');
-  });
+    it('should have assist method as async function', async () => {
+      const { aiContentController } = await import('../../controllers/ai-content.controller');
+      expect((aiContentController as any).assist.constructor.name).toBe('AsyncFunction');
+    });
 
-  it('should have generateQuiz method as async function', async () => {
-    const { aiContentController } = await import('../../controllers/ai-content.controller');
-    expect(aiContentController.generateQuiz.constructor.name).toBe('AsyncFunction');
-  });
+    it('should have generateQuiz method as async function', async () => {
+      const { aiContentController } = await import('../../controllers/ai-content.controller');
+      expect((aiContentController as any).generateQuiz.constructor.name).toBe('AsyncFunction');
+    });
 
-  it('should have transcribe method as async function', async () => {
-    const { aiContentController } = await import('../../controllers/ai-content.controller');
-    expect(aiContentController.transcribe.constructor.name).toBe('AsyncFunction');
-  });
+    it('should have transcribe method as async function', async () => {
+      const { aiContentController } = await import('../../controllers/ai-content.controller');
+      expect((aiContentController as any).transcribe.constructor.name).toBe('AsyncFunction');
+    });
 
-  it('should have getTranscriptionUsage method as async function', async () => {
-    const { aiContentController } = await import('../../controllers/ai-content.controller');
-    expect(aiContentController.getTranscriptionUsage.constructor.name).toBe('AsyncFunction');
-  });
+    it('should have getTranscriptionUsage method as async function', async () => {
+      const { aiContentController } = await import('../../controllers/ai-content.controller');
+      expect((aiContentController as any).getTranscriptionUsage.constructor.name).toBe('AsyncFunction');
+    });
 });
