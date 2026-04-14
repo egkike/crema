@@ -20,10 +20,9 @@ import { AppError } from '../errors/AppError';
 import type { AuthenticatedRequest } from '../types/express';
 import type { EmbeddingSourceType } from '../types/ai.types';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
-import { configRepository } from '../repositories/config.repository';
+import { configRepository } from '../repositories/config.repository'; // eslint-disable-line import/order
 
-// Zod schemas for input validation
-import {
+import { // eslint-disable-line import/order
   purchaseCreditsSchema,
   createQuestionSchema,
   answerQuestionSchema,
