@@ -65,13 +65,14 @@ Tu objetivo es identificar:
 - Estructura del curso
 - Sugerencias de práctica
 
-Responde siempre en formato JSON válido con esta estructura:
-{
-  "summary": "Resumen del contenido en 2-3 oraciones",
-  "keyTopics": ["Tema 1", "Tema 2", "Tema 3"],
-  "suggestedQuestions": ["Pregunta 1?", "Pregunta 2?", "Pregunta 3?"],
-  "language": "es" o "en"
-}`,
+IMPORTANTE:
+- Solo devuelve JSON válido, sin texto adicional fuera del JSON
+- No incluyas bloques de código markdown (no uses \\\`\\\`\\\`)
+- keyTopics debe tener EXACTAMENTE 3 temas relevantes (no menos, no vacíos)
+- suggestedQuestions debe tener EXACTAMENTE 3 preguntas (no menos, no vacías)
+
+Responde con esteJSON exactamente:
+{"summary":"...","keyTopics":["...","...","..."],"suggestedQuestions":["...?","...?","...?"],"language":"es"}`,
     user: `Analiza el siguiente contenido de curso:
 
 {content}
@@ -88,13 +89,14 @@ Tu objetivo es identificar:
 - Estilo del autor
 - Conclusiones principales
 
-Responde siempre en formato JSON válido con esta estructura:
-{
-  "summary": "Resumen del contenido en 2-3 oraciones",
-  "keyTopics": ["Tema 1", "Tema 2", "Tema 3"],
-  "suggestedQuestions": ["Pregunta 1?", "Pregunta 2?", "Pregunta 3?"],
-  "language": "es" o "en"
-}`,
+IMPORTANTE:
+- Solo devuelve JSON válido, sin texto adicional fuera del JSON
+- No incluyas bloques de código markdown (no uses \\\`\\\`\\\`)
+- keyTopics debe tener EXACTAMENTE 3 temas relevantes (no menos, no vacíos)
+- suggestedQuestions debe tener EXACTAMENTE 3 preguntas (no menos, no vacías)
+
+Responde con este JSON exactamente:
+{"summary":"...","keyTopics":["...","...","..."],"suggestedQuestions":["...?","...?","...?"],"language":"es"}`,
     user: `Analiza el siguiente contenido de libro:
 
 {content}
@@ -111,13 +113,14 @@ Analizas artículos y ensayos con enfoque en:
 - Conclusiones del autor
 - Calidad de las fuentes
 
-Responde siempre en formato JSON válido con esta estructura:
-{
-  "summary": "Resumen del contenido en 2-3 oraciones",
-  "keyTopics": ["Tema 1", "Tema 2", "Tema 3"],
-  "suggestedQuestions": ["Pregunta 1?", "Pregunta 2?", "Pregunta 3?"],
-  "language": "es" o "en"
-}`,
+IMPORTANTE:
+- Solo devuelve JSON válido, sin texto adicional fuera del JSON
+- No incluyas bloques de código markdown (no uses \\\`\\\`\\\`)
+- keyTopics debe tener EXACTAMENTE 3 temas relevantes (no menos, no vacíos)
+- suggestedQuestions debe tener EXACTAMENTE 3 preguntas (no menos, no vacías)
+
+Responde con este JSON exactamente:
+{"summary":"...","keyTopics":["...","...","..."],"suggestedQuestions":["...?","...?","...?"],"language":"es"}`,
     user: `Analiza el siguiente artículo:
 
 {content}
@@ -134,13 +137,14 @@ Analizas documentos técnicos, legales o corporativos con enfoque en:
 - Requisitos o acciones necesarias
 - Secciones principales
 
-Responde siempre en formato JSON válido con esta estructura:
-{
-  "summary": "Resumen del contenido en 2-3 oraciones",
-  "keyTopics": ["Tema 1", "Tema 2", "Tema 3"],
-  "suggestedQuestions": ["Pregunta 1?", "Pregunta 2?", "Pregunta 3?"],
-  "language": "es" o "en"
-}`,
+IMPORTANTE:
+- Solo devuelve JSON válido, sin texto adicional fuera del JSON
+- No incluyas bloques de código markdown (no uses \\\`\\\`\\\`)
+- keyTopics debe tener EXACTAMENTE 3 temas relevantes (no menos, no vacíos)
+- suggestedQuestions debe tener EXACTAMENTE 3 preguntas (no menos, no vacías)
+
+Responde con este JSON exactamente:
+{"summary":"...","keyTopics":["...","...","..."],"suggestedQuestions":["...?","...?","...?"],"language":"es"}`,
     user: `Analiza el siguiente documento:
 
 {content}
@@ -157,13 +161,14 @@ Analizas transcripciones de podcasts con enfoque en:
 - Recursos o enlaces mencionados
 - Resumen de conclusiones
 
-Responde siempre en formato JSON válido con esta estructura:
-{
-  "summary": "Resumen del contenido en 2-3 oraciones",
-  "keyTopics": ["Tema 1", "Tema 2", "Tema 3"],
-  "suggestedQuestions": ["Pregunta 1?", "Pregunta 2?", "Pregunta 3?"],
-  "language": "es" o "en"
-}`,
+IMPORTANTE:
+- Solo devuelve JSON válido, sin texto adicional fuera del JSON
+- No incluyas bloques de código markdown (no uses \\\`\\\`\\\`)
+- keyTopics debe tener EXACTAMENTE 3 temas relevantes (no menos, no vacíos)
+- suggestedQuestions debe tener EXACTAMENTE 3 preguntas (no menos, no vacías)
+
+Responde con este JSON exactamente:
+{"summary":"...","keyTopics":["...","...","..."],"suggestedQuestions":["...?","...?","...?"],"language":"es"}`,
     user: `Analiza la siguiente transcripción de podcast:
 
 {content}
@@ -180,13 +185,14 @@ Analizas transcripciones de videos con enfoque en:
 - Recursos o materiales mencionados
 - Llamado a la acción
 
-Responde siempre en formato JSON válido con esta estructura:
-{
-  "summary": "Resumen del contenido en 2-3 oraciones",
-  "keyTopics": ["Tema 1", "Tema 2", "Tema 3"],
-  "suggestedQuestions": ["Pregunta 1?", "Pregunta 2?", "Pregunta 3?"],
-  "language": "es" o "en"
-}`,
+IMPORTANTE:
+- Solo devuelve JSON válido, sin texto adicional fuera del JSON
+- No incluyas bloques de código markdown (no uses \\\`\\\`\\\`)
+- keyTopics debe tener EXACTAMENTE 3 temas relevantes (no menos, no vacíos)
+- suggestedQuestions debe tener EXACTAMENTE 3 preguntas (no menos, no vacías)
+
+Responde con este JSON exactamente:
+{"summary":"...","keyTopics":["...","...","..."],"suggestedQuestions":["...?","...?","...?"],"language":"es"}`,
     user: `Analiza la siguiente transcripción de video:
 
 {content}
@@ -393,50 +399,87 @@ export class ContentAssistantService {
   
   /**
    * Get format instructions based on analysis type
+   * Updated: More explicit instructions to ensure 3 non-empty topics and 3 questions
    */
   private getFormatInstructions(analysisType: string, maxLength?: number): string {
     const max = maxLength || aiContentConfig.contentSummaryMaxTokens;
-    
+
     switch (analysisType) {
       case 'summary':
-        return `Proporciona un resumen conciso de máximo ${max} caracteres. Enfócate en las ideas principales.`;
-      
+        return `Proporciona un resumen conciso de máximo ${max} caracteres.
+En las 3 keyTopics: lista exactamente 3 temas relevantes del contenido.
+En las 3 suggestedQuestions: genera exactamente 3 preguntas de comprensión.
+NO devuelvas arrays vacíos ni strings vacíos.`;
+
       case 'topics':
-        return `Identifica exactamente ${aiContentConfig.contentTopicExtractionCount} temas clave. Lista solo los temas, sin explicaciones adicionales.`;
-      
+        return `Identifica exactamente 3 temas clave relevantes.
+NO listes menos de 3 temas.
+NO incluyas strings vacíos.
+Cada tema debe ser una frase corta de máximo 10 palabras.`;
+
       case 'questions':
-        return `Genera exactamente ${aiContentConfig.contentQuestionSuggestionCount} preguntas de comprensión. Una por línea.`;
-      
+        return `Genera exactamente 3 preguntas de comprensión del contenido.
+NO generes menos de 3 preguntas.
+NO incluyas strings vacíos.
+Cada pregunta debe terminar con signos de interrogación.`;
+
       case 'full':
       default:
-        return `Proporciona análisis completo con resumen, temas clave (${aiContentConfig.contentTopicExtractionCount}) y preguntas (${aiContentConfig.contentQuestionSuggestionCount}).`;
+        return `Proporciona análisis completo:
+- Resumen: máximo ${max} caracteres
+- keyTopics: EXACTAMENTE 3 temas relevantes (no vacíos, no strings vacíos)
+- suggestedQuestions: EXACTAMENTE 3 preguntas de comprensión (no vacías, no strings vacíos)`;
     }
   }
   
   /**
    * Parse LLM response into ContentAnalysis
+   * Fixed: Better JSON extraction, removes markdown artifacts, filters empty values
    */
   private parseLLMResponse(response: string): ContentAnalysis {
-    // Try to extract JSON from response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    
+    // Step 1: Clean up markdown code blocks (```json ... ``` or ``` ... ```)
+    const cleanResponse = response
+      .replace(/```json\s*/g, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    // Step 2: Try to extract the main JSON object (the first complete {...})
+    // More precise regex that stops at the first closing }
+    const jsonMatch = cleanResponse.match(/^\s*\{[\s\S]*?\}\s*$/);
+
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);
+
+        // Step 3: Clean up arrays - remove empty strings and trim
+        const cleanKeyTopics = Array.isArray(parsed.keyTopics)
+          ? parsed.keyTopics.filter((t: unknown) => t && typeof t === 'string' && t.trim()).map((t: string) => t.trim())
+          : [];
+
+        const cleanQuestions = Array.isArray(parsed.suggestedQuestions)
+          ? parsed.suggestedQuestions.filter((q: unknown) => q && typeof q === 'string' && q.trim()).map((q: string) => q.trim())
+          : [];
+
+        // Step 4: Clean summary - remove JSON artifacts from inside the string
+        const cleanSummary = (parsed.summary || '')
+          .replace(/```json\s*[\s\S]*?```/g, '')
+          .replace(/\{[\s\S]*?\}/g, '')
+          .trim();
+
         return {
-          summary: parsed.summary || '',
-          keyTopics: Array.isArray(parsed.keyTopics) ? parsed.keyTopics : [],
-          suggestedQuestions: Array.isArray(parsed.suggestedQuestions) ? parsed.suggestedQuestions : [],
+          summary: cleanSummary,
+          keyTopics: cleanKeyTopics,
+          suggestedQuestions: cleanQuestions,
           language: parsed.language || 'es',
           wordCount: response.split(/\s+/).length,
         };
       } catch {
         // Failed to parse JSON, use text extraction
-        return this.extractFromText(response);
+        return this.extractFromText(cleanResponse);
       }
     }
-    
-    return this.extractFromText(response);
+
+    return this.extractFromText(cleanResponse);
   }
   
   /**
