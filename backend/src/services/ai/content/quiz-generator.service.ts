@@ -278,40 +278,58 @@ Genera un quiz de evaluación sobre el siguiente contenido:
 ${content}
 ---
 
-Requisitos:
-- Genera exactamente ${questionCount} preguntas
+REQUISITOS OBLIGATORIOS:
+- Debes generar EXACTAMENTE ${questionCount} preguntas (ni más, ni menos)
 - Tipos de preguntas: ${typeList}
 - Dificultad: ${difficulty}
+- CADA pregunta debe tener opciones específicas relacionadas con el contenido (no uses "Opción A", "Opción B", "Opción C", "Opción D" genéricas)
+- Incluye explicación breve para cada respuesta correcta
 ${contextHint}
 
-Formato de respuesta (JSON array):
+Formato de respuesta (SOLO JSON array, sin markdown):
 [
   {
     "type": "multiple-choice",
-    "question": "Pregunta?",
-    "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
+    "question": "Pregunta específica sobre el contenido?",
+    "options": ["Opción específica A", "Opción específica B", "Opción específica C", "Opción específica D"],
     "correctAnswer": 0,
-    "explanation": "Explicación breve"
+    "explanation": "Explicación específica de por qué es correcta"
   }
 ]
 
-IMPORTANTE: Responde SOLO con JSON válido, sin texto adicional.
+IMPORTANTE: 
+- Responde SOLO con JSON válido
+- NO uses bloques de código markdown (\`\`\`)
+- Cada opción debe ser específica al contenido, no genérica
 `.trim();
   }
   
   /**
    * Get system prompt based on language
+   * Improved: More explicit instructions for better compliance
    */
   private getSystemPrompt(language: 'es' | 'en'): string {
     if (language === 'en') {
       return `You are an expert quiz generator. Generate educational quizzes from provided content.
-Always respond with valid JSON array format.
-Include brief explanations for correct answers.`;
+
+CRITICAL INSTRUCTIONS:
+- Generate EXACTLY the number of questions specified in the user prompt
+- NEVER generate fewer questions than requested
+- Each question must have specific options related to the content (NOT generic "Option A, B, C, D")
+- Always respond with valid JSON array format.
+- Include brief explanations for correct answers.
+- NEVER include markdown code blocks (no \`\`\`json or \`\`\`)`;
     }
     
     return `Eres un experto en generación de quizzes educativos. Genera quizzes de evaluación del contenido proporcionado.
-Siempre responde en formato válido de JSON array.
-Incluye explicaciones breves para las respuestas correctas.`;
+
+INSTRUCCIONES CRÍTICAS:
+- Genera EXACTAMENTE el número de preguntas especificado en el prompt del usuario
+- NUNCA generes menos preguntas de las solicitadas
+- Cada pregunta debe tener opciones específicas relacionadas con el contenido (NO opciones genéricas "Opción A, B, C, D")
+- Siempre responde en formato válido de JSON array.
+- Incluye explicaciones breves para las respuestas correctas.
+- NUNCA incluyas bloques de código markdown (no uses \`\`\`json o \`\`\`)`;
   }
   
   /**
