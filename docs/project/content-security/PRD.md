@@ -42,9 +42,11 @@ Establecer un marco robusto de validaciones y controles para todo el contenido s
 
 ### 2.2 Validación de Coherencia y Calidad (Capa AI)
 
+> **Dependencia**: La validación de coherencia AI depende del `ContentAssistantService` que se implementará en la Fase 1 del AI Features PRD. Mientras tanto, usar heurística simple basada en palabras clave del título.
+
 | Control | Descripción | Lógica de Validación | Prioridad |
 |---------|-------------|----------------------|:---------:|
-| **Coherencia de Contenido** | Verificar que el contenido coincide con el tipo de producto | Usar `ContentAssistantService` para resumir contenido y compararlo con el título/descripción del producto | ALTA |
+| **Coherencia de Contenido** | Verificar que el contenido coincide con el tipo de producto | Usar `ContentAssistantService` (Fase 1 AI) o heurística simple: palabras clave del título en el contenido | ALTA |
 | **Moderación de Contenido** | Detectar contenido prohibido (sexo, violencia, odio, abusos) | Integración con API de Moderación (OpenAI Moderation o similar) | ALTA |
 | **Análisis de Texto Prohibido** | Buscar palabras clave prohibidas en títulos y descripciones | Regex + Análisis semántico con LLM | MEDIA |
 
@@ -193,39 +195,122 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 
 ## 10. Roadmap de Implementación
 
-### Fase 1: Blindaje Técnico (Corto Plazo)
-- [ ] Implementar bloqueo de ejecutables en `upload.middleware.ts`
-- [ ] Agregar checkbox de declaración de copyright general en frontend/backend
-- [ ] Agregar checkbox específico de "autorización" cuando el contenido es un link externo
-- [ ] Agregar checkbox específico para ebooks: "Declaro que poseo los derechos de este ebook"
-- [ ] Agregar checkbox de declaración de originalidad para cursos
-- [ ] Agregar checkbox de derechos de audio para podcasts
-- [ ] Agregar declaración de licencia para software
-- [ ] Agregar declaración de derechos para membresías
-- [ ] Implementar validación de tamaño mínimo de archivos
-- [ ] Implementar allowlist de dominios permitidos para URLs externas
-- [ ] Implementar rate limiting específico para uploads
-- [ ] Implementar warning en checkout para productos 100% con links de terceros
-- [ ] Agregar campo ISBN opcional para ebooks
-- [ ] Requerir preview obligatorio (al menos 1 lección/episodio gratuito)
-- [ ] Requerir metadata de episodios para podcasts
-- [ ] Agregar campo ISBN opcional para ebooks
+> **Fecha inicio**: Mayo 2026  
+> **Duración**: 12 semanas (3 meses)
 
-### Fase 2: Moderación AI (Medio Plazo)
-- [ ] Integrar API de moderación para contenido prohibido
-- [ ] Implementar validación de coherencia (Content Assistant) para cursos, ebooks, podcasts, membresías
-- [ ] Integrar scanner de malware básico
-- [ ] Implementar detección de música protegida para podcasts (Audible Magic o similar)
-- [ ] Verificar coherencia de estructura de membresías con productos incluidos
+### Fase 1: Blindaje Técnico (Semanas 1-4) [Mayo 2026]
 
-### Fase 3: Gestión de Copyright (Largo Plazo)
-- [ ] Implementar sistema de hashing de archivos (fingerprint)
-- [ ] Formalizar el proceso de DMCA takedown
-- [ ] Implementar validación de calidad (resolución/duración)
-- [ ] Integrar servicio de detección de plagio para ebooks (Copyscape o similar)
-- [ ] Verificación de propiedad de canales YouTube (para links externos)
-- [ ] Sistema de verificación de SHA256 para software
-- [ ] Integración con sistema de licencias de software
+| ID | Task | Estado | Owner | Sprint |
+|----|------|--------|------|--------|
+| CS-01 | Implementar bloqueo de ejecutables en `upload.middleware.ts` | TODO | Backend | Sprint 1 |
+| CS-02 | Agregar checkbox de declaración de copyright general | TODO | Frontend | Sprint 1 |
+| CS-03 | Agregar checkbox específico de "autorización" para links externos | TODO | Frontend | Sprint 1 |
+| CS-04 | Agregar checkbox de derechos para ebooks | TODO | Frontend | Sprint 1 |
+| CS-05 | Agregar checkbox de declaración de originalidad para cursos | TODO | Frontend | Sprint 1 |
+| CS-06 | Agregar checkbox de derechos de audio para podcasts | TODO | Frontend | Sprint 1 |
+| CS-07 | Agregar declaración de licencia para software | TODO | Frontend | Sprint 1 |
+| CS-08 | Agregar declaración de derechos para membresías | TODO | Frontend | Sprint 1 |
+| CS-09 | Implementar validación de tamaño mínimo de archivos | TODO | Backend | Sprint 2 |
+| CS-10 | Implementar allowlist de dominios permitidos para URLs externas | TODO | Backend | Sprint 2 |
+| CS-11 | Implementar rate limiting específico para uploads | TODO | Backend | Sprint 2 |
+| CS-12 | Implementar warning en checkout para productos con links de terceros | TODO | Frontend | Sprint 2 |
+| CS-13 | Agregar campo ISBN opcional para ebooks | TODO | Fullstack | Sprint 3 |
+| CS-14 | Requerir preview obligatorio (al menos 1 lección/episodio gratuito) | TODO | Backend | Sprint 3 |
+| CS-15 | Requerir metadata de episodios para podcasts | TODO | Backend | Sprint 3 |
+
+### Fase 2: Moderación AI (Semanas 5-8) [Junio - Julio 2026]
+
+| ID | Task | Estado | Owner | Sprint |
+|----|------|--------|------|--------|
+| CS-16 | Integrar API de moderación para contenido prohibido | TODO | Backend | Sprint 4 |
+| CS-17 | Implementar validación de coherencia AI para cursos/ebooks/podcasts/membresías | TODO | Backend | Sprint 5 |
+| CS-18 | Integrar scanner de malware básico (ClamAV o similar) | TODO | DevOps | Sprint 5 |
+| CS-19 | Implementar detección de música protegida para podcasts | TODO | Backend | Sprint 6 |
+| CS-20 | Verificar coherencia de estructura de miembros con productos incluidos | TODO | Backend | Sprint 6 |
+
+### Fase 3: Gestión de Copyright (Semanas 9-12) [Agosto - Septiembre 2026]
+
+| ID | Task | Estado | Owner | Sprint |
+|----|------|--------|------|--------|
+| CS-21 | Implementar sistema de hashing de archivos (fingerprint) | TODO | Backend | Sprint 7 |
+| CS-22 | Formalizar el proceso de DMCA takedown | TODO | Legal | Sprint 7 |
+| CS-23 | Implementar validación de calidad (resolución/duración) | TODO | Backend | Sprint 8 |
+| CS-24 | Integrar servicio de detección de plagio para ebooks | TODO | Backend | Sprint 9 |
+| CS-25 | Verificación de propiedad de canales YouTube (para links externos) | TODO | Backend | Sprint 9 |
+| CS-26 | Sistema de verificación de SHA256 para software | TODO | Backend | Sprint 10 |
+| CS-27 | Integración con sistema de licencias de software | TODO | Backend | Sprint 10 |
+
+> **Leyenda de estados**: `TODO` | `IN PROGRESS` | `DONE` | `BLOCKED`
+
+---
+
+## X. Requisitos No Funcionales
+
+### X.1 Performance y Tiempos de Respuesta
+
+| Operación | Tiempo Objetivo | Tipo |
+|-----------|-----------------|------|
+| **Validación de extensiones/MIME** | < 100ms | Sincrónico |
+| **Validación de coherencia AI** | < 10 segundos | Asincrónico |
+| **Upload de archivo** | < 30 segundos (sin AI) | Sincrónico |
+| **Malware scanning** | < 60 segundos | Asincrónico |
+| **Moderación de contenido AI** | < 15 segundos | Asincrónico |
+
+### X.2 Timeouts y Handling
+
+| Escenario | Timeout | Manejo |
+|-----------|---------|--------|
+| Validación de archivo | 5s | Error 400: "Archivo inválido" |
+| Upload completo | 30s | Error 413: "Archivo muy grande" |
+| Malware scan | 60s | Reintento automático, luego marcar para revisión manual |
+| Moderación AI | 15s | Timeout → permitir contenido, marcar para revisión |
+
+### X.3 Seguridad
+
+#### X.3.1 Rate Limiting
+
+| Endpoint | Límite | Ventana |
+|----------|:------:|---------|
+| `/upload/*` | 10 | minuto por usuario |
+| `/validate/*` | 20 | minuto por usuario |
+| `/moderation/*` | 30 | minuto por usuario |
+
+#### X.3.2 Validación de Archivos
+
+| Control | Implementación |
+|---------|---------------|
+| **MIME type verification** | Verificar que el Content-Type coincide con la extensión |
+| **Extension allowlist** | Solo extensiones aprobadas por tipo de producto |
+| **Filename sanitization** | Remover path traversal, caracteres especiales |
+| **Size limits** | Max 100MB por archivo, configurable |
+| **Magic bytes** | Verificar header del archivo real |
+
+#### X.3.3 Malware Protection
+
+| Control | Descripción |
+|---------|-------------|
+| **ClamAV integration** | Escaneo async de archivos subidos |
+| **File type restrictions** | Bloquear ejecutables (.exe, .bat, .sh, .msi) excepto en casos permitidos |
+| ** quarantine** | Archivos sospechosos en quarantine para revisión manual |
+| **Hash tracking** | SHA256 para detectar re-uploads de archivos maliciosos conocidos |
+
+### X.4 Escalabilidad
+
+| Aspecto | Requisito |
+|--------|-----------|
+| **Uploads concurrentes** | Soporte hasta 100 uploads simultáneos |
+| **Queue processing** | BullMQ para malware scanning y moderación |
+| **Caching** | Redis para resultados de validación (evitar re-validar) |
+| **Horizontal scaling** | Stateless, puede escalar con más instancias |
+
+### X.5 Monitoreo
+
+| Métrica | Descripción | Alerta |
+|---------|-------------|--------|
+| **Upload success rate** | % de uploads exitosos | < 95% |
+| **Validation failures** | Fallos de validación por tipo | > 10% |
+| **Malware detected** | Archivos maliciosos encontrados | > 0 |
+| **Moderation queue** | Pendientes de revisión | > 100 |
 
 ---
 

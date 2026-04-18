@@ -39,7 +39,8 @@ Dotar al backend de Crema de una arquitectura más robusta, mantenible y escalab
 |---|-------|:---------:|
 | 1 | Centralizar Orquestación de Agentes | ALTA |
 | 2 | Manejo de Errores Centralizado | MEDIA |
-| 4 | Unificar Configuración | MEDIA |
+| 3 | Unificar Configuración | MEDIA |
+| 4 | Skills Registry | BAJA |
 
 ---
 
@@ -172,8 +173,10 @@ CREATE TABLE ai_agents (
     description TEXT,
     system_prompt TEXT NOT NULL,
     model VARCHAR(20) DEFAULT 'gpt-4o',
+    fallback_model VARCHAR(20),  -- Modelo de fallback si el principal falla
     temperature DECIMAL(2,1) DEFAULT 0.7,
     max_tokens INTEGER DEFAULT 2000,
+    is_default BOOLEAN DEFAULT FALSE,  -- TRUE = agente por defecto para queries no clasificadas
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -230,13 +233,44 @@ class AgentsOrchestrator {
     // 4. Construir contexto
     const context = await this.contextBuilder.build(request, skills);
     
-    // 5. Ejecutar agente
-    const response = await agent.execute(context);
+    // 5. Ejecutar agente con fallback
+    let response;
+    try {
+      response = await agent.execute(context);
+    } catch (primaryError) {
+      // Fallback 1: Intentar con modelo secundario
+      try {
+        const fallbackModel = await this.getFallbackModel(agent.model);
+        context.model = fallbackModel;
+        response = await agent.execute(context);
+      } catch (fallbackError) {
+        // Fallback 2: Responder con modo degradado
+        response = await this.executeGracefulDegradation(context);
+      }
+    }
     
     // 6. Registrar para métricas
     await this.metrics.record({ intent, agent, skills, response });
     
     return response;
+  }
+  
+  private async getFallbackModel(primary: string): Promise<string> {
+    const fallbacks: Record<string, string> = {
+      'gpt-4o': 'gemini-1.5-flash',
+      'claude-3-opus': 'claude-3-haiku',
+      'gemini-1.5-flash': 'claude-3-haiku',
+    };
+    return fallbacks[primary] || 'claude-3-haiku';
+  }
+  
+  private async executeGracefulDegradation(context: QueryContext): Promise<QueryResponse> {
+    return {
+      agent: context.agentKey,
+      response: 'Estoy tenido dificultades para procesar tu solicitud. Por favor, reformula tu pregunta o intenta más tarde.',
+      skillUsed: undefined,
+      metadata: { degraded: true }
+    };
   }
 }
 ```
@@ -248,7 +282,7 @@ class AgentsOrchestrator {
 | ARCH-01 | Sistema | recibir una query y determinar qué agente usar | responder correctamente |
 | ARCH-02 | Sistema | cargar los skills correctos para el agente seleccionado | tener la información necesaria |
 | ARCH-03 | Admin | ver qué agentes se usan más | optimizar experiencia |
-| ARCH-04 | Desarrollador | agregar un nuevo skill | |
+| ARCH-04 | Desarrollador | agregar un nuevo skill | extender la funcionalidad del sistema sin modificar código del agente |
 
 #### Estado
 🆕 **NUEVO** - Requiere desarrollo
@@ -294,7 +328,7 @@ Unificar el manejo de errores para que todas las respuestas de error tengan form
 | **Slack/Discord** | Solo INTERNAL_001+ (errores críticos) | Alerta con requestId |
 | **Metrics** | Siempre | Contador por tipo |
 
-####User Stories
+#### User Stories
 
 | ID | Como | quiero | para |
 |----|------|--------|------|
@@ -347,6 +381,53 @@ INSERT INTO app_config (config_key, config_value, config_type, category, descrip
 ('rate_limit.general_per_minute', '60', 'number', 'app', 'Requests generales por minuto por usuario');
 ```
 
+#### Plan de Migración
+
+> **Estrategia**: Migración gradual sin breaking changes. El ConfigService busca primero en DB, luego en variables de entorno, luego usa default.
+
+**Fase 1: Lectura dual (compatibilidad)**
+
+```typescript
+class ConfigService {
+  // Busca: 1) DB → 2) process.env → 3) default
+  get(key: string, defaultValue?: string): string {
+    // 1. Buscar en DB
+    const dbValue = this.cache.get(key);
+    if (dbValue !== undefined) return dbValue;
+    
+    // 2. Buscar en .env (backward compatibility)
+    const envKey = key.toUpperCase().replace(/\./g, '_');
+    if (process.env[envKey] !== undefined) return process.env[envKey];
+    
+    // 3. Usar default
+    return defaultValue;
+  }
+}
+```
+
+**Fase 2: seed desde .env**
+
+```bash
+# script de migración:
+# 1. Leer todos los valores de config/index.ts y .env
+# 2. Insertar en app_config con category='migrated'
+# 3. Verificar que funcionan iguales
+```
+
+**Fase 3: Cleanup (post deploy)**
+
+```sql
+-- Após validación completa:
+-- 1. Eliminar código Legacy de config/index.ts
+-- 2. Actualizar is_encrypted para secrets
+-- 3. Quitar comentarios 'migrated'
+```
+
+**Reglas de migración**:
+- ⚠️ No migrar secrets directamente — regenerar
+- ⚠️ Validar 24h antes de quitar backward compatibility
+- ⚠️ Mantener .env para local dev
+
 #### Interfaz del ConfigService
 
 ```typescript
@@ -389,7 +470,7 @@ class ConciergeAgent {
 }
 ```
 
-####User Stories
+#### User Stories
 
 | ID | Como | quiero | para |
 |----|------|--------|------|
@@ -404,31 +485,40 @@ class ConciergeAgent {
 
 ## 5. Roadmap de Implementación
 
-### Fase 1: Fundamentos (Semanas 1-2)
+> **Fecha inicio**: Mayo 2026  
+> **Duración**: 10 semanas
 
-| Semana | Mejora | Entregable |
-|--------|--------|-------------|
-| 1-2 | **Unificar Configuración** | ConfigService + tabla DB |
+> **Definition of Done**: Cada fase se considera completada cuando:  
+> - Código en `main` con tests passing  
+> - Documentación técnica actualizada  
+> - Code review aprobado  
+> - Despliegue a staging verificado
 
-### Fase 2: Orquestación (Semanas 3-5)
+### Fase 1: Fundamentos (Semanas 1-2) [Mayo 2026]
 
-| Semana | Mejora | Entregable |
-|--------|--------|-------------|
-| 3-4 | **Centralizar Orquestación** | Orchestrator + AgentsRegistry |
-| 4-5 | **Skills Registry** | Tabla de skills en DB |
+| Semana | Mejora | Entregable | Depende de |
+|--------|--------|-------------|-----------|
+| 1-2 | **Unificar Configuración** | ConfigService + tabla DB | - |
 
-### Fase 3: Errores (Semanas 6-7)
+### Fase 2: Orquestación (Semanas 3-5) [Junio 2026]
 
-| Semana | Mejora | Entregable |
-|--------|--------|-------------|
-| 6-7 | **Manejo de Errores** | Error handler + not |
+| Semana | Mejora | Entregable | Depende de |
+|--------|--------|-------------|-----------|
+| 3-4 | **Centralizar Orquestación** | Orchestrator + AgentsRegistry | ConfigService |
+| 4-5 | **Skills Registry** | Tabla de skills en DB | Orchestrator |
 
-### Fase 4: Integración (Semanas 8-10)
+### Fase 3: Errores (Semanas 6-7) [Julio 2026]
 
-| Semana | Mejora | Entregable |
-|--------|--------|-------------|
-| 8-9 | **Integración Concierge** | Concierge usando nuevas capas |
-| 10 | **Testing y documentación** | Tests end-to-end |
+| Semana | Mejora | Entregable | Depende de |
+|--------|--------|-------------|-----------|
+| 6-7 | **Manejo de Errores** | Error handler + notificaciones | - |
+
+### Fase 4: Integración (Semanas 8-10) [Agosto 2026]
+
+| Semana | Mejora | Entregable | Depende de |
+|--------|--------|-------------|-----------|
+| 8-9 | **Integración Concierge** | Concierge usando nuevas capas | Todas las anteriores |
+| 10 | **Testing y documentación** | Tests end-to-end | Fase 3 |
 
 ---
 
@@ -436,12 +526,13 @@ class ConciergeAgent {
 
 ### 6.1 Dependencias
 
-| Dependencia | De | Impacto |
-|-------------|---|---------|
-| ConfigService | Todas las mejoras | Bloqueador |
-| SkillsRegistry | Orchestrator | Alto |
-| LLMService existente | Orchestrator | Medio |
-| DB existente | Todas | Bajo |
+| Dependencia | De | Impacto | Orden |
+|-------------|---|---------|-------|
+| ConfigService | Todas las mejoras | Bloqueador | 1 (primera) |
+| Orchestrator | SkillsRegistry | Alto | 2 |
+| SkillsRegistry | Agentes AI | Medio | 3 |
+| LLMService existente | Orchestrator | Medio | 2 |
+| DB existente | Todas | Bajo | - |
 
 ### 6.2 Riesgos
 
@@ -450,6 +541,45 @@ class ConciergeAgent {
 | Breaking changes en código existente | Agregar migración gradual |
 | Performance por configuración en DB | Redis caching |
 | Keys de config no encontradas | Defaults obligatorios |
+
+### 6.3 Requisitos No Funcionales
+
+#### 6.3.1 Performance del Orchestrator
+
+| Métrica | Objetivo |
+|---------|----------|
+| **Tiempo de clasificación de intención** | < 200ms |
+| **Tiempo de selección de agente** | < 100ms |
+| **Tiempo de construcción de contexto** | < 500ms |
+| **Tiempo total (sin LLM)** | < 1 segundo |
+
+#### 6.3.2 Timeouts del Orchestrator
+
+| Escenario | Timeout | Manejo |
+|-----------|---------|--------|
+| Clasificación de intención | 2s | Fallback a agente por defecto |
+| Selección de agente | 1s | Error genérico |
+| Construcción de contexto | 5s | Reintento 1 vez, luego error |
+| Ejecución de agente | 60s (heredado del LLM) | Timeout del LLM |
+
+#### 6.3.3 Monitoreo del Orchestrator
+
+| Métrica | Descripción | Alerta |
+|---------|-------------|--------|
+| **Queries por segundo** | Requests al orquestador | > 100/s |
+| **Tiempo promedio** | Latencia promedio | > 2s |
+| **Errores por tipo** | Errors分类ados | > 5% |
+| **Agente más usado** | Distribución de uso | Si > 80% un agente |
+| **Skills ejecutados** | Uso por skill | Sin alerta |
+
+#### 6.3.4 Seguridad
+
+| Control | Descripción |
+|---------|-------------|
+| **Auth requerida** | JWT obligatorio en todas las queries |
+| **Rate limiting** | 60 queries/min por usuario |
+| **Audit logging** | Registrar todas las queries (sin PII) |
+| **Sanitización de input** | Evitar prompt injection |
 
 ---
 

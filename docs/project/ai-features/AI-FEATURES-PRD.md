@@ -50,7 +50,7 @@ Crema busca posicionarse como la **plataforma de infoproductos más inteligente 
 | **Reducir costos de soporte** | 80% de preguntas respondidas por IA |
 | **Aumentar conversión** | 15% mejora con herramientas AI para creadores |
 | **Retención de compradores** | 20% reducción de churn con rutas personalizadas |
-| **Ingresos por créditos** | $X USD/mes por créditos AI |
+| **Ingresos por créditos** | $5,000 USD/mes (Meses 3-6) |
 
 ### 1.3 Fuentes del Documento
 
@@ -850,24 +850,30 @@ Cada transacción debe incluir:
 
 ## 5. Matriz de Acceso por Rol
 
-| Funcionalidad | Creador | Comprador | Afiliado | Visitante |
-|---------------|:-------:|:---------:|:--------:|:---------:|
-| **Tutor IA** | Configura | ✅ Usa | - | - |
-| **AI Content Assistant** | ✅ Usa | - | - | - |
-| **Conversational Reader** | Configura | ✅ Usa | - | - |
-| **Micro-Learning Generator** | ✅ Usa | - | - | - |
-| **Smart Chapters** | ✅ Usa | ✅ Consume | - | - |
-| **Personalized Learning Path** | Configura | ✅ Usa | - | - |
-| **AI Content Studio** | ✅ Usa | - | - | - |
-| **AI Insights** | ✅ Usa | - | - | - |
-| **AI Support Chatbot** | ✅ Usa | ✅ Usa | ✅ Usa | ✅ Usa |
-| **AI Afiliate Chat** | - | ✅ Usa | ✅ Usa | - |
-| **Description Generator** | ✅ Usa | - | - | - |
-| **SEO Optimizer** | ✅ Usa | - | - | - |
-| **Certificate PDF Generator** | Genera | Descarga | - | Verifica |
-| **Sentiment Analytics** | ✅ Usa | - | - | - |
-| **Advanced DRM** | Configura | - | - | - |
-| **Credit Management Dashboard** | ✅ Usa | ✅ Usa | ✅ Usa | - |
+> **Leyenda de estados**:  
+> - ✅ = Implementado en producción  
+> - 🆕 = Nuevo, en desarrollo (Fase correspondiente del roadmap)  
+> - 🆕 Configura/Usa = Disponible para configurar/usar cuando se implemente  
+> - "-" = No disponible
+
+| Funcionalidad | Estado | Creador | Comprador | Afiliado | Visitante |
+|---------------|:------:|:-------:|:---------:|:--------:|:---------:|
+| **Tutor IA** | ✅ | Configura | ✅ Usa | - | - |
+| **AI Content Assistant** | ✅ | ✅ Usa | - | - | - |
+| **Conversational Reader** | 🆕 | 🆕 Configura | 🆕 Usa | - | - |
+| **Micro-Learning Generator** | 🆕 | 🆕 Usa | - | - | - |
+| **Smart Chapters** | 🆕 | 🆕 Usa | 🆕 Usa | - | - |
+| **Personalized Learning Path** | 🆕 | 🆕 Configura | 🆕 Usa | - | - |
+| **AI Content Studio** | 🆕 | 🆕 Usa | - | - | - |
+| **AI Insights** | 🆕 | 🆕 Usa | - | - | - |
+| **AI Support Chatbot** | 🆕 | ✅ Usa | ✅ Usa | ✅ Usa | ✅ Usa |
+| **AI Afiliate Chat** | 🆕 | - | 🆕 Usa | 🆕 Usa | - |
+| **Description Generator** | 🆕 | 🆕 Usa | - | - | - |
+| **SEO Optimizer** | 🆕 | 🆕 Usa | - | - | - |
+| **Certificate PDF Generator** | 🆕 | 🆕 Genera | 🆕 Descarga | - | 🆕 Verifica |
+| **Sentiment Analytics** | 🆕 | 🆕 Usa | - | - | - |
+| **Advanced DRM** | 🆕 | 🆕 Configura | - | - | - |
+| **Credit Management Dashboard** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | - |
 
 ### Sistema de Créditos por Rol
 
@@ -1215,63 +1221,66 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 | Fuente de Ingreso | Descripción | Proyección Mensual |
 |-------------------|-------------|-------------------|
-| **Créditos AI (Creador)** | Venta de paquetes de créditos | $X USD |
-| **Créditos AI (Comprador)** | Recargas de compradores | $X USD |
-| **Créditos AI (Afiliado)** | Recargas de afiliados | $X USD |
+| **Créditos AI (Creador)** | Venta de paquetes de créditos | $2,500 USD (Mes 3) → $5,000 USD (Mes 6) |
+| **Créditos AI (Comprador)** | Recargas de compradores | $500 USD (Mes 3) → $2,000 USD (Mes 6) |
+| **Créditos AI (Afiliado)** | Recargas de afiliados | $200 USD (Mes 3) → $1,000 USD (Mes 6) |
 | **Plan Pro** | Diferencia vs Plan Initial | Incluido |
-| **Upsell de features** | Micro-learning extra, etc. | $X USD |
+| **Upsell de features** | Micro-learning extra, etc. | $300 USD (Mes 3) → $1,500 USD (Mes 6) |
 
 ### 6.3 ROI Esperado
 
 | Métrica | Actual | Objetivo (12 meses) |
 |---------|--------|---------------------|
-| Costo de soporte por ticket | $X USD | -50% |
-| Tasa de conversión landing | X% | +15% |
-| Churn de membresías | X% | -20% |
-| Ingresos por créditos AI | $0 | $X USD/mes |
+| Costo de soporte por ticket | $15 USD | -50% ($7.50) |
+| Tasa de conversión landing | 2.5% | +15% (2.875%) |
+| Churn de membresías | 8% | -20% (6.4%) |
+| Ingresos por créditos AI | $0 | $8,500 USD/mes |
 
 ---
 
 ## 7. Roadmap de Implementación
 
-### Fase 1: Fundamentos AI (Meses 1-2)
+> **Fecha inicio**: Mayo 2026  
+> **Duración total**: 32 semanas (8 meses)
+
+### Fase 1: Fundamentos AI (Meses 1-2) [Mayo - Julio 2026]
 
 | Semana | Funcionalidad | Entregable |
 |--------|---------------|------------|
-| 1-2 | **Expansión Credits Service** | Créditos para Comprador/Afiliado + Dashboard Mejorado |
-| 1-2 | **Credit Management Dashboard** | Panel de saldo y transacciones para usuarios |
-| 3-4 | **Skills Registry** | Sistema de skills implementadas |
-| 5-6 | **Agentes Especializados** | Arquitecturas de agentes definidas |
-| 7-8 | **AI Support Chatbot** | MVP funcionando |
+| 1-2 | **Expansión Credits Service** | Créditos para Comprador/Afiliado + Dashboard Mejorado | - |
+| 1-2 | **Credit Management Dashboard** | Panel de saldo y transacciones para usuarios | Credits Service |
+| 3-4 | **Skills Registry** | Sistema de skills implementadas | - |
+| 5-6 | **Agentes Especializados** | Arquitecturas de agentes definidas | Skills Registry |
+| 7-8 | **AI Support Chatbot** | MVP funcionando | Agentes + Skills |
 
-### Fase 2: Creador AI Tools (Meses 3-4)
-
-| Semana | Funcionalidad | Entregable |
-|--------|---------------|------------|
-| 9-10 | **Description Generator** | Generador de descripciones |
-| 11-12 | **SEO Optimizer** | Meta tags automáticos |
-| 13-14 | **Certificate PDF Generator** | Generación de certificados |
-| 15-16 | **Sentiment Analytics** | Dashboard de análisis |
-
-### Fase 3: Learning AI (Meses 5-6)
+### Fase 2: Creador AI Tools (Meses 3-4) [Agosto - Septiembre 2026]
 
 | Semana | Funcionalidad | Entregable |
 |--------|---------------|------------|
-| 17-18 | **Conversational Reader** | Chat con PDF/Ebook |
-| 19-20 | **Smart Chapters** | Capitulación automática |
-| 21-22 | **Micro-Learning Generator** | Nuggets + Resumen + Quiz |
-| 23-24 | **Personalized Learning Path** | Rutas personalizadas |
+| 9-10 | **Description Generator** | Generador de descripciones | Agentes |
+| 11-12 | **SEO Optimizer** | Meta tags automáticos | Agentes |
+| 13-14 | **Certificate PDF Generator** | Generación de certificados | Agentes |
+| 15-16 | **Sentiment Analytics** | Dashboard de análisis | Agentes |
 
-### Fase 4: Advanced AI (Meses 7-8)
+### Fase 3: Learning AI (Meses 5-6) [Octubre - Noviembre 2026]
 
 | Semana | Funcionalidad | Entregable |
 |--------|---------------|------------|
-| 25-26 | **AI Content Studio** | Repurpose de contenido |
-| 27-28 | **AI Insights** | Analytics en lenguaje natural |
-| 29-30 | **AI Afiliate Chat** | Chat para afiliados |
-| 31-32 | **Advanced DRM** | Protección avanzada |
+| 17-18 | **Conversational Reader** | Chat con PDF/Ebook | Memory Service |
+| 19-20 | **Smart Chapters** | Capitulación automática | Memory Service |
+| 21-22 | **Micro-Learning Generator** | Nuggets + Resumen + Quiz | Transcription |
+| 23-24 | **Personalized Learning Path** | Rutas personalizadas | User Profiles |
 
-### Fase 5: Optimización (Mes 9+)
+### Fase 4: Advanced AI (Meses 7-8) [Diciembre 2026 - Enero 2027]
+
+| Semana | Funcionalidad | Entregable |
+|--------|---------------|------------|
+| 25-26 | **AI Content Studio** | Repurpose de contenido | Memory Service |
+| 27-28 | **AI Insights** | Analytics en lenguaje natural | Analytics DB |
+| 29-30 | **AI Afiliate Chat** | Chat para afiliados | Agentes |
+| 31-32 | **Advanced DRM** | Protección avanzada | - |
+
+### Fase 5: Optimización (Mes 9+) [Febrero 2027+]
 
 - Refinamiento de prompts
 - Testing de usuarios
@@ -1472,6 +1481,97 @@ Las siguientes tablas ya existen en `backend/db/init/05-ai-tables.sql` y `01-cre
 | `product_seo_configs` | SEO Optimizer | Meta tags por producto |
 | `sentiment_analyses` | Sentiment Analytics | Historial de análisis de reviews |
 | `drm_configs` | Advanced DRM | Configuración de protección por producto |
+
+##### Schemas SQL
+
+```sql
+-- product_memories:Chunks de PDFs/Ebooks para Conversational Reader
+CREATE TABLE product_memories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    chunk_text TEXT NOT NULL,
+    embedding VECTOR(1536),
+    page_number INTEGER,
+    section_title VARCHAR(255),
+    content_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_product_memories_product ON product_memories(product_id);
+CREATE INDEX idx_product_memories_embedding ON product_memories USING ivfflat (embedding vector_cosine_ops);
+
+-- user_learning_paths:Rutas personalizadas por usuario
+CREATE TABLE user_learning_paths (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    path_data JSONB NOT NULL DEFAULT '{}',  -- {milestones:[],current_step,completed[]}
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, product_id)
+);
+
+-- micro_learning_assets:Nuggets, resúmenes, mapas mentales
+CREATE TABLE micro_learning_assets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    asset_type VARCHAR(20) NOT NULL,  -- 'nugget','summary','mindmap','quiz'
+    content JSONB NOT NULL,
+    video_url VARCHAR(500),
+    thumbnail_url VARCHAR(500),
+    duration_seconds INTEGER,
+    is_published BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_micro_assets_product ON micro_learning_assets(product_id, asset_type);
+
+-- product_seo_configs:Meta tags por producto
+CREATE TABLE product_seo_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+    meta_title VARCHAR(70),
+    meta_description VARCHAR(160),
+    og_title VARCHAR(70),
+    og_description VARCHAR(160),
+    og_image_url VARCHAR(500),
+    schema_markup JSONB,
+    keywords TEXT[],
+    canonical_url VARCHAR(500),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- sentiment_analyses:Historial de análisis de reviews
+CREATE TABLE sentiment_analyses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    analysis_date DATE NOT NULL,
+    total_reviews INTEGER,
+    positive_count INTEGER,
+    neutral_count INTEGER,
+    negative_count INTEGER,
+    average_score DECIMAL(3,2),
+    top_positive_themes TEXT[],
+    top_negative_themes TEXT[],
+    trends JSONB,  -- {date:[],score:[]}
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_sentiment_product_date ON sentiment_analyses(product_id, analysis_date);
+
+-- drm_configs:Configuración de protección por producto
+CREATE TABLE drm_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+    watermark_enabled BOOLEAN DEFAULT TRUE,
+    watermark_text VARCHAR(100),
+    view_limit INTEGER,  -- 0 = ilimitado
+    download_disabled BOOLEAN DEFAULT FALSE,
+    expiration_hours INTEGER,  -- 0 = nunca
+    regions_allowed TEXT[],  -- NULL = todas
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
 #### C.3 Servicios ya Implementados
 
