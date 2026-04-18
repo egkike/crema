@@ -333,7 +333,7 @@ test('user can purchase product with USDT', async ({ page }) => {
 
 | Area | Escenarios a probar |
 |------|---------------------|
-| Checkout | Cambio de método de pago,刷新 página |
+| Checkout | Cambio de método de pago, recargar página |
 | Webhook | Retry de red, duplicate calls |
 | Dashboard | Verificar que ordenes USDT aparecen correctamente |
 

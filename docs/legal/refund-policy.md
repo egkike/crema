@@ -304,6 +304,60 @@ Para consultas sobre esta política de reembolsos:
 | **Creador** | Vendedor del producto |
 | **Reembolso parcial** | Devolución de solo una parte del precio |
 | **Chargeback** | Reclamo directo al banco/tarjeta |
+| **Créditos AI** | Credits para usar herramientas de inteligencia artificial |
+| **Pack de Bienvenida** | Créditos gratis incluidos por el Creador al comprar un producto |
+
+---
+
+## 12. Reembolsos y Créditos de Inteligencia Artificial
+
+### 12.1 Créditos AI Comprados
+
+Los créditos AI adquiridos mediante compra (paquetes de créditos) **no son reembolsables**.
+
+| Situación | Política |
+|-----------|----------|
+| Créditos comprados y no usados | No reembolso |
+| Créditos expirados | No reembolso |
+| Cuenta suspendida/baneada | No reembolso |
+| Error en la compra | Caso por caso (contactar soporte) |
+
+> **Nota:** Los créditos AI tienen fecha de validez (consultar en la cuenta). Una vez expirados, no se pueden usar y no se也无法 reembolso.
+
+### 12.2 Pack de Bienvenida (Creador)
+
+Los créditos incluidos como "Pack de Bienvenida" son decisión del Creador y **no tienen política de reembolso individual**:
+
+| Aspecto | Política |
+|---------|----------|
+| Créditos de bienvenida | No se pueden transferir a efectivo |
+| No hay garantía sobre cantidad | El Creador define la cantidad |
+| Agotamiento del presupuesto | Los nuevos compradores no reciben créditos si el creador agotó su presupuesto |
+
+### 12.3 Trial de Afiliado
+
+Los créditos de prueba gratuitos para afiliados tienen las siguientes limitaciones:
+
+| Aspecto | Política |
+|---------|----------|
+| Solo 1 vez por afiliado | No acumulable |
+| Expiración | 30 días desde su activación |
+| No transferibles | Solo para la cuenta del afiliado que los recibió |
+| No convertibles | No se pueden convertir a efectivo |
+
+### 12.4 Servicios AI y Garantía del Producto
+
+Los servicios de IA (Tutor, Chat, Generador de Contenido) **no están cubiertos por la garantía del producto**:
+
+| Servicio | ¿Aplica garantía del producto? |
+|----------|-------------------------------|
+| Tutor IA | No |
+| Chat de Soporte AI | No |
+| Generador de contenido | No |
+| Transcripción | No |
+| Contenido generado por IA | No |
+
+> **Nota:** Los servicios de IA pueden tener limitaciones técnicas. El usuario acepta que las respuestas generadas por IA pueden contener errores y no están sujetas a garantías de la Plataforma.
 
 ---
 

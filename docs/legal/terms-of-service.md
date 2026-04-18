@@ -64,6 +64,9 @@ El registro implica:
 | Acceder a productos comprados | Ver contenido adquirido |
 | Calificar productos | Dejar reseñas (si el producto lo permite) |
 | Solicitar reembolso | Según Política de Reembolsos |
+| **Tutor IA** | Asistente virtual para dudas sobre productos adquiridos |
+| **Créditos de Bienvenida** | Créditos gratuitos incluidos por el Creador (configurable) |
+| **Herramientas AI** | Acceso a funciones AI según créditos disponibles |
 
 ### 4.2 Creador
 
@@ -77,6 +80,9 @@ El Creador puede:
 | Recibir pagos | Ganancias por ventas |
 | Acceder a analytics | Estadísticas de sus productos |
 | Gestionar su perfil | Datos públicos, métodos de cobro |
+| **Herramientas AI (Plan Pro)** | AI Content Assistant, Transcription, Quiz Generator, etc. |
+| **Créditos para Afiliados** | Configurar presupuesto de créditos gratis para sus afiliados |
+| **Certificados Automáticos** | Generación de certificados PDF con código QR |
 
 **Requisitos para publicar:**
 - Cuenta verificada
@@ -94,6 +100,8 @@ El Afiliado puede:
 | Promocionar productos | Marketing propio |
 | Recibir comisiones | Por ventas generadas |
 | Acceder a stats | Estadísticas de referidos |
+| **Herramientas AI** | Generador de contenido para redes (requiere créditos) |
+| **Trial de Créditos** | Créditos gratuitos para probar herramientas AI (según configuración del producto) |
 
 ---
 
@@ -259,6 +267,41 @@ En ningún caso Crema será responsable por:
 - Pérdida de oportunidades de negocio
 - Daños por virus o accesos no autorizados
 - Acciones de otros usuarios
+- **Decisiones tomadas basadas en contenido generado por IA**
+
+---
+
+## 9.A Servicios de Inteligencia Artificial
+
+### 9.A.1 Disponibilidad
+
+Los servicios de IA (Tutor, Chat de Soporte, Generador de Contenido, etc.) pueden experimentar interrupciones, retardos o errores. No garantizamos disponibilidad continua de estos servicios.
+
+### 9.A.2 Limitaciones del contenido AI
+
+| Aspecto | Descripción |
+|---------|-------------|
+| **Exactitud** | Las respuestas generadas por IA pueden contener errores, imprecisiones o información desactualizada. Verificá información importante antes deagir. |
+| **Decisiones importantes** | No utilices respuestas de IA para decisiones financieras, médicas, legales o de otra naturaleza crítica sin supervisión profesional. |
+| **Sesgos** | La IA puede reflejar sesgos presentes en los datos de entrenamiento; esto no representa las opiniones de Crema. |
+| **Contenido inadecuado** | Nos reservamos el derecho de rechazar o modificar solicitudes que violate políticas de uso. |
+
+### 9.A.3 Responsabilidad del Usuario con herramientas AI
+
+El Usuario se compromete a:
+- No usar herramientas AI para generar contenido ilegal, fraudulento o malicioso
+- No intentar manipular o abusar de los sistemas AI
+- No redistribuir contenido generado por IA como propio sin las atribuciones correspondientes
+- Respetar los límites de uso establecidos por la Plataforma
+
+### 9.A.4 Créditos y Compras de IA
+
+| Aspecto | Política |
+|---------|----------|
+| **Expiración** | Los créditos AI pueden expirar (consultá fecha de vencimiento) |
+| **No reembolso** | Los créditos comprados no son reembolsables |
+| **Pack de Bienvenida** | Los créditos incluidos por el Creador son opcionales y configurables por cada producto |
+| **Trial de Afiliado** | Los créditos de prueba son limitados y pueden estar sujetos a disponibilidad del producto |
 
 ### 9.3 Fuerza mayor
 

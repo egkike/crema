@@ -984,7 +984,7 @@ Cliente → Paga USDT → Crema recibe USDT → Creador recibe USDT
 
 **Decisión**: El modelo USDT funciona porque **no se convierte a ARS**. El creador recibe USDT, no ARS.
 
-####结论
+#### Conclusión
 
 | Aspecto | Análisis | Resultado |
 |---------|----------|----------|

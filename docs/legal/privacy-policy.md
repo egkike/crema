@@ -38,6 +38,7 @@ Al acceder o utilizar Crema, usted ("Usuario") acepta las prácticas descritas e
 | Datos de pago (Mercado Pago) | Procesamiento de pagos | Ejecución contractual |
 | Avatar/Foto de perfil | Personalización | Consentimiento |
 | Dirección IP | Seguridad, analytics | Interesse legítimo |
+| **Conversaciones con IA** (Tutor, Chat de soporte, Afiliado) | Soporte, asistencia, análisis de contenido | Consentimiento / Ejecución contractual |
 
 ### 3.2 Datos recopilados automáticamente
 
@@ -65,6 +66,9 @@ Al acceder o utilizar Crema, usted ("Usuario") acepta las prácticas descritas e
 | Procesamiento de pagos | Ejecución contractual |
 | Envío de comunicaciones operativas | Consentimiento |
 | Marketing (solo con consentimiento explícito) | Consentimiento |
+| **Análisis y procesamiento de contenido mediante IA** | Consentimiento |
+| **Generación de contenido assistido por IA** | Consentimiento |
+| **Soporte automatizado mediante chatbots AI** | Consentimiento |
 | Cumplimiento de obligaciones fiscales (Ley 25.326) | Obligación legal |
 | Prevención de fraude | Interesse legítimo |
 | Mejora del servicio | Interesse legítimo |
@@ -112,6 +116,9 @@ Puede ejercer sus derechos enviando un email a **privacidad@crema.com** con:
 | Pasarelas Crypto | Dirección wallet,tx | Transacciones USDT |
 | Hosting (Vercel/Cloud) | Logs técnicos | Infraestructura |
 | Email (SendGrid/Resend) | Email | Envío de notificaciones |
+| **OpenAI (GPT)** | Prompts, no datos personales | Procesamiento de consultas AI |
+| **Google (Gemini)** | Prompts, no datos personales | Procesamiento de consultas AI |
+| **Anthropic (Claude)** | Prompts, no datos personales | Procesamiento de consultas AI |
 
 ### 6.2 Transferencias internacionales
 
@@ -137,6 +144,7 @@ Puede ejercer sus derechos enviando un email a **privacidad@crema.com** con:
 | **WAF** | Protección contra inyecciones |
 | **Rate limiting** | Contra ataques de fuerza bruta |
 | **Auditoría** | Logs de acceso |
+| **Aislamiento de datos AI** | Datos de conversaciones NO se usan para entrenamiento |
 
 ### 7.2 Notificación de brechas
 
@@ -151,6 +159,7 @@ En caso de brecha de seguridad que afecte sus datos, notificaremos a la DNPDP y 
 | Datos de cuenta | Mientras la cuenta esté activa |
 | Historial de transacciones | 10 años (obligación fiscal) |
 | Logs de acceso | 1 año |
+| **Conversaciones con IA** (Tutor, Chat, Afiliado) | **90 días** (luego anonimización) |
 | Datos de marketing | Hasta revocación del consentimiento |
 | Datos de cookies | Según tipo (sesión hasta 1 año) |
 
@@ -189,7 +198,44 @@ Podemos modificar esta política periódicamente. Los cambios entrarán en vigor
 
 ---
 
-## 12. Contacto
+## 12. Inteligencia Artificial y Machine Learning
+
+Crema utiliza servicios de inteligencia artificial (IA) para mejorar la experiencia del usuario. Esta sección describe nuestra política respecto al uso de IA.
+
+### 12.1 Servicios de IA Utilizados
+
+| Servicio | Proveedor | Propósito |
+|----------|-----------|-----------|
+| **Tutor IA** | OpenAI/Google/Anthropic | Asistencia y soporte en productos adquiridos |
+| **Chat de Soporte** | OpenAI/Google/Anthropic | Respuestas a preguntas frecuentes |
+| **AI Afiliado** | OpenAI/Google/Anthropic | Generación de contenido para afiliados |
+| **Content Assistant** | OpenAI/Google/Anthropic | Análisis y asistencia en creación de contenido |
+| **Transcripción** | OpenAI Whisper | Conversión de audio/video a texto |
+
+### 12.2 Política de No Entrenamiento
+
+**IMPORTANTE:** Los datos de tus conversaciones y contenido NO se utilizan para entrenar modelos de lenguaje externos.
+
+- Los prompts se envían a los proveedores únicamente para procesar tu solicitud
+- No almacenamos conversaciones con propósito de entrenamiento
+- Los proveedores tienen sus propias políticas de privacidad (disponibles en sus sitios web)
+
+### 12.3 Limitaciones y Disclaimers
+
+| Aspecto | Descripción |
+|---------|-------------|
+| **Verificación** | Las respuestas generadas por IA pueden contener errores. Verificá información importante antes de agir. |
+| **Decisiones importantes** | No uses respuestas de IA para decisiones financieras, médicas, legales o de otra naturaleza crítica sin supervisión profesional. |
+| **Contenido inapropiado** | Nos reservamos el derecho de rechazar solicitudes que violen nuestras políticas de uso. |
+| **Disponibilidad** | Los servicios de IA pueden experimentar interrupciones. No garantizamos disponibilidad 100%. |
+
+### 12.4 Tus Derechos
+
+Tus derechos ARCO (Acceso, Rectificación, Supresión, Oposición) aplican también a las conversaciones con IA. Podés solicitar la eliminación de tus datos de conversación enviando un email a **privacidad@crema.com**.
+
+---
+
+## 13. Contacto
 
 Para cualquier consulta sobre esta Política de Privacidad:
 

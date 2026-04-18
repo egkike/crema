@@ -1133,7 +1133,7 @@ req.on('close', () => {
     conversationId,
   }, 'Client disconnected during stream');
   
-  // No es necesario abort()手动 - el signal ya está configurado
+  // No es necesario abort() manualmente - el signal ya está configurado
 });
 ```
 

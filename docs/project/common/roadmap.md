@@ -13,7 +13,7 @@
 
 ## Fase 1: Backend Core (Completado)
 
-###已完成 ✅
+### Completado ✅
 - [x] Autenticación JWT con refresh tokens
 - [x] 2FA (autenticación de dos factores)
 - [x] Gestión de usuarios (CRUD)
@@ -172,7 +172,7 @@
 - [ ] Chat con creador
 - [ ] Gamificación (logros, badges)
 
-###未来 (Futuro)
+### Futuro
 - [ ] Multi-idioma
 - [ ] White-label
 - [ ] API pública para terceros

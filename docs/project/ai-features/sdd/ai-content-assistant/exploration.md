@@ -155,7 +155,7 @@ ContentReader → Parser → LLM → Generator → Output
 | **Prompt injection** | Media | Alto | Input sanitization + delimiters |
 | **Output mal formato** | Baja | Medio | JSON validation + fallbacks |
 | **Context overflow** | Media | Medio | Token limits |
-| **Cred消费超额** | Alta | Alto | Rate limiting + budget |
+| **Credito consumo excesivo** | Alta | Alto | Rate limiting + budget |
 | **Tipo no detectado** | Baja | Bajo | Manual selection fallback |
 
 ### Security Considerations
