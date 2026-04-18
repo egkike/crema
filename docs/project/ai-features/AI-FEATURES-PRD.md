@@ -1241,7 +1241,8 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 ## 7. Roadmap de Implementación
 
 > **Fecha inicio**: Mayo 2026  
-> **Duración total**: 32 semanas (8 meses)
+> **Duración total**: 32 semanas (8 meses)  
+> **Nota**: Todas las tareas de implementación siguen el Estándar de Verificación definido en `docs/project/common/verification-standard.md`
 
 ### Fase 1: Fundamentos AI (Meses 1-2) [Mayo - Julio 2026]
 

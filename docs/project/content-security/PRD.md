@@ -196,7 +196,8 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 ## 10. Roadmap de Implementación
 
 > **Fecha inicio**: Mayo 2026  
-> **Duración**: 12 semanas (3 meses)
+> **Duración**: 12 semanas (3 meses)  
+> **Nota**: Todas las tareas de implementación siguen el Estándar de Verificación definido en `docs/project/common/verification-standard.md`
 
 ### Fase 1: Blindaje Técnico (Semanas 1-4) [Mayo 2026]
 

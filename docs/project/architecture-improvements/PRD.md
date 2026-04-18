@@ -486,12 +486,17 @@ class ConciergeAgent {
 ## 5. Roadmap de Implementación
 
 > **Fecha inicio**: Mayo 2026  
-> **Duración**: 10 semanas
+> **Duración**: 10 semanas  
+> **Nota**: Todas las tareas de implementación siguen el Estándar de Verificación definido en `docs/project/common/verification-standard.md`
 
 > **Definition of Done**: Cada fase se considera completada cuando:  
 > - Código en `main` con tests passing  
-> - Documentación técnica actualizada  
-> - Code review aprobado  
+> - `pnpm tsc` sin errores  
+> - `pnpm lint --filter` sin errores/warnings  
+> - `pnpm vitest run` 100% pasando  
+> - Code review aprobado (`gga run`)  
+> - Performance verificada  
+> - Security verificado  
 > - Despliegue a staging verificado
 
 ### Fase 1: Fundamentos (Semanas 1-2) [Mayo 2026]
