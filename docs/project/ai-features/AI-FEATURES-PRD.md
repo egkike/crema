@@ -37,9 +37,10 @@
 5. [Matriz de Acceso por Rol y Tipo de Producto](#5-matriz-de-acceso-por-rol-y-tipo-de-producto)
 6. [Herramientas de Admin](#7-herramientas-de-admin)
 7. [Análisis de Viabilidad Económica](#7-análisis-de-viabilidad-económica)
-8. [Roadmap de Implementación](#8-roadmap-de-implementación)
-9. [Requisitos No Funcionales](#9-requisitos-no-funcionales)
-10. [Anexos](#10-anexos)
+8. [Dependencias con otros PRDs](#8-dependencias-con-otros-prds)
+9. [Roadmap de Implementación](#9-roadmap-de-implementación)
+10. [Requisitos No Funcionales](#10-requisitos-no-funcionales)
+11. [Anexos](#11-anexos)
 
 ---
 
@@ -1336,7 +1337,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 7. Herramientas de Admin
+## 6. Herramientas de Admin
 
 > Estas herramientas son para la administración de la plataforma y están disponibles para usuarios con rol Admin.
 
@@ -1402,7 +1403,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-### 8.1 Costo de Implementación por Funcionalidad
+### 7.1 Costo de Implementación por Funcionalidad
 
 | Funcionalidad | Complejidad | Tiempo Est. | Costo API | Dependencias |
 |---------------|:------------:|:------------:|:---------:|--------------|
@@ -1422,7 +1423,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | Sentiment Analytics | Media | 2 semanas | $0.02/review | Reviews DB |
 | Advanced DRM | Alta | 4 semanas | $0.00 | Video processing |
 
-### 8.1 Modelo de Ingresos Proyectado
+### 7.2 Modelo de Ingresos Proyectado
 
 | Fuente de Ingreso | Descripción | Proyección Mensual |
 |-------------------|-------------|-------------------|
@@ -1432,7 +1433,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | **Plan Pro** | Diferencia vs Plan Initial | Incluido |
 | **Upsell de features** | Micro-learning extra, etc. | $300 USD (Mes 3) → $1,500 USD (Mes 6) |
 
-### 8.2 ROI Esperado
+### 7.3 ROI Esperado
 
 | Métrica | Actual | Objetivo (12 meses) |
 |---------|--------|---------------------|
@@ -1443,7 +1444,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## Dependencias con otros PRDs
+## 8. Dependencias con otros PRDs
 
 > Las features de AI-FEATURES-PRD dependen de componentes definidos en otros PRDs. Esta sección clarifica las dependencias.
 
@@ -1486,7 +1487,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 8. Roadmap de Implementación
+## 9. Roadmap de Implementación
 
 > **Fecha inicio**: Mayo 2026  
 > **Duración total**: 32 semanas (8 meses)  
@@ -1558,11 +1559,11 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 9. Requisitos No Funcionales
+## 10. Requisitos No Funcionales
 
-### 8.1 Performance y Experiencia de Usuario (UX)
+### 9.1 Performance y Experiencia de Usuario (UX)
 
-#### 8.1.1 Tiempos de Respuesta
+#### 9.1.1 Tiempos de Respuesta
 
 | Métrica | Objetivo | Notas |
 |---------|----------|-------|
@@ -1572,7 +1573,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | **Transcripción** | < tiempo_audio × 0.5 | Async con job |
 | **Búsqueda semántica (pgvector)** | < 500ms | Para RAG |
 
-#### 8.1.2 Streaming (SSE - Server-Sent Events)
+#### 9.1.2 Streaming (SSE - Server-Sent Events)
 
 | Requisito | Descripción |
 |-----------|-------------|
@@ -1581,7 +1582,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | **Progress indicators** | Mostrar "escribiendo..." durante generación |
 | **Cancelación** | Usuario puede cancelar generación en progreso |
 
-#### 8.1.3 Timeouts y Handling
+#### 9.1.3 Timeouts y Handling
 
 | Escenario | Timeout | Manejo |
 |-----------|---------|--------|
@@ -1590,7 +1591,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | Transcripción job | 10 min | Async con status polling |
 | UI wait | 30s | Mostrar spinner + opción de email cuando esté listo |
 
-#### 8.1.4 Caching
+#### 9.1.4 Caching
 
 | Tipo de request | TTL | Notas |
 |-----------------|-----|-------|
@@ -1600,7 +1601,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-### 8.2 Seguridad y Ciberseguridad
+### 9.2 Seguridad y Ciberseguridad
 
 #### 8.2.1 Protección de APIs
 
@@ -1652,7 +1653,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-### 8.3 Escalabilidad
+### 9.3 Escalabilidad
 
 | Aspecto | Requisito |
 |---------|-----------|
@@ -1665,7 +1666,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-### 8.4 Monitoreo y Observabilidad
+### 9.4 Monitoreo y Observabilidad
 
 | Métrica | Descripción | Alerta |
 |---------|-------------|--------|
@@ -1679,7 +1680,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-### 8.5 Disponibilidad y Recoverability
+### 9.5 Disponibilidad y Recoverability
 
 | Aspecto | Requisito |
 |---------|-----------|
@@ -1692,7 +1693,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 10. Anexos
+## 11. Anexos
 
 ### A. Glosario de Términos
 
