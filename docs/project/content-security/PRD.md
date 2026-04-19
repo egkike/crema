@@ -282,9 +282,9 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 
 ---
 
-## X. Requisitos No Funcionales
+## 10. Requisitos No Funcionales
 
-### X.1 Performance y Tiempos de Respuesta
+### 10.1 Performance y Tiempos de Respuesta
 
 | Operación | Tiempo Objetivo | Tipo |
 |-----------|-----------------|------|
@@ -294,7 +294,7 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 | **Malware scanning** | < 60 segundos | Asincrónico |
 | **Moderación de contenido AI** | < 15 segundos | Asincrónico |
 
-### X.2 Timeouts y Handling
+### 10.2 Timeouts y Handling
 
 | Escenario | Timeout | Manejo |
 |-----------|---------|--------|
@@ -303,9 +303,9 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 | Malware scan | 60s | Reintento automático, luego marcar para revisión manual |
 | Moderación AI | 15s | Timeout → permitir contenido, marcar para revisión |
 
-### X.3 Seguridad
+### 10.3 Seguridad
 
-#### X.3.1 Rate Limiting
+#### 10.3.1 Rate Limiting
 
 | Endpoint | Límite | Ventana |
 |----------|:------:|---------|
@@ -313,7 +313,7 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 | `/validate/*` | 20 | minuto por usuario |
 | `/moderation/*` | 30 | minuto por usuario |
 
-#### X.3.2 Validación de Archivos
+#### 10.3.2 Validación de Archivos
 
 | Control | Implementación |
 |---------|---------------|
@@ -323,7 +323,7 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 | **Size limits** | Max 100MB por archivo, configurable |
 | **Magic bytes** | Verificar header del archivo real |
 
-#### X.3.3 Malware Protection
+#### 10.3.3 Malware Protection
 
 | Control | Descripción |
 |---------|-------------|
@@ -332,7 +332,7 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 | ** quarantine** | Archivos sospechosos en quarantine para revisión manual |
 | **Hash tracking** | SHA256 para detectar re-uploads de archivos maliciosos conocidos |
 
-### X.4 Escalabilidad
+### 10.4 Escalabilidad
 
 | Aspecto | Requisito |
 |--------|-----------|
@@ -341,7 +341,7 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 | **Caching** | Redis para resultados de validación (evitar re-validar) |
 | **Horizontal scaling** | Stateless, puede escalar con más instancias |
 
-### X.5 Monitoreo
+### 10.5 Monitoreo
 
 | Métrica | Descripción | Alerta |
 |---------|-------------|--------|

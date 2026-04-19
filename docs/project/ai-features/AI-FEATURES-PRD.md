@@ -35,7 +35,7 @@
    - [4.19 AI Summary](#419-ai-summary)
    - [4.20 Transcript Search](#420-transcript-search)
 5. [Matriz de Acceso por Rol y Tipo de Producto](#5-matriz-de-acceso-por-rol-y-tipo-de-producto)
-6. [Herramientas de Admin](#7-herramientas-de-admin)
+6. [Herramientas de Admin](#6-herramientas-de-admin)
 7. [Análisis de Viabilidad Económica](#7-análisis-de-viabilidad-económica)
 8. [Dependencias con otros PRDs](#8-dependencias-con-otros-prds)
 9. [Roadmap de Implementación](#9-roadmap-de-implementación)
