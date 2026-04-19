@@ -231,3 +231,19 @@ export interface ActivityLog {
 export interface RepositoryWithClient {
   client?: PoolClient;
 }
+
+/**
+ * AppConfig entity for ConfigService
+ * Centralized configuration stored in database
+ */
+export interface AppConfig {
+  id: string;
+  configKey: string;
+  configValue: string;
+  configType: 'string' | 'number' | 'boolean' | 'json';
+  category: 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features';
+  description?: string;
+  isPublic: boolean;
+  isEncrypted: boolean;
+  updatedAt: Date;
+}
