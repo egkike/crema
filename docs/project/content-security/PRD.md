@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Crema - Content Security & Upload Validation
 
-**Versión**: 1.0  
+**Versión**: 2.0  
 **Fecha**: Abril 2026  
-**Estado**: Draft para revisión  
+**Estado**: Actualizado - Plataforma de Experiencia  
 **Owner**: Kike García
 
 ---
@@ -12,6 +12,8 @@
 
 ### 1.1 Visión
 Establecer un marco robusto de validaciones y controles para todo el contenido subido a la plataforma Crema, asegurando la calidad, legalidad y seguridad del ecosistema. El objetivo es evitar la subida de contenido malicioso, ilegal, prohibido o que infrinja derechos de autor, manteniendo una experiencia de usuario coherente.
+
+> **Del Análisis 6**: Para una experiencia de calidad, el contenido debe ser seguro, legítimo y de quality verificada. Las validaciones no son solo controles de seguridad, sino garantías de una experiencia positiva para el comprador.
 
 ### 1.2 Objetivos Estratégicos
 - **Cero Tolerancia al Malware**: Impedir la subida de archivos ejecutables o maliciosos.
@@ -193,7 +195,40 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 
 ---
 
-## 10. Roadmap de Implementación
+## 10. Validación de Contenido Interactivo
+
+> **Nueva sección para Plataforma de Experiencia**: Con las nuevas herramientas de Book Highlights, Audio Notes y AI Summary, necesitamos validar el contenido que los usuarios generan.
+
+### 10.1 Notas y Highlights del Comprador
+
+| Control | Descripción | Prioridad |
+|---------|-------------|:---------:|
+| **Longitud de notas** | Limitar caracteres por nota (max 5000) | MEDIA |
+| **Contenido prohibido en notas** | Verificar que notas no contengan contenido ilegal | ALTA |
+| **Links externos** | Validar URLs en notas (mismo dominio allowlist) | MEDIA |
+| **Rate limiting** | Max notas/highlights por minuto por usuario | ALTA |
+| **SPAM detection** | Detectar patrones de spam en notas | MEDIA |
+
+### 10.2 AI Summary
+
+| Control | Descripción | Prioridad |
+|---------|-------------|:---------:|
+| **Calidad del resumen** | Verificar que el resumen tiene mínimo 50 caracteres | BAJA |
+| **Timeouts** | Limitar tiempo de generación (max 60s) | ALTA |
+| **Costo de credits** | Verificar balance suficiente antes de generar | ALTA |
+| **Cache** | Cachear resúmenes por content_hash (24h) | MEDIA |
+
+### 10.3 Audio Notes
+
+| Control | Descripción | Prioridad |
+|---------|-------------|:---------:|
+| **Sincronización** | Timestamp debe ser válido (0 a duración audio) | ALTA |
+| **Longitud de nota** | Max 2000 caracteres por nota | MEDIA |
+| **Contenido prohibido** | Moderar notas antes de guardar | ALTA |
+
+---
+
+## 11. Roadmap de Implementación
 
 > **Fecha inicio**: Mayo 2026  
 > **Duración**: 12 semanas (3 meses)  
