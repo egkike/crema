@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Crema - Mejoras de Arquitectura
 
-**Versión**: 1.0  
+**Versión**: 2.0  
 **Fecha**: Abril 2026  
-**Estado**: Draft para revisión  
+**Estado**: Actualizado - Plataforma de Experiencia  
 **Owner**: Kike García
 
 ---
@@ -14,6 +14,7 @@
 2. [Estado Actual](#2-estado-actual)
 3. [Arquitectura Propuesta](#3-arquitectura-propuesta)
 4. [Detalle por Mejora](#4-detalle-por-mejora)
+   - [4.4 User Context Memory](#44-user-context-memory-evolución-del-memory-service)
 5. [Roadmap de Implementación](#5-roadmap-de-implementación)
 6. [Dependencias y Riesgos](#6-dependencias-y-riesgos)
 
@@ -24,6 +25,8 @@
 ### 1.1 Visión
 
 Dotar al backend de Crema de una arquitectura más robusta, mantenible y escalable mediante tres mejoras clave que facilitan la implementación futura de features AI como el Concierge de Soporte.
+
+> **Del Análisis 6**: La arquitectura debe evolucionar de "buscar en contenido" a "recordar la interacción del usuario". El Memory Service debe guardar el `user_context` para habilitar experiencias personalizadas.
 
 ### 1.2 Objetivos
 
@@ -41,6 +44,7 @@ Dotar al backend de Crema de una arquitectura más robusta, mantenible y escalab
 | 2 | Manejo de Errores Centralizado | MEDIA |
 | 3 | Unificar Configuración | MEDIA |
 | 4 | Skills Registry | BAJA |
+| 5 | User Context Memory (Evolución) | ALTA |
 
 ---
 
@@ -483,6 +487,105 @@ class ConciergeAgent {
 
 ---
 
+### 4.4 User Context Memory (Evolución del Memory Service)
+
+#### Descripción
+Evolucionar el Memory Service actual de "solo buscar en contenido" a "recordar la interacción del usuario". Esto es esencial para la visión de "Plataforma de Experiencia".
+
+#### Contexto del Problema
+- El Memory Service actual busca en PDFs/contenido
+- No guarda qué preguntó el usuario antes
+- No sabe qué temas domina el usuario
+- No tiene contexto de progreso
+
+#### Nueva Funcionalidad
+
+```typescript
+interface UserContext {
+  userId: string;
+  productId: string;
+  questions: QuestionHistory[];
+  currentProgress: number;
+  completedQuizzes: string[];
+  notes: UserNote[];
+  highlights: Highlight[];
+  lastAccessedAt: Date;
+  learningPath: LearningPath;
+}
+
+class UserMemoryService {
+  // Guardar interacción
+  async saveQuestion(userId, productId, question, answer): Promise<void>
+
+  // Obtener contexto del usuario
+  async getUserContext(userId, productId): Promise<UserContext>
+
+  // Obtener progreso de aprendizaje
+  async getLearningProgress(userId, productId): Promise<number>
+
+  // Guardar nota/highlight
+  async saveNote(userId, productId, note): Promise<void>
+  async saveHighlight(userId, productId, highlight): Promise<void>
+
+  // Generar lección de refuerzo basada en errores
+  async generateReinforcementLesson(userId, productId): Promise<Lesson>
+}
+```
+
+#### Tabla de Base de Datos
+
+```sql
+-- user_context: Contexto de cada usuario por producto
+CREATE TABLE user_context (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    context_data JSONB DEFAULT '{}',  -- {questions:[], progress:0, notes:[], highlights:[]}
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, product_id)
+);
+
+-- user_notes: Notas del usuario en un producto
+CREATE TABLE user_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    note_text TEXT NOT NULL,
+    note_type VARCHAR(20),  -- 'highlight', 'bookmark', 'note'
+    position JSONB,  -- {page, timestamp, etc.}
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+####用例
+
+| Caso de Uso | Descripción |
+|------------|-------------|
+| **Smart Playback** | El Tutor sabe dónde pausó el usuario y qué no entendió |
+| **Lección de Refuerzo** | Si falla quiz, generar lección basada en errores |
+| **Resumen IA** | Conocer nivel del usuario para generar resumen adecuado |
+| **Progreso Personalizado** | Guardar ruta de aprendizaje |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| MEM-01 | Sistema | guardar lo que pregunta el usuario | recordarlo después |
+| MEM-02 | Sistema | guardar notas y highlights | poder recuperarlos |
+| MEM-03 | IA | conocer progreso del usuario | personalizar respuesta |
+| MEM-04 | IA | detectar si no entiende | ofrecer ayuda proactiva |
+
+#### Dependencias
+
+- Memory Service existente (pgvector)
+- Transcription Service (para Audio Notes)
+- User profiles
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo (Fase 5 del Roadmap AI-FEATURES)
+
+---
+
 ## 5. Roadmap de Implementación
 
 > **Fecha inicio**: Mayo 2026  
@@ -524,6 +627,16 @@ class ConciergeAgent {
 |--------|--------|-------------|-----------|
 | 8-9 | **Integración Concierge** | Concierge usando nuevas capas | Todas las anteriores |
 | 10 | **Testing y documentación** | Tests end-to-end | Fase 3 |
+
+### Fase 5: User Context (Semanas 20-24) [Octubre - Noviembre 2026]
+
+> Fase coordinada con AI-FEATURES Fase 3: Learning AI
+
+| Semana | Mejora | Entregable | Depende de |
+|--------|--------|-------------|-----------|
+| 20-21 | **User Context Memory** | Tabla user_context + servicio | Memory Service |
+| 22-23 | **User Notes & Highlights** | Tabla user_notes + servicio | User Context |
+| 24 | **Integración** | Con AI Summary, Book Highlights | User Context |
 
 ---
 
