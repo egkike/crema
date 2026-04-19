@@ -35,10 +35,11 @@
    - [4.19 AI Summary](#419-ai-summary)
    - [4.20 Transcript Search](#420-transcript-search)
 5. [Matriz de Acceso por Rol y Tipo de Producto](#5-matriz-de-acceso-por-rol-y-tipo-de-producto)
-6. [Herramientas de Admin](#6-herramientas-de-admin)
+6. [Herramientas de Admin](#7-herramientas-de-admin)
 7. [Análisis de Viabilidad Económica](#7-análisis-de-viabilidad-económica)
 8. [Roadmap de Implementación](#8-roadmap-de-implementación)
 9. [Requisitos No Funcionales](#9-requisitos-no-funcionales)
+10. [Anexos](#10-anexos)
 
 ---
 
@@ -1335,7 +1336,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 6.Herramientas de Admin
+## 7. Herramientas de Admin
 
 > Estas herramientas son para la administración de la plataforma y están disponibles para usuarios con rol Admin.
 
@@ -1401,9 +1402,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 7. Roadmap de Implementación
-
-### 6.1 Costo de Implementación por Funcionalidad
+### 8.1 Costo de Implementación por Funcionalidad
 
 | Funcionalidad | Complejidad | Tiempo Est. | Costo API | Dependencias |
 |---------------|:------------:|:------------:|:---------:|--------------|
@@ -1423,7 +1422,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | Sentiment Analytics | Media | 2 semanas | $0.02/review | Reviews DB |
 | Advanced DRM | Alta | 4 semanas | $0.00 | Video processing |
 
-### 6.2 Modelo de Ingresos Proyectado
+### 8.1 Modelo de Ingresos Proyectado
 
 | Fuente de Ingreso | Descripción | Proyección Mensual |
 |-------------------|-------------|-------------------|
@@ -1433,7 +1432,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | **Plan Pro** | Diferencia vs Plan Initial | Incluido |
 | **Upsell de features** | Micro-learning extra, etc. | $300 USD (Mes 3) → $1,500 USD (Mes 6) |
 
-### 6.3 ROI Esperado
+### 8.2 ROI Esperado
 
 | Métrica | Actual | Objetivo (12 meses) |
 |---------|--------|---------------------|
@@ -1444,7 +1443,50 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 7. Roadmap de Implementación
+## Dependencias con otros PRDs
+
+> Las features de AI-FEATURES-PRD dependen de componentes definidos en otros PRDs. Esta sección clarifica las dependencias.
+
+### Dependencias con ARCHITECTURE-PRD (v2.0)
+
+| Feature AI-FEATURES | Dependencia Arquitectura | Fase对应 |
+|---------------------|--------------------------|----------|
+| **Tutor IA** | Memory Service (pgvector) | ✅ Existente |
+| **Conversational Reader** | Memory Service + pgvector | Existente |
+| **Smart Chapters** | Transcription Service | Existente |
+| **Personalized Learning Path** | User Context Memory | Fase 5 (Sem 20-24) |
+| **User Notes & Highlights** | User Context Memory | Fase 5 (Sem 20-24) |
+| **AI Summary** | User Context Memory | Fase 5 (Sem 20-24) |
+| **Predictive Analytics** | AI Insights + pgvector | Fase 6 (Sem 41-42) |
+| **Content Moderation** | AI Content Assistant | Fase 6 (Sem 43-44) |
+
+### Dependencias con CONTENT-SECURITY-PRD (v2.0)
+
+| Feature AI-FEATURES | Validación Requerida | Sección Content-Security |
+|---------------------|---------------------|------------------------|
+| **Book Highlights** | Notas de usuario | 10.1 |
+| **Audio Notes** | Notas con timestamp | 10.3 |
+| **AI Summary** | Generación de contenido | 10.2 |
+| **Transcripción** | Contenido del creador | Validaciones existentes |
+| **Content Moderation** | Moderación AI | 10.x |
+
+### Orden de Implementación Recomendado
+
+1. **ARCHITECTURE Fase 1-4** (Semanas 1-10): ConfigService → Orchestrator → Skills → Errors
+2. **AI-FEATURES Fases 1-4** (Semanas 1-32): Credits → Tools → Learning → Advanced
+3. **CONTENT-SECURITY**: En paralelo, las validaciones se implementan según la necesidad de cada feature
+
+### Timeline Coordinación
+
+- AI-FEATURES Fase 3 (Learning AI): Semanas 17-24
+- ARCHITECTURE Fase 5 (User Context): Semanas 20-24
+- Ambos sincronizados para dependencias cruzadas
+
+> **Nota**: Para implementación, seguir primero el Architecture PRD (base) y luego AI-FEATURES (features).
+
+---
+
+## 8. Roadmap de Implementación
 
 > **Fecha inicio**: Mayo 2026  
 > **Duración total**: 32 semanas (8 meses)  
@@ -1650,7 +1692,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 9. Anexos
+## 10. Anexos
 
 ### A. Glosario de Términos
 

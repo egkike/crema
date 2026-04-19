@@ -198,6 +198,8 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 ## 10. Validación de Contenido Interactivo
 
 > **Nueva sección para Plataforma de Experiencia**: Con las nuevas herramientas de Book Highlights, Audio Notes y AI Summary, necesitamos validar el contenido que los usuarios generan.
+>
+> **Nota**: Las features mencionadas (Book Highlights, Audio Notes, AI Summary) están definidas en AI-FEATURES-PRD.md secciones 4.17-4.20. Esta sección provee las validaciones de seguridad necesarias para esas features.
 
 ### 10.1 Notas y Highlights del Comprador
 
