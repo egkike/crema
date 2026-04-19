@@ -4,34 +4,53 @@
  * Part of SDD: docs/project/architecture-improvements/sdd/config-service/
  */
 
+import Redis from 'ioredis';
+
 import { configRepository } from '../repositories/app-config.repository';
+import { config } from '../config';
 import logger from '../utils/logger';
 
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
 export type ConfigCategory = 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features';
 
-// Redis cache for config values
-const configCache: Map<string, { value: string; expires: number }> = new Map();
-const CACHE_TTL = 300000; // 5 minutes
+// Redis client for cache
+const redisCache = new Redis({
+  host: config.redis.host,
+  port: config.redis.port,
+  password: config.redis.password,
+  lazyConnect: true,
+  // Key prefix for namespacing
+  keyPrefix: 'crema:config:',
+});
+
+const CACHE_TTL_SECONDS = 300; // 5 minutes
 
 /**
- * Get config with fallback priority: cache → DB → .env → default
+ * Get config with fallback priority: redis cache → DB → .env → default
  */
 async function getConfigValue(key: string, defaultValue?: string): Promise<string | undefined> {
-  const now = Date.now();
   const cacheKey = `config:${key}`;
 
-  // 1. Check memory cache
-  const cached = configCache.get(cacheKey);
-  if (cached && cached.expires > now) {
-    logger.debug({ key, from: 'cache' }, 'ConfigService: cache hit');
-    return cached.value;
+  // 1. Check Redis cache
+  try {
+    const cached = await redisCache.get(cacheKey);
+    if (cached) {
+      logger.debug({ key, from: 'redis' }, 'ConfigService: cache hit');
+      return cached;
+    }
+  } catch (error) {
+    logger.warn({ key, error: String(error) }, 'ConfigService: redis get failed, falling back');
   }
 
   // 2. Check DB (app_config)
   const dbConfig = await configRepository.findByKey(key);
   if (dbConfig) {
-    configCache.set(cacheKey, { value: dbConfig.configValue, expires: now + CACHE_TTL });
+    // Set cache in Redis
+    try {
+      await redisCache.setex(cacheKey, CACHE_TTL_SECONDS, dbConfig.configValue);
+    } catch (error) {
+      logger.warn({ key, error: String(error) }, 'ConfigService: redis set failed');
+    }
     logger.debug({ key, from: 'db' }, 'ConfigService: db hit');
     return dbConfig.configValue;
   }
@@ -122,8 +141,12 @@ export const configService = {
       category: extractedCategory,
     });
     
-    // Invalidate cache
-    configCache.delete(`config:${key}`);
+    // Invalidate cache in Redis
+    try {
+      await redisCache.del(`config:${key}`);
+    } catch (error) {
+      logger.warn({ key, error: String(error) }, 'ConfigService: redis del failed');
+    }
     logger.info({ key, type, category: extractedCategory }, 'ConfigService: config updated');
   },
 
@@ -151,5 +174,25 @@ export const configService = {
    */
   async getByKey(key: string) {
     return configRepository.findByKey(key);
+  },
+
+  /**
+   * Initialize Redis cache connection
+   */
+  async initCache(): Promise<void> {
+    try {
+      await redisCache.connect();
+      logger.info('ConfigService: Redis cache connected');
+    } catch (error) {
+      logger.warn({ error: String(error) }, 'ConfigService: Redis connection failed, using DB fallback');
+    }
+  },
+
+  /**
+   * Close Redis cache connection
+   */
+  async closeCache(): Promise<void> {
+    await redisCache.quit();
+    logger.info('ConfigService: Redis cache disconnected');
   },
 };
