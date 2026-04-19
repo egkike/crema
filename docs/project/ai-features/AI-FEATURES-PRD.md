@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 2.0  
+**Versión**: 3.0  
 **Fecha**: Abril 2026  
-**Estado**: Draft para revisión  
+**Estado**: Actualizado - Plataforma de Experiencia  
 **Owner**: Kike García
 
 ---
@@ -30,14 +30,34 @@
    - [4.14 Sentiment Analytics](#414-sentiment-analytics)
    - [4.15 Advanced DRM](#415-advanced-drm)
    - [4.16 Credit Management Dashboard](#416-credit-management-dashboard)
-5. [Matriz de Acceso por Rol](#5-matriz-de-acceso-por-rol)
-6. [Análisis de Viabilidad Económica](#6-análisis-de-viabilidad-económica)
-7. [Roadmap de Implementación](#7-roadmap-de-implementación)
-8. [Requisitos No Funcionales](#8-requisitos-no-funcionales)
+   - [4.17 Book Highlights](#417-book-highlights)
+   - [4.18 Audio Notes](#418-audio-notes)
+   - [4.19 AI Summary](#419-ai-summary)
+   - [4.20 Transcript Search](#420-transcript-search)
+5. [Matriz de Acceso por Rol y Tipo de Producto](#5-matriz-de-acceso-por-rol-y-tipo-de-producto)
+6. [Herramientas de Admin](#6-herramientas-de-admin)
+7. [Análisis de Viabilidad Económica](#7-análisis-de-viabilidad-económica)
+8. [Roadmap de Implementación](#8-roadmap-de-implementación)
+9. [Requisitos No Funcionales](#9-requisitos-no-funcionales)
 
 ---
 
 ## 1. Resumen Ejecutivo
+
+### 1.0 Visión: De Plataforma de Productos a Plataforma de Experiencia
+
+> **Del Análisis 6**: Crema evoluciona de un simple repositorio de archivos a un **Ecosistema de Valor Aumentado**. Cada usuario, en su rol, vive una experiencia que facilita la realización de sus objetivos.
+
+| Rol | Visión Producto (Hoy) | Visión Experiencia |
+|-----|---------------------|---------------------|
+| **Creador** | Sube archivos | Director de Producto AI con herramientas de consultoría |
+| **Comprador** | Descarga archivos | Estudiante con Mentoría 24/7 |
+| **Afiliado** | Comparte links | Partner Tecnológico con tools de venta |
+| **Admin** | Controla tickets | Arquitecto de Ecosistema |
+
+Esta visión transforma el modelo de "entregable" al de "copiloto", resolviendo el mayor problema de los infoproductos: la baja tasa de finalización y el bajo ROI.
+
+---
 
 ### 1.1 Visión del Ecosistema AI
 
@@ -848,7 +868,121 @@ Cada transacción debe incluir:
 
 ---
 
-## 5. Matriz de Acceso por Rol
+### 4.17 Book Highlights
+
+#### Descripción
+Permite al comprador subrayar texto y agregar notas en los ebooks/PDFs comprados. Las notas se guardan y pueden exportarse.
+
+#### Tipo de Producto
+- **Ebooks** (PDF/Docx)
+- **Software** (Documentación técnica)
+
+#### Funcionalidades Principales
+- Subrayar texto con colores
+- Agregar notas en el margen
+- Marcar páginas importantes
+- Exportar notas (.md, .pdf)
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| BH-01 | Comprador | subrayar un pasaje importante | marcarlo para futura referencia |
+| BH-02 | Comprador | agregar una nota en un pasaje | explicar mi pensamiento |
+| BH-03 | Comprador | exportar mis notas | estudiarlas offline |
+| BH-04 | Comprador | ver mis highlights anteriores | recordar lo importante |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.18 Audio Notes
+
+#### Descripción
+Permite al comprador agregar notas ancladas a timestamps específicos en audio/podcasts. Las notas se sincronizan con el reproductor.
+
+#### Tipo de Producto
+- **Podcast** (Audio)
+- **Video/Curso** (Audio)
+
+#### Funcionalidades Principales
+- Agregar nota en timestamp específico
+- Sincronización nota ↔︎ reproductor
+- Exportar transcripción con notas
+- Buscar notas por tiempo
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| AN-01 | Comprador | agregar una nota en el minuto 5:30 | recordar lo que pensé allí |
+| AN-02 | Comprador | tocar la nota y que el audio salte a ese momento | escuchar desde esa parte |
+| AN-03 | Comprador | ver todas mis notas del audio | tener visión general |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.19 AI Summary
+
+#### Descripción
+Genera un resumen ejecut IA del contenido (ebook, podcast, video) descargable en formato .md o .pdf.
+
+#### Tipo de Producto
+- **Ebook/PDF**
+- **Podcast**
+- **Video/Curso**
+
+#### Funcionalidades Principales
+- Resumen ejecutivo (1 página)
+- Puntos clave
+- Action items
+- Exportar .md / .pdf
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| SUM-01 | Comprador | recibir un resumen del ebook | saber si vale la pena leerlo completo |
+| SUM-02 | Comprador | tener los puntos clave offline | estudiarlos después |
+| SUM-03 | Comprador | exportar el resumen | compartirlo o guardarlo |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.20 Transcript Search
+
+#### Descripción
+Búsqueda semántica en transcripciones de audio/podcasts. "Buscar dónde menciona X tema en el podcast".
+
+#### Tipo de Producto
+- **Podcast**
+- **Video/Curso**
+
+#### Funcionalidades Principales
+- Búsqueda por palabras clave
+- Resultados con timestamp
+- Reproducir desde resultado
+- Exportar fragmentos
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| TS-01 | Comprador | buscar "marketing digital" en el audio | encontrar ese momento |
+| TS-02 | Comprador | tocar el resultado y que reproduzca desde ahí | escuchar la parte relevante |
+| TS-03 | Comprador | exportar los fragmentos encontrados | tener las citas |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+## 5. Matriz de Acceso por Rol y Tipo de Producto
 
 > **Leyenda de estados**:  
 > - ✅ = Implementado en producción  
@@ -874,6 +1008,10 @@ Cada transacción debe incluir:
 | **Sentiment Analytics** | 🆕 | 🆕 Usa | - | - | - |
 | **Advanced DRM** | 🆕 | 🆕 Configura | - | - | - |
 | **Credit Management Dashboard** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | - |
+| **Book Highlights** | 🆕 | - | 🆕 Usa | - | - |
+| **Audio Notes** | 🆕 | - | 🆕 Usa | - | - |
+| **AI Summary** | 🆕 | 🆕 Usa | 🆕 Usa | - | - |
+| **Transcript Search** | 🆕 | - | 🆕 Usa | - | - |
 
 ### Sistema de Créditos por Rol
 
@@ -1192,10 +1330,78 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | Certificate PDF Generator | ✅ | ✅ |
 | Sentiment Analytics | ❌ | ✅ |
 | Advanced DRM | ❌ | ✅ |
+| Book Highlights | ❌ | 🆕 |
+| AI Summary | ❌ | 🆕 |
 
 ---
 
-## 6. Análisis de Viabilidad Económica
+## 6.Herramientas de Admin
+
+> Estas herramientas son para la administración de la plataforma y están disponibles para usuarios con rol Admin.
+
+### 6.1 Dashboard de Admin
+
+| Herramienta | Descripción |
+|-------------|-------------|
+| **Sentiment Analytics** | Análisis de reviews de todos los productos |
+| **Predictive Analytics** | Patrones de éxito/fracaso usando pgvector |
+| **Content Moderation** | Moderación de contenido subenido |
+| **Security Dashboard** | Monitoreo de seguridad de la plataforma |
+| **Revenue Analytics** | Ganancias, métricas financieras |
+| **User Insights** | Comportamiento de usuarios |
+| **Product Health** | Estado de productos (ventas, refunds) |
+| **AI Usage Stats** | Uso de créditos AI por producto/usuario |
+
+### 6.2 Métricas Disponibles
+
+| Métrica | Descripción |
+|-------------|-------------|
+| **Churn Prediction** | Predecir usuarios en riesgo de cancelar |
+| **Refund Risk** | Productos con alto riesgo de reembolso |
+| **Success Patterns** | Qué tipos de productos venden más |
+| **Conversion Funnel** | Embudo de conversión por tipo |
+| **AI Adoption** | % de usuarios usando herramientas AI |
+
+---
+
+## 6b. Matriz de Herramientas por Tipo de Producto
+
+### CREADOR
+
+| Herramienta | Video/Curso | | Ebook | | | Podcast | | Software | | Membresía | | Link | |
+|-------------|:----------:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Plan** | Free | Pro | Free | Pro | Free | Pro | Pro | Free | Pro | Pro |
+| **Tutor IA** | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Transcripción** | 💰 | ✅ | ❌ | ✅ | 💰 | ✅ | ✅ | ✅ | 💰 | 💰 |
+| **Content Asst** | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **SEO Optimizer** | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+
+### COMPRADOR
+
+| Herramienta | Video/Curso | Ebook | Podcast | Software | Membresía | Link |
+|-------------|:---------:|:-----:|:-------:|:--------:|:--------:|:---:|
+| **Tutor IA** | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Chat PDF** | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **Smart Chapters** | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| **Transcripción** | 💰 | ❌ | 💰 | ❌ | 💰 | 💰 |
+| **Micro-Learning** | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| **Book Highlights** | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **Audio Notes** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **AI Summary** | 💰 | 💰 | 💰 | ❌ | 💰 | ❌ |
+| **Transcript Search** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Certificate** | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+
+### AFILIADO
+
+| Herramienta | Acceso |
+|-------------|-------|
+| **Gen. de Copy** | 💰 |
+| **Chat Producto** | 💰 |
+| **Landing Page Builder** | 💰 |
+
+---
+
+## 7. Roadmap de Implementación
 
 ### 6.1 Costo de Implementación por Funcionalidad
 
@@ -1274,23 +1480,43 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ### Fase 4: Advanced AI (Meses 7-8) [Diciembre 2026 - Enero 2027]
 
-| Semana | Funcionalidad | Entregable |
-|--------|---------------|------------|
+| Semana | Funcionalidad | Entregable | Depende de |
+|--------|---------------|------------|-------------|
 | 25-26 | **AI Content Studio** | Repurpose de contenido | Memory Service |
 | 27-28 | **AI Insights** | Analytics en lenguaje natural | Analytics DB |
 | 29-30 | **AI Afiliate Chat** | Chat para afiliados | Agentes |
 | 31-32 | **Advanced DRM** | Protección avanzada | - |
 
-### Fase 5: Optimización (Mes 9+) [Febrero 2027+]
+### Fase 5: Experiencia Comprador (Mes 9+) [Febrero 2027+]
+
+| Semana | Funcionalidad | Entregable | Depende de |
+|--------|---------------|------------|-------------|
+| 33-34 | **Book Highlights** | Subrayar y notas en PDFs | Conversational Reader |
+| 35-36 | **Audio Notes** | Notas con timestamp | Transcription |
+| 37-38 | **AI Summary** | Resumen descargable | Transcription |
+| 39-40 | **Transcript Search** | Búsqueda en audio | Transcription |
+
+### Fase 6: Admin Tools (Mes 10+) [Marzo 2027+]
+
+| Semana | Funcionalidad | Entregable | Depende de |
+|--------|---------------|------------|-------------|
+| 41-42 | **Predictive Analytics** | Patrones de éxito/fracaso | AI Insights |
+| 43-44 | **Content Moderation** | Moderación de contenido | AI Content Assistant |
+| 45-46 | **Security Dashboard** | Monitoreo de seguridad | - |
+| 47-48 | **Revenue Analytics** | Métricas financieras | Analytics DB |
+
+### Fase 7: Optimización (Mes 12+) [Mayo 2027+]
 
 - Refinamiento de prompts
 - Testing de usuarios
 - Optimización de costos
 - Escalabilidad
+- Workshop Builder AI
+- Affiliate Landing Builder
 
 ---
 
-## 8. Requisitos No Funcionales
+## 9. Requisitos No Funcionales
 
 ### 8.1 Performance y Experiencia de Usuario (UX)
 
