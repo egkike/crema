@@ -35,7 +35,6 @@ export class EmbeddingService {
   private baseUrl = 'https://api.openai.com/v1';
   private provider: EmbeddingProvider = 'openai';
   private dimensions: number = DEFAULT_EMBEDDING_DIMENSIONS;
-  private configLoaded: boolean = false;
 
   constructor() {
     this.apiKey = config.ai.openaiApiKey;
@@ -52,36 +51,19 @@ export class EmbeddingService {
       logger.warn('No embedding provider configured - using simulator (not for production)');
     }
 
-    // Load config dimensions asynchronously (best effort - will use default if fails)
-    configService.getNumber('ai.embedding_dimensions', DEFAULT_EMBEDDING_DIMENSIONS).then(val => {
-      this.dimensions = val;
-      this.configLoaded = true;
-      logger.info({ dimensions: val }, 'Loaded embedding dimensions from ConfigService');
-    }).catch(err => {
-      logger.warn({ err }, 'Failed to load embedding dimensions from ConfigService, using default');
-      this.configLoaded = true; // Mark as loaded even on failure (using default)
-    });
-  }
-
-  /**
-   * Wait for config to be loaded before use
-   * Only waits if config is still loading (max 100ms)
-   */
-  private async waitForConfig(): Promise<void> {
-    if (this.configLoaded) return;
-    
-    // Brief wait for config to load (only for production)
-    if (process.env.NODE_ENV === 'test') return;
-    
-    const start = Date.now();
-    while (!this.configLoaded) {
-      if (Date.now() - start > 5000) {
-        logger.warn('Config load timeout, using default dimensions');
-        break;
-      }
-      await new Promise(resolve => setTimeout(resolve, 50));
+    // Load config dimensions from ConfigService (best effort - async)
+    // Note: Tests may need to mock configService to avoid timeouts
+    if (typeof configService !== 'undefined') {
+      configService.getNumber('ai.embedding_dimensions', DEFAULT_EMBEDDING_DIMENSIONS).then(val => {
+        this.dimensions = val;
+        logger.info({ dimensions: val }, 'Loaded embedding dimensions from ConfigService');
+      }).catch(() => {
+        // Silently use default on error
+      });
     }
   }
+
+  
 
   /**
    * Check if embedding service is properly configured for production use
@@ -101,7 +83,7 @@ export class EmbeddingService {
    * Generate embedding for a single text using configured provider
    */
   async generateEmbedding(text: string): Promise<number[]> {
-    await this.waitForConfig();
+    
     switch (this.provider) {
       case 'openai':
         return this.generateOpenAIEmbedding(text);
@@ -226,7 +208,7 @@ export class EmbeddingService {
    * Generate embeddings for multiple texts (batch processing)
    */
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
-    await this.waitForConfig();
+    
     if (this.provider === 'simulator') {
       // Simulator can handle arrays directly
       return texts.map(text => this.generateSimulatorEmbedding(text));
