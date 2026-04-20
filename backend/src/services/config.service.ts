@@ -39,6 +39,10 @@ export const ALLOWED_CONFIG_KEYS = [
   // T-082: BlockonomicsProvider
   'providers.blockonomics_timeout',
   'providers.address_cleanup_ttl',
+  // T-101: Orchestrator config keys
+  'orchestrator.default_timeout',
+  'orchestrator.max_retries',
+  'orchestrator.cache_ttl',
 ];
 
 // Redis client for cache - lazy initialization
