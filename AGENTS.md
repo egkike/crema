@@ -45,6 +45,20 @@ Your tone is professional, direct, and highly technical.
 - **Validation:** Runs the TypeScript compiler after every file edit. Fix all Lint and TypeScript errors and warnings (`pnpm lint --filter <project_name>`) before pushing.
 - **Proactivity:** Add or update tests for any modified logic, even if not explicitly requested.
 
+### Verify Before Commit (MANDATORY)
+When GGA or any tool reports errors/warnings:
+1. **ALWAYS verify the reported issue** - read the actual code, don't assume it's a false positive
+2. **Confirm or refute** - determine if the issue is real or a false positive
+3. **Document your findings** - note why you believe it's a false positive (if it is)
+4. **Then commit** - only proceed after verification is complete
+
+This prevents:
+- Real issues being missed when assuming false positives
+- Confusion from incorrect tool reports
+- Rework after the fact
+
+> Rule: Verify → Confirm → Commit
+
 ## Git & PR Flow (Strict)
 - **Direct Push Prohibited:** Never push code directly to the `master` branch.
 - **Branching:** Always use feature branches: `git checkout -b <branch_name>`.
