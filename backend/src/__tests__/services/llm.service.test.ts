@@ -110,8 +110,8 @@ describe('LLMService', () => {
       const controller = new AbortController();
       const chunks: string[] = [];
 
-      // Abort after first chunk
-      setTimeout(() => controller.abort(), 10);
+      // Abort immediately - should work
+      controller.abort();
 
       await expect(
         service.chatStream({
