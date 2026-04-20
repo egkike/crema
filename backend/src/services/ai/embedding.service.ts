@@ -6,7 +6,6 @@
  */
 
 import { config } from '../../config/index';
-import { configService } from '../../services/config.service';
 import logger from '../../utils/logger';
 
 const EMBEDDING_MODEL = config.ai.openaiEmbeddingModel;
