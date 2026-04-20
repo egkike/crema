@@ -20,6 +20,16 @@ vi.mock('../../../config/index', () => ({
   },
 }));
 
+// Mock configService
+vi.mock('../../../services/config.service', () => ({
+  configService: {
+    get: vi.fn().mockResolvedValue(undefined),
+    getNumber: vi.fn().mockResolvedValue(50),
+    getBoolean: vi.fn().mockResolvedValue(false),
+    getJSON: vi.fn().mockResolvedValue({}),
+  },
+}));
+
 vi.mock('../../../utils/logger', () => ({
   default: {
     info: vi.fn(),

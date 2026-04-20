@@ -20,6 +20,15 @@ vi.mock('../../../config/index', () => ({
   },
 }));
 
+// Mock configService
+vi.mock('../../../services/config.service', () => ({
+  configService: {
+    get: vi.fn().mockResolvedValue('whisper-1'),
+    getNumber: vi.fn().mockResolvedValue(0),
+    getBoolean: vi.fn().mockResolvedValue(false),
+  },
+}));
+
 vi.mock('../../../config/ai-content.config', () => ({
   aiContentConfig: {
     transcriptionMaxFileSizeMb: 25,

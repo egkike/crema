@@ -6,6 +6,7 @@ vi.mock('../../utils/logger', () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 
@@ -27,6 +28,16 @@ vi.mock('../../config/index', () => ({
       anthropicApiKey: '',
       geminiApiKey: '',
     },
+  },
+}));
+
+// Mock configService
+vi.mock('../../services/config.service', () => ({
+  configService: {
+    get: vi.fn().mockResolvedValue(undefined),
+    getNumber: vi.fn().mockResolvedValue(50),
+    getBoolean: vi.fn().mockResolvedValue(false),
+    getJSON: vi.fn().mockResolvedValue({}),
   },
 }));
 
