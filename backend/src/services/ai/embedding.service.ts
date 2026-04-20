@@ -6,10 +6,11 @@
  */
 
 import { config } from '../../config/index';
+import { configService } from '../../services/config.service';
 import logger from '../../utils/logger';
 
 const EMBEDDING_MODEL = config.ai.openaiEmbeddingModel;
-const EMBEDDING_DIMENSIONS = 1536;
+const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
 // Ollama configuration from centralized config
 const OLLAMA_MODEL = config.ai.defaultOllamaEmbeddingModel;
@@ -33,6 +34,8 @@ export class EmbeddingService {
   private apiKey: string;
   private baseUrl = 'https://api.openai.com/v1';
   private provider: EmbeddingProvider = 'openai';
+  private dimensions: number = DEFAULT_EMBEDDING_DIMENSIONS;
+  private configLoaded: boolean = false;
 
   constructor() {
     this.apiKey = config.ai.openaiApiKey;
@@ -47,6 +50,31 @@ export class EmbeddingService {
     } else {
       this.provider = 'simulator';
       logger.warn('No embedding provider configured - using simulator (not for production)');
+    }
+
+    // Load config dimensions asynchronously (best effort - will use default if fails)
+    configService.getNumber('ai.embedding_dimensions', DEFAULT_EMBEDDING_DIMENSIONS).then(val => {
+      this.dimensions = val;
+      this.configLoaded = true;
+      logger.info({ dimensions: val }, 'Loaded embedding dimensions from ConfigService');
+    }).catch(err => {
+      logger.warn({ err }, 'Failed to load embedding dimensions from ConfigService, using default');
+      this.configLoaded = true; // Mark as loaded even on failure (using default)
+    });
+  }
+
+  /**
+   * Wait for config to be loaded before use
+   */
+  private async waitForConfig(): Promise<void> {
+    // Poll until config is loaded (max 5 seconds)
+    const start = Date.now();
+    while (!this.configLoaded) {
+      if (Date.now() - start > 5000) {
+        logger.warn('Config load timeout, using default dimensions');
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
 
@@ -68,6 +96,7 @@ export class EmbeddingService {
    * Generate embedding for a single text using configured provider
    */
   async generateEmbedding(text: string): Promise<number[]> {
+    await this.waitForConfig();
     switch (this.provider) {
       case 'openai':
         return this.generateOpenAIEmbedding(text);
@@ -98,7 +127,7 @@ export class EmbeddingService {
         body: JSON.stringify({
           model: EMBEDDING_MODEL,
           input: text,
-          dimensions: EMBEDDING_DIMENSIONS,
+          dimensions: this.dimensions,
         }),
       });
 
@@ -179,7 +208,7 @@ export class EmbeddingService {
     
     // Generate deterministic vector
     const embedding: number[] = [];
-    for (let i = 0; i < EMBEDDING_DIMENSIONS; i++) {
+    for (let i = 0; i < this.dimensions; i++) {
       embedding.push(seededRandom(hash + i) * 2 - 1); // Normalize to [-1, 1]
     }
     
@@ -192,6 +221,7 @@ export class EmbeddingService {
    * Generate embeddings for multiple texts (batch processing)
    */
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
+    await this.waitForConfig();
     if (this.provider === 'simulator') {
       // Simulator can handle arrays directly
       return texts.map(text => this.generateSimulatorEmbedding(text));
@@ -213,7 +243,7 @@ export class EmbeddingService {
           body: JSON.stringify({
             model: EMBEDDING_MODEL,
             input: texts,
-            dimensions: EMBEDDING_DIMENSIONS,
+            dimensions: this.dimensions,
           }),
         });
 
@@ -252,7 +282,7 @@ export class EmbeddingService {
    * Get embedding dimension size
    */
   getDimensions(): number {
-    return EMBEDDING_DIMENSIONS;
+    return this.dimensions;
   }
 
   /**

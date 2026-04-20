@@ -7,6 +7,10 @@ import { payoutMethodRepository } from '../repositories/payout_method.repository
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
 
+import { configService } from './config.service';
+
+const DEFAULT_COMMISSION_MARGIN = 5;
+
 interface ProductModule {
   title: string;
   content?: string;
@@ -169,7 +173,7 @@ export class ProductService {
       const minAffiliateComm =
         configs && configs['min_global_affiliate_commission']
           ? Number(configs['min_global_affiliate_commission'])
-          : 5;
+          : await configService.getNumber('commission.default_margin', DEFAULT_COMMISSION_MARGIN);
 
       // 3. Obtener el porcentaje de fee de la plataforma
       const subscription = await subscriptionRepository.getCreatorPlanLimits(creatorId);

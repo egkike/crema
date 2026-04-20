@@ -13,8 +13,9 @@ import logger from '../utils/logger';
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
 export type ConfigCategory = 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features';
 
-// Allowlist de claves válidas para seguridad
+// Allowlist de claves válidas para seguridad (Fase 4: Migración)
 export const ALLOWED_CONFIG_KEYS = [
+  // Existing keys
   'ai.embedding_dimensions',
   'ai.default_model',
   'ai.max_tokens',
@@ -25,6 +26,19 @@ export const ALLOWED_CONFIG_KEYS = [
   'commission.max_affiliate_rate',
   'cache.ttl_seconds',
   'features.early_access',
+  // T-071: TranscriptionService
+  'ai.whisper_model',
+  'ai.default_transcription_lang',
+  'ai.audio_bitrate',
+  // T-072: LLMService
+  'ai.simulator_delay',
+  // T-080: ProductService
+  'commission.default_margin',
+  // T-081: AdminRepository
+  'pagination.admin_limit',
+  // T-082: BlockonomicsProvider
+  'providers.blockonomics_timeout',
+  'providers.address_cleanup_ttl',
 ];
 
 // Redis client for cache

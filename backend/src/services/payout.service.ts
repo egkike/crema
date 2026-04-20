@@ -7,6 +7,7 @@ import { payoutMethodRepository } from '../repositories/payout_method.repository
 import { userRepository } from '../repositories/user.repository';
 import { platformBalanceRepository } from '../repositories/platform_balance.repository';
 import { platformWithdrawalRepository } from '../repositories/platform_withdrawal.repository';
+import { configService } from '../services/config.service';
 import { SpecialValidators } from '../utils/validators.util';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
@@ -190,6 +191,7 @@ export class PayoutService {
       if (mainQueue) {
         const user = await userRepository.getById(userId);
         if (user) {
+          const payoutDelay = await configService.getNumber('retry.payout_delay', 2000);
           await mainQueue.add(
             'send-email',
             {
@@ -202,7 +204,7 @@ export class PayoutService {
                 destination: payoutData.alias || payoutData.destination_account,
               },
             },
-            { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
+            { attempts: 3, backoff: { type: 'exponential', delay: payoutDelay } }
           );
         }
       }

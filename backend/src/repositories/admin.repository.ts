@@ -1,5 +1,8 @@
 import pool from '../db/postgres';
 import { config } from '../config/index';
+import { configService } from '../services/config.service';
+
+const DEFAULT_ADMIN_LIMIT = 50;
 
 export const adminRepository = {
   /**
@@ -101,7 +104,8 @@ export const adminRepository = {
   /**
    * Libro de Caja (Ledger) de la plataforma consolidado.
    */
-  async getPlatformLedger(currency: string, from?: string, to?: string, limit: number = 100) {
+  async getPlatformLedger(currency: string, from?: string, to?: string, limit?: number) {
+    const effectiveLimit = limit ?? await configService.getNumber('pagination.admin_limit', DEFAULT_ADMIN_LIMIT);
     const schema = config.db?.schema || 'public';
     const params: any[] = [currency];
 
@@ -154,7 +158,7 @@ export const adminRepository = {
       ${from ? '' : 'LIMIT $' + (params.length + 1)};
     `;
 
-    if (!from) params.push(limit);
+    if (!from) params.push(effectiveLimit);
 
     const { rows } = await pool.query(query, params);
 
@@ -264,7 +268,8 @@ export const adminRepository = {
   /**
    * Obtiene lista de reembolsos filtrados por moneda para auditoría administrativa
    */
-  async getRecentRefunds(currency: string, limit: number = 50) {
+  async getRecentRefunds(currency: string, limit?: number) {
+    const effectiveLimit = limit ?? await configService.getNumber('pagination.admin_limit', DEFAULT_ADMIN_LIMIT);
     const schema = config.db?.schema || 'public';
 
     // Filtramos por la moneda de la orden original asociada al reembolso
@@ -283,14 +288,15 @@ export const adminRepository = {
     `;
 
     // Pasamos ambos parámetros: moneda y límite
-    const { rows } = await pool.query(query, [currency, limit]);
+    const { rows } = await pool.query(query, [currency, effectiveLimit]);
     return rows;
   },
 
   /**
    * Obtiene los últimos retiros de la plataforma (Empresa)
    */
-  async getPlatformWithdrawals(limit: number = 50) {
+  async getPlatformWithdrawals(limit?: number) {
+    const effectiveLimit = limit ?? await configService.getNumber('pagination.admin_limit', DEFAULT_ADMIN_LIMIT);
     const schema = config.db?.schema || 'public';
     const query = `
       SELECT w.*, u.fullname as admin_name
@@ -299,7 +305,7 @@ export const adminRepository = {
       ORDER BY w.created_at DESC
       LIMIT $1
     `;
-    const { rows } = await pool.query(query, [limit]);
+    const { rows } = await pool.query(query, [effectiveLimit]);
     return rows;
   },
 

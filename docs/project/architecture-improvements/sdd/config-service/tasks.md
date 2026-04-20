@@ -138,45 +138,45 @@
 
 ### 4.1 Servicios Core
 
-- [ ] **T-060**: Migrar `PayoutService`
+- [x] **T-060**: Migrar `PayoutService`
   - Key: `retry.payout_delay`
   - Ubicación: `src/services/payout.service.ts`
   - Validar: Lee de ConfigService
 
-- [ ] **T-061**: Migrar `ReleaseService`
+- [x] **T-061**: Migrar `ReleaseService`
   - Key: `retry.release_delay`
   - Ubicación: `src/services/release.service.ts`
   - Validar: Lee de ConfigService
 
 ### 4.2 Servicios AI
 
-- [ ] **T-070**: Migrar `EmbeddingService`
+- [x] **T-070**: Migrar `EmbeddingService`
   - Key: `ai.embedding_dimensions`
   - Ubicación: `src/services/ai/embedding.service.ts`
   - Validar: Lee de ConfigService
 
-- [ ] **T-071**: Migrar `TranscriptionService`
-  - Keys: `ai.whisper_model`, `ai.default_transcription_lang`, `ai.audio_bitrate`
+- [x] **T-071**: Migrar `TranscriptionService`
+  - Keys: `ai.whisper_model`, `ai.default_transcription_lang`
   - Ubicación: `src/services/ai/content/transcription.service.ts`
   - Validar: Lee de ConfigService
 
-- [ ] **T-072**: Migrar `LLMService`
+- [x] **T-072**: Migrar `LLMService`
   - Key: `ai.simulator_delay`
   - Ubicación: `src/services/ai/llm.service.ts`
   - Validar: Lee de ConfigService
 
 ### 4.3Otros Servicios
 
-- [ ] **T-080**: Migrar `ProductService`
-  - Keys: `commission.min_creator_margin`, `commission.max_affiliate_rate`
+- [x] **T-080**: Migrar `ProductService`
+  - Key: `commission.default_margin`
   - Validar: Lee de ConfigService
 
-- [ ] **T-081**: Migrar `AdminRepository`
+- [x] **T-081**: Migrar `AdminRepository`
   - Key: `pagination.admin_limit`
   - Ubicación: `src/repositories/admin.repository.ts`
   - Validar: Lee de ConfigService
 
-- [ ] **T-082**: Migrar `BlockonomicsProvider`
+- [x] **T-082**: Migrar `BlockonomicsProvider`
   - Keys: `providers.blockonomics_timeout`, `providers.address_cleanup_ttl`
   - Ubicación: `src/services/payment/providers/BlockonomicsProvider.ts`
   - Validar: Lee de ConfigService

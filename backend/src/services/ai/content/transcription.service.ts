@@ -15,6 +15,7 @@ import { config } from '../../../config/index';
 import { aiContentConfig, SUPPORTED_TRANSCRIPTION_FORMATS } from '../../../config/ai-content.config';
 import { subscriptionRepository } from '../../../repositories/subscription.repository';
 import { aiCreditService } from '../credits.service';
+import { configService } from '../../config.service';
 import { AppError } from '../../../errors/AppError';
 import logger from '../../../utils/logger';
 
@@ -71,8 +72,8 @@ export interface TranscriptionCostResult {
 // Constants
 // ============================================================================
 
-const WHISPER_MODEL = 'whisper-1';
-const DEFAULT_LANGUAGE = 'es';
+const DEFAULT_WHISPER_MODEL = 'whisper-1';
+const DEFAULT_TRANSCRIPTION_LANG = 'es';
 
 // ============================================================================
 // Transcription Service Class
@@ -325,8 +326,8 @@ export class TranscriptionService {
     const uint8Array = new Uint8Array(fileBuffer);
     const blob = new Blob([uint8Array]);
     formData.append('file', blob, fileName);
-    formData.append('model', WHISPER_MODEL);
-    formData.append('language', DEFAULT_LANGUAGE);
+    formData.append('model', (await configService.get('ai.whisper_model', DEFAULT_WHISPER_MODEL)) ?? DEFAULT_WHISPER_MODEL);
+    formData.append('language', (await configService.get('ai.default_transcription_lang', DEFAULT_TRANSCRIPTION_LANG)) ?? DEFAULT_TRANSCRIPTION_LANG);
     formData.append('response_format', 'json');
     
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -346,7 +347,7 @@ export class TranscriptionService {
     
     return {
       text: result.text || '',
-      language: DEFAULT_LANGUAGE,
+      language: (await configService.get('ai.default_transcription_lang', DEFAULT_TRANSCRIPTION_LANG)) ?? DEFAULT_TRANSCRIPTION_LANG,
     };
   }
 

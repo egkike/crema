@@ -5,7 +5,10 @@
  */
 
 import { config } from '../../config/index';
+import { configService } from '../config.service';
 import logger from '../../utils/logger';
+
+const DEFAULT_SIMULATOR_DELAY = 50;
 
 // ============================================================================
 // Types
@@ -894,7 +897,8 @@ export class LLMService {
         throw new DOMException('Aborted', 'AbortError');
       }
       options.onChunk?.(chunk);
-      await new Promise(resolve => setTimeout(resolve, 50)); // Simulate delay
+      const simDelay = await configService.getNumber('ai.simulator_delay', DEFAULT_SIMULATOR_DELAY);
+    await new Promise(resolve => setTimeout(resolve, simDelay)); // Simulate delay
     }
     
     return { content: response };

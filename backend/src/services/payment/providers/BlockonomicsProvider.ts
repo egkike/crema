@@ -6,8 +6,12 @@ import {
   WebhookResult,
 } from '../PaymentProvider';
 import { config } from '../../../config';
+import { configService } from '../../config.service';
 import { AppError } from '../../../errors/AppError';
 import logger from '../../../utils/logger';
+
+const DEFAULT_BLOCKONOMICS_TIMEOUT = 10000; // 10 seconds
+const DEFAULT_ADDRESS_CLEANUP_TTL = 5000; // 5 seconds
 
 /**
  * BlockonomicsProvider - Pasarela de pagos crypto (USDT/BTC)
@@ -71,7 +75,8 @@ export class BlockonomicsProvider implements PaymentProvider {
     try {
       // 1. Generar dirección de pago única
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const timeoutMs = await configService.getNumber('providers.blockonomics_timeout', DEFAULT_BLOCKONOMICS_TIMEOUT);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       let response: Response;
       try {
@@ -177,7 +182,8 @@ export class BlockonomicsProvider implements PaymentProvider {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeoutMs = await configService.getNumber('providers.address_cleanup_ttl', DEFAULT_ADDRESS_CLEANUP_TTL);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(`${this.baseUrl}/monitor-tx`, {

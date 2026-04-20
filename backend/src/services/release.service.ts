@@ -6,6 +6,7 @@ import { platformBalanceRepository } from '../repositories/platform_balance.repo
 import { userRepository } from '../repositories/user.repository';
 import logger from '../utils/logger';
 import { config } from '../config/index';
+import { configService } from '../services/config.service';
 import { mainQueue } from '../queues/scheduler';
 import { roundToTwo } from '../utils/rounder.util';
 import { AppError } from '../errors/AppError';
@@ -198,8 +199,8 @@ export const ReleaseService = {
       const user = await userRepository.getById(userId);
 
       if (user) {
-        if (mainQueue) {
-          // Encolamos la tarea para que el worker la procese después
+if (mainQueue) {
+          const releaseDelay = await configService.getNumber('retry.release_delay', 2000);
           await mainQueue.add(
             'send-email',
             {
@@ -213,7 +214,7 @@ export const ReleaseService = {
             },
             {
               attempts: 5,
-              backoff: { type: 'exponential', delay: 2000 },
+              backoff: { type: 'exponential', delay: releaseDelay },
               removeOnComplete: true, // Limpieza automática de Redis
             }
           );
