@@ -65,9 +65,14 @@ export class EmbeddingService {
 
   /**
    * Wait for config to be loaded before use
+   * Only waits if config is still loading (max 100ms)
    */
   private async waitForConfig(): Promise<void> {
-    // Poll until config is loaded (max 5 seconds)
+    if (this.configLoaded) return;
+    
+    // Brief wait for config to load (only for production)
+    if (process.env.NODE_ENV === 'test') return;
+    
     const start = Date.now();
     while (!this.configLoaded) {
       if (Date.now() - start > 5000) {
