@@ -41,15 +41,21 @@ export const ALLOWED_CONFIG_KEYS = [
   'providers.address_cleanup_ttl',
 ];
 
-// Redis client for cache
-const redisCache = new Redis({
-  host: config.redis.host,
-  port: config.redis.port,
-  password: config.redis.password,
-  lazyConnect: true,
-  // Key prefix for namespacing
-  keyPrefix: 'crema:config:',
-});
+// Redis client for cache - lazy initialization
+let redisCache: Redis | null = null;
+
+function getRedisCache(): Redis {
+  if (!redisCache) {
+    redisCache = new Redis({
+      host: config.redis?.host ?? 'localhost',
+      port: config.redis?.port ?? 6379,
+      password: config.redis?.password,
+      lazyConnect: true,
+      keyPrefix: 'crema:config:',
+    });
+  }
+  return redisCache;
+}
 
 const CACHE_TTL_SECONDS = 300; // 5 minutes
 
@@ -74,7 +80,8 @@ async function getConfigValue(key: string, defaultValue?: string): Promise<strin
 
   // 1. Check Redis cache
   try {
-    const cached = await redisCache.get(cacheKey);
+    const redis = getRedisCache();
+    const cached = await redis.get(cacheKey);
     if (cached) {
       logger.debug({ key, from: 'redis' }, 'ConfigService: cache hit');
       return cached;
@@ -88,7 +95,8 @@ async function getConfigValue(key: string, defaultValue?: string): Promise<strin
   if (dbConfig) {
     // Set cache in Redis
     try {
-      await redisCache.setex(cacheKey, CACHE_TTL_SECONDS, dbConfig.configValue);
+      const redis = getRedisCache();
+      await redis.setex(cacheKey, CACHE_TTL_SECONDS, dbConfig.configValue);
     } catch (error) {
       logger.warn({ key, error: String(error) }, 'ConfigService: redis set failed');
     }
@@ -192,7 +200,8 @@ export const configService = {
     
     // Invalidate cache in Redis
     try {
-      await redisCache.del(key);
+      const redis = getRedisCache();
+      await redis.del(key);
     } catch (error) {
       logger.warn({ key, error: String(error) }, 'ConfigService: redis del failed');
     }
@@ -241,7 +250,8 @@ export const configService = {
    */
   async initCache(): Promise<void> {
     try {
-      await redisCache.connect();
+      const redis = getRedisCache();
+      await redis.connect();
       logger.info('ConfigService: Redis cache connected');
     } catch (error) {
       logger.warn({ error: String(error) }, 'ConfigService: Redis connection failed, using DB fallback');
@@ -252,7 +262,10 @@ export const configService = {
    * Close Redis cache connection
    */
   async closeCache(): Promise<void> {
-    await redisCache.quit();
-    logger.info('ConfigService: Redis cache disconnected');
+    if (redisCache) {
+      await redisCache.quit();
+      redisCache = null;
+      logger.info('ConfigService: Redis cache disconnected');
+    }
   },
 };
