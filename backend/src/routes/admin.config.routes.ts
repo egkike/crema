@@ -7,7 +7,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 
-import { configService, ConfigCategory } from '../services/config.service';
+import { configService, ConfigCategory, ALLOWED_CONFIG_KEYS } from '../services/config.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
 import { requireAdmin2FA } from '../middlewares/auth/admin2fa.middleware';
@@ -60,6 +60,14 @@ router.get('/:key', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const key = req.params.key as string;
 
+    // Validate key against allowlist
+    if (!ALLOWED_CONFIG_KEYS.includes(key)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid config key. Allowed keys: ${ALLOWED_CONFIG_KEYS.join(', ')}`,
+      });
+    }
+
     const config = await configService.getByKey(key);
 
     if (!config) {
@@ -86,6 +94,15 @@ router.get('/:key', async (req: Request, res: Response, next: NextFunction) => {
 router.put('/:key', adminWriteLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const key = req.params.key as string;
+
+    // Validate key against allowlist
+    if (!ALLOWED_CONFIG_KEYS.includes(key)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid config key. Allowed keys: ${ALLOWED_CONFIG_KEYS.join(', ')}`,
+      });
+    }
+
     const validatedData = updateConfigSchema.parse(req.body);
 
     await configService.set(

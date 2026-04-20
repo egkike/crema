@@ -13,6 +13,20 @@ import logger from '../utils/logger';
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
 export type ConfigCategory = 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features';
 
+// Allowlist de claves válidas para seguridad
+export const ALLOWED_CONFIG_KEYS = [
+  'ai.embedding_dimensions',
+  'ai.default_model',
+  'ai.max_tokens',
+  'retry.payout_delay',
+  'retry.release_delay',
+  'retry.max_attempts',
+  'commission.min_creator_margin',
+  'commission.max_affiliate_rate',
+  'cache.ttl_seconds',
+  'features.early_access',
+];
+
 // Redis client for cache
 const redisCache = new Redis({
   host: config.redis.host,
@@ -26,10 +40,23 @@ const redisCache = new Redis({
 const CACHE_TTL_SECONDS = 300; // 5 minutes
 
 /**
+ * Validar que la key está en el allowlist
+ */
+function isValidConfigKey(key: string): boolean {
+  return ALLOWED_CONFIG_KEYS.includes(key);
+}
+
+/**
  * Get config with fallback priority: redis cache → DB → .env → default
  */
 async function getConfigValue(key: string, defaultValue?: string): Promise<string | undefined> {
-  const cacheKey = `config:${key}`;
+  // Validate key against allowlist
+  if (!isValidConfigKey(key)) {
+    logger.warn({ key }, 'ConfigService: invalid key, not in allowlist');
+    return defaultValue;
+  }
+
+  const cacheKey = key; // Use key directly (Redis adds prefix)
 
   // 1. Check Redis cache
   try {
@@ -79,9 +106,9 @@ export const configService = {
   /**
    * Get a string config value
    */
-  async get(key: string, defaultValue?: string): Promise<string> {
+  async get(key: string, defaultValue?: string): Promise<string | undefined> {
     const value = await getConfigValue(key, defaultValue);
-    return value ?? defaultValue ?? '';
+    return value ?? defaultValue;
   },
 
   /**
@@ -132,7 +159,15 @@ export const configService = {
     type: ConfigType = 'string',
     category?: ConfigCategory
   ): Promise<void> {
-    const extractedCategory = category || key.split('.')[0] as ConfigCategory;
+    // Validate key against allowlist
+    if (!isValidConfigKey(key)) {
+      throw new Error(`Invalid config key: ${key}. Key must be in allowlist.`);
+    }
+
+    // Validate category extraction
+    const keyPrefix = key.split('.')[0];
+    const allowedCategories: ConfigCategory[] = ['ai', 'retry', 'admin', 'commission', 'cache', 'providers', 'features'];
+    const extractedCategory = category || (allowedCategories.includes(keyPrefix as ConfigCategory) ? keyPrefix as ConfigCategory : 'admin');
     
     await configRepository.upsert({
       configKey: key,
@@ -143,7 +178,7 @@ export const configService = {
     
     // Invalidate cache in Redis
     try {
-      await redisCache.del(`config:${key}`);
+      await redisCache.del(key);
     } catch (error) {
       logger.warn({ key, error: String(error) }, 'ConfigService: redis del failed');
     }
@@ -154,7 +189,18 @@ export const configService = {
    * Set multiple config values at once
    */
   async setMany(configs: Record<string, string>): Promise<void> {
-    for (const [key, value] of Object.entries(configs)) {
+    const entries = Object.entries(configs);
+    if (entries.length === 0) return;
+
+    // Validate all keys first
+    for (const [key] of entries) {
+      if (!isValidConfigKey(key)) {
+        throw new Error(`Invalid config key: ${key}. All keys must be in allowlist.`);
+      }
+    }
+
+    // Set all in sequence
+    for (const [key, value] of entries) {
       await this.set(key, value);
     }
   },
