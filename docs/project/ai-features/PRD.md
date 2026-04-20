@@ -1136,6 +1136,214 @@ class ReportsAgentService {
 }
 ```
 
+### 2.5 Agente de Implementación Interactiva (Talleres Dinámicos) ⭐
+
+#### 2.5.1 Visión
+
+Permite que el comprador cargue sus datos específicos (caso práctico) en cada módulo y reciba análisis personalizado de la IA basado en SU realidad. Transforma cursos pasivos en **herramientas de implementación**.
+
+> **Ejemplo:** Curso "Cómo montar una cafetería"
+> - Módulo 1: El alumno carga su ubicación, costo de alquiler
+> - Módulo 2: La IA analiza y le da su punto de equilibrio personalizado
+> - Al final: Tiene su **Business Plan listo**, no solo un certificado
+
+#### 2.5.2 Tipos de Producto Soportados
+
+| Producto | Datos que carga | Análisis que recibe |
+|----------|---------------|----------------|
+| **course** | Variables de su negocio | Punto de equilibrio, recomendaciones |
+| **ebook** | Respuestas a ejercicios | Feedback personalizado |
+| **membership** | Objetivos y perfil | Plan personalizado |
+| **software** | Configuración actual | Guía de setup paso a paso |
+
+#### 2.5.3 User Stories
+
+| ID | Historia | Criterio de Aceptación |
+|----|---------|---------------------|
+| US-INT-01 | Como comprador, quiero cargar mis datos en cada módulo | El sistema guarda los datos y confirma con mensaje de éxito |
+| US-INT-02 | Como comprador, quiero recibir análisis personalizado | La IA responde basado en MIS datos, no genérico |
+| US-INT-03 | Como comprador, quiero ver mi progreso en el "Centro de Control" | Dashboard muestra metas completadas con analytics |
+| US-INT-04 | Como creador, quiero configurar qué datos se piden | El creator define los campos requeridos por módulo |
+| US-INT-05 | Como creador, quiero ver los datos de mis alumnos | Dashboard agregado (anonimizado) con tendencias |
+
+#### 2.5.4 Modelo de Datos
+
+```sql
+-- Tabla principal: datos del usuario por producto/módulo
+CREATE TABLE user_course_data (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  module_key VARCHAR(100) NOT NULL,  -- ej: "modulo_1_finanzas"
+  input_data JSONB NOT NULL DEFAULT '{}',  -- { "alquiler": 50000, "leche": 120 }
+  output_analysis JSONB,  -- { "punto_equilibrio": 45, "margen": 0.25 }
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  CONSTRAINT uk_user_product_module UNIQUE (user_id, product_id, module_key)
+);
+
+-- Trigger para actualizar updated_at automáticamente (PostgreSQL)
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER user_course_data_updated_at
+    BEFORE UPDATE ON user_course_data
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Índice para analytics del creador (no para lookup - el UNIQUE constraint ya lo hace)
+CREATE INDEX idx_user_course_data_creator 
+  ON user_course_data (product_id, created_at);
+
+-- Tabla: configuración de campos por módulo (para el creador)
+CREATE TABLE product_module_fields (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  module_key VARCHAR(100) NOT NULL,
+  field_name VARCHAR(100) NOT NULL,
+  field_type VARCHAR(20) NOT NULL,  -- "number", "string", "boolean", "select"
+  field_label VARCHAR(255) NOT NULL,
+  field_placeholder VARCHAR(255),
+  field_options JSONB,  -- Para tipo "select": [{ "value": "x", "label": "X" }]
+  field_required BOOLEAN DEFAULT true,
+  field_validation JSONB,  -- { "min": 0, "max": 100 }
+  order_index INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  CONSTRAINT uk_product_module_field UNIQUE (product_id, module_key, field_name)
+);
+
+-- Trigger para actualizar updated_at automáticamente
+CREATE TRIGGER product_module_fields_updated_at
+    BEFORE UPDATE ON product_module_fields
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+```
+
+#### 2.5.5 Skills (Herramientas del Agente)
+
+```typescript
+// Skill: analyze_user_case_study
+const analyzeUserCaseStudy = {
+  name: 'analyze_user_case_study',
+  description: 'Analiza los datos específicos del usuario y devuelve insights personalizados',
+  input: {
+    type: 'object',
+    properties: {
+      product_id: { type: 'string', description: 'ID del producto' },
+      module_key: { type: 'string', description: 'Clave del módulo' },
+      user_data: { type: 'object', description: 'Datos cargados por el usuario' }
+    },
+    required: ['product_id', 'module_key', 'user_data']
+  },
+  output: {
+    type: 'object',
+    properties: {
+      analysis: { type: 'string', description: 'Análisis personalizado' },
+      recommendations: { type: 'array', description: 'Lista de recomendaciones' },
+      next_steps: { type: 'array', description: 'Próximos pasos sugeridos' },
+      metrics: { type: 'object', description: 'Métricas calculadas' }
+    }
+  }
+};
+
+// Skill: get_user_case_study
+const getUserCaseStudy = {
+  name: 'get_user_case_study',
+  description: 'Recupera los datos que el usuario cargó en módulos anteriores',
+  input: {
+    type: 'object',
+    properties: {
+      user_id: { type: 'string', description: 'ID del usuario' },
+      product_id: { type: 'string', description: 'ID del producto' },
+      module_key: { type: 'string', description: 'Clave del módulo (opcional, empty = todos)' }
+    },
+    required: ['user_id', 'product_id']
+  },
+  output: {
+    type: 'object',
+    properties: {
+      modules: { 
+        type: 'array', 
+        items: {
+          module_key: { type: 'string' },
+          input_data: { type: 'object' },
+          output_analysis: { type: 'object' },
+          updated_at: { type: 'string', format: 'date-time' }
+        }
+      }
+    }
+  }
+};
+```
+
+#### 2.5.6 API Endpoints
+
+| Método | Endpoint | Descripción | Auth | Request Body |
+|--------|----------|------------|-------|--------------|
+| POST | `/ai/interactive/analyze` | Analiza datos del usuario | Usuario | `{ "productId": "uuid", "moduleKey": "string", "inputData": {} }` |
+| GET | `/ai/interactive/data/:productId` | Obtiene mis datos guardados | Usuario | - |
+| PUT | `/ai/interactive/data/:productId/:moduleKey` | Guarda inputs del usuario | Usuario | `{ "inputData": { "campo1": "valor" } }` |
+| GET | `/ai/interactive/fields/:productId` | Campos configurados por el creator | Creador | - |
+| POST | `/ai/interactive/fields/:productId` | Configura campos por módulo | Creador (owner) | `{ "moduleKey": "string", "fields": [{ "fieldName": "string", "fieldType": "string", "fieldLabel": "string" }] }` |
+| GET | `/ai/interactive/analytics/:productId` | Datos agregados de alumnos | Creador (owner) | - |
+
+#### Códigos de Respuesta
+
+| Código | Descripción |
+|--------|-------------|
+| 200 | Éxito |
+| 400 | Bad Request (validación fallida) |
+| 401 | No autenticado |
+| 403 | No autorizado (no owner/del producto) |
+| 404 | Producto o módulo no encontrado |
+| 429 | Rate limit excedido |
+| 500 | Error interno del servidor |
+
+#### 2.5.7 Seguridad
+
+| Aspecto | Implementación |
+|---------|---------------|
+| **Input Validation** | Schema Zod: `moduleKey` con regex `^[a-z0-9_]+$`, `inputData` limitado a 50KB |
+| **Authorization** | Verificar ownership del producto O acceso de compra |
+| **Rate Limiting** | Nuevo `interactiveAgentLimiter`: 10 requests/minuto por usuario |
+| **SQL Injection** | SIEMPRE queries parametrizadas |
+| **Sensitive Data** | NO loggear `input_data` en errores |
+
+```typescript
+const interactiveAgentLimiter = rateLimit({
+  windowMs: 60 * 1000,  // 1 minuto
+  max: 10,              // 10 análisis por minuto por usuario
+  message: 'Demasiadas solicitudes. Intenta en un momento.',
+  keyGenerator: (req) => `${req.user?.id}:interactive`
+});
+```
+
+#### 2.5.8 Performance
+
+| Aspecto | Estratégia |
+|---------|-----------|
+| **Cache de Análisis** | Redis con key `analysis:{userId}:{productId}:{moduleKey}:{hash(data)}`, TTL 1 hora. **IMPORTANTE**: Siempre incluir `userId` para evitar data leaks entre usuarios. |
+| **Límites por Operación** | Campos por módulo: 50, Tamaño input_data: 50KB, Análisis guardados: 1000/user |
+| **Índices** | ya definidos en modelo de datos (no duplicar) |
+| **Async Processing** | Para análisis complejos, usar BullMQ queue |
+| **Algoritmo de Hash** | SHA256 de `JSON.stringify(userData)` para cache key |
+
+#### 2.5.9 Modelo de Créditos
+
+| Operación | Costo | Notas |
+|-----------|-------|-------|
+| Guardar datos (input) | 1 crédito | Por save |
+| Análisis completo | 3-5 créditos | Depende complejidad |
+| Consulta historial | 0 créditos | Reading es gratis |
+
 ---
 
 ## 3. Fase 2: Analytics + IA Avanzada
