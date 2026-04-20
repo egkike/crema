@@ -51,16 +51,9 @@ export class EmbeddingService {
       logger.warn('No embedding provider configured - using simulator (not for production)');
     }
 
-    // Load config dimensions from ConfigService (best effort - async)
-    // Note: Tests may need to mock configService to avoid timeouts
-    if (typeof configService !== 'undefined') {
-      configService.getNumber('ai.embedding_dimensions', DEFAULT_EMBEDDING_DIMENSIONS).then(val => {
-        this.dimensions = val;
-        logger.info({ dimensions: val }, 'Loaded embedding dimensions from ConfigService');
-      }).catch(() => {
-        // Silently use default on error
-      });
-    }
+    // Note: Dimensions uses DEFAULT_EMBEDDING_DIMENSIONS (1536) by default.
+    // To load from ConfigService at runtime, use configService manually.
+    // This design avoids async side effects in constructor.
   }
 
   

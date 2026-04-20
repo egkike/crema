@@ -22,6 +22,15 @@ vi.mock('../../utils/logger', () => ({
   },
 }));
 
+// Mock configService
+vi.mock('../../services/config.service', () => ({
+  configService: {
+    get: vi.fn().mockResolvedValue(undefined),
+    getNumber: vi.fn().mockResolvedValue(10000),
+    getBoolean: vi.fn().mockResolvedValue(false),
+  },
+}));
+
 // Mock fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

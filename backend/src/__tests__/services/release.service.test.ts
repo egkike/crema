@@ -82,6 +82,14 @@ vi.mock('../../utils/rounder.util', () => ({
   roundToTwo: vi.fn((n: number) => Math.round(n * 100) / 100),
 }));
 
+vi.mock('../../services/config.service', () => ({
+  configService: {
+    get: vi.fn().mockResolvedValue(undefined),
+    getNumber: vi.fn().mockResolvedValue(2000),
+    getBoolean: vi.fn().mockResolvedValue(false),
+  },
+}));
+
 vi.mock('../../services/email.service', () => ({
   EmailService: {
     sendBalanceReleasedEmail: vi.fn().mockResolvedValue(true),

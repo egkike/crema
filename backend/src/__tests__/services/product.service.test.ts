@@ -43,6 +43,14 @@ vi.mock('../../utils/logger', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../../services/config.service', () => ({
+  configService: {
+    get: vi.fn().mockResolvedValue(undefined),
+    getNumber: vi.fn().mockResolvedValue(5),
+    getBoolean: vi.fn().mockResolvedValue(false),
+  },
+}));
+
 import { productRepository } from '../../repositories/product.repository';
 import { payoutMethodRepository } from '../../repositories/payout_method.repository';
 import { configRepository } from '../../repositories/config.repository';
