@@ -1,0 +1,230 @@
+# SDD Tasks: Orchestrator + Skills Registry
+
+## Fase 2: Implementación de Orquestación de Agentes
+
+---
+
+## Definition of Done
+
+> Cada tarea se considera completada cuando:
+> - Código en `main` con tests passing
+> - `pnpm tsc` sin errores
+> - `pnpm lint` sin errores/warnings
+> - `pnpm vitest run` 100% pasando
+
+---
+
+## 1. Infrastructure (Semana 3)
+
+### 1.1 Database Setup
+
+- [ ] **T-100**: Create skills table migration
+  - File: `db/init/XX-orchestrator-tables.sql`
+  - Validar: Tabla skills creada con índices
+
+- [ ] **T-100b**: Run and verify migration in dev environment
+  - Command: `pnpm db:migrate` o ejecutar SQL manualmente
+  - Validar: Tabla creada + índices existentes
+
+### 1.2 ConfigService Keys
+
+- [ ] **T-101**: Add orchestrator config keys to ALLOWED_CONFIG_KEYS
+  - Location: `src/services/config.service.ts`
+  - Keys: `orchestrator.default_timeout`, `orchestrator.max_retries`, `orchestrator.cache_ttl`
+  - Validar: Keys en allowlist
+
+---
+
+## 2. Skills Registry (Semana 3-4)
+
+### 2.1 Core Service
+
+- [ ] **T-110**: Create SkillsRegistry service
+  - File: `src/services/skills-registry.service.ts`
+  - Methods: `register()`, `findByCapability()`, `listAll()`
+  - Validar: Unit tests passing
+
+- [ ] **T-111**: Add Redis caching to SkillsRegistry
+  - Location: `src/services/skills-registry.service.ts`
+  - Cache keys: `skills:all`, `skill:{capability}`
+  - Validar: Cache hit/miss logging
+
+- [ ] **T-112**: Create skills table repository
+  - File: `src/repositories/skills.repository.ts`
+  - Validar: CRUD operations
+
+### 2.2 Auto-Registration
+
+- [ ] **T-119**: Call registerAISkills() in boot sequence
+  - Location: `src/index.ts` o `src/app.ts` (startup)
+  - Call: `await registerAISkills()` después de DB connection
+  - Validar: Skills registradas en memoria antes de aceptar queries
+
+- [ ] **T-120**: Create AI skills boot registration
+  - File: `src/services/ai/index.ts`
+  - Function: `registerAISkills()` que registra todos los servicios AI
+  - Validar: Skills en registeredSkills Map después de boot
+
+---
+
+## 3. Orchestrator Service (Semana 4)
+
+### 3.1 Core
+
+- [ ] **T-130**: Create Orchestrator service
+  - File: `src/services/orchestrator.service.ts`
+  - Methods: `executeQuery()`, `listCapabilities()`
+  - Validar: Unit tests passing
+
+- [ ] **T-131**: Add capability validation
+  - Location: `src/services/orchestrator.service.ts`
+  - Validar: Solo allowlisted capabilities
+
+### 3.2 Error Handling
+
+- [ ] **T-132**: Create OrchestratorError class
+  - File: `src/errors/OrchestratorError.ts`
+  - Codes: ORCH001, ORCH002, ORCH003, ORCH004
+  - Validar: Errores con formato estándar
+
+- [ ] **T-133**: Add error middleware
+  - File: `src/middlewares/error/orchestrator-error.middleware.ts`
+  - Validar: Errores retornan JSON correcto
+
+---
+
+## 4. API Routes (Semana 4)
+
+### 4.1 Endpoints
+
+- [ ] **T-140**: Create orchestrator routes
+  - File: `src/routes/orchestrator.routes.ts`
+  - Endpoints: POST /query, GET /skills, GET /capabilities
+  - Validar: All endpoints return correct response
+
+- [ ] **T-141**: Add auth middleware to routes
+  - Location: `src/routes/orchestrator.routes.ts`
+  - Protected: /query
+  - Public: /skills, /capabilities
+  - Validar: 401 sin token
+
+- [ ] **T-142**: Add input validation with Zod
+  - Location: `src/routes/orchestrator.routes.ts`
+  - Validar: Bad input retorna 400
+
+- [ ] **T-143**: Register orchestrator routes in app.ts
+  - Location: `src/app.ts`
+  - Add: `app.use('/api/orchestrator', orchestratorRoutes)`
+  - Validar: Rutas responden en /api/orchestrator/*
+
+- [ ] **T-143b**: Add streaming endpoint for llm.stream
+  - Location: `src/routes/orchestrator.routes.ts`
+  - Endpoint: GET /stream (WebSocket o Server-Sent Events)
+  - Validar: Streaming response funciona
+
+### 4.2 Backward Compatibility
+
+- [ ] **T-144**: Verify existing AI service imports still work
+  - Files to verify: `ai.routes.ts`, `agents.service.ts`, `memory.service.ts`, `content/*.service.ts`
+  - Endpoints to verify: POST /api/llm/chat, POST /api/embedding/generate, POST /api/qa/answer
+  - Validar: Endpoints funcionan igual que antes (backward compatible)
+
+- [ ] **T-145**: Verify existing tests still pass
+  - RUN BASELINE FIRST: `pnpm vitest run` antes de hacer cambios
+  - After changes: verificar mismo score
+  - Validar: No nuevos failures
+
+- [ ] **T-146**: Add configService mock to new test files
+  - Location: Any new test files created for orchestrator/skills
+  - Pattern: Mock configService to avoid Redis connection issues
+  - Validar: Tests pass without Redis running
+
+---
+
+## 5. Integration (Semana 5)
+
+### 5.1 Register Existing Services
+
+- [ ] **T-150**: Register LLM service skill
+  - Capability: `llm.chat`, `llm.stream`
+  - Location: `src/services/ai/index.ts`
+  - Validar: Skill en registry
+
+- [ ] **T-151**: Register Embedding service skill
+  - Capability: `embedding.generate`, `embedding.batch`
+  - Validar: Skill en registry
+
+- [ ] **T-152**: Register QA service skill
+  - Capability: `qa.answer`, `qa.with_context`
+  - Validar: Skill en registry
+
+- [ ] **T-153**: Register Memory service skill
+  - Capability: `memory.store`, `memory.recall`
+  - Validar: Skill en registry
+
+- [ ] **T-154**: Register Review service skill
+  - Capability: `review.analyze`
+  - Validar: Skill en registry
+
+- [ ] **T-155**: Register Transcription service skill
+  - Capability: `transcribe.audio`
+  - Validar: Skill en registry
+
+### 5.2 Integration Tests
+
+- [ ] **T-160**: Integration test: full query flow
+  - Validar: Query pasa por orchestrator → skill → response
+
+- [ ] **T-161**: Integration test: skill discovery
+  - Validar: GET /orchestrator/skills retorna todas
+
+- [ ] **T-162**: Integration test: capability routing
+  - Validar: Cada capability rutea al skill correcto
+
+- [ ] **T-163**: Verify backward compatibility
+  - Validar: Tests existentes no rompen por nuevos servicios
+
+---
+
+## 6. Documentation (Semana 5)
+
+- [ ] **T-170**: Update API documentation
+  - OpenAPI/Swagger: /orchestrator/*
+  - Validar: Docs generan correctamente
+
+- [ ] **T-171**: Add usage examples
+  - Location: `docs/orchestrator-usage.md`
+  - Validar: Ejemplos claros
+
+---
+
+## Task Summary
+
+| Phase | Tasks | Count |
+|-------|-------|-------|
+| 1. Infrastructure | T-100, T-100b, T-101 | 3 |
+| 2. Skills Registry | T-110, T-111, T-112, T-119, T-120 | 5 |
+| 3. Orchestrator | T-130, T-131, T-132, T-133 | 4 |
+| 4. API Routes | T-140, T-141, T-142, T-143, T-143b, T-144, T-145, T-146 | 8 |
+| 5. Integration | T-150-T-163 | 14 |
+| 6. Documentation | T-170, T-171 | 2 |
+
+**Total: 36 tasks**
+
+---
+
+## Notes
+
+- T-100 requiere coordinación con DB migrations
+- T-119 + T-120 son para boot registration (T-119 llama, T-120 crea la función)
+- T-100b ejecute la migración en dev
+- T-143b streaming endpoint es opcional (solo si hay demanda)
+- T-144-T-145 ejecutarse siempre ANTES y DESPUÉS de cambios
+- CRÍTICO: Handler siempre viene de registeredSkills (in-memory), NO de DB/Redis
+- La DB solo guarda metadata para discovery, no handlers
+
+---
+
+**Tasks Creado**: Abril 2026  
+**Estado**: Listo para Implementación  
+**Author**: SDD Workflow
