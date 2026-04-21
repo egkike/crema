@@ -640,7 +640,44 @@ CREATE TABLE user_notes (
 
 ---
 
-## 6. Dependencias y Riesgos
+## 6. Testing
+
+### 6.1 Unit Tests (por fase)
+
+| Fase | Tests | Archivos |
+|------|-------|---------|
+| Fase 1: ConfigService | T-090 a T-095 | `config.service.test.ts`, `config.repository.test.ts` |
+| Fase 2: Orchestrator | T-110b, T-112b, T-130b | `skills-registry.service.test.ts`, `orchestrator.service.test.ts` |
+| Fase 3: Errores | TBD | `error-handler.test.ts` |
+
+### 6.2 Integration Tests
+
+| Test | Descripción |
+|------|-------------|
+| Orchestrator full flow | Query pasa por orchestrator → skill → response |
+| Skills discovery | GET /orchestrator/skills retorna todas |
+| Capability routing | Cada capability rutea al skill correcto |
+
+### 6.3 Test Fixtures
+
+```typescript
+// src/__tests__/fixtures/architecture-improvements.ts
+export const mockSkills = [
+  { capability: 'llm.chat', name: 'LLM Chat', handler: mockLLM },
+  { capability: 'embedding.generate', name: 'Embedding', handler: mockEmbedding },
+];
+```
+
+### 6.4 Coverage Target
+
+| Tipo | Target |
+|------|--------|
+| Unit Tests | >= 80% |
+| Integration | Core flows |
+
+---
+
+## 7. Dependencias y Riesgos
 
 ### 6.1 Dependencias
 
