@@ -6,6 +6,7 @@ import logger from './utils/logger';
 import { ReleaseService } from './services/release.service';
 import { initMainWorker, closeWorker } from './queues/main.worker';
 import { initScheduler, closeScheduler } from './queues/scheduler';
+import { registerAISkills } from './services/ai/index';
 
 let server: Server | undefined;
 
@@ -31,6 +32,13 @@ if (config.nodeEnv !== 'test') {
   initMainWorker();
   initScheduler().catch(err => {
     logger.error({ err }, 'SISTEMA: Fallo crítico al inicializar el Scheduler');
+  });
+
+  // 4. Registrar AI services como skills del Orchestrator
+  // Si falla, lanza error (consistente con Scheduler "Fallo crítico")
+  registerAISkills().catch(err => {
+    logger.error({ err }, 'SISTEMA: Fallo crítico al registrar AI skills');
+    process.exit(1);
   });
 }
 

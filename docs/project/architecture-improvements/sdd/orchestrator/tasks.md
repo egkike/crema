@@ -66,15 +66,23 @@
 
 ### 2.2 Auto-Registration
 
-- [ ] **T-119**: Call registerAISkills() in boot sequence
-  - Location: `src/index.ts` o `src/app.ts` (startup)
-  - Call: `await registerAISkills()` después de DB connection
+- [x] **T-119**: Call registerAISkills() in boot sequence
+  - Location: `src/index.ts`
+  - Call: `await registerAISkills()` en boot sequence (step 4)
   - Validar: Skills registradas en memoria antes de aceptar queries
 
-- [ ] **T-120**: Create AI skills boot registration
+- [x] **T-120**: Create AI skills boot registration
   - File: `src/services/ai/index.ts`
-  - Function: `registerAISkills()` que registra todos los servicios AI
-  - Validar: Skills en registeredSkills Map después de boot
+  - Function: `registerAISkills()` que registra servicios AI
+  - Skills: `llm.chat`, `llm.stream`, `embedding.generate`, `embedding.batch`
+  - Includes: Input validation (messages, temperature, maxTokens, text)
+  - Includes: Throw on boot failure (consistent with Scheduler pattern)
+  - Validar: TypeScript ✅, Lint ✅, Tests ✅ 933 passed
+
+- [x] **(T-120b)**: Unit tests for registerAISkills
+  - File: `src/__tests__/services/ai/ai-boot.test.ts`
+  - Tests: 13 passing (registration + handler validation)
+  - Validar: All tests passing
 
 ---
 
@@ -221,14 +229,14 @@
 |-------|-------|-------|
 | 1. Infrastructure | T-100, T-100b, T-101 | 3 ✅ |
 | 2. Skills Registry | T-110, T-110b, T-111, T-112, T-112b | 5 ✅ |
-| 2b. Auto-Registration | T-119, T-120 | 2 ⏳ |
+| 2b. Auto-Registration | T-119, T-120, T-120b | 3 ✅ |
 | 3. Orchestrator | T-130, T-130b, T-131, T-132, T-133 | 5 ⏳ |
 | 4. API Routes | T-140, T-141, T-142, T-143, T-143b, T-144, T-145, T-146 | 8 ⏳ |
 | 5. Integration | T-150-T-163 | 14 ⏳ |
 | 6. Documentation | T-170, T-171 | 2 ⏳ |
 
-**Completado: 8 tasks**  
-**Pendiente: 31 tasks**
+**Completado: 10 tasks**  
+**Pendiente: 29 tasks**
 
 ---
 
