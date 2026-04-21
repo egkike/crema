@@ -90,27 +90,27 @@
 
 ### 3.1 Core
 
-- [ ] **T-130**: Create Orchestrator service
+- [x] **T-130**: Create Orchestrator service
   - File: `src/services/orchestrator.service.ts`
   - Methods: `executeQuery()`, `listCapabilities()`
-  - Validar: Unit tests passing
+  - Validar: Unit tests passing ✅
 
-- [ ] **T-130b**: Create unit tests for Orchestrator
+- [x] **T-130b**: Create unit tests for Orchestrator
   - File: `src/__tests__/services/orchestrator.service.test.ts`
-  - Tests: executeQuery success, executeQuery error, listCapabilities
-  - Mock: skillsRegistry, registeredSkills Map
-  - Validar: All tests passing
+  - Tests: 11 passing
+  - Validar: All tests passing ✅
 
-- [ ] **T-131**: Add capability validation
+- [x] **T-131**: Add capability validation
   - Location: `src/services/orchestrator.service.ts`
-  - Validar: Solo allowlisted capabilities
+  - Implemented: `isValidCapabilityName()` + `findByCapability()` returns null if not found
+  - Validar: Solo allowlisted capabilities ✅
 
 ### 3.2 Error Handling
 
-- [ ] **T-132**: Create OrchestratorError class
-  - File: `src/errors/OrchestratorError.ts`
-  - Codes: ORCH001, ORCH002, ORCH003, ORCH004
-  - Validar: Errores con formato estándar
+- [x] **T-132**: Create OrchestratorError class
+  - File: `src/services/orchestrator.service.ts` (integrated)
+  - Classes: `ValidationError`, `CapabilityNotFoundError`, `CapabilityExecutionError`
+  - Validar: Errores con formato estándar ✅
 
 - [ ] **T-133**: Add error middleware
   - File: `src/middlewares/error/orchestrator-error.middleware.ts`
@@ -230,7 +230,7 @@
 | 1. Infrastructure | T-100, T-100b, T-101 | 3 ✅ |
 | 2. Skills Registry | T-110, T-110b, T-111, T-112, T-112b | 5 ✅ |
 | 2b. Auto-Registration | T-119, T-120, T-120b | 3 ✅ |
-| 3. Orchestrator | T-130, T-130b, T-131, T-132, T-133 | 5 ⏳ |
+| 3. Orchestrator | T-130, T-130b, T-131, T-132 | 4 ✅ |
 | 4. API Routes | T-140, T-141, T-142, T-143, T-143b, T-144, T-145, T-146 | 8 ⏳ |
 | 5. Integration | T-150-T-163 | 14 ⏳ |
 | 6. Documentation | T-170, T-171 | 2 ⏳ |
