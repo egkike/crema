@@ -1860,6 +1860,60 @@ CREATE TABLE drm_configs (
 
 ---
 
+## 16. Testing
+
+### 16.1 Unit Tests
+
+| Servicio | Tests | Archivo |
+|----------|-------|---------|
+| AiCreditsService | TC-01 a TC-06 | `ai/credits.service.test.ts` |
+| LLMService | TC-01 a TC-03 | `ai/llm.service.test.ts` |
+| MemoryService | TC-01 a TC-04 | `ai/memory.service.test.ts` |
+| EmbeddingService | TC-01 a TC-03 | `ai/embedding.service.test.ts` |
+| QAService | TC-01 a TC-02 | `ai/qa.service.test.ts` |
+| TranscriptionService | TC-01 a TC-02 | `content/transcription.service.test.ts` |
+| ContentAssistantService | TC-01 a TC-04 | `content/content-assistant.service.test.ts` |
+| QuizGeneratorService | TC-01 a TC-02 | `content/quiz-generator.service.test.ts` |
+
+### 16.2 Integration Tests
+
+| Test Case | Descripción |
+|---------|-------------|
+| IT-01 | Full flow: credits → LLM → response |
+| IT-02 | Memory: store → search → recall |
+| IT-03 | QA: question → answer with context |
+| IT-04 | Transcription: audio → transcript |
+| IT-05 | Quiz: content → questions |
+
+### 16.3 Test Fixtures
+
+```typescript
+// src/__tests__/fixtures/ai-features.ts
+export const mockCredits = [
+  { userId: 'user-1', balance: 100, totalPurchased: 100 },
+  { userId: 'user-2', balance: 0, totalPurchased: 0 },
+];
+
+export const mockMessages = [
+  { role: 'user', content: 'Hello' },
+  { role: 'assistant', content: 'Hi there!' },
+];
+
+export const mockEmbeddings = [
+  { text: 'test embedding', vector: [0.1, 0.2, 0.3] },
+];
+```
+
+### 16.4 Coverage Target
+
+| Tipo | Target |
+|------|--------|
+| Unit Tests | >= 80% |
+| Integration | Core AI flows |
+| E2E (Playwright) | User stories |
+
+---
+
 **Documento preparado para revisión y posterior inicio de SDD por funcionalidad.**
 
 *Versión: 2.0 - Abril 2026*
