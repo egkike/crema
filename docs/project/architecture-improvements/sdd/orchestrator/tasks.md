@@ -112,9 +112,10 @@
   - Classes: `ValidationError`, `CapabilityNotFoundError`, `CapabilityExecutionError`
   - Validar: Errores con formato estándar ✅
 
-- [ ] **T-133**: Add error middleware
-  - File: `src/middlewares/error/orchestrator-error.middleware.ts`
-  - Validar: Errores retornan JSON correcto
+- [x] **T-133**: Add error middleware
+  - File: `src/middlewares/orchestrator-error.middleware.ts`
+  - Validar: Errores retornan JSON correcto ✅
+  - Security: Generic messages, no info leakage
 
 ---
 

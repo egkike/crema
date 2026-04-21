@@ -440,31 +440,83 @@ export function isValidCapability(capability: string): boolean {
 
 ## 7. Errores y Manejo
 
-### 7.1 Error Handler
+### 7.1 Error Classes
 
 ```typescript
-// src/middlewares/error/orchestrator-error.middleware.ts
-export function orchestratorErrorHandler(
+// src/services/orchestrator.service.ts
+export class ValidationError extends Error {
+  constructor(message: string, public readonly field: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+export class CapabilityNotFoundError extends Error {
+  constructor(public readonly capability: string) {
+    super(`Capability not found: ${capability}`);
+    this.name = 'CapabilityNotFoundError';
+  }
+}
+
+export class CapabilityExecutionError extends Error {
+  constructor(message: string, public readonly capability: string, public readonly cause?: Error) {
+    super(message);
+    this.name = 'CapabilityExecutionError';
+  }
+}
+```
+
+### 7.2 Error Handler Middleware
+
+```typescript
+// src/middlewares/orchestrator-error.middleware.ts
+export function orchestratorErrorMiddleware(
   err: Error,
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  if (err instanceof OrchestratorError) {
-    return res.status(err.statusCode).json({
-      code: err.code,
-      message: err.message,
-      details: err.details,
-      correlationId: req.correlationId,
+  // SECURITY: Do NOT expose error.message to clients - use generic messages
+  if (err instanceof ValidationError) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'ORCH_VALIDATION_ERROR',
+        message: 'Invalid request parameters',
+        field: err.field,
+      },
     });
   }
-  
-  // Fallback
-  console.error('Unhandled orchestrator error', err);
+
+  if (err instanceof CapabilityNotFoundError) {
+    return res.status(404).json({
+      success: false,
+      error: {
+        code: 'ORCH_CAPABILITY_NOT_FOUND',
+        message: 'Capability not found',
+        capability: err.capability,
+      },
+    });
+  }
+
+  if (err instanceof CapabilityExecutionError) {
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'ORCH_EXECUTION_ERROR',
+        message: 'An error occurred while executing the capability',
+        capability: err.capability,
+      },
+    });
+  }
+
+  // Fallback - generic error
   res.status(500).json({
-    code: 'ORCH500',
-    message: 'Internal server error',
-    correlationId: req.correlationId,
+    success: false,
+    error: {
+      code: 'ORCH_INTERNAL_ERROR',
+      message: 'An internal error occurred while processing the request',
+    },
   });
 }
 ```

@@ -179,23 +179,53 @@ interface OrchestratorResponse {
 
 ## 5. Manejo de Errores
 
-### 5.1 Errores de Orchestrator
-
-| Código | Descripción | HTTP Status |
-|--------|-------------|-------------|
-| ORCH001 | Capability no encontrada | 404 |
-| ORCH002 | Skill no registrada | 404 |
-| ORCH003 | Timeout ejecutando skill | 504 |
-| ORCH004 | Error interno del handler | 500 |
-
-### 5.2 Formato de Error
+### 5.1 Error Classes
 
 ```typescript
-interface OrchestratorError {
-  code: string;
-  message: string;
-  details?: any;
-  correlationId: string;
+// src/services/orchestrator.service.ts
+
+export class ValidationError extends Error {
+  constructor(message: string, public readonly field: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+export class CapabilityNotFoundError extends Error {
+  constructor(public readonly capability: string) {
+    super(`Capability not found: ${capability}`);
+    this.name = 'CapabilityNotFoundError';
+  }
+}
+
+export class CapabilityExecutionError extends Error {
+  constructor(message: string, public readonly capability: string, public readonly cause?: Error) {
+    super(message);
+    this.name = 'CapabilityExecutionError';
+  }
+}
+```
+
+### 5.2 HTTP Status Mapping
+
+| Error Type | HTTP Status | Código |
+|-----------|-----------|---------|
+| ValidationError | 400 | ORCH_VALIDATION_ERROR |
+| CapabilityNotFoundError | 404 | ORCH_CAPABILITY_NOT_FOUND |
+| CapabilityExecutionError | 500 | ORCH_EXECUTION_ERROR |
+| Generic Error | 500 | ORCH_INTERNAL_ERROR |
+
+### 5.3 Formato de Respuesta
+
+```typescript
+interface ErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;  // Always generic - no info leakage
+    capability?: string;
+    field?: string;
+  };
 }
 ```
 
