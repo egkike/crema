@@ -352,4 +352,69 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 
 ---
 
+## 11. Testing
+
+### 11.1 Unit Tests
+
+| Test Case | Descripción | Mock |
+|---------|-------------|-----|
+| TC-01 | Allowlist extensiones - extensiones válidas | - |
+| TC-02 | Allowlist extensiones - extensión bloqueada | - |
+| TC-03 | Validación MIME type coincide con extensión | - |
+| TC-04 | Sanitización filename - path traversal | - |
+| TC-05 | Límite de tamaño - archivo muy grande | - |
+| TC-06 | URL Validator - dominios permitidos | - |
+| TC-07 | URL Validator - dominios bloqueados | - |
+| TC-08 | URL Validator - URLs con tokens rechazadas | - |
+| TC-09 | Content Moderation - contenido permitido | mock LLM |
+| TC-10 | Content Moderation - contenido prohibido | mock LLM |
+
+### 11.2 Integration Tests
+
+| Test Case | Descripción |
+|---------|-------------|
+| IT-01 | Upload exitoso con archivo válido |
+| IT-02 | Upload rechazado - extensión bloqueada |
+| IT-03 | Upload con URL externa válida |
+| IT-04 | Moderation flag → producto pendiente |
+
+### 11.3 Security Tests
+
+| Test Case | Descripción |
+|---------|-------------|
+| ST-01 | Bloquear todos los tipos executable (.exe, .bat, .sh, .msi, .scr, .pif) |
+| ST-02 | Sanitización XSS en filenames |
+| ST-03 | Path traversal prevention |
+| ST-04 | Rate limiting en upload |
+
+### 11.4 Test Fixtures
+
+```typescript
+// src/__tests__/fixtures/content-security.ts
+export const validFiles = [
+  { name: 'ebook.pdf', mimeType: 'application/pdf', size: 5 * 1024 * 1024 },
+  { name: 'video.mp4', mimeType: 'video/mp4', size: 50 * 1024 * 1024 },
+  { name: 'audio.mp3', mimeType: 'audio/mpeg', size: 10 * 1024 * 1024 },
+];
+
+export const blockedFiles = [
+  { name: 'virus.exe', mimeType: 'application/x-msdownload' },
+  { name: 'script.bat', mimeType: 'text/plain' },
+  { name: 'shell.sh', mimeType: 'application/x-sh' },
+];
+
+export const allowedDomains = ['youtube.com', 'vimeo.com', 'drive.google.com'];
+export const blockedDomains = ['random-site.com', 'evil-download.net'];
+```
+
+### 11.5 Coverage Target
+
+| Tipo | Target |
+|------|--------|
+| Unit Tests | >= 80% |
+| Integration | Core flows |
+| Security | All validations |
+
+---
+
 **Documento preparado para revisión técnica y legal.**
