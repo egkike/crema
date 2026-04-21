@@ -44,6 +44,12 @@
   - Methods: `register()`, `findByCapability()`, `listAll()`
   - Validar: Unit tests passing
 
+- [ ] **T-110b**: Create unit tests for SkillsRegistry
+  - File: `src/__tests__/services/skills-registry.service.test.ts`
+  - Tests: register, findByCapability, listAll
+  - Mock: configService, Redis, pool
+  - Validar: All tests passing
+
 - [ ] **T-111**: Add Redis caching to SkillsRegistry
   - Location: `src/services/skills-registry.service.ts`
   - Cache keys: `skills:all`, `skill:{capability}`
@@ -52,6 +58,11 @@
 - [ ] **T-112**: Create skills table repository
   - File: `src/repositories/skills.repository.ts`
   - Validar: CRUD operations
+
+- [ ] **T-112b**: Create unit tests for skills repository
+  - File: `src/__tests__/repositories/skills.repository.test.ts`
+  - Tests: create, findByCapability, listAll, update, delete
+  - Validar: All tests passing
 
 ### 2.2 Auto-Registration
 
@@ -75,6 +86,12 @@
   - File: `src/services/orchestrator.service.ts`
   - Methods: `executeQuery()`, `listCapabilities()`
   - Validar: Unit tests passing
+
+- [ ] **T-130b**: Create unit tests for Orchestrator
+  - File: `src/__tests__/services/orchestrator.service.test.ts`
+  - Tests: executeQuery success, executeQuery error, listCapabilities
+  - Mock: skillsRegistry, registeredSkills Map
+  - Validar: All tests passing
 
 - [ ] **T-131**: Add capability validation
   - Location: `src/services/orchestrator.service.ts`
@@ -203,13 +220,13 @@
 | Phase | Tasks | Count |
 |-------|-------|-------|
 | 1. Infrastructure | T-100, T-100b, T-101 | 3 |
-| 2. Skills Registry | T-110, T-111, T-112, T-119, T-120 | 5 |
-| 3. Orchestrator | T-130, T-131, T-132, T-133 | 4 |
+| 2. Skills Registry | T-110, T-110b, T-111, T-112, T-112b, T-119, T-120 | 7 |
+| 3. Orchestrator | T-130, T-130b, T-131, T-132, T-133 | 5 |
 | 4. API Routes | T-140, T-141, T-142, T-143, T-143b, T-144, T-145, T-146 | 8 |
 | 5. Integration | T-150-T-163 | 14 |
 | 6. Documentation | T-170, T-171 | 2 |
 
-**Total: 36 tasks**
+**Total: 39 tasks**
 
 ---
 
