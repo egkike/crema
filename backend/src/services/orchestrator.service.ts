@@ -26,6 +26,20 @@ export class ValidationError extends Error {
 }
 
 /**
+ * Streaming callback type for SSE responses
+ */
+export type StreamChunkCallback = (chunk: string) => void;
+
+/**
+ * Context passed to handlers for streaming support
+ */
+export interface OrchestratorContext {
+  userId?: string;
+  onChunk?: StreamChunkCallback;
+  signal?: AbortSignal;
+}
+
+/**
  * Capability not found error
  */
 export class CapabilityNotFoundError extends Error {
@@ -56,7 +70,7 @@ export interface OrchestratorResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
-  capability: string;
+  capability?: string;
 }
 
 /**
@@ -251,6 +265,114 @@ export const orchestratorService = {
           ? 'Handler timeout exceeded'
           : 'An error occurred while executing the capability',
         capability,
+      };
+    }
+  },
+
+  /**
+   * Execute a capability with streaming support
+   * Calls the handler with an onChunk callback for SSE responses
+   * Includes timeout and abort signal support
+   */
+  async executeStream(
+    capability: string,
+    input: unknown,
+    signal: AbortSignal,
+    onChunk: StreamChunkCallback
+  ): Promise<OrchestratorResponse> {
+    const safeCapability = isValidCapabilityName(capability) ? capability : '[invalid]';
+    const logMeta = { capability: safeCapability };
+
+    // Get timeout from config (default 60s for streaming, clamped 10s-5min)
+    const rawTimeout = await configService.getNumber('orchestrator.stream_timeout', 60000);
+    const timeoutMs = Math.min(Math.max(rawTimeout, 10000), 300000);
+
+    try {
+      const skill = await skillsRegistry.findByCapability(capability);
+
+      if (!skill) {
+        logger.warn(logMeta, 'Orchestrator: capability not found for streaming');
+        // SECURITY: Generic error message - don't expose capability names
+        return {
+          success: false,
+          error: 'Capability not available',
+        };
+      }
+
+      // Check if streaming is supported
+      if (!skill.options?.streaming) {
+        logger.warn({ ...logMeta, supported: false }, 'Orchestrator: capability does not support streaming');
+        return {
+          success: false,
+          error: 'Capability not available',
+        };
+      }
+
+      const handler = skill.handler;
+
+      if (!handler) {
+        logger.error(logMeta, 'Orchestrator: handler not registered');
+        return {
+          success: false,
+          error: 'Handler not registered',
+        };
+      }
+
+      // Pass onChunk and signal to handler via context
+      const context: OrchestratorContext = {
+        onChunk,
+        signal,
+        userId: (input as { userId?: string })?.userId,
+      };
+
+      // Execute with timeout
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new CapabilityExecutionError('Stream timeout', capability));
+        }, timeoutMs);
+        signal.addEventListener('abort', () => clearTimeout(timeoutId), { once: true });
+      });
+
+      const result = await Promise.race([
+        handler(input, context),
+        timeoutPromise,
+      ]);
+
+      return {
+        success: true,
+        data: result,
+        capability,
+      };
+    } catch (error: unknown) {
+      // Check if this was an abort (client disconnect) - not an actual error
+      if (error instanceof Error && (error.name === 'AbortError' || error.name === 'CancellationError')) {
+        logger.info(logMeta, 'Orchestrator: stream aborted by client');
+        return {
+          success: false,
+          error: 'Stream aborted',
+        };
+      }
+
+      // Handle timeout race condition
+      if (signal.aborted) {
+        logger.info(logMeta, 'Orchestrator: stream aborted during execution');
+        return {
+          success: false,
+          error: 'Stream aborted',
+        };
+      }
+
+      const internalError = error instanceof Error ? error.message : String(error);
+
+      logger.error(
+        { capability: safeCapability, error: internalError },
+        'Orchestrator: streaming capability execution failed'
+      );
+
+      // SECURITY: Generic error message - don't expose capability
+      return {
+        success: false,
+        error: 'Stream execution failed',
       };
     }
   },

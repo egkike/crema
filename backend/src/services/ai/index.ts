@@ -163,7 +163,7 @@ const skills: Skill[] = [
       { name: 'temperature', type: 'number', required: false },
     ],
     options: { timeout: 60000, retries: 2, cacheable: false, streaming: true },
-    handler: async (input: unknown) => {
+    handler: async (input: unknown, context?: { onChunk?: (chunk: string) => void; signal?: AbortSignal }) => {
       validateLLMInput(input);
       validateTemperature(input.temperature);
       validateModel(input.model);
@@ -172,6 +172,8 @@ const skills: Skill[] = [
         messages: input.messages,
         model: input.model,
         temperature: input.temperature,
+        onChunk: context?.onChunk,
+        signal: context?.signal,
       };
       return llmService.chatStream(options);
     },

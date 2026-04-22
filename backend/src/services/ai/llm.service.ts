@@ -162,8 +162,13 @@ export class LLMService {
       }
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error('Unknown error');
-      // If streaming fails and not cancelled, try fallback to non-streaming
-      if (!signal?.aborted && err.message.includes('stream')) {
+      // If streaming fails, not aborted, and is a real stream error (not just "stream" in message), try fallback
+      const isStreamError = err.message.includes('stream') && 
+        !err.message.includes('aborted') && 
+        !err.message.includes('cancelled') &&
+        !err.message.includes('timeout');
+      
+      if (!signal?.aborted && isStreamError) {
         logger.warn({ provider: this.provider, error: err.message }, 'Stream failed, falling back to non-streaming');
         
         const chatRequest: { messages: LLMMessage[]; model?: string; temperature?: number; maxTokens?: number } = {

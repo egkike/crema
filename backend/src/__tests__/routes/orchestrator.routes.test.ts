@@ -9,6 +9,14 @@ vi.mock('../../services/orchestrator.service', () => ({
   orchestratorService: {
     listCapabilities: vi.fn().mockResolvedValue(['llm.chat', 'llm.stream']),
     executeQuery: vi.fn().mockResolvedValue({ success: true, result: 'test' }),
+    executeStream: vi.fn().mockImplementation((capability, input, onChunk) => {
+      // Simulate streaming chunks
+      if (onChunk) {
+        onChunk('Hello ');
+        onChunk('world!');
+      }
+      return Promise.resolve({ success: true, data: { content: 'Hello world!' }, capability });
+    }),
   },
 }));
 
@@ -152,7 +160,19 @@ describe('Orchestrator Routes', () => {
           input: { test: true },
         });
 
-      expect([400, 401]).toContain(res.status);
-    });
+expect([400, 401]).toContain(res.status);
   });
+
+  describe('GET /api/orchestrator/stream', () => {
+    it('should require auth', async () => {
+      const res = await request.get('/api/orchestrator/stream?capability=llm.stream&input={}');
+
+      // Must be authenticated (401)
+      expect(res.status).toBe(401);
+    });
+
+    // Note: Stream endpoint tests with auth require proper session handling
+    // Skipping detailed tests pending session fix
+  });
+});
 });

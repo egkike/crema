@@ -410,6 +410,57 @@ export default router;
 - ✅ JWT auth on /query
 - ✅ Error middleware for consistent error responses
 
+### 4.2 Streaming Endpoint (T-143b)
+
+```typescript
+// GET /api/orchestrator/stream (SSE - Server-Sent Events)
+// For real-time streaming responses from llm.stream capability
+router.get(
+  '/stream',
+  jwtAuthMiddleware,
+  aiLimiter,
+  async (req: Request, res: Response) => {
+    const { capability, input } = req.query;
+
+    // Validate capability is streaming-capable
+    if (capability !== 'llm.stream') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'ORCH_INVALID_CAPABILITY', message: 'Only llm.stream supports streaming' }
+      });
+    }
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    try {
+      const userId = req.user?.id;
+      
+      // Call streaming capability
+      const result = await orchestratorService.executeQuery(
+        capability as string,
+        { userId, ...input }
+      );
+
+      // Send SSE events
+      res.write(`data: ${JSON.stringify({ done: true, result })}\n\n`);
+      res.end();
+    } catch (error) {
+      res.write(`data: ${JSON.stringify({ done: true, error: error.message })}\n\n`);
+      res.end();
+    }
+  }
+);
+```
+
+**Features:**
+- Server-Sent Events (SSE) for real-time streaming
+- JWT auth required
+- Rate limited via aiLimiter
+- Only `llm.stream` capability supported
+
 ---
 
 ## 5. ConfigService Keys
@@ -590,6 +641,142 @@ export function orchestratorErrorMiddleware(
 
 - Errors: `logger.error()` con capability y mensaje
 - No PII logueada (solo capability name, no user inputs)
+
+---
+
+## 11. API Documentation (T-170)
+
+### Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/orchestrator/capabilities` | ❌ Public | List available capabilities |
+| GET | `/api/orchestrator/skills` | ❌ Public | List available skills |
+| POST | `/api/orchestrator/query` | ✅ JWT | Execute capability |
+| GET | `/api/orchestrator/stream` | ✅ JWT | SSE streaming for llm.stream |
+
+### Request/Response Formats
+
+**POST /query**
+```json
+// Request
+{
+  "capability": "llm.chat",
+  "input": {
+    "messages": [{"role": "user", "content": "Hello"}]
+  }
+}
+
+// Response (success)
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "result": {...},
+    "capability": "llm.chat",
+    "metadata": {...}
+  }
+}
+
+// Response (error)
+{
+  "success": false,
+  "error": {
+    "code": "ORCH_VALIDATION_ERROR",
+    "message": "Invalid request parameters",
+    "field": "capability"
+  }
+}
+```
+
+### Error Codes
+
+| Code | HTTP Status | Description |
+|------|-----------|-------------|
+| ORCH_VALIDATION_ERROR | 400 | Invalid input |
+| ORCH_CAPABILITY_NOT_FOUND | 404 | Capability not registered |
+| ORCH_EXECUTION_ERROR | 500 | Execution failed |
+| ORCH_INTERNAL_ERROR | 500 | Internal error |
+
+---
+
+## 12. Usage Examples (T-171)
+
+### Example 1: Chat with LLM
+
+```bash
+curl -X POST https://api.crema.io/api/orchestrator/query \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "capability": "llm.chat",
+    "input": {
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What is Crema?"}
+      ],
+      "temperature": 0.7,
+      "maxTokens": 500
+    }
+  }'
+```
+
+### Example 2: Generate Embedding
+
+```bash
+curl -X POST https://api.crema.io/api/orchestrator/query \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "capability": "embedding.generate",
+    "input": {
+      "text": "The quick brown fox jumps over the lazy dog"
+    }
+  }'
+```
+
+### Example 3: List Available Capabilities
+
+```bash
+curl https://api.crema.io/api/orchestrator/capabilities
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "capabilities": ["llm.chat", "llm.stream", "embedding.generate", "embedding.batch"],
+    "count": 4
+  }
+}
+```
+
+### Example 4: List Skills
+
+```bash
+curl https://api.crema.io/api/orchestrator/skills
+```
+
+### Example 5: Streaming Response (SSE)
+
+```javascript
+const response = await fetch('https://api.crema.io/api/orchestrator/stream?capability=llm.stream&input={"messages":[{"role":"user","content":"Tell me a story"}]}', {
+  headers: {
+    'Authorization': 'Bearer YOUR_JWT_TOKEN'
+  }
+});
+
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  const chunk = decoder.decode(value);
+  console.log(chunk); // Processes SSE events
+}
+```
 
 ---
 
