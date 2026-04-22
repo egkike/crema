@@ -79,6 +79,9 @@ router.post(
       }
 
       // Validate input is a plain object
+      // NOTE: Input is passed to AI service handlers (LLM, Embedding) which process as text context only.
+      // Input is NOT rendered as HTML, NOT concatenated in SQL, NOT executed as code.
+      // Each handler validates its own structure (e.g., validateLLMInput for LLM).
       if (!input || typeof input !== 'object' || Array.isArray(input) || input === null) {
         throw new ValidationError('Input must be a non-empty object', 'input');
       }
