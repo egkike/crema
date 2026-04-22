@@ -680,6 +680,28 @@ CREATE TABLE user_notes (
 - ✅ Input validation robusta
 - ✅ Unit tests (959 tests passing)
 
+### Fase 5: Integration (Semana 5) ✅ COMPLETADO (Abril 2026)
+
+**Servicios registrados como Orchestrator capabilities:**
+
+| Capability | Service | Estado | Razón |
+|-----------|---------|--------|-------|
+| `llm.chat` | LLM Service | ✅ | Text-in/text-out |
+| `llm.stream` | LLM Service | ✅ | Streaming |
+| `embedding.generate` | Embedding Service | ✅ | Text-to-vector |
+| `embedding.batch` | Embedding Service | ✅ | Batch processing |
+
+**Servicios NO registrados (N/A) - Ya tienen rutas propias:**
+
+| Capability | Service | Razón |
+|-----------|---------|-------|
+| `qa.*` | QA Service | Inputs complejos, ya en `ai.routes.ts` |
+| `memory.*` | Memory Service | Contexto RAG, integrado en LLM |
+| `review.*` | Review Service | Lógica de negocio, verificación compra |
+| `transcribe.*` | Transcription Service | Input archivo, no texto |
+
+> **Decisión basada en PRDs**: QA, Memory, Review, Transcription ya tienen sus propias rutas en `ai.routes.ts` y no encajan en el pattern text-in/text-out del Orchestrator. El Orchestrator es para AI inference routing (LLM/Embedding).
+
 ### Fase 4: Integración (Semanas 8-10) [Agosto 2026]
 
 | Semana | Mejora | Entregable | Depende de |

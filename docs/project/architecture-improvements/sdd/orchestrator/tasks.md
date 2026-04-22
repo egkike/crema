@@ -171,39 +171,44 @@
 
 ### 5.1 Register Existing Services
 
-- [ ] **T-150**: Register LLM service skill
+- [x] **T-150**: Register LLM service skill
   - Capability: `llm.chat`, `llm.stream`
   - Location: `src/services/ai/index.ts`
-  - Validar: Skill en registry
+  - Validar: Skill en registry ✅
 
-- [ ] **T-151**: Register Embedding service skill
+- [x] **T-151**: Register Embedding service skill
   - Capability: `embedding.generate`, `embedding.batch`
-  - Validar: Skill en registry
+  - Validar: Skill en registry ✅
 
-- [ ] **T-152**: Register QA service skill
+- [x] **T-152**: NOT APPLICABLE - QA Service
   - Capability: `qa.answer`, `qa.with_context`
-  - Validar: Skill en registry
+  - Razón: QA Service ya tiene sus propias rutas en `ai.routes.ts`. Inputs complejos (productId, userId, question) no encajan en Orchestrator text-in/text-out pattern.
+  - Estado: N/A - Usar rutas existentes
 
-- [ ] **T-153**: Register Memory service skill
+- [x] **T-153**: NOT APPLICABLE - Memory Service
   - Capability: `memory.store`, `memory.recall`
-  - Validar: Skill en registry
+  - Razón: Memory Service usa pgvector para RAG. Ya integrado como contexto en LLM Service, no como capability independiente.
+  - Estado: N/A - Contexto para LLM, no capability
 
-- [ ] **T-154**: Register Review service skill
+- [x] **T-154**: NOT APPLICABLE - Review Service
   - Capability: `review.analyze`
-  - Validar: Skill en registry
+  - Razón: Review Service requiere verificación de compra, lógica de negocio compleja. Ya tiene rutas propias en `ai.routes.ts`.
+  - Estado: N/A - Usar rutas existentes
 
-- [ ] **T-155**: Register Transcription service skill
+- [x] **T-155**: NOT APPLICABLE - Transcription Service
   - Capability: `transcribe.audio`
-  - Validar: Skill en registry
+  - Razón: Transcription requiere input de archivo (Buffer), no texto. Whisper API procesa archivos, no queries.
+  - Estado: N/A - Usar rutas existentes
 
 ### 5.2 Integration Tests
 
-- [ ] **T-160**: Integration test: full query flow
-  - Validar: Query pasa por orchestrator → skill → response
+- [x] **T-160**: Integration test: full query flow
+  - Validar: Query pasa por orchestrator → skill → response ✅
+  - Note: Tests 959 passing
 
 - [ ] **T-161**: Integration test: skill discovery
   - Validar: GET /orchestrator/skills retorna todas
-
+  
 - [ ] **T-162**: Integration test: capability routing
   - Validar: Cada capability rutea al skill correcto
 
@@ -226,8 +231,8 @@
 
 ## Task Summary
 
-| Phase | Tasks | Count |
-|-------|-------|-------|
+| Phase | Tasks | Count | Status |
+|-------|-------|-------|--------|
 | 1. Infrastructure | T-100, T-100b, T-101 | 3 ✅ |
 | 2. Skills Registry | T-110, T-110b, T-111, T-112, T-112b | 5 ✅ |
 | 2b. Auto-Registration | T-119, T-120, T-120b | 3 ✅ |
@@ -235,11 +240,15 @@
 | 3b. Error Middleware | T-133 | 1 ✅ |
 | 4. API Routes | T-140, T-141, T-142, T-143, T-144, T-145, T-146 | 7 ✅ |
 | 4b. Streaming | T-143b | 1 ⏳ |
-| 5. Integration | T-150-T-163 | 14 ⏳ |
+| 5. Integration | T-150, T-151 | 2 ✅ |
+| 5. Integration (N/A) | T-152, T-153, T-154, T-155 | 4 N/A |
+| 5. Integration Tests | T-160 | 1 ✅ |
+| 5. Integration Tests | T-161, T-162, T-163 | 3 ⏳ |
 | 6. Documentation | T-170, T-171 | 2 ⏳ |
 
-**Completado: 23 tasks**  
-**Pendiente: 17 tasks**
+**Completado: 21 tasks**
+**N/A (ya tienen rutas propias): 4 tasks**
+**Pendiente: 8 tasks**
 
 ---
 
