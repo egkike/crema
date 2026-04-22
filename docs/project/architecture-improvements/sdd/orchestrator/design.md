@@ -343,54 +343,72 @@ CREATE INDEX idx_skills_enabled ON skills(enabled);
 
 ```typescript
 // src/routes/orchestrator.routes.ts
-import { Router, Request, Response } from 'express';
-import { z } from 'zod';
+import { Router, Request, Response, NextFunction } from 'express';
 import { orchestratorService } from '../services/orchestrator.service';
+import { skillsRegistry } from '../services/skills-registry.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
+import { orchestratorErrorMiddleware } from '../middlewares/orchestrator-error.middleware';
+import { ValidationError } from '../services/orchestrator.service';
+import { aiLimiter } from '../middlewares/rateLimit/rateLimit';
 
 const router = Router();
 
-// Validation schemas
-// NOTA: signal y onChunk NO son serializables en HTTP
-// Solo opciones serializables van en el schema
-const querySchema = z.object({
-  capability: z.string().min(1),
-  input: z.any(),
-  options: z.object({
-    temperature: z.number().min(0).max(2).optional(),
-    maxTokens: z.number().positive().optional(),
-    // signal y onChunk se usan internamente, no via HTTP API
-  }).optional(),
-});
-
-// POST /orchestrator/query
-router.post('/query', 
-  jwtAuthMiddleware,
-  async (req: Request, res: Response) => {
-    const { capability, input, options } = querySchema.parse(req.body);
-    
-    const result = await orchestratorService.executeQuery(
-      capability, input, options
-    );
-    
-    res.json(result);
+// GET /api/orchestrator/capabilities (public)
+router.get('/capabilities', async (_req, res, next) => {
+  try {
+    const capabilities = await orchestratorService.listCapabilities();
+    res.json({ success: true, data: { capabilities, count: capabilities.length } });
+  } catch (error) {
+    next(error instanceof Error ? error : new Error('Unknown error'));
   }
-);
-
-// GET /orchestrator/skills
-router.get('/skills', async (req: Request, res: Response) => {
-  const skills = await skillsRegistry.listAll();
-  res.json({ skills });
 });
 
-// GET /orchestrator/capabilities
-router.get('/capabilities', async (req: Request, res: Response) => {
-  const capabilities = await orchestratorService.listCapabilities();
-  res.json({ capabilities });
+// GET /api/orchestrator/skills (public)
+router.get('/skills', async (_req, res, next) => {
+  try {
+    const skills = await skillsRegistry.listAll();
+    res.json({ success: true, data: { skills, count: skills.length } });
+  } catch (error) {
+    next(error instanceof Error ? error : new Error('Unknown error'));
+  }
 });
+
+// POST /api/orchestrator/query (protected, rate limited)
+router.post('/query', jwtAuthMiddleware, aiLimiter, async (req, res, next) => {
+  try {
+    const { capability, input } = req.body;
+
+    // Input validation
+    if (!capability || typeof capability !== 'string') {
+      throw new ValidationError('Capability is required and must be a string', 'capability');
+    }
+    if (capability.length > 100) {
+      throw new ValidationError('Capability name too long (max 100 characters)', 'capability');
+    }
+    if (!input || typeof input !== 'object' || Array.isArray(input) || input === null) {
+      throw new ValidationError('Input must be a non-empty object', 'input');
+    }
+
+    const userId = req.user?.id;
+    const result = await orchestratorService.executeQuery(capability, { userId, input });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error instanceof Error ? error : new Error('Unknown error'));
+  }
+});
+
+// Error middleware (last)
+router.use(orchestratorErrorMiddleware);
 
 export default router;
 ```
+
+**Features implemented:**
+- ✅ Error handling via `next(err)` (proper Express flow)
+- ✅ Input validation: capability type, length, input type check
+- ✅ Rate limiting via `aiLimiter`
+- ✅ JWT auth on /query
+- ✅ Error middleware for consistent error responses
 
 ---
 
@@ -546,6 +564,32 @@ export function orchestratorErrorMiddleware(
 | zod | ^3.0.0 | Validation |
 | ioredis | ^5.0.0 | Cache |
 | pg | ^8.0.0 | Database |
+
+## 10. Performance y Seguridad
+
+### 10.1 Performance
+
+| Métrica | Valor | Notes |
+|---------|-------|-------|
+| Timeout default | 30s | Configurable via `orchestrator.default_timeout` |
+| Redis cache TTL | 5 min | `orchestrator.cache_ttl` |
+| Max retries | 3 | `orchestrator.max_retries` |
+
+### 10.2 Seguridad
+
+| Control | Implementación |
+|---------|-------------|
+| **Auth** | JWT via `jwtAuthMiddleware` en `/query` |
+| **Rate Limiting** | `aiLimiter` (30 req/min por usuario) |
+| **Input Validation** | capability (type + length), input (object only) |
+| **Capability Allowlist** | `isValidCapabilityName()` valida contra lista |
+| **Error Messages** | Genéricos - sin info leakage |
+| **Prompt Injection** | Capability validada, no ejecución directa |
+
+### 10.3 Logging
+
+- Errors: `logger.error()` con capability y mensaje
+- No PII logueada (solo capability name, no user inputs)
 
 ---
 

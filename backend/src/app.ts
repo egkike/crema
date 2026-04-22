@@ -24,6 +24,7 @@ import adminConfigRoutes from './routes/admin.config.routes';
 import payoutMethodRoutes from './routes/payout_method.routes';
 import affiliateRoutes from './routes/affiliate.routes';
 import aiRoutes from './routes/ai.routes';
+import orchestratorRoutes from './routes/orchestrator.routes';
 
 const app = express();
 
@@ -149,6 +150,7 @@ app.use('/api/admin/config', adminConfigRoutes);
 app.use('/api/payout-methods', payoutMethodRoutes);
 app.use('/api/affiliates', affiliateRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/orchestrator', orchestratorRoutes);
 app.use('/api', userRoutes); // ← AL FINAL, como catch-all
 
 // --- SWAGGER DOCS ---

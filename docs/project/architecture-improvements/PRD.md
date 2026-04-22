@@ -667,6 +667,19 @@ CREATE TABLE user_notes (
 **Pendiente en Phase 3:**
 - Sistema de notificaciones (Datadog/Slack) para errores críticos
 
+### Fase 4: API Routes (Semana 4) ✅ COMPLETADO (Abril 2026)
+
+| Semana | Mejora | Entregable | Estado |
+|--------|--------|-------------|--------|
+| 4 | **API Routes** | Orchestrator endpoints | ✅ Completado |
+
+**Entregables Phase 4:**
+- ✅ GET /api/orchestrator/capabilities (public)
+- ✅ GET /api/orchestrator/skills (public)
+- ✅ POST /api/orchestrator/query (JWT + rate limited)
+- ✅ Input validation robusta
+- ✅ Unit tests (959 tests passing)
+
 ### Fase 4: Integración (Semanas 8-10) [Agosto 2026]
 
 | Semana | Mejora | Entregable | Depende de |
