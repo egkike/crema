@@ -144,10 +144,11 @@
   - Add: `app.use('/api/orchestrator', orchestratorRoutes)`
   - Validar: Rutas responden en /api/orchestrator/* ✅
 
-- [ ] **T-143b**: Add streaming endpoint for llm.stream
+- [x] **T-143b**: Add streaming endpoint for llm.stream
   - Location: `src/routes/orchestrator.routes.ts`
-  - Endpoint: GET /stream (WebSocket o Server-Sent Events)
-  - Validar: Streaming response funciona
+  - Endpoint: GET /stream (SSE)
+  - Features: AbortController, timeout, onChunk callback, signal propagation
+  - Validar: Streaming response funciona ✅
 
 ### 4.2 Backward Compatibility
 
@@ -223,13 +224,15 @@
 
 ## 6. Documentation (Semana 5)
 
-- [ ] **T-170**: Update API documentation
+- [x] **T-170**: Update API documentation
+  - Location: `design.md` sections 11-12
   - OpenAPI/Swagger: /orchestrator/*
-  - Validar: Docs generan correctamente
+  - Updated: Design document includes full API reference
 
-- [ ] **T-171**: Add usage examples
-  - Location: `docs/orchestrator-usage.md`
-  - Validar: Ejemplos claros
+- [x] **T-171**: Add usage examples
+  - Location: `design.md` section 12
+  - Includes: curl commands, SSE examples
+  - Validar: Ejemplos claros ✅
 
 ---
 
@@ -243,16 +246,15 @@
 | 3. Orchestrator | T-130, T-130b, T-131, T-132 | 4 ✅ |
 | 3b. Error Middleware | T-133 | 1 ✅ |
 | 4. API Routes | T-140, T-141, T-142, T-143, T-144, T-145, T-146 | 7 ✅ |
-| 4b. Streaming | T-143b | 1 ⏳ |
+| 4b. Streaming | T-143b | 1 ✅ |
 | 5. Integration | T-150, T-151 | 2 ✅ |
 | 5. Integration (N/A) | T-152, T-153, T-154, T-155 | 4 N/A |
-| 5. Integration Tests | T-160 | 1 ✅ |
-| 5. Integration Tests | T-161, T-162, T-163 | 3 ⏳ |
-| 6. Documentation | T-170, T-171 | 2 ⏳ |
+| 5. Integration Tests | T-160, T-161, T-162, T-163 | 4 ✅ |
+| 6. Documentation | T-170, T-171 | 2 ✅ |
 
-**Completado: 21 tasks**
+**Completado: 23 tasks**
 **N/A (ya tienen rutas propias): 4 tasks**
-**Pendiente: 8 tasks**
+**Pendiente: 0 tasks**
 
 ---
 
