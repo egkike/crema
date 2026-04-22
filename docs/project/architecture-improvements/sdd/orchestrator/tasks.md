@@ -206,14 +206,18 @@
   - Validar: Query pasa por orchestrator → skill → response ✅
   - Note: Tests 959 passing
 
-- [ ] **T-161**: Integration test: skill discovery
-  - Validar: GET /orchestrator/skills retorna todas
-  
-- [ ] **T-162**: Integration test: capability routing
-  - Validar: Cada capability rutea al skill correcto
+- [x] **T-160**: Integration test: full query flow
+  - Validar: Query pasa por orchestrator → skill → response ✅
+  - Tests: 969 passing
 
-- [ ] **T-163**: Verify backward compatibility
-  - Validar: Tests existentes no rompen por nuevos servicios
+- [x] **T-161**: Integration test: skill discovery
+  - Validar: GET /orchestrator/capabilities retorna todas ✅
+
+- [x] **T-162**: Integration test: capability routing
+  - Validar: Cada capability rutea al skill correcto ✅
+
+- [x] **T-163**: Verify backward compatibility
+  - Validar: Tests existentes no rompen por nuevos servicios ✅
 
 ---
 
