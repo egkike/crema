@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Crema - Mejoras de Arquitectura
 
-**Versión**: 2.0  
+**Versión**: 3.0  
 **Fecha**: Abril 2026  
-**Estado**: Actualizado - Plataforma de Experiencia  
+**Estado**: Fase 1-2 Completadas | Phase 3-5 Pendientes  
 **Owner**: Kike García
 
 ---
@@ -289,7 +289,19 @@ class AgentsOrchestrator {
 | ARCH-04 | Desarrollador | agregar un nuevo skill | extender la funcionalidad del sistema sin modificar código del agente |
 
 #### Estado
-🆕 **NUEVO** - Requiere desarrollo
+✅ **IMPLEMENTADO** (Abril 2026) - SDD Orchestrator Phase 2
+
+**Entregables:**
+- ✅ Orchestrator service (`src/services/orchestrator.service.ts`)
+- ✅ SkillsRegistry service (`src/services/skills-registry.service.ts`)
+- ✅ Tabla `skills` en DB (`db/init/08-orchestrator-tables.sql`)
+- ✅ Auto-registration en boot (`src/services/ai/index.ts`)
+- ✅ Error middleware (`src/middlewares/orchestrator-error.middleware.ts`)
+
+**Simplificaciones vs PRD original:**
+- Una sola tabla `skills` en lugar de `ai_agents` + `ai_agent_skills` + `ai_skills_config`
+- `serviceRef` enlaza skills a servicios existentes
+- No usa DI Container (imports directos singleton pattern)
 
 ---
 
@@ -298,39 +310,49 @@ class AgentsOrchestrator {
 #### Descripción
 Unificar el manejo de errores para que todas las respuestas de error tengan formato consistente y se registre apropiadamente.
 
-#### Formato de Error Propuesto
+#### Formato de Error Implementado
 
 ```typescript
-// ErrorResponse
+// ErrorResponse - Orchestrator
 {
   success: false,
   error: {
-    code: 'AUTH_001' | 'VALIDATION_001' | 'AI_001' | 'INTERNAL_001',
-    message: 'Mensaje legible para usuario',
-    details?: Record<string, unknown>,
-    requestId: string  // Para debugging
-  },
-  timestamp: '2026-04-18T12:00:00Z'
+    code: string;        // 'ORCH_VALIDATION_ERROR' | 'ORCH_CAPABILITY_NOT_FOUND' | 'ORCH_EXECUTION_ERROR'
+    message: string;    // Siempre genérico - sin info leakage
+    capability?: string;
+    field?: string;
+  }
 }
 ```
 
-#### Clasificación de Errores
+#### Error Classes Implementadas
 
-| Categoría | Códigos | ej | Acción |
-|-----------|---------|---|---|
-| **AUTH** | AUTH_001 al AUTH_999 | AUTH_001: Token inválido | 401 Unauthorized |
-| **VALIDATION** | VALIDATION_001 al 999 | VALIDATION_001: Campo requerido | 400 Bad Request |
-| **AI** | AI_001 al AI_999 | AI_001: LLM no disponible | 503 con retry |
-| **INTERNAL** | INTERNAL_001 al 999 | INTERNAL_001: Error DB | 500 + notificar |
-| **EXTERNAL** | EXTERNAL_001 al 999 | EXTERNAL_001: MP falló | 502 + retry |
+```typescript
+// src/services/orchestrator.service.ts
+export class ValidationError extends Error {
+  constructor(message: string, public readonly field: string) { ... }
+}
+
+export class CapabilityNotFoundError extends Error {
+  constructor(public readonly capability: string) { ... }
+}
+
+export class CapabilityExecutionError extends Error {
+  constructor(message: string, public readonly capability: string, public readonly cause?: Error) { ... }
+}
+```
+
+#### HTTP Status Mapping
+
+| Error Type | HTTP Status | Código |
+|-----------|-----------|---------|
+| ValidationError | 400 | ORCH_VALIDATION_ERROR |
+| CapabilityNotFoundError | 404 | ORCH_CAPABILITY_NOT_FOUND |
+| CapabilityExecutionError | 500 | ORCH_EXECUTION_ERROR |
+| Generic Error | 500 | ORCH_INTERNAL_ERROR |
 
 #### Notificación a Sistemas Externos
-
-| Sistema | Cuándo | Qué |
-|--------|--------|-----|
-| **Logs (Datadog)** | Siempre | Error completo |
-| **Slack/Discord** | Solo INTERNAL_001+ (errores críticos) | Alerta con requestId |
-| **Metrics** | Siempre | Contador por tipo |
+**Pendiente** - Sistema de notificaciones (Datadog/Slack) es Phase 3 del roadmap.
 
 #### User Stories
 
@@ -341,7 +363,12 @@ Unificar el manejo de errores para que todas las respuestas de error tengan form
 | ERROR-03 | Desarrollador | ver el requestId en la respuesta | hacer debug |
 
 #### Estado
-🆕 **MEJORA** - Ampliar implementación existente
+✅ **IMPLEMENTADO parcialmente** (Abril 2026)
+- ✅ Error classes
+- ✅ Error middleware
+- ✅ Formato consistente
+- ✅ Sin info leakage (mensajes genéricos)
+- ❌ Notificaciones a sistemas externos (Phase 3)
 
 ---
 
@@ -483,7 +510,18 @@ class ConciergeAgent {
 | CONFIG-03 | Sistema | tener config unificado | saber qué valor usar |
 
 #### Estado
-🆕 **NUEVO** - Requiere desarrollo
+✅ **IMPLEMENTADO** (Marzo-Abril 2026)
+
+**Entregables:**
+- ✅ ConfigService (`src/services/config.service.ts`)
+- ✅ Tabla `app_config` en DB
+- ✅ Métodos: `get()`, `getNumber()`, `getBoolean()`, `getJSON()`
+- ✅ Redis caching con TTL
+- ✅ Lazy initialization
+
+**Simplificaciones vs PRD original:**
+- No usa DI Container (imports directos)
+- `configLoaded` flag para evitar race conditions
 
 ---
 
@@ -588,38 +626,46 @@ CREATE TABLE user_notes (
 
 ## 5. Roadmap de Implementación
 
-> **Fecha inicio**: Mayo 2026  
+> **Fecha inicio**: Marzo 2026  
 > **Duración**: 10 semanas  
 > **Nota**: Todas las tareas de implementación siguen el Estándar de Verificación definido en `docs/project/common/verification-standard.md`
 
 > **Definition of Done**: Cada fase se considera completada cuando:  
-> - Código en `main` con tests passing  
+> - Código en `master` con tests passing  
 > - `pnpm tsc` sin errores  
 > - `pnpm lint --filter` sin errores/warnings  
 > - `pnpm vitest run` 100% pasando  
 > - Code review aprobado (`gga run`)  
-> - Performance verificada  
 > - Security verificado  
 > - Despliegue a staging verificado
 
-### Fase 1: Fundamentos (Semanas 1-2) [Mayo 2026]
+### Fase 1: Fundamentos (Semanas 1-2) ✅ COMPLETADO
 
-| Semana | Mejora | Entregable | Depende de |
-|--------|--------|-------------|-----------|
-| 1-2 | **Unificar Configuración** | ConfigService + tabla DB | - |
+| Semana | Mejora | Entregable | Estado |
+|--------|--------|-------------|--------|
+| 1-2 | **Unificar Configuración** | ConfigService + tabla DB | ✅ Completado |
 
-### Fase 2: Orquestación (Semanas 3-5) [Junio 2026]
+### Fase 2: Orquestación (Semanas 3-5) ✅ COMPLETADO (Abril 2026)
 
-| Semana | Mejora | Entregable | Depende de |
-|--------|--------|-------------|-----------|
-| 3-4 | **Centralizar Orquestación** | Orchestrator + AgentsRegistry | ConfigService |
-| 4-5 | **Skills Registry** | Tabla de skills en DB | Orchestrator |
+| Semana | Mejora | Entregable | Estado |
+|--------|--------|-------------|--------|
+| 3-4 | **Centralizar Orquestación** | Orchestrator + SkillsRegistry | ✅ Completado |
+| 4-5 | **Skills Registry** | Tabla de skills en DB | ✅ Completado |
 
-### Fase 3: Errores (Semanas 6-7) [Julio 2026]
+**Entregables Phase 2:**
+- ✅ Orchestrator service con error handling
+- ✅ SkillsRegistry service con Redis caching
+- ✅ Auto-registration en boot
+- ✅ Error middleware con mensajes genéricos
 
-| Semana | Mejora | Entregable | Depende de |
-|--------|--------|-------------|-----------|
-| 6-7 | **Manejo de Errores** | Error handler + notificaciones | - |
+### Fase 3: Errores (Semanas 6-7) ⏳ PENDIENTE
+
+| Semana | Mejora | Entregable | Estado |
+|--------|--------|-------------|--------|
+| 6-7 | **Manejo de Errores** | Error handler + notificaciones | ⏳ Pendiente |
+
+**Pendiente en Phase 3:**
+- Sistema de notificaciones (Datadog/Slack) para errores críticos
 
 ### Fase 4: Integración (Semanas 8-10) [Agosto 2026]
 
