@@ -119,7 +119,7 @@
 
 | Conflicto | Descripción | Solución |
 |-----------|------------|----------|
-| ARCH AI-Fase5 vs AI-FEATURES-Fase3 | User Context vs Learning AI重叠 (Sem 20-24) | **IMPLEMENTAR EN ORDEN**: Architecture Primero → Feature |
+| ARCH AI-Fase5 vs AI-FEATURES-Fase3 | User Context vs Learning AI overlap (Sem 20-24) | **IMPLEMENTAR EN ORDEN**: Architecture Primero → Feature |
 | CONTENT-SECURITY vs AI-FEATURES | Las validaciones deben estar antes de las features | **VALIDACIONES FIRST**: Content Security Fase 1 antes de AI-FEATURES |
 
 ---
@@ -128,9 +128,9 @@
 
 | PRD | Archivo | Versión |
 |-----|---------|--------|
-| AI-FEATURES | `docs/project/ai-features/AI-FEATURES-PRD.md` | v3.0 |
-| ARCHITECTURE | `docs/project/architecture-improvements/PRD.md` | v2.0 |
-| CONTENT-SECURITY | `docs/project/content-security/PRD.md` | v2.0 |
+| AI-FEATURES | `docs/project/ai-features/AI-FEATURES-PRD.md` | v3.1 |
+| ARCHITECTURE | `docs/project/architecture-improvements/PRD.md` | v3.1 |
+| CONTENT-SECURITY | `docs/project/content-security/PRD.md` | v2.1 |
 
 ---
 

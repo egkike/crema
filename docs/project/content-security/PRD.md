@@ -1,10 +1,14 @@
 # Product Requirements Document (PRD)
 ## Crema - Content Security & Upload Validation
 
-**Versión**: 2.0  
+**Versión**: 2.1  
 **Fecha**: Abril 2026  
-**Estado**: Actualizado - Plataforma de Experiencia  
+**Estado**: Parcial - Validaciones técnicas implementadas, AI pending
 **Owner**: Kike García
+
+> **Dependencias**: 
+> - ContentAssistantService: voir **AI-FEATURES-PRD.md** sección 4.2
+> - Book Highlights, Audio Notes, AI Summary: voir **AI-FEATURES-PRD.md** secciones 4.17-4.19
 
 ---
 
@@ -44,7 +48,7 @@ Establecer un marco robusto de validaciones y controles para todo el contenido s
 
 ### 2.2 Validación de Coherencia y Calidad (Capa AI)
 
-> **Dependencia**: La validación de coherencia AI depende del `ContentAssistantService` que se implementará en la Fase 1 del AI Features PRD. Mientras tanto, usar heurística simple basada en palabras clave del título.
+> **Dependencia**: La validación de coherencia AI depende del `ContentAssistantService` (voir AI-FEATURES-PRD sección 4.2). Mientras tanto, usar heurística simple basada en palabras clave del título.
 
 | Control | Descripción | Lógica de Validación | Prioridad |
 |---------|-------------|----------------------|:---------:|
@@ -238,21 +242,21 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 
 ### Fase 1: Blindaje Técnico (Semanas 1-4) [Mayo 2026]
 
-| ID | Task | Estado | Owner | Sprint |
-|----|------|--------|------|--------|
-| CS-01 | Implementar bloqueo de ejecutables en `upload.middleware.ts` | TODO | Backend | Sprint 1 |
-| CS-02 | Agregar checkbox de declaración de copyright general | TODO | Frontend | Sprint 1 |
-| CS-03 | Agregar checkbox específico de "autorización" para links externos | TODO | Frontend | Sprint 1 |
-| CS-04 | Agregar checkbox de derechos para ebooks | TODO | Frontend | Sprint 1 |
-| CS-05 | Agregar checkbox de declaración de originalidad para cursos | TODO | Frontend | Sprint 1 |
-| CS-06 | Agregar checkbox de derechos de audio para podcasts | TODO | Frontend | Sprint 1 |
-| CS-07 | Agregar declaración de licencia para software | TODO | Frontend | Sprint 1 |
-| CS-08 | Agregar declaración de derechos para membresías | TODO | Frontend | Sprint 1 |
-| CS-09 | Implementar validación de tamaño mínimo de archivos | TODO | Backend | Sprint 2 |
-| CS-10 | Implementar allowlist de dominios permitidos para URLs externas | TODO | Backend | Sprint 2 |
-| CS-11 | Implementar rate limiting específico para uploads | TODO | Backend | Sprint 2 |
-| CS-12 | Implementar warning en checkout para productos con links de terceros | TODO | Frontend | Sprint 2 |
-| CS-13 | Agregar campo ISBN opcional para ebooks | TODO | Fullstack | Sprint 3 |
+| ID | Task | Estado | Owner | Sprint | Notas |
+|----|------|--------|------|--------|-------|
+| CS-01 | Implementar bloqueo de ejecutables en `upload.middleware.ts` | 🟡 PARCIAL | Backend | Sprint 1 | Extensiones block done |
+| CS-02 | Agregar checkbox de declaración de copyright general | ❌ TODO | Frontend | Sprint 1 | |
+| CS-03 | Agregar checkbox específico de "autorización" para links externos | ❌ TODO | Frontend | Sprint 1 | |
+| CS-04 | Agregar checkbox de derechos para ebooks | ❌ TODO | Frontend | Sprint 1 | |
+| CS-05 | Agregar checkbox de declaración de originalidad para cursos | ❌ TODO | Frontend | Sprint 1 | |
+| CS-06 | Agregar checkbox de derechos de audio para podcasts | ❌ TODO | Frontend | Sprint 1 | |
+| CS-07 | Agregar declaración de licencia para software | ❌ TODO | Frontend | Sprint 1 | |
+| CS-08 | Agregar declaración de derechos para membresías | ❌ TODO | Frontend | Sprint 1 | |
+| CS-09 | Implementar validación de tamaño mínimo de archivos | ❌ TODO | Backend | Sprint 2 | |
+| CS-10 | Implementar allowlist de dominios permitidos para URLs externas | ❌ TODO | Backend | Sprint 2 | |
+| CS-11 | Implementar rate limiting específico para uploads | ✅ HECHO | Backend | Sprint 2 | Rate limit general existe |
+| CS-12 | Implementar warning en checkout para productos con links de terceros | ❌ TODO | Frontend | Sprint 2 | |
+| CS-13 | Agregar campo ISBN opcional para ebooks | ❌ TODO | Fullstack | Sprint 3 |
 | CS-14 | Requerir preview obligatorio (al menos 1 lección/episodio gratuito) | TODO | Backend | Sprint 3 |
 | CS-15 | Requerir metadata de episodios para podcasts | TODO | Backend | Sprint 3 |
 
@@ -278,7 +282,7 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 | CS-26 | Sistema de verificación de SHA256 para software | TODO | Backend | Sprint 10 |
 | CS-27 | Integración con sistema de licencias de software | TODO | Backend | Sprint 10 |
 
-> **Leyenda de estados**: `TODO` | `IN PROGRESS` | `DONE` | `BLOCKED`
+> **Leyenda de estados**: `✅ HECHO` | `🟡 PARCIAL` | `❌ TODO` | `🔄 IN PROGRESS` | `⛔ BLOCKED`
 
 ---
 

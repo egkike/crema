@@ -1,9 +1,15 @@
 # Product Requirements Document (PRD)
 ## Crema - Mejoras de Arquitectura
 
-**Versión**: 3.0  
+**Versión**: 3.1  
 **Fecha**: Abril 2026  
-**Estado**: Fase 1-2 Completadas | Phase 3-5 Pendientes  
+**Estado**: 
+- ✅ Fase 1: ConfigService (completada)
+- ✅ Fase 2: Orchestrator + Skills (completada)
+- 🟡 Fase 3: Error Handling (clases implementadas, notificaciones pending)
+- ✅ Fase 4: API Routes (completada)
+- ✅ Fase 5: Integration con capabilities (completada)
+- ❌ Fase 6: User Context (pendiente)  
 **Owner**: Kike García
 
 ---
@@ -658,11 +664,12 @@ CREATE TABLE user_notes (
 - ✅ Auto-registration en boot
 - ✅ Error middleware con mensajes genéricos
 
-### Fase 3: Errores (Semanas 6-7) ⏳ PENDIENTE
+### Fase 3: Errores (Semanas 6-7) 🟡 PARCIAL
 
 | Semana | Mejora | Entregable | Estado |
 |--------|--------|-------------|--------|
-| 6-7 | **Manejo de Errores** | Error handler + notificaciones | ⏳ Pendiente |
+| 6-7 | **Error Handling** | Clases + middleware | 🟡 Parcial |
+| 6-7 | **Notificaciones** | Datadog/Slack | ❌ Pendiente |
 
 **Pendiente en Phase 3:**
 - Sistema de notificaciones (Datadog/Slack) para errores críticos
@@ -702,22 +709,15 @@ CREATE TABLE user_notes (
 
 > **Decisión basada en PRDs**: QA, Memory, Review, Transcription ya tienen sus propias rutas en `ai.routes.ts` y no encajan en el pattern text-in/text-out del Orchestrator. El Orchestrator es para AI inference routing (LLM/Embedding).
 
-### Fase 4: Integración (Semanas 8-10) [Agosto 2026]
-
-| Semana | Mejora | Entregable | Depende de |
-|--------|--------|-------------|-----------|
-| 8-9 | **Integración Concierge** | Concierge usando nuevas capas | Todas las anteriores |
-| 10 | **Testing y documentación** | Tests end-to-end | Fase 3 |
-
-### Fase 5: User Context (Semanas 20-24) [Octubre - Noviembre 2026]
+### Fase 6: User Context (Semanas 20-24) ❌ PENDIENTE
 
 > Fase coordinada con AI-FEATURES Fase 3: Learning AI
 
-| Semana | Mejora | Entregable | Depende de |
-|--------|--------|-------------|-----------|
-| 20-21 | **User Context Memory** | Tabla user_context + servicio | Memory Service |
-| 22-23 | **User Notes & Highlights** | Tabla user_notes + servicio | User Context |
-| 24 | **Integración** | Con AI Summary, Book Highlights | User Context |
+| Semana | Mejora | Entregable | Estado | Notas |
+|--------|--------|-------------|--------|-------|
+| 20-21 | **User Context Memory** | Tabla user_context + servicio | ❌ Pendiente | Requiere Memory Service |
+| 22-23 | **User Notes & Highlights** | Tabla user_notes + servicio | ❌ Pendiente | Depende de User Context |
+| 24 | **Integración** | Con AI Summary, Book Highlights | ❌ Pendiente | Depende de Notas |
 
 ---
 

@@ -320,5 +320,5 @@ CREATE INDEX idx_skills_enabled ON skills(enabled);
 ---
 
 **Spec Creado**: Abril 2026  
-**Estado**: Listo para Design  
+**Estado**: ✅ Implementado (Abril 2026)  
 **Author**: SDD Workflow

@@ -1,10 +1,17 @@
 # Product Requirements Document (PRD)
 ## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 3.0  
+**Versión**: 3.1  
 **Fecha**: Abril 2026  
-**Estado**: Actualizado - Plataforma de Experiencia  
+**Estado**: 
+- ✅ Backend Services (12 servicios)
+- ❌ Integración entre servicios (pendiente implementación)
+- ✅ Memory Enhancement SDD: ✅ DOC COMPLETA (implementación pending)  
 **Owner**: Kike García
+
+> **Dependencias**: 
+> - Orchestrator, Config, User Context: voir **architecture-improvements PRD**
+> - Memory Enhancement (RAG + HWS): voir **architecture-improvements PRD** sección 4.4
 
 ---
 
@@ -85,26 +92,35 @@ Crema busca posicionarse como la **plataforma de infoproductos más inteligente 
 
 ## 2. Estado Actual del Ecosistema AI
 
-### 2.1 Servicios Implementados (Abril 2026)
+### 2.1 Servicios Backend Implementados (Abril 2026)
 
-| Servicio | Descripción | Estado |
-|----------|-------------|--------|
-| **LLM Service** | Orquestación de múltiples modelos (OpenAI, Ollama, Gemini, Anthropic) | ✅ Produccción |
-| **Memory Service** | pgvector para búsqueda semántica (RAG) | ✅ Produccción |
-| **Credits Service** | Sistema de créditos para creadores | ✅ Produccción |
-| **→ Expansión Credits Service** | Ampliación para Comprador/Afiliado + Dashboard Mejorado | 🆕 Mejora Pendiente |
-| **QA Service** | Auto-respuesta de preguntas | ✅ Produccción |
-| **Agents Service** | Orquestación de agentes | ✅ Produccción |
-| **Embedding Service** | Generación de embeddings | ✅ Produccción |
+| Servicio | Descripción | Estado | Notas |
+|----------|-------------|--------|-------|
+| **LLM Service** | Orquestación de múltiples modelos (OpenAI, Ollama, Gemini, Anthropic) | ✅ Producción | |
+| **Memory Service** | pgvector para búsqueda semántica (RAG) | ✅ Producción | Sin integrar en agentes |
+| **Credits Service** | Sistema de créditos para creadores | ✅ Producción | |
+| **QA Service** | Auto-respuesta de preguntas | ✅ Producción | |
+| **Review Service** | Reviews y ratings | ✅ Producción | |
+| **Agents Service** | Orquestación de agentes (QA Agent, Tutor, Insights) | ✅ Producción | Con orchestrator |
+| **Embedding Service** | Generación de embeddings | ✅ Producción | |
+| **ContentAssistantService** | Análisis de contenido y sugerencias | ✅ Completado | Sin integrar en agents |
 
-### 2.2 Servicios AI Content Assistant (Fase 1)
+> **Dependencia**: content-security validation: voir `docs/project/content-security/PRD.md` para validaciones de seguridad del contenido
+| **ContentReaderService** | Lectura y síntesis de contenido | ⚠️ Parcial | Sin tabla DB dedicada |
+| **QuizGeneratorService** | Generación de quizzes automáticos | ⚠️ Parcial | Sin API dedicada |
+| **TranscriptionService** | Transcripción de audio/video (Whisper) | ⚠️ Parcial | Existe servicio, sin API dedicada |
 
-| Servicio | Descripción | Estado |
-|----------|-------------|--------|
-| **ContentAssistantService** | Análisis de contenido y sugerencias | ✅ Completado |
-| **ContentReaderService** | Lectura y síntesis de contenido | ✅ Completado |
-| **QuizGeneratorService** | Generación de quizzes automáticos | ✅ Completado |
-| **TranscriptionService** | Transcripción de audio/video (Whisper) | ✅ Completado |
+### 2.2 Estado de Integración
+
+> **Problema principal**: Los servicios EXISTEN pero NO están integrados entre sí
+
+| Integración | Estado | Notas |
+|-------------|--------|-------|
+| Memory → Agentes | ❌ Pendiente | M-1 |
+| Orchestrator → Capabilities | ❌ Pendiente | M-2 |
+| IVFFlat → HNSW | ❌ Pendiente | M-3 |
+| Cleanup jobs | ❌ Pendiente | M-4 |
+| Summarization | ❌ Pendiente | M-5 |
 
 ### 2.3 Infraestructura Existente
 
@@ -257,11 +273,15 @@ WITH (m = 16, ef_construction = 64);
 
 #### 2.4.5 SDD Requerido
 
-Para las mejoras M-1 a M-5 se requiere un **SDD de Memory Enhancement** que cubra:
-- Propuesta (scope y approach)
-- Specs (requisitos funcionales y no funcionales)
-- Design (arquitectura detallada)
-- Tasks (breakdown de implementación)
+> **Nota**: La sección **User Context Memory** con tablas SQL (`user_context`, `user_notes`, `user_notes`) está documentada en:
+> - **architecture-improvements PRD**: Sección 4.4 (más detallada)
+> - **SDD**: Pendiente de crear
+
+> Para las mejoras M-1 a M-5 se requiere un **SDD de Memory Enhancement** que cubra:
+> - Propuesta (scope y approach)
+> - Specs (requisitos funcionales y no funcionales)
+> - Design (arquitectura detallada)
+> - Tasks (breakdown de implementación)
 
 ---
 
