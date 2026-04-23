@@ -12,6 +12,7 @@
 
 1. [Resumen Ejecutivo](#1-resumen-ejecutivo)
 2. [Estado Actual del Ecosistema AI](#2-estado-actual-del-ecosistema-ai)
+   - [2.4 Memory Enhancement](#24-memory-enhancement-mejoras-planificadas)
 3. [Arquitectura del Ecosistema AI](#3-arquitectura-del-ecosistema-ai)
 4. [Catálogo de Funcionalidades](#4-catálogo-de-funcionalidades)
    - [4.1 Tutor IA](#41-tutor-ia)
@@ -113,6 +114,83 @@ Redis (caching, rate limiting, BullMQ)
 BullMQ (jobs asíncronos)
 Múltiples proveedores LLM configurables
 ```
+
+### 2.4 Memory Enhancement (Mejoras Planificadas)
+
+> **Estado**: Pendiente de SDD  
+> **Origen**: Doc "Como utilizar Pgvector" + análisis de gaps actuales
+
+#### 2.4.1 Gaps Identificados
+
+| Gap | Descripción | Estado Actual | Impacto |
+|-----|-----------|-------------|-------------|--------|
+| **G-1** | MemoryService existe pero NO se usa en agentes | Los agentes no integran memoria | MEDIO |
+| **G-2** | Capabilities `memory.store/recall` declaradas pero sin handler | No implementadas | ALTO |
+| **G-3** | Índice IVFFlat (lento con grandes volúmenes) | En producción | BAJO |
+| **G-4** | No hay política de "olvido" | Memoria infinita | MEDIO |
+| **G-5** | No hay summarization de conversaciones | Memoria crece sin límite | BAJO |
+
+#### 2.4.2 Mejoras Planificadas
+
+| # | Mejora | Descripción | Prioridad |
+|---|-------|-------------|----------|
+| **M-1** | **Integración en Agentes** | Tutor IA, QA, Insights, Content Producer usan memoria | 🔴 ALTA |
+| **M-2** | **Orchestrator Capabilities** | Implementar `memory.store` y `memory.recall` | 🔴 ALTA |
+| **M-3** | **Migración a HNSW** | De IVFFlat → HNSW (más rápido) | 🟡 MEDIA |
+| **M-4** | **Políticas de Olvido** | Job de limpieza por fecha/ sesión | 🟡 MEDIA |
+| **M-5** | **Summarization** | Resumen automático de conversaciones largas | 🟢 BAJA |
+
+#### 2.4.3 Servicios que Usarán Memoria (Post-Mejora)
+
+| Agente | Actualmente Usa Memoria? | Post-Mejora |
+|-------|------------------------|------------|
+| **Tutor IA** | ❌ No | ✅ Sí (`retrieveForTutor`) |
+| **QA Agent** | ❌ No | ✅ Sí (`retrieve`) |
+| **Insights AI** | ❌ No | ✅ Sí (`retrieve`) |
+| **Content Producer** | ❌ No | ✅ Sí (`retrieve`) |
+| **Orchestrator** | ❌ No | ✅ Sí (`memory.store/recall`) |
+
+#### 2.4.4 Arquitectura Propuesta
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AGENTES AI                            │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐              │
+│  │   Tutor    │ │   QA      │ │ Insights  │              │
+│  └─────┬──────┘ └─────┬──────┘ └─────┬──────┘              │
+│        │             │             │                       │
+│        └─────────────┴─────────────┘                       │
+│                     ↓                                 │
+│         ┌─────────────────────────┐                   │
+│         │    Memory Service      │ ←── (existing)      │
+│         │  + Capabilities      │ ←── (new)           │
+│         └──────────┬──────────┘                    │
+│                    ↓                                 │
+│         ┌─────────────────────────┐                   │
+│         │  Memory Repository     │ ←── (existing)    │
+│         │  + HNSW Index         │ ←── (new)         │
+│         └──────────┬──────────┘                    │
+│                    ↓                                 │
+│         ┌─────────────────────────┐                   │
+│         │   PostgreSQL + pgvector  │                   │
+│         │   (ai_embeddings)     │                   │
+│         └─────────────────────────┘                   │
+│                                                      │
+│         ┌─────────────────────────┐                    │
+│         │   BullMQ Jobs          │ ←── (new)           │
+│         │  - cleanup-job       │                    │
+│         │  - summarize-job    │                    │
+│         └─────────────────────┘                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.4.5 SDD Requerido
+
+Para las mejoras M-1 a M-5 se requiere un **SDD de Memory Enhancement** que cubra:
+- Propuesta (scope y approach)
+- Specs (requisitos funcionales y no funcionales)
+- Design (arquitectura detallada)
+- Tasks (breakdown de implementación)
 
 ---
 
