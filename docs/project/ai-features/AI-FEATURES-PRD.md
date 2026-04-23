@@ -194,6 +194,43 @@ Múltiples proveedores LLM configurables
 | `memory:summarize` | Por sesión | Resume conversaciones >50 mensajes |
 ```
 
+#### 2.4.7 Especificaciones Técnicas
+
+> **Del documento "Como utilizar Pgvector"**
+
+**Índice HNSW:**
+
+```sql
+-- Parámetros sugeridos
+WITH (m = 16, ef_construction = 64);
+```
+
+| Parámetro | Valor | Descripción |
+|----------|-------|-------------|
+| `m` | 16 | Grado de conexión (tamaño del índice) |
+| `ef_construction` | 64 | Calidad al construir el índice |
+
+**Tabla ai_embeddings (actualización):**
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `memory_type` | VARCHAR(20) | 'message', 'summary', 'system_instruction' |
+| `session_id` | UUID | Para filtrado por sesión |
+| `metadata` | JSONB | Ya existe, usar para roles/fechas |
+
+**Políticas de gestión:**
+
+| Política | Threshold | Acción |
+|----------|-----------|--------|
+| **Ventana temporal** | >30 días | DELETE automático |
+| **Summarization** | >50 mensajes | Resume 40 → guarda summary → borra originales |
+| **Filtrado por relevancia** | N/A | Traer solo top-K antes de enviar al LLM |
+
+**Mantenimiento:**
+
+- `VACUUM` periódico para recuperar espacio tras borrados
+- No resumiir continuamente: usar BullMQ job cada 30 min o al cerrar sesión
+
 #### 2.4.5 SDD Requerido
 
 Para las mejoras M-1 a M-5 se requiere un **SDD de Memory Enhancement** que cubra:
