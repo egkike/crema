@@ -177,11 +177,21 @@ Múltiples proveedores LLM configurables
 │         └─────────────────────────┘                   │
 │                                                      │
 │         ┌─────────────────────────┐                    │
-│         │   BullMQ Jobs          │ ←── (new)           │
-│         │  - cleanup-job       │                    │
-│         │  - summarize-job    │                    │
+│         │   BullMQ + Worker       │ ←── (existing!)    │
+│         │  memory:cleanup-job    │ ←── (new)           │
+│         │  memory:summarize-job  │ ←── (new)           │
 │         └─────────────────────┘                    │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+> **Nota**: Se reutiliza el **Scheduler y Worker existentes** (`queues/scheduler.ts`, `queues/main.worker.ts`). No se crea nueva infraestructura.
+
+#### 2.4.6 Jobs Planificados (BullMQ)
+
+| Job | Frecuencia | Descripción |
+|-----|-----------|-------------|
+| `memory:cleanup` | Diario | Elimina embeddings de sesiones antiguas (>30 días) |
+| `memory:summarize` | Por sesión | Resume conversaciones >50 mensajes |
 ```
 
 #### 2.4.5 SDD Requerido
