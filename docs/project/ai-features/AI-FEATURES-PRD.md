@@ -129,16 +129,17 @@ Múltiples proveedores LLM configurables
 | **G-3** | Índice IVFFlat (lento con grandes volúmenes) | En producción | BAJO |
 | **G-4** | No hay política de "olvido" | Memoria infinita | MEDIO |
 | **G-5** | No hay summarization de conversaciones | Memoria crece sin límite | BAJO |
+| **G-6** (new) | No hay user_id para aislamiento multi-tenant | Riesgo de acceso no autorizado | ALTO |
 
 #### 2.4.2 Mejoras Planificadas
 
 | # | Mejora | Descripción | Prioridad |
 |---|-------|-------------|----------|
 | **M-1** | **Integración en Agentes** | Tutor IA, QA, Insights, Content Producer usan memoria | 🔴 ALTA |
-| **M-2** | **Orchestrator Capabilities** | Implementar `memory.store` y `memory.recall` | 🔴 ALTA |
-| **M-3** | **Migración a HNSW** | De IVFFlat → HNSW (más rápido) | 🟡 MEDIA |
-| **M-4** | **Políticas de Olvido** | Job de limpieza por fecha/ sesión | 🟡 MEDIA |
-| **M-5** | **Summarization** | Resumen automático de conversaciones largas | 🟢 BAJA |
+| **M-2** | **Orchestrator Capabilities** | Implementar `memory.store` y `memory.recall` + ownership validation | 🔴 ALTA |
+| **M-3** | **Migración a HNSW** | De IVFFlat → HNSW (más rápido) + ef_search | 🟡 MEDIA |
+| **M-4** | **Políticas de Olvido** | Job cleanup hourly + per-user quota + soft delete | 🟡 MEDIA |
+| **M-5** | **Summarization** | Batch summarization con concurrency limit + no borrar originales | 🟢 BAJA |
 
 #### 2.4.3 Servicios que Usarán Memoria (Post-Mejora)
 
@@ -207,29 +208,52 @@ WITH (m = 16, ef_construction = 64);
 
 | Parámetro | Valor | Descripción |
 |----------|-------|-------------|
-| `m` | 16 | Grado de conexión (tamaño del índice) |
+| `m` | 16 (32 para >500K) | Grado de conexión (tamaño del índice) |
 | `ef_construction` | 64 | Calidad al construir el índice |
+| `ef_search` | 40-100 | Búsqueda runtime (mayor = más preciso pero lento) |
 
 **Tabla ai_embeddings (actualización):**
 
 | Campo | Tipo | Notas |
 |-------|------|-------|
-| `memory_type` | VARCHAR(20) | 'message', 'summary', 'system_instruction' |
+| `user_id` | UUID | **OBLIGATORIO** — Aislamiento multi-tenant |
 | `session_id` | UUID | Para filtrado por sesión |
-| `metadata` | JSONB | Ya existe, usar para roles/fechas |
+| `memory_type` | VARCHAR(20) | CHECK constraint: 'message', 'summary', 'system_instruction' |
+| `metadata` | JSONB | Solo campos definidos, SIN PII |
+| `is_deleted` | BOOLEAN | Soft delete (no borrar originales) |
+
+**Access Control (RBAC):**
+
+| Capability | Requiere | Validación |
+|------------|----------|------------|
+| `memory.store` | user_id + session_id | User debe ser owner de session_id |
+| `memory.recall` | user_id + session_id | User debe ser owner de session_id |
+| Admin query | user_id | Solo datos del propio user |
+
+> **CRITICAL**: memory.store y memory.recall DEBEN validar que el user_id coincide con el session_id.owner antes de ejecutar.
 
 **Políticas de gestión:**
 
 | Política | Threshold | Acción |
 |----------|-----------|--------|
-| **Ventana temporal** | >30 días | DELETE automático |
-| **Summarization** | >50 mensajes | Resume 40 → guarda summary → borra originales |
-| **Filtrado por relevancia** | N/A | Traer solo top-K antes de enviar al LLM |
+| **Ventana temporal** | >30 días | Marcars is_deleted=TRUE (no borrar) |
+| **Per-user quota** | >10K embeddings | LRU eviction + alarma |
+| **Summarization** | >50 mensajes | Resume 40 → guarda summary + marca originales como deleted |
+| **Filtrado por relevancia** | K=5 (default) | Solo top-5, max 100 |
+| **Rate limiting** | 100 embeddings/min | Por user_id |
+
+**Jobs (BullMQ):**
+
+| Job | Frecuencia | Concurrency | Descripción |
+|-----|-----------|--------------|-------------|
+| `memory:cleanup` | hourly | 1 | Cleanup (is_deleted=TRUE + vacuum) |
+| `memory:summarize` | batch (cada 30 min) | 10 máx | Resume sesiones en lote, max 10 concurrentes |
 
 **Mantenimiento:**
 
-- `VACUUM` periódico para recuperar espacio tras borrados
-- No resumiir continuamente: usar BullMQ job cada 30 min o al cerrar sesión
+- `VACUUM ANALYZE` semanal en tabla ai_embeddings
+- Autovacuum configurado para aggressively reclaim space
+- Alarma when user >8K embeddings (80% quota)
 
 #### 2.4.5 SDD Requerido
 
