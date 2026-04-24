@@ -33,6 +33,8 @@ Integrar el Concierge (AI Support Chatbot) con las nuevas capas de arquitectura:
 
 Esta integración permite que el Concierge use el sistema centralizado de capacidades y configuración.
 
+> **Stack disponible**: Ver **[PRD.md > Stack Disponible](#0-stack-disponible)** antes de proponer soluciones. OrchestratorService, NotificationService y Redis ya están implementados y disponibles para reutilización.
+
 ---
 
 ## 2. Contexto

@@ -11,6 +11,8 @@
 
 Habilitar asistencia inteligente para la creación de contenido en productos digitales (courses, ebooks, memberships, software, podcasts, audiobooks) mediante un agente unificado que detecta el tipo de producto y provee funcionalidades específicas de asistencia, lectura de contenido, generación de quizzes y transcripción de audio/video.
 
+> **Stack disponible**: Ver **[PRD.md > Stack Disponible](#0-stack-disponible)** antes de proponer soluciones. OrchestratorService, LLMService, MemoryService y BullMQ ya están implementados y disponibles para reutilización.
+
 ---
 
 ## 2. Scope

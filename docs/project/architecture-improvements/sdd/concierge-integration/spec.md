@@ -7,6 +7,8 @@
 **PRD Fase**: Fase 7 (Semanas 25-27)  
 **Depends on**: proposal.md
 
+> **Stack disponible**: Ver **[PRD.md > Stack Disponible](#0-stack-disponible)** antes de planificar la implementación. OrchestratorService, NotificationService, ConfigService y BullMQ ya están disponibles.
+
 ---
 
 ## 1. Resumen

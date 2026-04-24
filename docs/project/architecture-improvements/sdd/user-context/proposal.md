@@ -18,6 +18,8 @@ Implementar el sistema de User Context Memory que permite:
 
 > **Dependencia**: Este SDD está basado en **architecture-improvements PRD sección 4.4**
 
+> **Stack disponible**: Ver **[PRD.md > Stack Disponible](#0-stack-disponible)** antes de proponer soluciones. Redis y BullMQ ya están implementados y disponibles para reutilización.
+
 ---
 
 ## 2. Contexto

@@ -5,6 +5,8 @@
 **Fecha**: Abril 2026  
 **Estado**: Draft para revisión
 
+> **Stack disponible**: Ver **[AI-FEATURES-PRD.md > Stack Disponible](#0-stack-disponible)** antes de diseñar. Reutilizar servicios existentes en lugar de crear nuevos.
+
 ---
 
 ## 1. Arquitectura General

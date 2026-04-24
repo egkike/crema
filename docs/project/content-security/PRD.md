@@ -6,11 +6,57 @@
 **Estado**: Parcial - Validaciones técnicas implementadas, AI pending
 **Owner**: Kike García
 
-> **Dependencias**: 
-> - ContentAssistantService: voir **AI-FEATURES-PRD.md** sección 4.2
-> - Book Highlights, Audio Notes, AI Summary: voir **AI-FEATURES-PRD.md** secciones 4.17-4.19
+## Tabla de Contenidos
+
+1. [Resumen Ejecutivo](#1-resumen-ejecutivo)
+2. [Catálogo de Controles de Validación](#2-catálogo-de-controles-de-validación)
+3. [Workflows de Moderación](#3-workflows-de-moderación)
+4. [API Endpoints](#4-api-endpoints)
+5. [Roadmap de Implementación](#5-roadmap-de-implementación)
+6. [Stack Disponible](#0-stack-disponible)
 
 ---
+
+## 0. Stack Disponible
+
+> ⚠️ **Regla obligatoria**: Antes de proponer soluciones, verificar qué está ya implementado. Explorar lo existente antes de agregar dependencias nuevas.
+
+### 0.1 Infraestructura Disponible
+
+| Componente | Implementación | Archivo | Uso |
+|-----------|-------------|---------|-----|
+| **Redis** | `ioredis` con configuración centralizada | `backend/src/config/redis.ts` → `redisConnection` | Caching, rate limiting |
+| **BullMQ** | Cola + Worker para jobs asíncronos | `backend/src/queues/scheduler.ts` + `main.worker.ts` | Async scanning, processing |
+| **NotificationService** | Slack + Datadog notifications | `src/services/notification.service.ts` | Alertas de seguridad |
+
+### 0.2 Validaciones Existentes (reutilizables)
+
+| Validador | Archivo | Descripción |
+|---------|---------|-------------|
+| **Upload middleware** | `src/middlewares/upload.middleware.ts` | Allowlist extensiones, MIME types, sanitización de filenames |
+| **GlobalErrorHandler** | `src/middlewares/global-error.middleware.ts` | Manejo centralizado de errores |
+| **RequestId middleware** | `src/middlewares/tracking/requestId.middleware.ts` | Trazabilidad de requests |
+
+### 0.3 Ejemplo de Reutilización
+
+```typescript
+// Para async malware scanning (BullMQ):
+import { mainQueue } from '../queues/scheduler';
+await mainQueue.add('scan-malware', { fileId, fileHash }, { attempts: 3, backoff: { type: 'exponential', delay: 1000 } });
+
+// Para caching de resultados de validación (Redis):
+// Ver skills-registry.service.ts para patrón de Redis caching con TTL y JSON parse safety
+
+// Para notificar incidentes de seguridad:
+import { notificationService } from '../services/notification.service';
+notificationService.notify(new Error('Security incident'), { context }, 'error');
+```
+
+### 0.4 Consideraciones
+
+- **Malware scanning** → BullMQ worker existente puede extenderse; no crear cola nueva
+- **Caching de validación** → Usar Redis con TTL (evitar re-validar archivos ya escaneados)
+- **Rate limiting en uploads** → Usar patrón de NotificationService (Redis INCR + TTL)
 
 ## 1. Resumen Ejecutivo
 

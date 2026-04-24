@@ -25,8 +25,52 @@
 5. [API Endpoints](#5-api-endpoints)
 6. [Roadmap de Implementación](#6-roadmap-de-implementación)
 7. [Dependencias y Costos](#7-dependencias-y-costos)
+8. [Stack Disponible](#0-stack-disponible)
 
 ---
+
+## 0. Stack Disponible
+
+> ⚠️ **Regla obligatoria**: Antes de proponer soluciones, verificar qué está ya implementado. Explorar lo existente antes de agregar dependencias nuevas.
+
+### 0.1 Infraestructura Disponible
+
+| Componente | Implementación | Archivo | Uso |
+|-----------|-------------|---------|-----|
+| **Redis** | `ioredis` con configuración centralizada | `backend/src/config/redis.ts` → `redisConnection` | Caching, rate limiting |
+| **BullMQ** | Cola + Worker para jobs asíncronos | `backend/src/queues/scheduler.ts` + `main.worker.ts` | Async processing, scheduling |
+| **PostgreSQL + pgvector** | Base de datos vectorial | `text-embedding-3-small` / `nomic-embed-text` | Memoria AI persistente |
+
+### 0.2 Servicios AI Implementados (reutilizables)
+
+| Servicio | Archivo | Descripción |
+|---------|---------|-------------|
+| **OrchestratorService** | `src/services/ai/orchestrator.service.ts` | Orquestación centralizada de agentes AI con SSE |
+| **LLMService** | `src/services/ai/llm.service.ts` | Multi-provider: OpenAI, Ollama, Anthropic, Gemini, Simulator |
+| **MemoryService** | `src/services/ai/memory.service.ts` | pgvector + PostgreSQL para memoria persistente |
+| **SkillsRegistry** | `src/services/skills-registry.service.ts` | Registro de skills con Redis cache |
+
+### 0.3 Ejemplo de Reutilización
+
+```typescript
+// Para análisis complejo (async con BullMQ):
+import { mainQueue } from '../queues/scheduler';
+await mainQueue.add('analyze-content', { userId, productId, contentHash }, { attempts: 3 });
+
+// Para caching de resultados:
+import { redisConnection } from '../config/redis';
+// Ver skills-registry.service.ts para patrón de Redis caching con TTL
+
+// Para embeddings (ya implementado):
+// Ver transcription.service.ts (sección "AI Embeddings")
+```
+
+### 0.4 Consideraciones para Módulos AI
+
+- **Memoria persistente** → Ya existe MemoryService con pgvector (no agregar Redis-based vector store)
+- **Procesamiento async** → Usar BullMQ queue `mainQueue` existente
+- **Rate limiting por usuario** → Usar patrón de NotificationService (Redis INCR + TTL)
+- **Caching de respuestas** → Usar patrón de SkillsRegistry (Redis con TTL)
 
 ## 1. Visión General
 

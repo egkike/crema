@@ -24,8 +24,54 @@
    - [4.4 User Context Memory](#44-user-context-memory-evolución-del-memory-service)
 5. [Roadmap de Implementación](#5-roadmap-de-implementación)
 6. [Dependencias y Riesgos](#6-dependencias-y-riesgos)
+7. [Stack Disponible](#0-stack-disponible)
 
 ---
+
+## 0. Stack Disponible
+
+> ⚠️ **Regla obligatoria**: Antes de proponer soluciones para cualquier SDD de este PRD, verificar SIEMPRE qué está ya implementado en el stack. Explorar lo existente antes de agregar dependencias nuevas.
+
+### 0.1 Infraestructura Disponible
+
+| Componente | Implementación | Archivo | Uso |
+|-----------|-------------|---------|-----|
+| **Redis** | `ioredis` con configuración centralizada | `src/config/redis.ts` → `redisConnection` | Caching, rate limiting, sessions |
+| **BullMQ (Queue)** | Cola de trabajos asíncronos | `src/queues/scheduler.ts` → `mainQueue` | Scheduling de tareas |
+| **BullMQ (Worker)** | Procesadores de cola | `src/queues/main.worker.ts` → `initMainWorker()` | Jobs: release-balances, auth-cleanup, subscription-check, payout-audit, liquidity-check |
+
+### 0.2 Servicios Implementados (reutilizables)
+
+| Servicio | Archivo | Descripción |
+|---------|---------|-------------|
+| **ConfigService** | `src/services/config.service.ts` | Configuración centralizada con DB + Redis cache |
+| **NotificationService** | `src/services/notification.service.ts` | Slack + Datadog notifications |
+| **OrchestratorService** | `src/services/ai/orchestrator.service.ts` | Orquestación de agentes AI |
+| **SkillsRegistry** | `src/services/skills-registry.service.ts` | Registro de skills con Redis cache |
+| **GlobalErrorHandler** | `src/middlewares/global-error.middleware.ts` | Manejo centralizado de errores |
+| **RequestId middleware** | `src/middlewares/tracking/requestId.middleware.ts` | Trazabilidad de requests |
+
+### 0.3 Ejemplo de Reutilización
+
+```typescript
+// Para usar Redis en un servicio nuevo:
+import { redisConnection } from '../config/redis';
+
+// Para agregar un job al scheduler:
+import { mainQueue } from '../queues/scheduler';
+await mainQueue.add('my-task', payload, { jobId: 'repeat:my-task', repeat: { pattern: '0 * * * *' } });
+
+// Para usar ConfigService:
+import { configService } from '../services/config.service';
+const value = await configService.getString('my_key');
+```
+
+### 0.4 Consideraciones para Nuevos SDD
+
+- **¿Redis ya cubre la necesidad?** → Usar Redis (caching, pub/sub, rate limiting, jobs)
+- **¿BullMQ ya cubre la necesidad?** → Usar `mainQueue` + worker existente o crear worker dedicado
+- **¿ConfigService ya cubre la necesidad?** → Usar config keys en lugar de `.env` hardcodeados
+- **¿NotificationService ya cubre la necesidad?** → Usar `notificationService.notify()` en lugar de logs o alerts custom
 
 ## 1. Resumen Ejecutivo
 
