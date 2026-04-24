@@ -8,8 +8,9 @@
 - ✅ Fase 2: Orchestrator + Skills (completada)
 - 🟡 Fase 3: Error Handling (clases implementadas, notificaciones pending)
 - ✅ Fase 4: API Routes (completada)
-- ✅ Fase 5: Integration con capabilities (completada)
-- ❌ Fase 6: User Context (pendiente)  
+- ✅ Fase 5: Service Registration (completada)
+- ❌ Fase 6: User Context (pendiente)
+- ❌ Fase 7: Concierge Integration (pendiente)
 **Owner**: Kike García
 
 ---
@@ -687,7 +688,7 @@ CREATE TABLE user_notes (
 - ✅ Input validation robusta
 - ✅ Unit tests (959 tests passing)
 
-### Fase 5: Integration (Semana 5) ✅ COMPLETADO (Abril 2026)
+### Fase 5: Service Registration (Semana 5) ✅ COMPLETADO (Abril 2026)
 
 **Servicios registrados como Orchestrator capabilities:**
 
@@ -718,6 +719,19 @@ CREATE TABLE user_notes (
 | 20-21 | **User Context Memory** | Tabla user_context + servicio | ❌ Pendiente | Requiere Memory Service |
 | 22-23 | **User Notes & Highlights** | Tabla user_notes + servicio | ❌ Pendiente | Depende de User Context |
 | 24 | **Integración** | Con AI Summary, Book Highlights | ❌ Pendiente | Depende de Notas |
+
+### Fase 7: Concierge Integration (Semanas 25-27) ❌ PENDIENTE
+
+> Integrar Concierge con las capas de arquitectura existentes
+
+| Semana | Mejora | Entregable | Estado | Notas |
+|--------|--------|-------------|--------|-------|
+| 25 | **Concierge → ConfigService** | Configuración via ConfigService | ❌ Pendiente | SDD: sdd/integration |
+| 26 | **Concierge → Orchestrator** | Capabilities via Orchestrator | ❌ Pendiente | Depende de Config |
+| 27 | **Concierge → Error Handling** | Logs centralizados | ❌ Pendiente | Depende de Orchestrator |
+
+> **Dependencias**: User Context (Fase 6), Memory Enhancement (AI-FEATURES)
+> **SDD**: Ver `sdd/integration/`
 
 ---
 

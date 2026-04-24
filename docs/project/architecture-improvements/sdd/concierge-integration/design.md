@@ -1,9 +1,10 @@
-# SDD Design: Integration
+# SDD Design: Concierge Integration
 
 **Proyecto**: Crema - Mejoras de Arquitectura  
 **Tipo**: Arquitectura  
 **SDD Phase**: Design  
 **Estado**: ✅ DOC COMPLETA  
+**PRD Fase**: Fase 7 (Semanas 25-27)  
 **Depends on**: spec.md
 
 ---

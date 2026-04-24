@@ -1,9 +1,10 @@
-# SDD Tasks: Integration
+# SDD Tasks: Concierge Integration
 
 **Proyecto**: Crema - Mejoras de Arquitectura  
 **Tipo**: Arquitectura  
 **SDD Phase**: Tasks  
 **Estado**: ✅ DOC COMPLETA (código pending)  
+**PRD Fase**: Fase 7 (Semanas 25-27)  
 **Depends on**: design.md
 
 ---

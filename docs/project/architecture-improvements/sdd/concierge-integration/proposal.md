@@ -1,10 +1,25 @@
-# SDD Proposal: Integration
+# SDD Proposal: Concierge Integration
 
 **Proyecto**: Crema - Mejoras de Arquitectura  
 **Tipo**: Arquitectura  
 **SDD Phase**: Proposal  
 **Estado**: ✅ DOC COMPLETA (código pending)  
+**PRD Fase**: Fase 7 (Semanas 25-27)  
 **Fecha**: Abril 2026
+
+---
+
+## 1. Resumen Ejecutivo
+
+Integrar el Concierge (AI Support Chatbot) con las capas de arquitectura existentes:
+- ConfigService
+- Orchestrator + Skills Registry
+- Error Handling
+- User Context Memory (dependencia)
+
+Esta integración permite que el Concierge use el sistema centralizado de capacidades y configuración.
+
+> **Nota**: La tabla de contenido ya existe en `docs/project/architecture-improvements/PRD.md` sección "Fase 7: Concierge Integration"
 
 ---
 

@@ -9,8 +9,8 @@
 | config-service | ✅ | ✅ | ✅ | ✅ | ✅ Implementado |
 | orchestrator | ✅ | ✅ | ✅ | ✅ | ✅ Implementado |
 | error-handling | ✅ | ✅ | ✅ | ✅ | 🟡 Parcial |
-| integration | ✅ | ✅ | ✅ | ✅ | ❌ Pendiente |
-| user-context | ✅ | ✅ | ✅ | ✅ | ❌ Pendiente |
+| concierge-integration | ✅ | ✅ | ✅ | ✅ | ❌ Pendiente (Fase 7) |
+| user-context | ✅ | ✅ | ✅ | ✅ | ❌ Pendiente (Fase 6) |
 
 ### Pendiente ( ❌ ):
 
@@ -23,11 +23,11 @@ Todos los SDDs principales están creados. Pendiente de implementación:
 
 ## Notas
 
-- **config-service**: Completado en PRD Phase 1. SDD completo.
-- **orchestrator**: Completado en PRD Phase 2. SDD completo.
+- **config-service**: Completado en PRD Fase 1. SDD completo.
+- **orchestrator**: Completado en PRD Fase 2. SDD completo.
 - **error-handling**: Clases implementadas en PRD Fase 3, pero notificaciones pending.
-- **integration**: Pendiente de crear cuando se requiera.
-- **user-context**: Tablas documentadas en PRD sección 4.4, pero código pending.
+- **concierge-integration**: PRD Fase 7 - Integrar Concierge con capas de arquitectura.
+- **user-context**: PRD Fase 6 - Tablas documentadas en PRD sección 4.4, pero código pending.
 
 ---
 
