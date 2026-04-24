@@ -43,6 +43,17 @@ export const ALLOWED_CONFIG_KEYS = [
   'orchestrator.default_timeout',
   'orchestrator.max_retries',
   'orchestrator.cache_ttl',
+  // T-103: Error Handling notifications
+  'error_notification.slack_webhook',
+  'error_notification.slack_channel',
+  'error_notification.datadog_api_key',
+  'error_notification.datadog_site',
+  'error_notification.enabled',
+  'error_notification.severity_threshold',
+  'error_notification.max_per_minute',
+  'error_notification.notify_db_errors',
+  'error_notification.notify_timeout_errors',
+  'error_notification.notify_unhandled',
 ];
 
 // Redis client for cache - lazy initialization

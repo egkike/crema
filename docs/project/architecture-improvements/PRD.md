@@ -6,7 +6,7 @@
 **Estado**: 
 - ✅ Fase 1: ConfigService (completada)
 - ✅ Fase 2: Orchestrator + Skills (completada)
-- 🟡 Fase 3: Error Handling (clases implementadas, notificaciones pending)
+- 🟡 Fase 3: Error Handling (clases + middleware + notificaciones — completada)
 - ✅ Fase 4: API Routes (completada)
 - ✅ Fase 5: Service Registration (completada)
 - ❌ Fase 6: User Context (pendiente)
@@ -370,12 +370,13 @@ export class CapabilityExecutionError extends Error {
 | ERROR-03 | Desarrollador | ver el requestId en la respuesta | hacer debug |
 
 #### Estado
-✅ **IMPLEMENTADO parcialmente** (Abril 2026)
+✅ **IMPLEMENTADO** (Abril 2026)
 - ✅ Error classes
 - ✅ Error middleware
 - ✅ Formato consistente
 - ✅ Sin info leakage (mensajes genéricos)
-- ❌ Notificaciones a sistemas externos (Phase 3)
+- ✅ Notificaciones a sistemas externos (Slack + Datadog)
+- ✅ Judgment Day: 3 rounds, CLEAN ✅
 
 ---
 
@@ -665,15 +666,20 @@ CREATE TABLE user_notes (
 - ✅ Auto-registration en boot
 - ✅ Error middleware con mensajes genéricos
 
-### Fase 3: Errores (Semanas 6-7) 🟡 PARCIAL
+### Fase 3: Errores (Semanas 6-7) ✅ COMPLETADO (Abril 2026)
 
 | Semana | Mejora | Entregable | Estado |
 |--------|--------|-------------|--------|
-| 6-7 | **Error Handling** | Clases + middleware | 🟡 Parcial |
-| 6-7 | **Notificaciones** | Datadog/Slack | ❌ Pendiente |
+| 6-7 | **Error Handling** | Clases + middleware | ✅ Completado |
+| 6-7 | **Notificaciones** | Datadog/Slack | ✅ Completado |
 
-**Pendiente en Phase 3:**
-- Sistema de notificaciones (Datadog/Slack) para errores críticos
+**Entregables Phase 3:**
+- ✅ NotificationService (Slack + Datadog integration)
+- ✅ global-error.middleware.ts (centralized error handler)
+- ✅ Sanitized stack traces (no PII exposure)
+- ✅ Rate limiting (atomic, 10/min default)
+- ✅ Fetch timeout (5s per notification)
+- ✅ Unit tests (1000+ tests passing)
 
 ### Fase 4: API Routes (Semana 4) ✅ COMPLETADO (Abril 2026)
 
@@ -743,7 +749,7 @@ CREATE TABLE user_notes (
 |------|-------|---------|
 | Fase 1: ConfigService | T-090 a T-095 | `config.service.test.ts`, `config.repository.test.ts` |
 | Fase 2: Orchestrator | T-110b, T-112b, T-130b | `skills-registry.service.test.ts`, `orchestrator.service.test.ts` |
-| Fase 3: Errores | TBD | `error-handler.test.ts` |
+| Fase 3: Error Handling | T-140 a T-145 | `notification.service.test.ts`, `global-error.middleware.test.ts` |
 
 ### 6.2 Integration Tests
 

@@ -7,9 +7,9 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerSpecs from './swagger';
 import { loginLimiter, refreshLimiter, apiLimiter } from './middlewares/rateLimit/rateLimit';
 import { requestIdMiddleware } from './middlewares/tracking/requestId.middleware';
+import { globalErrorHandler } from './middlewares/global-error.middleware';
 import { AppError } from './errors/AppError';
 import { config } from './config/index';
-import logger from './utils/logger';
 // Importación de rutas
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -116,12 +116,10 @@ app.use(
 // --- RUTAS DE SALUD ---
 app.get('/health', async (_req: Request, res: Response) => {
   // Basic health check - returns simple status
-  // Extended health checks can be added in separate endpoints
+  // SECURITY: Don't expose environment/uptime - aids attacker reconnaissance
   res.status(200).json({
     success: true,
     status: 'ok',
-    environment: config.nodeEnv,
-    uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
 });
@@ -163,26 +161,7 @@ app.use((_req: Request, _res: Response, next: NextFunction) => {
   next(new AppError('Ruta no encontrada', 404));
 });
 
-app.use((err: Error, req: Request, res: Response, _: NextFunction) => {
-  // Handle known AppError instances
-  if (err instanceof AppError) {
-    logger.warn(
-      { status: err.statusCode, message: err.message, path: req.path },
-      'Error controlado'
-    );
-    return res.status(err.statusCode).json({ success: false, error: err.message });
-  }
-
-  // Handle errors with status property (e.g., from Express)
-  const statusCode = (err as { status?: number }).status || 500;
-  
-  logger.error({ error: err.message, stack: err instanceof Error ? err.stack : undefined, path: req.path }, 'Error inesperado');
-
-  res.status(statusCode).json({
-    success: false,
-    error: config.nodeEnv === 'development' ? err.message : 'Error interno del servidor',
-    ...(config.nodeEnv === 'development' && { stack: err instanceof Error ? err.stack : undefined }),
-  });
-});
+// Global error handler - sends notifications and returns consistent response
+app.use(globalErrorHandler);
 
 export { app };

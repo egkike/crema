@@ -3,7 +3,7 @@
 **Proyecto**: Crema - Mejoras de Arquitectura  
 **Tipo**: Arquitectura  
 **SDD Phase**: Tasks  
-**Estado**: 🟡 DOC PARCIAL (clases+middleware/code existente, notificaciones pending)  
+**Estado**: ✅ COMPLETADO  
 **Depends on**: design.md
 
 ---
@@ -12,51 +12,116 @@
 
 | # | Task | Prioridad | Estado | Depende de |
 |---|------|:---------:|--------|-----------|
-| 1 | Agregar config keys a ConfigService | 🔴 ALTA | - |
-| 2 | Crear NotificationService | 🔴 ALTA | 1 |
-| 3 | Integrar en error middleware | 🔴 ALTA | 2 |
-| 4 | Tests unitarios | 🟡 MEDIA | 2 |
-| 5 | Tests de integración | 🟡 MEDIA | 3 |
+| 1 | Agregar config keys a ConfigService | 🔴 ALTA | ✅ Completado |
+| 2 | Crear NotificationService | 🔴 ALTA | ✅ Completado |
+| 3 | Integrar en error middleware | 🔴 ALTA | ✅ Completado |
+| 4 | Tests unitarios | 🔴 ALTA | ✅ Completado |
+| 5 | Judgment Day (security + performance review) | 🔴 ALTA | ✅ Completado (3 rounds, CLEAN) |
 
 ---
 
 ## Task Details
 
-### Task 1: Agregar config keys
+### Task 1: Agregar config keys ✅
 
-```typescript
-// En app_config table
-INSERT INTO app_config (config_key, config_value, config_type, category, description) VALUES
-('error_notification.slack_webhook', '', 'string', 'app', 'Slack webhook URL'),
-('error_notification.datadog_api_key', '', 'string', 'app', 'Datadog API key'),
-('error_notification.enabled', 'true', 'boolean', 'app', 'Enable error notifications'),
-('error_notification.severity_threshold', 'error', 'string', 'app', 'Severity threshold');
+Agregadas a `config.service.ts` allowlist:
+
+```
+error_notification.slack_webhook
+error_notification.slack_channel
+error_notification.datadog_api_key
+error_notification.datadog_site
+error_notification.enabled
+error_notification.severity_threshold
+error_notification.max_per_minute
+error_notification.notify_db_errors
+error_notification.notify_timeout_errors
+error_notification.notify_unhandled
 ```
 
-### Task 2: NotificationService
+### Task 2: NotificationService ✅
 
 ```typescript
 // src/services/notification.service.ts
-interface NotificationPayload {
-  level: 'error' | 'warning' | 'info';
-  message: string;
-  requestId?: string;
-  stack?: string;
-  timestamp: string;
+export const notificationService = {
+  shouldNotify(level: NotificationLevel): boolean
+  checkRateLimit(): boolean          // atomic via mutex
+  shouldNotifyForError(error: Error): boolean
+  buildPayload(error, context, level): NotificationPayload  // sanitized
+  async sendToSlack(payload): Promise<void>
+  async sendToDatadog(payload): Promise<void>
+  async notify(error, context): Promise<void>
 }
 ```
 
-### Task 3: Integration
+**Security fixes applied:**
+- `sanitizeStack()`: remueve paths, env vars, secrets del stack trace
+- `escapeSlackMarkdown()`: escapa `* _ ` > < | en mensajes Slack
+- Error logging sanitizado: nunca se loguea el objeto Error completo
+- Timeout en fetch: 5s máximo por notificación
 
-En `src/middlewares/error.middleware.ts`:
+### Task 3: Integration ✅
+
 ```typescript
-app.use(async (err, req, res, next) => {
-  await notificationService.notify(err, { requestId: req.id });
-});
+// src/middlewares/global-error.middleware.ts
+app.use(globalErrorHandler);
 ```
+
+- `getErrorCode()` mapea AppError status codes + error.name para no-AppError
+- Mensaje genérico al cliente (no info leakage)
+- Logger server-side con stack en development
+- Notification async (no bloquea response)
+
+### Task 4: Tests ✅
+
+```
+backend/src/__tests__/services/notification.service.test.ts
+backend/src/__tests__/middlewares/global-error.middleware.test.ts
+```
+
+**Tests passing**: 1000/1000
+
+### Task 5: Judgment Day ✅
+
+3 rounds de juicio adversarial. 16 issues encontrados y fijos.
+
+**Issues críticos/real fixed:**
+| # | Issue | Severity |
+|---|-------|----------|
+| 1 | Env var naming mismatch | CRITICAL |
+| 2 | Stack trace exposure | CRITICAL |
+| 3 | Rate limiter race condition | WARNING (real) |
+| 4 | Slack markdown injection | WARNING (real) |
+| 5 | Message length not validated | WARNING (real) |
+| 6 | Secret logging in catch blocks | WARNING (real) |
+| 7 | `.catch()` without sanitization | WARNING (real) |
+
+---
+
+## Verification
+
+```bash
+pnpm tsc --noEmit   # ✅
+pnpm lint           # ✅
+pnpm test           # ✅ 1000 passed
+```
+
+---
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `backend/src/services/notification.service.ts` | ✅ Nuevo |
+| `backend/src/middlewares/global-error.middleware.ts` | ✅ Nuevo |
+| `backend/src/app.ts` | ✅ Remove unused logger |
+| `backend/src/services/config.service.ts` | ✅ Add error config keys |
+| `backend/db/init/09-error-handling-config.sql` | ✅ Migration SQL |
+| `backend/src/__tests__/services/notification.service.test.ts` | ✅ Tests |
+| `backend/src/__tests__/middlewares/global-error.middleware.test.ts` | ✅ Tests |
 
 ---
 
 ## Estado
 
-**Estado**: DRAFT
+**Estado**: COMPLETADO ✅
