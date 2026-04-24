@@ -8,6 +8,8 @@
 
 > **Estandar de Verificación**: Voir `docs/project/common/verification-standard.md`
 
+> **Stack disponible**: Ver **[AI-FEATURES-PRD.md > Stack Disponible](#0-stack-disponible)** antes de planificar. MemoryService (pgvector), OrchestratorService, SkillsRegistry y BullMQ ya están implementados.
+
 ---
 
 ## 1. Resumen

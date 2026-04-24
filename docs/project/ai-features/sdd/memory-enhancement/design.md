@@ -8,6 +8,8 @@
 
 > **Estandar de Verificación**: Voir `docs/project/common/verification-standard.md`
 
+> **Stack disponible**: Ver **[AI-FEATURES-PRD.md > Stack Disponible](#0-stack-disponible)** antes de diseñar. Reutilizar MemoryService existente, SkillsRegistry (Redis) y OrchestratorService en lugar de crear nuevas dependencias.
+
 ---
 
 ## 1. Resumen del Diseño
