@@ -3,7 +3,7 @@
 **Proyecto**: Crema - Mejoras de Arquitectura  
 **Tipo**: Arquitectura / Feature  
 **SDD Phase**: Tasks  
-**Estado**: ✅ DOC COMPLETA (tabla DB pending)  
+**Estado**: ✅ DOC COMPLETA + IMPLEMENTADO (2026-04-25)  
 **Depends on**: design.md
 
 ---
@@ -12,14 +12,14 @@
 
 | # | Task | Prioridad | Estado | Depende de |
 |---|------|:---------:|--------|-----------|
-| 1 | Crear tabla user_context | 🔴 ALTA | - |
-| 2 | Crear tabla user_notes | 🔴 ALTA | 1 |
-| 3 | Crear UserContextRepository | 🔴 ALTA | 1 |
-| 4 | Crear UserNotesRepository | 🔴 ALTA | 2 |
-| 5 | Crear UserContextService | 🔴 ALTA | 3 |
-| 6 | Crear UserNotesService | 🔴 ALTA | 4 |
-| 7 | Agregar routes | 🟡 MEDIA | 5, 6 |
-| 8 | Tests unitarios | 🟡 MEDIA | 5, 6 |
+| 1 | Crear tabla user_context | 🔴 ALTA | ✅ | - |
+| 2 | Crear tabla user_notes | 🔴 ALTA | ✅ | 1 |
+| 3 | Crear UserContextRepository | 🔴 ALTA | ✅ | 1 |
+| 4 | Crear UserNotesRepository | 🔴 ALTA | ✅ | 2 |
+| 5 | Crear UserContextService | 🔴 ALTA | ✅ | 3 |
+| 6 | Crear UserNotesService | 🔴 ALTA | ✅ | 4 |
+| 7 | Agregar routes | 🟡 MEDIA | ✅ | 5, 6 |
+| 8 | Tests unitarios | 🟡 MEDIA | ✅ | 5, 6 |
 
 ---
 
@@ -95,4 +95,11 @@ export const userNotesService = {
 
 ## Estado
 
-**Estado**: DRAFT
+**Estado**: ✅ COMPLETO (2026-04-25)
+
+Tareas T-1 a T-8 completadas:
+- Tablas SQL en db/init/10-user-context-tables.sql
+- Repositories: user-context.repository.ts, user-notes.repository.ts
+- Services: user-context.service.ts, user-notes.service.ts
+- Routes en user.routes.ts
+- Tests: user-context.service.test.ts (15 test cases)
