@@ -12,6 +12,11 @@ export default defineConfig({
       exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'node_modules/**', 'src/__tests__/repositories/*.test.ts'],
     },
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
-    exclude: ['node_modules/**', 'dist/**', 'src/__tests__/repositories/*.test.ts'],
+    exclude: [
+      'node_modules/**', 
+      'dist/**', 
+      'src/__tests__/repositories/*.test.ts',
+      'src/__tests__/**/*integration.test.ts', // requiere DB + Redis
+    ],
   },
 });
