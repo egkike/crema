@@ -1,18 +1,22 @@
-import { Router, type Request, type Response, type NextFunction } from 'express';
+import { Router } from 'express';
 
+import type { AuthenticatedRequest } from '../types/express';
 import { UserController } from '../controllers/user.controller';
 import { subscriptionController } from '../controllers/subscription.controller';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
 import { enforceFullAuth } from '../middlewares/auth/password.middleware';
+import { validate, validateParams } from '../middlewares/auth/validate.middleware';
 import { userContextService } from '../services/user-context.service';
 import { userNotesService } from '../services/user-notes.service';
-import type { NoteType } from '../repositories/user-notes.repository';
-
-// Extend Request to include authenticated user
-interface AuthenticatedRequest extends Request {
-  user?: { id: string };
-}
+import {
+  productIdSchema,
+  noteIdSchema,
+  updateProgressSchema,
+  saveQuestionSchema,
+  createNoteSchema,
+  updateNoteSchema,
+} from '../schemas/user-context.schema';
 
 const router = Router();
 const userController = new UserController();
@@ -37,10 +41,10 @@ router.get('/subscription/status', subscriptionController.getMySubscriptionStatu
  * User Context y Notes (Auth requerido)
  */
 // Context
-router.get('/context/:productId', async (req, res, next) => {
+router.get('/context/:productId', validateParams(productIdSchema, ['productId']), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const userId = (req as AuthenticatedRequest).user?.id;
-    const productId = req.params.productId;
+    const userId = req.user?.id;
+    const productId = req.validatedParams?.productId as string;
     const context = await userContextService.getContext(userId, productId);
     res.json({ success: true, data: context });
   } catch (error) {
@@ -48,11 +52,11 @@ router.get('/context/:productId', async (req, res, next) => {
   }
 });
 
-router.put('/context/:productId/progress', async (req, res, next) => {
+router.put('/context/:productId/progress', validateParams(productIdSchema, ['productId']), validate(updateProgressSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const userId = (req as AuthenticatedRequest).user?.id;
-    const productId = req.params.productId;
-    const { progress } = req.body;
+    const userId = req.user?.id;
+    const productId = req.validatedParams?.productId as string;
+    const { progress } = req.validatedBody as { progress: number };
     const context = await userContextService.updateProgress(userId, productId, progress);
     res.json({ success: true, data: context });
   } catch (error) {
@@ -60,11 +64,11 @@ router.put('/context/:productId/progress', async (req, res, next) => {
   }
 });
 
-router.post('/context/:productId/question', async (req, res, next) => {
+router.post('/context/:productId/question', validateParams(productIdSchema, ['productId']), validate(saveQuestionSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const userId = (req as AuthenticatedRequest).user?.id;
-    const productId = req.params.productId;
-    const { question } = req.body;
+    const userId = req.user?.id;
+    const productId = req.validatedParams?.productId as string;
+    const { question } = req.validatedBody as { question: string };
     const context = await userContextService.saveQuestion(userId, productId, question);
     res.json({ success: true, data: context });
   } catch (error) {
@@ -73,10 +77,10 @@ router.post('/context/:productId/question', async (req, res, next) => {
 });
 
 // Notes
-router.get('/notes/:productId', async (req, res, next) => {
+router.get('/notes/:productId', validateParams(productIdSchema, ['productId']), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const userId = (req as AuthenticatedRequest).user?.id;
-    const productId = req.params.productId;
+    const userId = req.user?.id;
+    const productId = req.validatedParams?.productId as string;
     const notes = await userNotesService.getNotes(userId, productId);
     res.json({ success: true, data: notes, count: notes.length });
   } catch (error) {
@@ -84,33 +88,35 @@ router.get('/notes/:productId', async (req, res, next) => {
   }
 });
 
-router.post('/notes/:productId', async (req, res, next) => {
+router.post('/notes/:productId', validateParams(productIdSchema, ['productId']), validate(createNoteSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const userId = (req as AuthenticatedRequest).user?.id;
-    const productId = req.params.productId;
-    const { noteText, noteType, position } = req.body;
-    const note = await userNotesService.createNote(userId, productId, noteText, noteType as NoteType, position);
+    const userId = req.user?.id;
+    const productId = req.validatedParams?.productId as string;
+    const { noteText, noteType, position } = req.validatedBody as { noteText: string; noteType: string; position?: number };
+    const note = await userNotesService.createNote(userId, productId, noteText, noteType, position);
     res.status(201).json({ success: true, data: note });
   } catch (error) {
     next(error);
   }
 });
 
-router.put('/notes/:noteId', async (req, res, next) => {
+router.put('/notes/:noteId', validateParams(noteIdSchema, ['noteId']), validate(updateNoteSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const userId = (req as AuthenticatedRequest).user?.id;
-    const { noteText } = req.body;
-    const note = await userNotesService.updateNote(req.params.noteId, userId, noteText);
+    const userId = req.user?.id;
+    const { noteText } = req.validatedBody as { noteText: string };
+    const noteId = req.validatedParams?.noteId as string;
+    const note = await userNotesService.updateNote(noteId, userId, noteText);
     res.json({ success: true, data: note });
   } catch (error) {
     next(error);
   }
 });
 
-router.delete('/notes/:noteId', async (req, res, next) => {
+router.delete('/notes/:noteId', validateParams(noteIdSchema, ['noteId']), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const userId = (req as AuthenticatedRequest).user?.id;
-    const deleted = await userNotesService.deleteNote(req.params.noteId, userId);
+    const userId = req.user?.id;
+    const noteId = req.validatedParams?.noteId as string;
+    const deleted = await userNotesService.deleteNote(noteId, userId);
     if (!deleted) {
       return res.status(404).json({ success: false, error: 'Note not found or not owned by user' });
     }

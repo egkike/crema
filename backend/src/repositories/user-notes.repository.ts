@@ -16,7 +16,7 @@ export interface UserNote {
   productId: string;
   noteText: string;
   noteType: NoteType;
-  position: Record<string, unknown> | null;
+  position: number | null;
   metadata: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
@@ -32,7 +32,7 @@ export interface IUserNotesRepository {
     productId: string;
     noteText: string;
     noteType: NoteType;
-    position?: Record<string, unknown>;
+    position?: number;
     metadata?: Record<string, unknown>;
   }): Promise<UserNote>;
   update(id: string, userId: string, noteText: string): Promise<UserNote>;
@@ -160,7 +160,7 @@ export const userNotesRepository: IUserNotesRepository = {
     productId: string;
     noteText: string;
     noteType: NoteType;
-    position?: Record<string, unknown>;
+    position?: number;
     metadata?: Record<string, unknown>;
   }): Promise<UserNote> {
     const query = `

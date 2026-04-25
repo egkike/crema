@@ -24,7 +24,7 @@ export const userNotesService = {
     productId: string,
     noteText: string,
     noteType: string,
-    position?: Record<string, unknown>
+    position?: number
   ): Promise<UserNote> {
     // RUNTIME validation for noteType
     if (!isValidNoteType(noteType)) {

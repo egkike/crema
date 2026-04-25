@@ -21,6 +21,12 @@ declare global {
       id: string;
       /** Child logger instance with requestId attached, set by requestIdMiddleware */
       log: Logger;
+      /** Generic validated Zod output */
+      [key: string]: unknown;
+      /** Validated request body from Zod schema */
+      validatedBody?: Record<string, unknown>;
+      /** Validated path parameters from Zod schema */
+      validatedParams?: Record<string, unknown>;
     }
   }
 }
@@ -55,4 +61,8 @@ export interface AuthenticatedRequest extends Request {
     remaining: number;
     resetTime: Date;
   };
+  /** Validated request body from Zod schema */
+  validatedBody?: Record<string, unknown>;
+  /** Validated path parameters from Zod schema */
+  validatedParams?: Record<string, unknown>;
 }
