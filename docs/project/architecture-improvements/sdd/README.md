@@ -10,14 +10,14 @@
 | orchestrator | ✅ | ✅ | ✅ | ✅ | ✅ Implementado |
 | error-handling | ✅ | ✅ | ✅ | ✅ | 🟡 Parcial |
 | concierge-integration | ✅ | ✅ | ✅ | ✅ | ❌ Pendiente (Fase 7) |
-| user-context | ✅ | ✅ | ✅ | ✅ | ❌ Pendiente (Fase 6) |
+| user-context | ✅ | ✅ | ✅ | 🟡 PARCIAL (tests pending) | ❌ Pendiente |
 
 ### Pendiente ( ❌ ):
 
 Todos los SDDs principales están creados. Pendiente de implementación:
 - error-handling: Pending (falta sistema de notificaciones)
-- integration: Pending (falta User Context)
-- user-context: Pending (código no existente)
+- concierge-integration: Pending (Fase 7)
+- user-context: Pending (tests pending)
 
 ---
 
