@@ -2152,28 +2152,39 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 
 ### Estado de Implementación (Abril 2026)
 
-| Módulo | Estado | Notas |
-|--------|--------|-------|
-| **Crema Memory Service** | 🟡 Parcial | Base implementada, Memory Enhancement Tasks 1-10 pendientes |
-| **Content Assistant (AI)** | ✅ Implementado | Servicios en `ai/content/` con tests |
-| **Q&A Service** | ✅ Implementado | `qa.service.ts` |
-| **Reviews Service** | ✅ Implementado | `review.service.ts` |
-| **Denunciation Service** | ✅ Implementado | `denunciation.service.ts` |
-| **LLM Service** | ✅ Implementado | Multi-provider (OpenAI, Ollama, Gemini, Anthropic) |
-| **Embedding Service** | ✅ Implementado | text-embedding-3-small, nomic-embed-text |
-| **Concierge Service** | ✅ Implementado | Integración Orchestrator ✅ |
+| Categoría | Servicio | Archivo | Tests | Orchestrator |
+|----------|----------|---------|-------|--------------|
+| **Base** | LLM Service | `ai/llm.service.ts` | ❌ | ✅ |
+| **Base** | Embedding Service | `ai/embedding.service.ts` | ❌ | ✅ |
+| **Base** | Memory Service | `ai/memory.service.ts` | ❌ | ❌ |
+| **Base** | Credits Service | `ai/credits.service.ts` | ❌ | ❌ |
+| **Content** | ContentAssistant | `ai/content/content-assistant.service.ts` | ✅ | ❌ |
+| **Content** | ContentReader | `ai/content/content-reader.service.ts` | ✅ | ❌ |
+| **Content** | QuizGenerator | `ai/content/quiz-generator.service.ts` | ✅ | ❌ |
+| **Content** | Transcription | `ai/content/transcription.service.ts` | ✅ | ❌ |
+| **Agents** | QAAgentService | `ai/agents.service.ts` | ❌ | ❌ |
+| **Agents** | TutorService | `ai/agents.service.ts` | ❌ | ❌ |
+| **Agents** | InsightsService | `ai/agents.service.ts` | ❌ | ❌ |
+| **Agents** | AnalyticsService | `ai/agents.service.ts` | ❌ | ❌ |
+| **Moderation** | ConciergeService | `ai/concierge.service.ts` | ❌ | ✅ |
+| **Moderation** | QAService | `ai/qa.service.ts` | ❌ | ❌ |
+| **Moderation** | ReviewService | `ai/review.service.ts` | ❌ | ❌ |
+| **Moderation** | DenunciationService | `ai/denunciation.service.ts` | ❌ | ❌ |
+
+**Total: 17 servicios implementados, 4 en Orchestrator**
 
 #### Pendiente:
 
-| Módulo | Prioridad | Dependencias |
-|--------|-----------|--------------|
-| Memory Enhancement Tasks (RBAC, HNSW, Quota) | 🔴 ALTA | Orchestrator ✅ |
-| AI Content Assistant → Orchestrator | 🔴 ALTA | Orchestrator ✅ |
-| Q&A Agent | 🟡 MEDIA | Memory Enhancement |
-| Reports Agent | 🟡 MEDIA | Memory Enhancement |
-| Tutor AI Avanzado | 🟡 MEDIA | Memory Enhancement |
-| Insights AI Agent | 🟡 MEDIA | Analytics Base |
-| Interactive Agent | 🟡 MEDIA | Analytics Base |
+| Prioridad | Tarea | SDD | Dependencias |
+|-----------|-------|-----|--------------|
+| 🔴 ALTA | Registrar 13 servicios en Orchestrator | - | - |
+| 🔴 ALTA | Memory Enhancement Tasks 1-10 | ✅ spec+design+tasks | Orchestrator ✅ |
+| 🟡 MEDIA | QAAgent Orchestrator registration | ✅ proposal | - |
+| 🟡 MEDIA | Tutor AI Orchestrator registration | ✅ proposal | - |
+| 🟡 MEDIA | Insights Agent Orchestrator registration | ✅ proposal | - |
+| 🟡 MEDIA | Analytics Service Orchestrator registration | ✅ proposal | - |
+| 🟢 BAJA | Interactive Agent SDD | ❌ | Analytics |
+| 🟢 BAJA | Reports Agent SDD | ❌ | Reports system |
 
 ---
 
