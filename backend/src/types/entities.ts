@@ -241,7 +241,7 @@ export interface AppConfig {
   configKey: string;
   configValue: string;
   configType: 'string' | 'number' | 'boolean' | 'json';
-  category: 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features';
+  category: 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features' | 'support';
   description?: string;
   isPublic: boolean;
   isEncrypted: boolean;

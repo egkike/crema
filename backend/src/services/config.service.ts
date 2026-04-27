@@ -11,7 +11,7 @@ import { config } from '../config';
 import logger from '../utils/logger';
 
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
-export type ConfigCategory = 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features';
+export type ConfigCategory = 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features' | 'support';
 
 // Allowlist de claves válidas para seguridad (Fase 4: Migración)
 export const ALLOWED_CONFIG_KEYS = [
@@ -54,6 +54,14 @@ export const ALLOWED_CONFIG_KEYS = [
   'error_notification.notify_db_errors',
   'error_notification.notify_timeout_errors',
   'error_notification.notify_unhandled',
+  // T-1XX: Concierge Support
+  'support.enabled',
+  'support.timeout_ms',
+  'support.max_retries',
+  'support.system_prompt',
+  'support.model',
+  'support.temperature',
+  'support.max_tokens',
 ];
 
 // Redis client for cache - lazy initialization
@@ -203,8 +211,7 @@ export const configService = {
 
     // Validate category extraction
     const keyPrefix = key.split('.')[0];
-    const allowedCategories: ConfigCategory[] = ['ai', 'retry', 'admin', 'commission', 'cache', 'providers', 'features'];
-    const extractedCategory = category || (allowedCategories.includes(keyPrefix as ConfigCategory) ? keyPrefix as ConfigCategory : 'admin');
+    const extractedCategory = category || (keyPrefix === 'support' ? 'support' : 'admin');
     
     await configRepository.upsert({
       configKey: key,
