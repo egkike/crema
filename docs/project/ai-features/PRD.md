@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Crema - Sistema de Interacción y Analytics
 
-**Versión**: 1.2  
-**Fecha**: Marzo 2026  
-**Estado**: Draft para revisión  
+**Versión**: 1.3  
+**Fecha**: Marzo-Abril 2026  
+**Estado**: 🟡 PARCIAL - Servicios base implementados, integración Orchestrator pendiente
 **Owner**: Kike García  
 **Fases**: 2 (Memory + Q&A + Reviews + Denuncias | Analytics + IA avanzada)
 
@@ -2150,6 +2150,31 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 
 ### Total Estimado: 18-22 semanas (~5 meses)
 
+### Estado de Implementación (Abril 2026)
+
+| Módulo | Estado | Notas |
+|--------|--------|-------|
+| **Crema Memory Service** | 🟡 Parcial | Base implementada, Memory Enhancement Tasks 1-10 pendientes |
+| **Content Assistant (AI)** | ✅ Implementado | Servicios en `ai/content/` con tests |
+| **Q&A Service** | ✅ Implementado | `qa.service.ts` |
+| **Reviews Service** | ✅ Implementado | `review.service.ts` |
+| **Denunciation Service** | ✅ Implementado | `denunciation.service.ts` |
+| **LLM Service** | ✅ Implementado | Multi-provider (OpenAI, Ollama, Gemini, Anthropic) |
+| **Embedding Service** | ✅ Implementado | text-embedding-3-small, nomic-embed-text |
+| **Concierge Service** | ✅ Implementado | Integración Orchestrator ✅ |
+
+#### Pendiente:
+
+| Módulo | Prioridad | Dependencias |
+|--------|-----------|--------------|
+| Memory Enhancement Tasks (RBAC, HNSW, Quota) | 🔴 ALTA | Orchestrator ✅ |
+| AI Content Assistant → Orchestrator | 🔴 ALTA | Orchestrator ✅ |
+| Q&A Agent | 🟡 MEDIA | Memory Enhancement |
+| Reports Agent | 🟡 MEDIA | Memory Enhancement |
+| Tutor AI Avanzado | 🟡 MEDIA | Memory Enhancement |
+| Insights AI Agent | 🟡 MEDIA | Analytics Base |
+| Interactive Agent | 🟡 MEDIA | Analytics Base |
+
 ---
 
 ## 7. Dependencias y Costos
@@ -2276,9 +2301,10 @@ RESPUENDE en JSON con este formato exacto.
 | 1.1 | Marzo 2026 | Crema Memory Service como prioridad 1, reorganización de fases, modelo de IA detallado con costos, Agentes IA agregados |
 | 1.2 | Marzo 2026 | Sistema de créditos prepagos agregado, Insights AI Agent con dashboards dinámicos usando Crema Memory MCP |
 | 1.3 | Abril 2026 | Multi-provider LLM support (OpenAI, Ollama, Anthropic, Gemini, Simulator), Streaming SSE implementado |
+| 1.4 | Abril 2026 | Estado real documentado: Servicios base implementados (Content Assistant, Q&A, Reviews, Denunciation, Credits), Memory Enhancement Tasks pendientes, Orchestrator integración pendiente |
 
 ---
 
 *Documento preparado para el proyecto Crema - Abril 2026*
-*Versión: 1.3 - Multi-provider + Streaming*
-*Última actualización: Abril 2026 - Multi-provider LLM + Streaming SSE*
+*Versión: 1.4 - Estado: Parcialmente Implementado*
+*Última actualización: Abril 2026 - Servicios base implementados, integración pendiente*
