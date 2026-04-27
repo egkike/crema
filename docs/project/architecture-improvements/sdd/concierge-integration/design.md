@@ -3,7 +3,8 @@
 **Proyecto**: Crema - Mejoras de Arquitectura  
 **Tipo**: Arquitectura  
 **SDD Phase**: Design  
-**Estado**: ✅ DOC COMPLETA  
+**Estado**: 🟡 REVISIÓN (2026-04-27)  
+**Revision Note**: Corregido - Concierge debe crearse primero (no existe en código)
 **PRD Fase**: Fase 7 (Semanas 25-27)  
 **Depends on**: spec.md
 
@@ -11,7 +12,7 @@
 
 ## 1. Resumen del Diseño
 
-Integrar Concierge con las capas de arquitectura.
+> **⚠️ IMPORTANTE**: El SDD anterior asumía "Concierge agent existente" pero el Concierge NO existe en el código. Este SDD debe crear el Concierge desde cero.
 
 ---
 

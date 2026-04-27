@@ -3,11 +3,12 @@
 **Proyecto**: Crema - Mejoras de Arquitectura  
 **Tipo**: Arquitectura  
 **SDD Phase**: Spec  
-**Estado**: ✅ DOC COMPLETA  
+**Estado**: 🟡 REVISIÓN (2026-04-27)  
+**Revision Note**: Corregido - Concierge debe crearse primero (no existe en código)
 **PRD Fase**: Fase 7 (Semanas 25-27)  
 **Depends on**: proposal.md
 
-> **Stack disponible**: Ver **[PRD.md > Stack Disponible](#0-stack-disponible)** antes de planificar la implementación. OrchestratorService, NotificationService, ConfigService y BullMQ ya están disponibles.
+> **⚠️ IMPORTANTE**: El SDD asumía "Concierge agent existente" pero NO existe código para el Concierge.
 
 ---
 

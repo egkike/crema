@@ -3,11 +3,14 @@
 **Proyecto**: Crema - Mejoras de Arquitectura  
 **Tipo**: Arquitectura  
 **SDD Phase**: Proposal  
-**Estado**: ✅ DOC COMPLETA (código pending)  
+**Estado**: 🟡 REVISIÓN (2026-04-27)  
+**Revision Note**: Corregido - Concierge debe crearse primero (no existe en código)
 **PRD Fase**: Fase 7 (Semanas 25-27)  
 **Fecha**: Abril 2026
 
 ---
+
+> **⚠️ IMPORTANTE**: El SDD asumía "Concierge agent existente" pero el Concierge NO existe en el código.
 
 ## 1. Resumen Ejecutivo
 
@@ -50,10 +53,11 @@ Esta integración permite que el Concierge use el sistema centralizado de capaci
 
 ### Problema
 
-El Concierge actual:
-- Tiene configuración hardcoded
-- No usa Orchestrator para capacidades
-- No guardUser Context del usuario
+**El Concierge NO existe en el código.**
+- El SDD asumía que existía pero no hay código
+- Hay que CREAR el Concierge desde cero
+
+El SDD debe incluir la creación del Concierge, no solo la integración.
 
 ---
 
@@ -61,6 +65,7 @@ El Concierge actual:
 
 ### En Scope
 
+- **CREAR Concierge service** (no existe)
 - Concierge → ConfigService
 - Concierge → Orchestrator
 - Concierge → Error Handling
@@ -68,8 +73,8 @@ El Concierge actual:
 
 ### Out of Scope
 
-- Nuevas features de Concierge (fuera de arquitectura)
 - Frontend de Concierge
+- Nuevas features de Concierge (fuera de esta integración)
 
 ---
 
@@ -86,4 +91,4 @@ El Concierge actual:
 
 ## 5. Estado
 
-**Estado**: DRAFT - Pendiente de completar spec
+**Estado**: 🟡 REVISIÓN (2026-04-27) - Corregido para incluir creación del Concierge

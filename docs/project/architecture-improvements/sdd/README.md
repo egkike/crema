@@ -9,7 +9,7 @@
 | config-service | ✅ | ✅ | ✅ | ✅ | ✅ Implementado |
 | orchestrator | ✅ | ✅ | ✅ | ✅ | ✅ Implementado |
 | error-handling | ✅ | ✅ | ✅ | ✅ | ✅ Implementado |
-| concierge-integration | ✅ | ✅ | ✅ | ✅ | ❌ Pendiente (Fase 7) |
+| concierge-integration | ✅ | ✅ | ✅ | 🟡 REVISIÓN (2026-04-27) | ❌ Pendiente |
 | user-context | ✅ | ✅ | ✅ | ✅ | ✅ **IMPLEMENTADO (2026-04-25)** |
 
 ### Pendiente ( ❌ ):
@@ -24,7 +24,7 @@ Todos los SDDs principales están creados. Pendiente de implementación:
 - **config-service**: Completado en PRD Fase 1. SDD completo.
 - **orchestrator**: Completado en PRD Fase 2. SDD completo.
 - **error-handling**: ✅ COMPLETO (2026-03-20). NotificationService + GlobalErrorMiddleware.
-- **concierge-integration**: PRD Fase 7 - Integrar Concierge con capas de arquitectura.
+- **concierge-integration**: 🟡 REVISIÓN (2026-04-27) - Corregido: Concierge NO existe en código, debe crearse primero
 - **user-context**: ✅ COMPLETO (2026-04-25). SDD T-1 a T-8 implementados. Código en producción.
 
 ---
