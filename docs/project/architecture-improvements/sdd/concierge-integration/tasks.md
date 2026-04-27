@@ -24,12 +24,12 @@
 
 | # | Task | Prioridad | Estado | Depende de |
 |---|------|:---------:|--------|-----------|
-| 1 | Crear Concierge service/agent | 🔴 ALTA | - |
-| 2 | Agregar config keys support.* a ConfigService | 🔴 ALTA | 1 |
-| 3 | Registrar Concierge como skill en Orchestrator | 🔴 ALTA | 1, 2 |
-| 4 | Agregar routes /api/concierge con Orchestrator | 🔴 ALTA | 3 |
-| 5 | Integrar con User Context | 🟡 MEDIA | user-context |
-| 6 | Tests E2E | 🟡 MEDIA | 5 |
+| 1 | Crear Concierge service/agent | 🔴 ALTA | ✅ | - |
+| 2 | Agregar config keys support.* | 🔴 ALTA | ✅ | 1 |
+| 3 | Registrar Concierge como skill | 🔴 ALTA | ✅ | 1, 2 |
+| 4 | Agregar routes /api/concierge | 🔴 ALTA | ✅ | 3 |
+| 5 | Integrar con User Context | 🟡 MEDIA | ✅ | 4 |
+| 6 | Tests E2E | 🟡 MEDIA | ✅ | 5 |
 
 ---
 
@@ -101,5 +101,34 @@ router.post('/concierge/chat',
 
 ## Estado
 
-**Estado**: 🟡 REVISIÓN (2026-04-27)
-**Nota**: SDD corregido - Concierge debe crearse primero
+**Estado**: ✅ COMPLETO (2026-04-27)
+
+Tareas completadas:
+- Concierge service: src/services/ai/concierge.service.ts
+- Skill registrado: concierge.chat en ai/index.ts
+- User Context integrado
+- Tests passing
+- Judgment Day: APPROVED (3 rounds)
+
+---
+
+## Fixes Post-Judgment Day (2026-04-27)
+
+| # | Issue | Severity | Fix |
+|---|-------|----------|-----|
+| 1 | Error no relanzado | CRITICAL | throw new AppError() |
+| 2 | Error object malformado | CRITICAL | error instanceof Error |
+| 3 | Bloque try/catch bloquea | WARNING | Fire-and-forget .then().catch() |
+| 4 | Input no sanitizado | WARNING | sanitizeInput() + defensiveFramePrompt() |
+| 5 | DEFAULT_SYSTEM_PROMPT hardcoded | CRITICAL | configService.get('support.system_prompt') |
+| 6 | support.model ignorado | WARNING | Pasar model a llmService.chat() |
+| 7 | support.enabled ignorado | WARNING | Check throws 503 si disabled |
+| 8 | Handler Error genérico | WARNING | AppError con 400 |
+| 9 | Validación redundante | SUGGESTION | Centralizada en handler |
+| 10 | Unsafe type cast | SUGGESTION | safeConversationCount() |
+| 11 | conversationId no usado | SUGGESTION | Removido del interface |
+| 12 | Spanish error message | SUGGESTION | Traducido a inglés |
+| 13 | Prompt injection (teórico) | WARNING | defensiveFramePrompt() escapa < > |
+| 14 | Espacio faltante | SUGGESTION | información ONLY |
+
+**Resultado**: TypeScript ✅, Lint ✅ 0 errors, Tests ✅ 1025 passed

@@ -8,10 +8,12 @@
 
 import { skillsRegistry, type Skill } from '../skills-registry.service';
 import logger from '../../utils/logger';
+import { AppError } from '../../errors/AppError';
 
 // Import AI services
 import { llmService, type LLMMessage, type LLMRequest, type ChatStreamOptions } from './llm.service';
 import { embeddingService } from './embedding.service';
+import { conciergeService } from './concierge.service';
 
 // ============================================================================
 // Validation helpers
@@ -208,6 +210,41 @@ const skills: Skill[] = [
     handler: async (input: unknown) => {
       validateTextsInput(input);
       return embeddingService.generateEmbeddings(input.texts);
+    },
+  },
+  // ========================================================================
+  // Concierge Service
+  // ========================================================================
+  {
+    id: 'concierge-chat',
+    name: 'Concierge Support',
+    capability: 'concierge.chat',
+    description: 'AI Support Chatbot for general user support',
+    parameters: [
+      { name: 'message', type: 'string', required: true },
+      { name: 'userId', type: 'string', required: true },
+    ],
+    options: { timeout: 30000, retries: 2, cacheable: false },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const { message, userId } = input as { message: unknown; userId: unknown };
+      
+      // Validate message
+      if (typeof message !== 'string' || message.length === 0) {
+        throw new AppError('message is required and must be a non-empty string', 400);
+      }
+      if (message.length > 2000) {
+        throw new AppError('message must be less than 2000 characters', 400);
+      }
+      
+      // Validate userId
+      if (typeof userId !== 'string' || userId.length === 0) {
+        throw new AppError('userId is required and must be a non-empty string', 400);
+      }
+      
+      return conciergeService.chat({ message, userId });
     },
   },
 ];
