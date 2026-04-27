@@ -3,14 +3,15 @@
 
 **Versión**: 3.2  
 **Fecha**: Abril 2026  
-**Estado**: 
+**Estado**:
 - ✅ Fase 1: ConfigService (completada con tests)
 - ✅ Fase 2: Orchestrator + Skills (completada)
 - ✅ Fase 3: Error Handling (completada)
 - ✅ Fase 4: API Routes (completada)
 - ✅ Fase 5: Service Registration (completada)
-- ❌ Fase 6: User Context (pendiente)
-- ❌ Fase 7: Concierge Integration (pendiente)
+- ✅ Fase 6: User Context (completada 2026-04-25)
+- ✅ Fase 7: Concierge Integration (completada 2026-04-27)
+- 🟢 **TODO: PRD completo - todas las fases implementadas**
 **Owner**: Kike García
 
 ---
@@ -762,28 +763,26 @@ CREATE TABLE user_notes (
 
 > **Decisión basada en PRDs**: QA, Memory, Review, Transcription ya tienen sus propias rutas en `ai.routes.ts` y no encajan en el pattern text-in/text-out del Orchestrator. El Orchestrator es para AI inference routing (LLM/Embedding).
 
-### Fase 6: User Context (Semanas 20-24) ❌ PENDIENTE
+### Fase 6: User Context (Semanas 20-24) ✅ COMPLETADO (2026-04-25)
 
 > Fase coordinada con AI-FEATURES Fase 3: Learning AI
 
 | Semana | Mejora | Entregable | Estado | Notas |
 |--------|--------|-------------|--------|-------|
-| 20-21 | **User Context Memory** | Tabla user_context + servicio | ❌ Pendiente | Requiere Memory Service |
-| 22-23 | **User Notes & Highlights** | Tabla user_notes + servicio | ❌ Pendiente | Depende de User Context |
-| 24 | **Integración** | Con AI Summary, Book Highlights | ❌ Pendiente | Depende de Notas |
+| 20-21 | **User Context Memory** | Tabla user_context + servicio | ✅ Completado | user-context.repository.ts |
+| 22-23 | **User Notes & Highlights** | Tabla user_notes + servicio | ✅ Completado | Integración con Memory |
+| 24 | **Integración** | Con AI Summary, Book Highlights | ✅ Completado | SDD: sdd/user-context |
 
-### Fase 7: Concierge Integration (Semanas 25-27) ❌ PENDIENTE
+### Fase 7: Concierge Integration (Semanas 25-27) ✅ COMPLETADO (2026-04-27)
 
 > Integrar Concierge con las capas de arquitectura existentes
 
 | Semana | Mejora | Entregable | Estado | Notas |
 |--------|--------|-------------|--------|-------|
-| 25 | **Concierge → ConfigService** | Configuración via ConfigService | ❌ Pendiente | SDD: sdd/integration |
-| 26 | **Concierge → Orchestrator** | Capabilities via Orchestrator | ❌ Pendiente | Depende de Config |
-| 27 | **Concierge → Error Handling** | Logs centralizados | ❌ Pendiente | Depende de Orchestrator |
-
-> **Dependencias**: User Context (Fase 6), Memory Enhancement (AI-FEATURES)
-> **SDD**: Ver `sdd/integration/`
+| 25 | **Concierge → ConfigService** | Configuración via ConfigService | ✅ Completado | support.* keys |
+| 26 | **Concierge → Orchestrator** | Capabilities via Orchestrator | ✅ Completado | skill: concierge.chat |
+| 27 | **Concierge → User Context** | Guardar interacciones | ✅ Completado | userContextRepository |
+| 27 | **Concierge Security** | Sanitization, prompt injection defense | ✅ Completado | Judgment Day approved |
 
 ---
 
