@@ -1,12 +1,12 @@
 # Product Requirements Document (PRD)
 ## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 3.1  
-**Fecha**: Abril 2026  
-**Estado**: 
-- ✅ Backend Services (12 servicios)
-- ❌ Integración entre servicios (pendiente implementación)
-- ✅ Memory Enhancement SDD: ✅ DOC COMPLETA (implementación pending)  
+**Versión**: 3.2
+**Fecha**: Abril 2026
+**Estado**:
+- ✅ Backend Services (18 servicios)
+- ✅ Orchestrator registration (13 servicios registrados)
+- ✅ Memory Enhancement SDD: ✅ DOC COMPLETA (implementación pending)
 **Owner**: Kike García
 
 > **Dependencias**: 
@@ -117,7 +117,7 @@ Crema busca posicionarse como la **plataforma de infoproductos más inteligente 
 | Integración | Estado | Notas |
 |-------------|--------|-------|
 | Memory → Agentes | ❌ Pendiente | M-1 |
-| Orchestrator → Capabilities | ❌ Pendiente | M-2 |
+| Orchestrator → Capabilities | ✅ Completado | 13 servicios registrados |
 | IVFFlat → HNSW | ❌ Pendiente | M-3 |
 | Cleanup jobs | ❌ Pendiente | M-4 |
 | Summarization | ❌ Pendiente | M-5 |
