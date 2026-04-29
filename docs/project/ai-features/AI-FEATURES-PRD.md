@@ -1,17 +1,17 @@
 # Product Requirements Document (PRD)
 ## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 3.1  
-**Fecha**: Abril 2026  
-**Estado**: 
-- ✅ Backend Services (12 servicios)
-- ❌ Integración entre servicios (pendiente implementación)
-- ✅ Memory Enhancement SDD: ✅ DOC COMPLETA (implementación pending)  
+**Versión**: 3.2
+**Fecha**: Abril 2026
+**Estado**:
+- ✅ Backend Services (18 servicios)
+- ✅ Orchestrator registration (13 servicios registrados)
+- ✅ Memory Enhancement SDD: ✅ DOC COMPLETA (implementación pending)
 **Owner**: Kike García
 
-> **Dependencias**: 
-> - Orchestrator, Config, User Context: voir **architecture-improvements PRD**
-> - Memory Enhancement (RAG + HWS): voir **architecture-improvements PRD** sección 4.4
+> **Dependencias**:
+> - Orchestrator, Config, User Context: ver **architecture-improvements PRD**
+> - Memory Enhancement (RAG + HWS): ver **architecture-improvements PRD** sección 4.4
 
 ---
 
@@ -103,12 +103,13 @@ Crema busca posicionarse como la **plataforma de infoproductos más inteligente 
 | **Review Service** | Reviews y ratings | ✅ Producción | |
 | **Agents Service** | Orquestación de agentes (QA Agent, Tutor, Insights) | ✅ Producción | Con orchestrator |
 | **Embedding Service** | Generación de embeddings | ✅ Producción | |
-| **ContentAssistantService** | Análisis de contenido y sugerencias | ✅ Completado | Sin integrar en agents |
+| **ContentAssistantService** | Análisis de contenido y sugerencias | ✅ Completado | |
+| **ContentReaderService** | Lectura y síntesis de contenido | ✅ Completado | |
+| **QuizGeneratorService** | Generación de quizzes automáticos | ✅ Completado | |
+| **TranscriptionService** | Transcripción de audio/video (Whisper) | ✅ Completado | |
+| **Orchestrator Service** | Registro de 18 capabilities | ✅ Producción | |
 
-> **Dependencia**: content-security validation: voir `docs/project/content-security/PRD.md` para validaciones de seguridad del contenido
-| **ContentReaderService** | Lectura y síntesis de contenido | ⚠️ Parcial | Sin tabla DB dedicada |
-| **QuizGeneratorService** | Generación de quizzes automáticos | ⚠️ Parcial | Sin API dedicada |
-| **TranscriptionService** | Transcripción de audio/video (Whisper) | ⚠️ Parcial | Existe servicio, sin API dedicada |
+> **Total: 18 servicios en Orchestrator** (13 registrados recently)
 
 ### 2.2 Estado de Integración
 
@@ -117,7 +118,7 @@ Crema busca posicionarse como la **plataforma de infoproductos más inteligente 
 | Integración | Estado | Notas |
 |-------------|--------|-------|
 | Memory → Agentes | ❌ Pendiente | M-1 |
-| Orchestrator → Capabilities | ❌ Pendiente | M-2 |
+| Orchestrator → Capabilities | ✅ Completado | 13 servicios registrados |
 | IVFFlat → HNSW | ❌ Pendiente | M-3 |
 | Cleanup jobs | ❌ Pendiente | M-4 |
 | Summarization | ❌ Pendiente | M-5 |

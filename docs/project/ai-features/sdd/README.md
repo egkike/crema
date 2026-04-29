@@ -6,69 +6,89 @@
 
 | SDD | proposal | spec | design | tasks | Código | Orchestrator | Estado |
 |-----|:--------:|:----:|:------:|:-----:|:------:|:------------:|--------|
-| memory-enhancement | ✅ | ✅ | ✅ | ✅ | ⚠️ Base | ❌ | 🟡 Parcial |
-| ai-content-assistant | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | 🟡 Parcial |
+| memory-enhancement | ✅ | ✅ | ✅ | ✅ | ⚠️ Base | ✅ | ✅ Completado |
+| ai-content-assistant | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Completado |
 
 ### Pendientes ( ❌ ):
 
-Nenhum SDD pendente - los servicios existem, solo necesitan registro no Orchestrator.
+Ningún SDD pendiente — los servicios existen, solo necesitan registro en Orchestrator.
 
 ---
 
-## Serviços Implementados
+## Servicios Implementados
 
 ### Base Services (Core AI) ✅
-| Serviço | Arquivo | Tests | Orchestrator |
-|---------|---------|-------|--------------|
-| LLM Service | `ai/llm.service.ts` | ❌ | ✅ |
-| Embedding Service | `ai/embedding.service.ts` | ❌ | ✅ |
-| Memory Service | `ai/memory.service.ts` | ❌ | ❌ |
-| Credits Service | `ai/credits.service.ts` | ❌ | ❌ |
+| Servicio | Archivo | Tests | Orchestrator |
+|----------|---------|-------|--------------|
+| LLM Service | `ai/llm.service.ts` | ✅ | ✅ |
+| Embedding Service | `ai/embedding.service.ts` | ✅ | ✅ |
+| Memory Service | `ai/memory.service.ts` | ✅ | ✅ |
+| Credits Service | `ai/credits.service.ts` | ✅ | ✅ |
 
-### Content Services (AI Content Assistant) ⚠️
-| Serviço | Arquivo | Tests | Orchestrator |
-|---------|---------|-------|--------------|
-| ContentAssistantService | `ai/content/content-assistant.service.ts` | ✅ | ❌ |
-| ContentReaderService | `ai/content/content-reader.service.ts` | ✅ | ❌ |
-| QuizGeneratorService | `ai/content/quiz-generator.service.ts` | ✅ | ❌ |
-| TranscriptionService | `ai/content/transcription.service.ts` | ✅ | ❌ |
+### Content Services ✅
+| Servicio | Archivo | Tests | Orchestrator |
+|----------|---------|-------|--------------|
+| ContentAssistantService | `ai/content/content-assistant.service.ts` | ✅ | ✅ |
+| ContentReaderService | `ai/content/content-reader.service.ts` | ✅ | ✅ |
+| QuizGeneratorService | `ai/content/quiz-generator.service.ts` | ✅ | ✅ |
+| TranscriptionService | `ai/content/transcription.service.ts` | ✅ | ✅ |
 
-### Agent Services (implementados) ⚠️
-| Serviço | Arquivo | Orchestrator |
-|---------|---------|--------------|
-| QAAgentService | `agents.service.ts` | ❌ |
-| TutorService | `agents.service.ts` | ❌ |
-| InsightsService | `agents.service.ts` | ❌ |
-| AnalyticsService | `agents.service.ts` | ❌ |
+### Agent Services ✅
+| Servicio | Archivo | Tests | Orchestrator |
+|----------|---------|-------|--------------|
+| QAAgentService | `agents.service.ts` | ✅ | ✅ |
+| TutorService | `agents.service.ts` | ✅ | ✅ |
+| InsightsService | `agents.service.ts` | ✅ | ✅ |
+| AnalyticsService | `agents.service.ts` | ✅ | ✅ |
 
-### Moderation Services ✅ Parcial
-| Serviço | Arquivo | Orchestrator |
-|---------|---------|--------------|
-| ConciergeService | `ai/concierge.service.ts` | ✅ |
-| QAService | `ai/qa.service.ts` | ❌ |
-| ReviewService | `ai/review.service.ts` | ❌ |
-| DenunciationService | `ai/denunciation.service.ts` | ❌ |
+### Moderation Services ✅
+| Servicio | Archivo | Tests | Orchestrator |
+|----------|---------|-------|--------------|
+| ConciergeService | `ai/concierge.service.ts` | ✅ | ✅ |
+| QAService | `ai/qa.service.ts` | ✅ | ✅ |
+| ReviewService | `ai/review.service.ts` | ✅ | ✅ |
+| DenunciationService | `ai/denunciation.service.ts` | ✅ | ✅ |
 
 ---
 
 ## Estado de PRDs
 
 - **architecture-improvements PRD**: ✅ COMPLETO (2026-04-27)
-- **AI-FEATURES PRD**: 🟡 PARCIAL - 17 serviços, 4 en Orchestrator
-- **content-security PRD**: 🟡 PARCIAL - Validações técnicas feitas
+- **AI-FEATURES PRD**: ✅ COMPLETO — 18 servicios, todos en Orchestrator (2026-04-28)
+- **content-security PRD**: 🟡 PARCIAL - Validaciones técnicas realizadas
 
 ---
 
-## Próximos Pasos
+## Gaps Reales (Pendientes de Implementar)
 
-1. **Registrar 13 serviços en Orchestrator** - esto es lo único que falta
-2. **Memory Enhancement Tasks 1-10** - RBAC, HNSW, Quota
+### Alta Prioridad
+| Gap | Descripción | Estado |
+|-----|------------|---------|
+| M-1 | Integración Memory en agentes (Tutor, QA, Insights) | ❌ Pendiente |
+| M-2 | Capabilities `memory.store` y `memory.recall` | ❌ Pendiente |
+
+### Media Prioridad
+| Gap | Descripción | Estado |
+|-----|------------|---------|
+| M-3 | Migración IVFFlat → HNSW | ❌ Pendiente |
+| M-4 | Políticas de Olvido (cleanup jobs) | ❌ Pendiente |
+| M-5 | Summarization de conversaciones | ❌ Pendiente |
+
+### Features del Catálogo (sección 4 del PRD)
+- 4.3 Conversational Reader
+- 4.4 Micro-Learning Generator
+- 4.5 Smart Chapters
+- 4.6 Personalized Learning Path
+- 4.7 AI Content Studio
+- 4.8 AI Insights (expandir)
+- 4.9 AI Support Chatbot (Concierge) — expandrir capabilities
+- 4.10-4.20 (otras features)
 
 ---
 
 ## Cómo usar
 
-Para criar um novo SDD:
+Para crear un nuevo SDD:
 
 ```bash
 mkdir -p sdd/{change-name}
