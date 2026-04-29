@@ -1,24 +1,25 @@
 # SDD Spec: Memory Enhancement
 
-**Proyecto**: Crema - Sistema de Memoria AI  
-**Tipo**: Arquitectura / Enhancement  
-**SDD Phase**: Spec  
-**Estado**: ✅ DOC COMPLETA  
+**Proyecto**: Crema - Sistema de Memoria AI
+**Tipo**: Arquitectura / Enhancement
+**SDD Phase**: Spec
+**Estado**: ✅ DOC COMPLETA
 **Depends on**: proposal.md
 
-> **Estandar de Verificación**: Voir `docs/project/common/verification-standard.md`
-
-> **Stack disponible**: Ver **[AI-FEATURES-PRD.md > Stack Disponible](#0-stack-disponible)** antes de planificar. MemoryService (pgvector), OrchestratorService, SkillsRegistry y BullMQ ya están implementados.
+> **Estandar de Verificación**: Ver `docs/project/common/verification-standard.md`
 
 ---
 
 ## 1. Resumen
 
-Mejorar el Memory Service existente para convertirlo de "prototipo" a "sistema de producción" con:
-- Aislamiento multi-tenant (user_id)
-- Ownership validation (RBAC)
-- Políticas de gestión (cleanup, quotas, summarization)
+Mejorar el Memory Service existente para sistema de producción con:
+- Aislamiento multi-tenant (user_id + product ownership)
+- RBAC: validar acceso al producto antes de buscar memorias
+- Políticas de gestión (cleanup, quotas, soft delete)
 - Escalabilidad (HNSW index)
+- Rate limiting
+
+**Nota sobre el patrón de memoria**: En Crema, `ai_embeddings` almacena RAG de contenido de productos (lecciones, FAQs, reviews), NO conversaciones de chat. Por eso NO tiene `session_id` — el ownership se valida por `user_id` + acceso al producto.
 
 ---
 
@@ -28,15 +29,13 @@ Mejorar el Memory Service existente para convertirlo de "prototipo" a "sistema d
 
 | ID | Requirement | Prioridad |
 |----|-------------|:---------:|
-| ME-001 | Agregar user_id a ai_embeddings table | 🔴 ALTA |
-| ME-002 | Validar ownership en memory.store | 🔴 ALTA |
-| ME-003 | Validar ownership en memory.recall | 🔴 ALTA |
-| ME-004 | Agregar is_deleted column (soft delete) | 🟡 MEDIA |
-| ME-005 | Migrar índice a HNSW | 🟡 MEDIA |
-| ME-006 | Cleanup job hourly | 🟡 MEDIA |
-| ME-007 | Batch summarization job (max 10 concurrent) | 🟢 BAJA |
-| ME-008 | Per-user quota (10K) + LRU eviction | 🟡 MEDIA |
-| ME-009 | Rate limiting (100/min) | 🟢 BAJA |
+| ME-001 | RBAC: memory-search valida que caller tiene acceso al producto | 🔴 ALTA |
+| ME-002 | HNSW index (reemplaza IVFFlat) | 🟡 MEDIA |
+| ME-003 | Agregar `memory_type` column (message, summary, system_instruction) | 🟢 BAJA |
+| ME-004 | Agregar `is_deleted` column (soft delete) | 🟡 MEDIA |
+| ME-005 | Cleanup job: marca is_deleted=TRUE (>30 días) | 🟡 MEDIA |
+| ME-006 | Per-user quota (10K embeddings) + LRU eviction | 🟢 BAJA |
+| ME-007 | Rate limiting (100 embeddings/min por usuario) | 🟢 BAJA |
 
 ### 2.2 Requisitos No Funcionales
 
@@ -44,8 +43,8 @@ Mejorar el Memory Service existente para convertirlo de "prototipo" a "sistema d
 |-----------|--------|
 | Latencia búsqueda | < 100ms con 1M+ embeddings |
 | Disponibilidad | 99.9% |
-| Seguridad | user_id ownership validation 100% |
-| Concurrency summarization | max 10 concurrent |
+| Seguridad | user_id + product ownership validation 100% |
+| Concurrency cleanup | 1 job hourly |
 
 ---
 
@@ -53,10 +52,10 @@ Mejorar el Memory Service existente para convertirlo de "prototipo" a "sistema d
 
 | ID | Como | Quiero | Para |
 |----|------|--------|------|
-| MEM-01 | User A | solo ver mis memorias | no acceder a otras memorias |
-| MEM-02 | Sistema | validar que session_id.owner = user_id | impedir acceso no autorizado |
+| MEM-01 | User A | solo ver memorias de productos que tengo acceso | no acceder a memorias de productos que no compré |
+| MEM-02 | Sistema | validar que user tiene acceso al producto antes de buscar | impedir acceso no autorizado |
 | MEM-03 | Sistema | hacer soft delete | no borrar datos originales |
-| MEM-04 | Admin | ver quota por usuario | entender uso |
+| MEM-04 | Sistema | limpiar memorias >30 días | reducir tamaño de DB |
 
 ---
 
@@ -64,15 +63,12 @@ Mejorar el Memory Service existente para convertirlo de "prototipo" a "sistema d
 
 | Criterio | Validación |
 |----------|------------|
-| AC-001 | query con user_id=A retorna solo memorias de A |
-| AC-002 | memory.store valida session_id.owner = caller |
-| AC-003 | memory.recall retorna 403 si no es owner |
-| AC-004 | is_deleted=TRUE preserva registro |
-| AC-005 | HNSW search < 100ms con 1M+ registros |
-| AC-006 | Cleanup marca is_deleted=TRUE |
-| AC-007 | Summarization max 10 concurrent jobs |
-| AC-008 | > 10K embeddings → LRU eviction |
-| AC-009 | > 100 embeddings/min → 429 |
+| AC-001 | memory-search filtra por user_id Y valida acceso al producto |
+| AC-002 | HNSW search < 100ms con 1M+ registros |
+| AC-003 | is_deleted=TRUE preserva registro (no se borra) |
+| AC-004 | Cleanup job marca is_deleted=TRUE para >30 días |
+| AC-005 | > 10K embeddings → LRU eviction (borra más antiguos) |
+| AC-006 | > 100 embeddings/min → 429 Too Many Requests |
 
 ---
 
@@ -81,25 +77,151 @@ Mejorar el Memory Service existente para convertirlo de "prototipo" a "sistema d
 ### 5.1 ai_embeddings Modifications
 
 ```sql
-ALTER TABLE ai_embeddings 
-ADD COLUMN user_id UUID NOT NULL,
-ADD COLUMN memory_type VARCHAR(20) CHECK (memory_type IN ('message', 'summary', 'system_instruction')),
-ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
+-- Agregar columnas si no existen
+ALTER TABLE ai_embeddings
+ADD COLUMN IF NOT EXISTS memory_type VARCHAR(20) DEFAULT 'message'
+CHECK (memory_type IN ('message', 'summary', 'system_instruction'));
 
-CREATE INDEX idx_ai_embeddings_user ON ai_embeddings(user_id);
-CREATE INDEX idx_ai_embeddings_is_deleted ON ai_embeddings(is_deleted);
+ALTER TABLE ai_embeddings
+ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+
+-- Índices necesarios
+CREATE INDEX IF NOT EXISTS idx_ai_embeddings_user ON ai_embeddings(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_embeddings_is_deleted ON ai_embeddings(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_ai_embeddings_created ON ai_embeddings(created_at DESC);
 ```
 
 ### 5.2 HNSW Index
 
 ```sql
-CREATE INDEX ai_embeddings_hnsw_idx ON ai_embeddings 
+-- Crear índice HNSW (sin borrar IVFFlat primero, luego hacer swap)
+CREATE INDEX ai_embeddings_hnsw_idx ON ai_embeddings
 USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
+
+-- Cuando esté listo, eliminar IVFFlat
+-- DROP INDEX IF EXISTS idx_ai_embeddings_vector;
 ```
 
 ---
 
-## 6. Estado
+## 6. Security Requirements
 
-**Estado**: DRAFT (Pendiente de completar design y tasks)
+### 6.1 Ownership Validation (RBAC)
+
+El ownership se valida por **acceso al producto**, no por `session_id`.
+
+| Operation | Validation | Error |
+|-----------|------------|-------|
+| `memory.search` | user tiene acceso al producto que contiene la memoria | 403 Forbidden |
+
+**Flujo de validación:**
+
+```
+1. Caller proporciona userId + query + (opcional) sourceTypes
+2. Si sourceTypes especificados → verificar acceso a CADA producto
+3. Si user NO tiene acceso → 403
+4. Si tiene acceso → continuar con búsqueda
+```
+
+**Casos de borde a manejar:**
+
+| Caso | Comportamiento esperado |
+|------|-------------------------|
+| Producto borrado | No retornar memorias huérfanas |
+| Acceso revocado | Verificar en cada request, no caching |
+| User sin purchases | Solo ver memorias públicas (si las hay) |
+
+### 6.2 Input Validation
+
+| Campo | Validación |
+|-------|------------|
+| `query` | String, max 2000 chars, no empty |
+| `limit` | Integer, 1-100, default 10 |
+| `userId` | UUID válido |
+| `sourceTypes` | Array de valores válidos del enum |
+
+### 6.3 Rate Limiting
+
+| Endpoint | Límite | Response |
+|----------|--------|----------|
+| `memory.search` | 100 requests/min/user | 429 Too Many Requests |
+
+---
+
+## 7. Performance Requirements
+
+| Métrica | Target | Notas |
+|---------|--------|-------|
+| Latencia búsqueda | < 100ms | Con 1M+ embeddings, HNSW |
+| Throughput | 1000 req/min | Por instance |
+| Tiempo indexing | < 5 min | Para 100K embeddings |
+
+---
+
+## 8. Code Standards (referencia del proyecto)
+
+> **Patrón del proyecto**: Standard Service Pattern — servicios importan repos directamente, NO DI container, NO decorators.
+
+### 8.1 Service Layer (`memory.service.ts`)
+
+```typescript
+// ✅ CORRECTO - patrón del proyecto
+export class MemoryService {
+  async searchSimilar(userId, query, limit, sourceTypes) {
+    // Validación de input
+    if (!query || query.length === 0) {
+      throw new AppError('Query is required', 400);
+    }
+    // Lógica...
+  }
+}
+export const memoryService = new MemoryService();
+```
+
+### 8.2 Repository Layer (`memory.repository.ts`)
+
+```typescript
+// ✅ CORRECTO - patrón del proyecto
+export const memoryRepository = {
+  async semanticSearch(vector, userId, limit, sourceTypes) {
+    // SQL con parameterized queries
+    // Retornar mapped results
+  }
+};
+```
+
+### 8.3 Imports
+
+```typescript
+// ✅ CORRECTO
+import { memoryRepository } from '../../repositories/ai/memory.repository';
+import { embeddingService } from './embedding.service';
+import { AppError } from '../../errors/AppError';
+
+// ❌ INCORRECTO - no DI container
+// import { container } from 'tsyringe';
+// container.resolve(MemoryService);
+```
+
+### 8.4 Validación de Ownership (T2)
+
+Para validar acceso al producto, usar los servicios/ repositories existentes:
+
+```typescript
+// Verificar acceso a producto antes de buscar memorias
+async function checkProductAccess(
+  userId: string,
+  sourceTypes: EmbeddingSourceType[]
+): Promise<boolean> {
+  // Pattern: verificar purchase o acceso existente
+  // Usar accessService, purchaseRepository, etc.
+  // NO inventar nuevos patrones
+}
+```
+
+---
+
+## 9. Estado
+
+**Estado**: ✅ Completado (pendiente implementación)

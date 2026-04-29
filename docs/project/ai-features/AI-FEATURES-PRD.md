@@ -134,41 +134,43 @@ Múltiples proveedores LLM configurables
 
 ### 2.4 Memory Enhancement (Mejoras Planificadas)
 
-> **Estado**: Pendiente de SDD  
-> **Origen**: Doc "Como utilizar Pgvector" + análisis de gaps actuales
+> **Estado**: SDD Completo (implementación pendiente — Option C)
+> **Origen**: Doc "Como utilizar Pgvector" + análisis de gaps actuales + revisión del patrón RAG de Crema
 
-#### 2.4.1 Gaps Identificados
+> **Nota importante**: El patrón de memoria de Crema es **RAG de contenido de productos** (lecciones, FAQs, reviews), NO conversaciones de chat. Por eso NO aplica: `session_id`, `memory.store/recall` capabilities, ni summarization de conversaciones.
+
+#### 2.4.1 Gaps Identificados (Reales para Crema)
 
 | Gap | Descripción | Estado Actual | Impacto |
 |-----|-----------|-------------|-------------|--------|
-| **G-1** | MemoryService existe pero NO se usa en agentes | Los agentes no integran memoria | MEDIO |
-| **G-2** | Capabilities `memory.store/recall` declaradas pero sin handler | No implementadas | ALTO |
-| **G-3** | Índice IVFFlat (lento con grandes volúmenes) | En producción | BAJO |
-| **G-4** | No hay política de "olvido" | Memoria infinita | MEDIO |
-| **G-5** | No hay summarization de conversaciones | Memoria crece sin límite | BAJO |
-| **G-6** (new) | No hay user_id para aislamiento multi-tenant | Riesgo de acceso no autorizado | ALTO |
+| **G-1** | Sin RBAC en memory-search | User puede ver memorias de productos sin acceso | 🔴 ALTO |
+| **G-2** | Índice IVFFlat (lento con grandes volúmenes) | En producción | 🟡 MEDIO |
+| **G-3** | No hay soft delete (is_deleted) | No hay forma de "borrar" sin perder datos | 🟡 MEDIO |
+| **G-4** | No hay política de "olvido" (cleanup) | Memoria infinita | 🟢 BAJO |
+| **G-5** | No hay per-user quota | Usuario puede acaparar recursos | 🟢 BAJO |
+| **G-6** | No hay rate limiting | Sin protección contra abuso | 🟢 BAJO |
 
-#### 2.4.2 Mejoras Planificadas
+#### 2.4.2 Mejoras Planificadas (Option C)
 
 | # | Mejora | Descripción | Prioridad |
 |---|-------|-------------|----------|
-| **M-1** | **Integración en Agentes** | Tutor IA, QA, Insights, Content Producer usan memoria | 🔴 ALTA |
-| **M-2** | **Orchestrator Capabilities** | Implementar `memory.store` y `memory.recall` + ownership validation | 🔴 ALTA |
-| **M-3** | **Migración a HNSW** | De IVFFlat → HNSW (más rápido) + ef_search | 🟡 MEDIA |
-| **M-4** | **Políticas de Olvido** | Job cleanup hourly + per-user quota + soft delete | 🟡 MEDIA |
-| **M-5** | **Summarization** | Batch summarization con concurrency limit + no borrar originales | 🟢 BAJA |
+| **T1** | **Schema Updates** | Agregar memory_type, is_deleted, índices | 🔴 ALTA |
+| **T2** | **RBAC Validation** | memory-search valida acceso al producto | 🔴 ALTA |
+| **T3** | **Migración a HNSW** | De IVFFlat → HNSW (más rápido) + ef_search | 🟡 MEDIA |
+| **T4** | **Cleanup Job** | Hourly: marca is_deleted=TRUE para >30 días | 🟡 MEDIA |
+| **T5** | **Per-User Quota** | LRU eviction cuando >10K embeddings | 🟢 BAJA |
+| **T6** | **Rate Limiting** | 100 embeddings/min por usuario | 🟢 BAJA |
 
 #### 2.4.3 Servicios que Usarán Memoria (Post-Mejora)
 
 | Agente | Actualmente Usa Memoria? | Post-Mejora |
 |-------|------------------------|------------|
-| **Tutor IA** | ❌ No | ✅ Sí (`retrieveForTutor`) |
-| **QA Agent** | ❌ No | ✅ Sí (`retrieve`) |
-| **Insights AI** | ❌ No | ✅ Sí (`retrieve`) |
-| **Content Producer** | ❌ No | ✅ Sí (`retrieve`) |
-| **Orchestrator** | ❌ No | ✅ Sí (`memory.store/recall`) |
+| **Tutor IA** | ❌ No | ✅ Sí (busca contexto en ai_embeddings) |
+| **QA Agent** | ❌ No | ✅ Sí (busca contexto) |
+| **Insights AI** | ❌ No | ✅ Sí (busca contexto) |
+| **Content Producer** | ❌ No | ✅ Sí (busca contexto) |
 
-#### 2.4.4 Arquitectura Propuesta
+#### 2.4.4 Arquitectura Propuesta (Option C)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -197,8 +199,6 @@ Múltiples proveedores LLM configurables
 │         ┌─────────────────────────┐                    │
 │         │   BullMQ + Worker       │ ←── (existing!)    │
 │         │  memory:cleanup-job    │ ←── (new)           │
-│         │  memory:summarize-job  │ ←── (new)           │
-│         └─────────────────────┘                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -208,9 +208,7 @@ Múltiples proveedores LLM configurables
 
 | Job | Frecuencia | Descripción |
 |-----|-----------|-------------|
-| `memory:cleanup` | Diario | Elimina embeddings de sesiones antiguas (>30 días) |
-| `memory:summarize` | Por sesión | Resume conversaciones >50 mensajes |
-```
+| `memory:cleanup` | hourly | Marca is_deleted=TRUE para >30 días |
 
 #### 2.4.7 Especificaciones Técnicas
 
@@ -233,29 +231,26 @@ WITH (m = 16, ef_construction = 64);
 
 | Campo | Tipo | Notas |
 |-------|------|-------|
-| `user_id` | UUID | **OBLIGATORIO** — Aislamiento multi-tenant |
-| `session_id` | UUID | Para filtrado por sesión |
+| `user_id` | UUID | **OBLIGATORIO** — Aislamiento multi-tenant (ya existe) |
 | `memory_type` | VARCHAR(20) | CHECK constraint: 'message', 'summary', 'system_instruction' |
 | `metadata` | JSONB | Solo campos definidos, SIN PII |
 | `is_deleted` | BOOLEAN | Soft delete (no borrar originales) |
 
-**Access Control (RBAC):**
+**Access Control (RBAC) para Crema:**
 
 | Capability | Requiere | Validación |
 |------------|----------|------------|
-| `memory.store` | user_id + session_id | User debe ser owner de session_id |
-| `memory.recall` | user_id + session_id | User debe ser owner de session_id |
+| `memory.search` | user_id + sourceTypes | User debe tener acceso al producto |
 | Admin query | user_id | Solo datos del propio user |
 
-> **CRITICAL**: memory.store y memory.recall DEBEN validar que el user_id coincide con el session_id.owner antes de ejecutar.
+> **CRITICAL**: memory-search DEBE validar que el user tiene acceso al producto antes de buscar.
 
 **Políticas de gestión:**
 
 | Política | Threshold | Acción |
 |----------|-----------|--------|
-| **Ventana temporal** | >30 días | Marcars is_deleted=TRUE (no borrar) |
-| **Per-user quota** | >10K embeddings | LRU eviction + alarma |
-| **Summarization** | >50 mensajes | Resume 40 → guarda summary + marca originales como deleted |
+| **Ventana temporal** | >30 días | Marca is_deleted=TRUE (no borrar) |
+| **Per-user quota** | >10K embeddings | LRU eviction (borra más antiguos) |
 | **Filtrado por relevancia** | K=5 (default) | Solo top-5, max 100 |
 | **Rate limiting** | 100 embeddings/min | Por user_id |
 
@@ -264,7 +259,6 @@ WITH (m = 16, ef_construction = 64);
 | Job | Frecuencia | Concurrency | Descripción |
 |-----|-----------|--------------|-------------|
 | `memory:cleanup` | hourly | 1 | Cleanup (is_deleted=TRUE + vacuum) |
-| `memory:summarize` | batch (cada 30 min) | 10 máx | Resume sesiones en lote, max 10 concurrentes |
 
 **Mantenimiento:**
 
@@ -272,17 +266,15 @@ WITH (m = 16, ef_construction = 64);
 - Autovacuum configurado para aggressively reclaim space
 - Alarma when user >8K embeddings (80% quota)
 
-#### 2.4.5 SDD Requerido
+#### 2.4.5 SDD Completado
 
-> **Nota**: La sección **User Context Memory** con tablas SQL (`user_context`, `user_notes`, `user_notes`) está documentada en:
-> - **architecture-improvements PRD**: Sección 4.4 (más detallada)
-> - **SDD**: Pendiente de crear
+> El SDD de Memory Enhancement está completo en:
+> - `sdd/memory-enhancement/proposal.md`
+> - `sdd/memory-enhancement/spec.md`
+> - `sdd/memory-enhancement/design.md`
+> - `sdd/memory-enhancement/tasks.md`
 
-> Para las mejoras M-1 a M-5 se requiere un **SDD de Memory Enhancement** que cubra:
-> - Propuesta (scope y approach)
-> - Specs (requisitos funcionales y no funcionales)
-> - Design (arquitectura detallada)
-> - Tasks (breakdown de implementación)
+> **Pattern**: El SDD está adaptado al patrón RAG de Crema (NO session_id, NO memory.store/recall, NO summarization).
 
 ---
 

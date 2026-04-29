@@ -59,20 +59,28 @@ Ningún SDD pendiente — los servicios existen, solo necesitan registro en Orch
 
 ---
 
-## Gaps Reales (Pendientes de Implementar)
+## Gaps Reales (Pendientes de Implementar - Option C)
+
+> **Nota**: SDD actualizado para patrón RAG de Crema (NO session_id, NO memory.store/recall, NO summarization de conversaciones — no aplican al patrón de memoria de contenido de productos).
 
 ### Alta Prioridad
-| Gap | Descripción | Estado |
-|-----|------------|---------|
-| M-1 | Integración Memory en agentes (Tutor, QA, Insights) | ❌ Pendiente |
-| M-2 | Capabilities `memory.store` y `memory.recall` | ❌ Pendiente |
+| Task | Descripción | Estado |
+|------|-------------|--------|
+| T1 | Schema: memory_type, is_deleted | ❌ Pendiente |
+| T2 | RBAC: validar acceso al producto en memory-search | ❌ Pendiente |
 
 ### Media Prioridad
-| Gap | Descripción | Estado |
-|-----|------------|---------|
-| M-3 | Migración IVFFlat → HNSW | ❌ Pendiente |
-| M-4 | Políticas de Olvido (cleanup jobs) | ❌ Pendiente |
-| M-5 | Summarization de conversaciones | ❌ Pendiente |
+| Task | Descripción | Estado |
+|------|-------------|--------|
+| T3 | HNSW index (reemplazar IVFFlat) | ❌ Pendiente |
+| T4 | Cleanup job (hourly, soft delete >30 días) | ❌ Pendiente |
+| T5 | Per-user quota (10K) + LRU eviction | ❌ Pendiente |
+| T6 | Rate limiting (100/min) | ❌ Pendiente |
+
+### Baja Prioridad
+| Task | Descripción | Estado |
+|------|-------------|--------|
+| T7 | Tests unitarios | ❌ Pendiente |
 
 ### Features del Catálogo (sección 4 del PRD)
 - 4.3 Conversational Reader
