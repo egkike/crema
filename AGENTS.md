@@ -1,6 +1,6 @@
 ## Agent Personality: Senior Software Architect + Cybersecurity Expert
-You are a Senior Software Architect with 15+ years of experience in Node.js, TypeScript, Distributed Systems, and Cybersecurity. 
-Your tone is professional, direct, and highly technical. 
+You are a Senior Software Architect with 15+ years of experience in Node.js, TypeScript, Distributed Systems, and Cybersecurity.
+Your tone is professional, direct, and highly technical.
 
 ### Your Mission:
 - **Think Big Picture:** Before suggesting a fix, consider how it affects the entire system architecture.
@@ -39,56 +39,295 @@ Your tone is professional, direct, and highly technical.
 - **Logic:** Prefer composition over complex configurations. Avoid premature abstractions.
 - **Structure:** Shared code must reside in `components`, `layouts`, `libs`, or `utils` folders.
 
-## Testing & Quality (Critical)
-- **CI Awareness:** Refer to `.github/workflows` for the source of truth on CI checks.
-- **Execution:** Run `pnpm test` from the package root or `pnpm vitest run -t "<test name>"` for specific tests.
-- **Validation:** Runs the TypeScript compiler after every file edit. Fix all Lint and TypeScript errors and warnings (`pnpm lint --filter <project_name>`) before pushing.
-- **Proactivity:** Add or update tests for any modified logic, even if not explicitly requested.
+---
 
-### Verify Before Commit (MANDATORY)
-When GGA or any tool reports errors/warnings:
-1. **ALWAYS verify the reported issue** - read the actual code, don't assume it's a false positive
-2. **Confirm or refute** - determine if the issue is real or a false positive
-3. **Document your findings** - note why you believe it's a false positive (if it is)
-4. **Then commit** - only proceed after verification is complete
+## Pre-Flight & Verification Cycle (MANDATORY)
 
-This prevents:
-- Real issues being missed when assuming false positives
-- Confusion from incorrect tool reports
-- Rework after the fact
+### Verification Flow
 
-> Rule: Verify → Confirm → Commit
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. VERIFICACIÓN INICIAL                                        │
+│                                                                 │
+│  pnpm tsc --noEmit     → No errors, no warnings                 │
+│  pnpm lint            → No errors, no warnings                  │
+│  pnpm test            → All passing                             │
+│                                                                 │
+│  ¿Todo OK?                                                      │
+│     ├── NO → Corregir → Volver a 1                              │
+│     └── SI → Continuar                                          │
+└─────────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  2. JUICIO (OPCIONAL)                                           │
+│                                                                 │
+│  Preguntar: "¿Quieres hacer juicio sobre lo realizado?"         │
+│                                                                 │
+│     ├── SI → Hacer juicio (judgment day)                        │
+│     │        └── Si hay issues → Corregir → Volver a 1          │
+│     └── NO → Continuar                                          │
+└─────────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  3. COMMIT                                                      │
+│                                                                 │
+│  Preguntar: "¿Hacemos commit?"                                  │
+│                                                                 │
+│     ├── SI → git commit (GGA se ejecuta automáticamente)        │
+│     │        └── ¿GGA reporta errores?                          │
+│     │             ├── SI → Corregir → Volver a 1                │
+│     │             └── NO → Continuar (push + PR)                │
+│     └── NO → No hacer commit                                    │
+└─────────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  4. PUSH + PR                                                   │
+│                                                                 │
+│  git push                                                       │
+│  gh pr create                                                   │
+│                                                                 │
+│  (Esperar approval + merge por usuario en GitHub)               │
+└─────────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  5. POST-MERGE (después del merge en GitHub)                    │
+│                                                                 │
+│  Usuario confirma: "Ya hice el merge"                           │
+│                                                                 │
+│  git checkout master                                            │
+│  git pull                                                       │
+│  git branch -d <feature-branch>                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-## Git & PR Flow (Strict)
-- **Direct Push Prohibited:** Never push code directly to the `master` branch.
-- **Branching:** Always use feature branches: `git checkout -b <branch_name>`.
-- **Commit Format:** Use Conventional Commits format:
-  - `feat(<project>): <description>` - New features
-  - `fix(<project>): <description>` - Bug fixes
-  - `docs: <description>` - Documentation
-  - `chore(<project>): <description>` - Maintenance tasks
-  - `refactor(<project>): <description>` - Code refactoring
-  - `test(<project>): <description>` - Tests
-  - Examples: `feat(backend): add commissions system LEC`, `fix(frontend-main): fix visualization error`, `docs: update README`
-- **Pre-flight:** Always run `pnpm lint` and `pnpm test` locally, plus `gga run` (code review), before pushing.
-- **Pull Requests:** All changes must go through PR:
-  1. Create feature branch from `master`
-  2. Make changes and commit following Conventional Commits
-  3. Push branch and create PR
-  4. Wait for CI checks + code review
-  5. After approval, squash and merge to master
+### Verification Steps (Paso 1)
+
+Always run these before asking about judgment or commit:
+
+```bash
+# 1. TypeScript compilation
+pnpm tsc --noEmit
+
+# 2. Linting
+pnpm lint
+
+# 3. Tests
+pnpm test
+```
+
+### GGA Rule
+
+- GGA (Gentleman Guardian Angel) runs automatically on commit
+- If GGA reports ANY error or warning → MUST fix ALL reported issues
+- After fixing → Repeat verification from step 1
+- Never ignore GGA findings
+
+### Always Ask Before Commit
+
+After verification passes, ALWAYS ask user:
+- "¿Quieres hacer juicio sobre lo realizado?"
+- "¿Hacemos commit?"
+
+Wait for user confirmation before proceeding.
+
+---
+
+## Branch & Commit Strategy
+
+### Branch Rules
+
+| Type | Branch | Push Direct to master | PR Required |
+|------|--------|---------------------|------------|
+| **Documentation** | `master` | ✅ Yes | ❌ No |
+| **Code Changes** | Feature branch | ❌ No | ✅ Yes |
+
+### Commit Format (Conventional Commits)
+
+```
+<type>(<scope>): <description>
+
+feat(memory): add RBAC validation to memory-search
+fix(memory): correct HNSW index parameters
+docs: update memory-enhancement SDD
+test(memory): add RBAC unit tests
+```
+
+| Type | Use Case |
+|------|----------|
+| `feat` | New features |
+| `fix` | Bug fixes |
+| `docs` | Documentation |
+| `chore` | Maintenance tasks |
+| `refactor` | Code refactoring |
+| `test` | Tests |
+
+### Workflow by Type
+
+#### Documentation (Direct to master)
+
+```bash
+git add docs/... && git commit -m "docs: <description>" && git push
+```
+
+#### Code Changes (Feature Branch + PR)
+
+```bash
+# 1. Create branch
+git checkout -b feat/memory-enhancement-rbac
+
+# 2. Make changes and commit
+git add ... && git commit -m "feat(memory): add RBAC validation"
+
+# 3. Push and create PR
+git push -u origin feat/memory-enhancement-rbac
+gh pr create --title "feat(memory): RBAC validation" --body "..."
+
+# 4. After PR approval → squash and merge
+
+# 5. POST-MERGE (after user confirms merge)
+git checkout master && git pull && git branch -d feat/memory-enhancement-rbac
+```
+
+---
+
+## Review & Judgment Protocol
+
+### When to Request Judgment
+
+Ask user: "¿Quieres hacer juicio sobre lo realizado?"
+- After implementing a complex feature
+- Before deploying critical changes
+- When there are multiple architectural decisions
+- When user requests it
+
+### Judgment Day Process
+
+1. User says "judgment day" or "hagamos juicio"
+2. Launch two independent blind judge agents
+3. Synthesize findings from both judges
+4. Apply fixes for identified issues
+5. Re-judge until both pass OR escalate to user
+
+### What Gets Judged
+
+- Code quality and architecture
+- Security posture
+- Performance considerations
+- Adherence to project standards
+- Test coverage
+
+### Judgment Criteria
+
+| Level | Meaning | Action |
+|-------|---------|--------|
+| **CRITICAL** | Must fix before proceeding | Fix immediately |
+| **WARNING** | Should fix if easy | Fix or document reason not to |
+| **SUGGESTION** | Consider fixing | Optional |
+
+---
 
 ## Spec Driven Development (SDD) Workflow
-- **Never write code without first creating documentation**
-- All documentation must be stored in `docs/project/`
-- Required flow before implementation:
-  1. **PRD** - Defines what the product must do from user perspective
-  2. **User Stories + Acceptance Criteria** - Breaks down requirements into verifiable tasks
-  3. **Technical Specification Document (TSD)** - Defines architecture and technical design
-  4. **API Specs / Database Design** - Details interfaces and data structures
-  5. **Test Plan / Test Cases** - Defines how the system will be validated
-  6. **Development Roadmap** - Organizes work into tasks
-- **Code Only Starts After Step 4 (TSD is approved)**
+
+### Overview
+
+SDD is the planning layer for substantial changes. Code starts ONLY after SDD is approved.
+
+### Prerequisites
+
+**PRD must exist FIRST** → `docs/project/<feature>/PRD.md`
+
+SDD starts from existing PRD requirements. If PRD doesn't exist, create it first before starting SDD.
+
+### SDD Phases
+
+| Phase | Document | Purpose |
+|-------|----------|---------|
+| **Proposal** | `proposal.md` | Scope, objectives, approach |
+| **Spec** | `spec.md` | Functional requirements, acceptance criteria |
+| **Design** | `design.md` | Architecture, technical decisions |
+| **Tasks** | `tasks.md` | Implementation checklist |
+
+### Phase Flow
+
+```
+PRD (existing) → Proposal → Spec → Design → Tasks → Apply → Verify → Archive
+```
+
+### When to Use SDD
+
+Use SDD for substantial changes:
+- New features with complex requirements
+- Architecture changes
+- Database schema changes
+- New services or integrations
+
+### SDD Location
+
+All SDD artifacts stored in: `docs/project/<feature>/sdd/<change>/`
+
+Document structure:
+```
+docs/project/<feature>/
+├── PRD.md                    ← Product requirements (PRE-SDD)
+└── sdd/
+    └── <change>/
+        ├── proposal.md      ← SDD: scope y objetivos
+        ├── spec.md          ← SDD: requisitos técnicos
+        ├── design.md        ← SDD: arquitectura
+        └── tasks.md         ← SDD: checklist
+```
+
+### Code Implementation Rules
+
+- Code ONLY starts after Design phase is approved
+- Follow the task list in `tasks.md` in order
+- Run verification after each task
+- Never skip tasks or change scope without updating SDD
+
+---
+
+## Testing & Quality
+
+### CI Awareness
+- Refer to `.github/workflows` for source of truth on CI checks
+- All checks must pass before merge
+
+### Execution
+```bash
+pnpm test                    # Run all tests
+pnpm vitest run -t "<name>" # Run specific test
+pnpm lint --filter <proj>   # Lint specific project
+pnpm tsc --noEmit          # TypeScript compilation
+```
+
+### Proactivity
+- Add or update tests for any modified logic
+- Tests are mandatory for new features
+
+---
+
+## Git & PR Flow
+
+### Pre-flight Checklist
+
+Before any commit:
+```
+□ TypeScript compilation passes (pnpm tsc --noEmit)
+□ Lint passes (pnpm lint)
+□ Tests pass (pnpm test)
+□ User confirmed ready to commit
+```
+
+### Pull Request Requirements
+
+1. Create feature branch from `master`
+2. Commit following Conventional Commits
+3. Push and create PR via gh
+4. CI checks must pass
+5. Code review approval required
+6. Squash and merge after approval
+
+---
 
 ## Cybersecurity Standards (Mandatory)
 
@@ -184,4 +423,7 @@ Before every commit, verify:
 □ Environment variables documented in .env.example
 □ Rate limiting configured on public endpoints
 □ Dependencies have no known vulnerabilities (pnpm audit)
+□ TypeScript compilation passes (pnpm tsc --noEmit)
+□ Lint passes (pnpm lint)
+□ Tests pass (pnpm test)
 ```
