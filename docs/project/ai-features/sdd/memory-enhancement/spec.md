@@ -30,10 +30,10 @@ Mejorar el Memory Service existente para sistema de producción con:
 | ID | Requirement | Prioridad |
 |----|-------------|:---------:|
 | ME-001 | RBAC: memory-search valida que caller tiene acceso al producto | 🔴 ALTA |
-| ME-002 | HNSW index (reemplaza IVFFlat) | 🟡 MEDIA |
+| ME-002 | HNSW index | 🟡 MEDIA |
 | ME-003 | Cleanup job: DELETE físico (>30 días) | 🟡 MEDIA |
 | ME-004 | Per-user quota (10K embeddings) + LRU eviction | 🟢 BAJA |
-| ME-005 | Rate limiting (100 embeddings/min por usuario) | 🟢 BAJA |
+| ME-005 | Rate limiting (verificar aiLimiter existente: 30/min) | 🟢 BAJA |
 
 ### 2.2 Requisitos No Funcionales
 
@@ -65,7 +65,7 @@ Mejorar el Memory Service existente para sistema de producción con:
 | AC-003 | Cleanup job borra físicamente registros >30 días |
 | AC-004 | Hard delete no deja registros huérfanos |
 | AC-005 | > 10K embeddings → LRU eviction (borra más antiguos) |
-| AC-006 | > 100 embeddings/min → 429 Too Many Requests |
+| AC-006 | Rate limiting: verificar aiLimiter (30/min) o ajustar según necesidad |
 
 ---
 

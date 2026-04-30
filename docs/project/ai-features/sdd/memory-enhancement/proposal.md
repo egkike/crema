@@ -62,7 +62,7 @@ id, user_id, source_type, source_id, content, embedding, metadata, created_at
 | O2 | Hard delete | Cleanup job borra físicamente registros >30 días |
 | O3 | Escalabilidad | Tiempo de búsqueda <100ms con 1M+ embeddings |
 | O4 | Per-user quota | LRU eviction cuando >10K embeddings |
-| O5 | Rate limiting | 429 cuando >100 req/min |
+| O5 | Rate limiting | Verificar aiLimiter existente (30/min) o ajustar según necesidad |
 
 ---
 
@@ -72,12 +72,12 @@ id, user_id, source_type, source_id, content, embedding, metadata, created_at
 
 | Task | Descripción | Prioridad |
 |------|------------|----------|
-| 1 | Schema: HNSW index + índices filtering | 🔴 ALTA |
+| 1 | Índices de filtering (user_id, created_at) | 🔴 ALTA |
 | 2 | RBAC: memory-search valida acceso al producto | 🔴 ALTA |
 | 3 | HNSW index | 🟡 MEDIA |
 | 4 | Cleanup job (hourly, DELETE >30 días) | 🟡 MEDIA |
 | 5 | Per-user quota (10K) + LRU eviction | 🟢 BAJA |
-| 6 | Rate limiting (100/min) | 🟢 BAJA |
+| 6 | Rate limiting (verificar aiLimiter existente) | 🟢 BAJA |
 
 ### 4.2 Fuera del Alcance
 

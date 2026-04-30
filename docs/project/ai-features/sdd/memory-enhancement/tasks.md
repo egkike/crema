@@ -12,7 +12,7 @@
 
 | # | Task | Prioridad | Estado | Depende de |
 |---|------|:---------:|--------|-----------|
-| 1 | Schema: HNSW index + índices filtering | 🔴 ALTA | - | - |
+| 1 | Índices de filtering (user_id, created_at) | 🔴 ALTA | - | - |
 | 2 | RBAC: validar acceso al producto en memory-search | 🔴 ALTA | - | - |
 | 3 | HNSW index | 🟡 MEDIA | - | 1 |
 | 4 | Cleanup job (hourly, DELETE >30 días) | 🟡 MEDIA | - | 1 |
@@ -24,12 +24,12 @@
 
 ## Task Details
 
-### Task 1: Schema Updates (HNSW + Filtering Indexes)
+### Task 1: Índices de Filtering
 
 ```sql
 -- db/migrations/XX-memory-enhancement.sql
 
--- Índices para filtering y performance
+-- Índices para filtering y performance (NO para búsqueda vectorial)
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_user ON ai_embeddings(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_created ON ai_embeddings(created_at DESC);
 ```
@@ -59,15 +59,15 @@ async searchSimilar(
   return memoryRepository.semanticSearch(vectorStr, userId, limit, sourceTypes);
 }
 
+// En memory.repository.ts - nuevo método (ver design.md 6.2 para implementación completa)
 async validateProductAccess(
   userId: string,
   sourceTypes: EmbeddingSourceType[]
 ): Promise<boolean> {
-  // Para cada source_type, verificar que el usuario tiene acceso
-  // source_type = 'lesson' → verificar purchase
-  // source_type = 'faq' → verificar acceso al producto
-  // etc.
-  // Retornar true si tiene acceso a TODOS los tipos solicitados
+  // 1. Obtener los sourceIds para cada sourceType
+  // 2. Para cada source, obtener product_id de la tabla original
+  // 3. Verificar acceso: creator OR buyer OR affiliate
+  // Ver implementación completa en design.md sección 6.2
 }
 ```
 
