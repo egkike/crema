@@ -182,19 +182,104 @@ Verificar si es suficiente antes de implementar rate limiting adicional.
 
 ### Task 7: Tests
 
+**Importante**: Revisar tests existentes antes de crear nuevos. Seguir los patrones del proyecto.
+
+#### Estándares de Tests del Proyecto
+
+Ver archivos de referencia:
+- `backend/src/__tests__/services/ai/memory.service.test.ts` — tests existentes del MemoryService
+- `backend/src/__tests__/services/ai/credits.service.test.ts` — tests de AI services
+
+#### Patrones a Seguir
+
 ```typescript
-// Tests necesarios:
+// 1. Imports
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// 2. Mocks con vi.mock() - usar la misma estructura
+vi.mock('../../../repositories/ai/memory.repository', () => ({
+  memoryRepository: {
+    createEmbedding: vi.fn(),
+    semanticSearch: vi.fn(),
+    // ... otros métodos
+  },
+}));
+
+// 3. Mock de logger
+vi.mock('../../../utils/logger', () => ({
+  default: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
+// 4. Constantes de test al inicio
+const USER_ID = '550e8400-e29b-41d4-a716-446655440000';
+
+// 5. beforeEach/afterEach para limpiar mocks
 describe('MemoryService', () => {
-  it('should validate product access before search', async () => {
-    // Test que user sin acceso no puede buscar
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('should evict oldest when quota exceeded', async () => {
-    // Test LRU eviction
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+});
+
+// 6. Estructura: describe > describe > it
+describe('validateProductAccess', () => {
+  describe('when user is creator', () => {
+    it('should return true', async () => {
+      // test
+    });
+  });
+});
+```
+
+#### Tests Requeridos
+
+```typescript
+describe('MemoryService', () => {
+  describe('validateProductAccess', () => {
+    it('should throw 403 when user has no access to product', async () => {
+      // Mock: user sin acceso a ningún producto
+      // Verificar que se lanza AppError con 403
+    });
+
+    it('should return true when user is creator of product', async () => {
+      // Mock: user = creator
+    });
+
+    it('should return true when user has completed purchase', async () => {
+      // Mock: user = buyer con orden completada
+    });
+
+    it('should return true when user is affiliate of product', async () => {
+      // Mock: user = affiliate
+    });
   });
 
-  it('should delete old embeddings in cleanup job', async () => {
-    // Test cleanup job (hard delete)
+  describe('checkQuotaAndEvict', () => {
+    it('should evict oldest embeddings when quota exceeded', async () => {
+      // Mock: count >= 10000
+      // Verificar que se eliminan los más antiguos
+    });
+
+    it('should not evict when under quota', async () => {
+      // Mock: count < 10000
+    });
+  });
+});
+
+describe('Cleanup Job', () => {
+  it('should delete embeddings older than 30 days', async () => {
+    // Verificar DELETE con fecha correcta
+  });
+
+  it('should log affected row count', async () => {
+    // Verificar logger.info con rowCount
   });
 });
 ```
