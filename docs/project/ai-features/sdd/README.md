@@ -61,19 +61,19 @@ Ningún SDD pendiente — los servicios existen, solo necesitan registro en Orch
 
 ## Gaps Reales (Pendientes de Implementar - Option C)
 
-> **Nota**: SDD actualizado para patrón RAG de Crema (NO session_id, NO memory.store/recall, NO summarization de conversaciones — no aplican al patrón de memoria de contenido de productos).
+> **Nota**: SDD actualizado para patrón RAG de Crema (NO session_id, NO memory.store/recall, NO summarization de conversaciones, NO memory_type, NO soft delete — no aplican al patrón de memoria de contenido de productos).
 
 ### Alta Prioridad
 | Task | Descripción | Estado |
 |------|-------------|--------|
-| T1 | Schema: memory_type, is_deleted | ❌ Pendiente |
+| T1 | Schema: HNSW index + índices filtering | ❌ Pendiente |
 | T2 | RBAC: validar acceso al producto en memory-search | ❌ Pendiente |
 
 ### Media Prioridad
 | Task | Descripción | Estado |
 |------|-------------|--------|
-| T3 | HNSW index (reemplazar IVFFlat) | ❌ Pendiente |
-| T4 | Cleanup job (hourly, soft delete >30 días) | ❌ Pendiente |
+| T3 | HNSW index | ❌ Pendiente |
+| T4 | Cleanup job (hourly, DELETE >30 días) | ❌ Pendiente |
 | T5 | Per-user quota (10K) + LRU eviction | ❌ Pendiente |
 | T6 | Rate limiting (100/min) | ❌ Pendiente |
 

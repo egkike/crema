@@ -15,7 +15,7 @@
 Mejorar el Memory Service existente para sistema de producción con:
 - Aislamiento multi-tenant (user_id + product ownership)
 - RBAC: validar acceso al producto antes de buscar memorias
-- Políticas de gestión (cleanup, quotas, soft delete)
+- Políticas de gestión (cleanup, quotas, hard delete)
 - Escalabilidad (HNSW index)
 - Rate limiting
 
@@ -31,11 +31,9 @@ Mejorar el Memory Service existente para sistema de producción con:
 |----|-------------|:---------:|
 | ME-001 | RBAC: memory-search valida que caller tiene acceso al producto | 🔴 ALTA |
 | ME-002 | HNSW index (reemplaza IVFFlat) | 🟡 MEDIA |
-| ME-003 | Agregar `memory_type` column (message, summary, system_instruction) | 🟢 BAJA |
-| ME-004 | Agregar `is_deleted` column (soft delete) | 🟡 MEDIA |
-| ME-005 | Cleanup job: marca is_deleted=TRUE (>30 días) | 🟡 MEDIA |
-| ME-006 | Per-user quota (10K embeddings) + LRU eviction | 🟢 BAJA |
-| ME-007 | Rate limiting (100 embeddings/min por usuario) | 🟢 BAJA |
+| ME-003 | Cleanup job: DELETE físico (>30 días) | 🟡 MEDIA |
+| ME-004 | Per-user quota (10K embeddings) + LRU eviction | 🟢 BAJA |
+| ME-005 | Rate limiting (100 embeddings/min por usuario) | 🟢 BAJA |
 
 ### 2.2 Requisitos No Funcionales
 
@@ -54,8 +52,7 @@ Mejorar el Memory Service existente para sistema de producción con:
 |----|------|--------|------|
 | MEM-01 | User A | solo ver memorias de productos que tengo acceso | no acceder a memorias de productos que no compré |
 | MEM-02 | Sistema | validar que user tiene acceso al producto antes de buscar | impedir acceso no autorizado |
-| MEM-03 | Sistema | hacer soft delete | no borrar datos originales |
-| MEM-04 | Sistema | limpiar memorias >30 días | reducir tamaño de DB |
+| MEM-03 | Sistema | hacer hard delete de memorias >30 días | reducir tamaño de DB |
 
 ---
 
@@ -65,8 +62,8 @@ Mejorar el Memory Service existente para sistema de producción con:
 |----------|------------|
 | AC-001 | memory-search filtra por user_id Y valida acceso al producto |
 | AC-002 | HNSW search < 100ms con 1M+ registros |
-| AC-003 | is_deleted=TRUE preserva registro (no se borra) |
-| AC-004 | Cleanup job marca is_deleted=TRUE para >30 días |
+| AC-003 | Cleanup job borra físicamente registros >30 días |
+| AC-004 | Hard delete no deja registros huérfanos |
 | AC-005 | > 10K embeddings → LRU eviction (borra más antiguos) |
 | AC-006 | > 100 embeddings/min → 429 Too Many Requests |
 
@@ -77,30 +74,18 @@ Mejorar el Memory Service existente para sistema de producción con:
 ### 5.1 ai_embeddings Modifications
 
 ```sql
--- Agregar columnas si no existen
-ALTER TABLE ai_embeddings
-ADD COLUMN IF NOT EXISTS memory_type VARCHAR(20) DEFAULT 'message'
-CHECK (memory_type IN ('message', 'summary', 'system_instruction'));
-
-ALTER TABLE ai_embeddings
-ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
-
--- Índices necesarios
+-- Índices necesarios para filtering y performance
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_user ON ai_embeddings(user_id);
-CREATE INDEX IF NOT EXISTS idx_ai_embeddings_is_deleted ON ai_embeddings(is_deleted);
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_created ON ai_embeddings(created_at DESC);
 ```
 
 ### 5.2 HNSW Index
 
 ```sql
--- Crear índice HNSW (sin borrar IVFFlat primero, luego hacer swap)
+-- Agregar índice HNSW para búsqueda vectorial eficiente
 CREATE INDEX ai_embeddings_hnsw_idx ON ai_embeddings
 USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
-
--- Cuando esté listo, eliminar IVFFlat
--- DROP INDEX IF EXISTS idx_ai_embeddings_vector;
 ```
 
 ---

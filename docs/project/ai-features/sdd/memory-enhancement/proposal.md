@@ -33,8 +33,8 @@ id, user_id, source_type, source_id, content, embedding, metadata, created_at
 ```
 
 - `user_id` existe ✅
-- NO tiene `memory_type`, `is_deleted` ❌
-- Índice IVFFlat (lento) ❌
+- UNIQUE constraint en (source_type, source_id) ✅
+- Sin índice vectorial eficiente (HNSW) ❌
 - NO hay RBAC validation en search ❌
 
 ### 2.3 Problemas Identificados
@@ -42,10 +42,10 @@ id, user_id, source_type, source_id, content, embedding, metadata, created_at
 | Problema | Severidad | Descripción |
 |----------|-----------|-------------|
 | Sin RBAC validation | 🔴 CRITICAL | User puede buscar memorias de productos sin acceso |
-| IVFFlat lento | 🟡 MEDIA | Búsqueda ineficiente con grandes volúmenes |
-| Sin soft delete | 🟡 MEDIA | No hay forma de "borrar" sin perder datos |
+| Sin índice vectorial (HNSW) | 🟡 MEDIA | Búsqueda ineficiente con grandes volúmenes |
+| Sin política de cleanup | 🟢 BAJA | No hay limpieza automática de registros antiguos |
 | Sin quota | 🟢 BAJA | Usuario puede saturar la DB |
-| Sin rate limiting | 🟢 BAJA | Sin protección contra abuso |
+| Sin rate limiting específico | 🟢 BAJA | Sin protección contra abuso |
 
 **NO es problema** (a diferencia del SDD original):
 - NO hay `session_id` — no aplica al patrón RAG de Crema
@@ -59,7 +59,7 @@ id, user_id, source_type, source_id, content, embedding, metadata, created_at
 | # | Objetivo | Métrica de Éxito |
 |---|----------|------------------|
 | O1 | RBAC: validar acceso al producto | User solo ve memorias de productos que tiene |
-| O2 | Soft delete | No se borra ningún dato original |
+| O2 | Hard delete | Cleanup job borra físicamente registros >30 días |
 | O3 | Escalabilidad | Tiempo de búsqueda <100ms con 1M+ embeddings |
 | O4 | Per-user quota | LRU eviction cuando >10K embeddings |
 | O5 | Rate limiting | 429 cuando >100 req/min |
@@ -72,10 +72,10 @@ id, user_id, source_type, source_id, content, embedding, metadata, created_at
 
 | Task | Descripción | Prioridad |
 |------|------------|----------|
-| 1 | Schema: memory_type, is_deleted | 🔴 ALTA |
+| 1 | Schema: HNSW index + índices filtering | 🔴 ALTA |
 | 2 | RBAC: memory-search valida acceso al producto | 🔴 ALTA |
-| 3 | HNSW index (reemplazar IVFFlat) | 🟡 MEDIA |
-| 4 | Cleanup job (hourly, soft delete) | 🟡 MEDIA |
+| 3 | HNSW index | 🟡 MEDIA |
+| 4 | Cleanup job (hourly, DELETE >30 días) | 🟡 MEDIA |
 | 5 | Per-user quota (10K) + LRU eviction | 🟢 BAJA |
 | 6 | Rate limiting (100/min) | 🟢 BAJA |
 
@@ -84,6 +84,8 @@ id, user_id, source_type, source_id, content, embedding, metadata, created_at
 - `session_id` — no aplica al patrón RAG
 - `memory.store/memory.recall` capabilities — no existen en el código
 - Summarization de conversaciones — las conversaciones van en `agent_messages`
+- `memory_type` — no aplica al patrón RAG de Crema (ya existe `source_type`)
+- `is_deleted` / soft delete — hard delete es suficiente; UNIQUE constraint (source_type, source_id) no permite soft delete práctico
 
 ---
 

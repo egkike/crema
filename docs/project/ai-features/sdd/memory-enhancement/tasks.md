@@ -12,10 +12,10 @@
 
 | # | Task | Prioridad | Estado | Depende de |
 |---|------|:---------:|--------|-----------|
-| 1 | Schema updates: memory_type, is_deleted, índices | 🔴 ALTA | - | - |
+| 1 | Schema updates: HNSW index + índices de filtering | 🔴 ALTA | - | - |
 | 2 | RBAC: validar acceso al producto en memory-search | 🔴 ALTA | - | - |
 | 3 | HNSW index (reemplazar IVFFlat) | 🟡 MEDIA | - | - |
-| 4 | Cleanup job (hourly, marca is_deleted=TRUE) | 🟡 MEDIA | - | 1 |
+| 4 | Cleanup job (hourly, DELETE registros >30 días) | 🟡 MEDIA | - | 1 |
 | 5 | Per-user quota (10K) + LRU eviction | 🟢 BAJA | - | - |
 | 6 | Rate limiting (100/min) | 🟢 BAJA | - | - |
 | 7 | Tests unitarios | 🟡 MEDIA | - | 2, 4, 5 |
@@ -24,23 +24,13 @@
 
 ## Task Details
 
-### Task 1: Schema Updates
+### Task 1: Schema Updates (HNSW + Filtering Indexes)
 
 ```sql
 -- db/migrations/XX-memory-enhancement.sql
 
--- Agregar columnas
-ALTER TABLE ai_embeddings
-ADD COLUMN IF NOT EXISTS memory_type VARCHAR(20)
-DEFAULT 'message'
-CHECK (memory_type IN ('message', 'summary', 'system_instruction'));
-
-ALTER TABLE ai_embeddings
-ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
-
 -- Índices para filtering y performance
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_user ON ai_embeddings(user_id);
-CREATE INDEX IF NOT EXISTS idx_ai_embeddings_is_deleted ON ai_embeddings(is_deleted);
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_created ON ai_embeddings(created_at DESC);
 ```
 
@@ -100,7 +90,7 @@ WITH (m = 16, ef_construction = 64);
 | ef_construction | 64 | Calidad al construir el índice |
 | ef_search | 40-100 | Búsqueda runtime (mayor = más preciso pero lento) |
 
-### Task 4: Cleanup Job
+### Task 4: Cleanup Job (Hard Delete)
 
 ```typescript
 // En queues/scheduler.ts
@@ -112,9 +102,8 @@ registerJob({
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const result = await db.query(
-      `UPDATE ai_embeddings
-       SET is_deleted = TRUE
-       WHERE created_at < $1 AND is_deleted = FALSE`,
+      `DELETE FROM ai_embeddings
+       WHERE created_at < $1`,
       [cutoff]
     );
 
@@ -143,19 +132,19 @@ async createEmbedding(...) {
 async checkQuotaAndEvict(userId: string): Promise<void> {
   const { rows } = await db.query(
     `SELECT COUNT(*) as cnt FROM ai_embeddings
-     WHERE user_id = $1 AND is_deleted = FALSE`,
+     WHERE user_id = $1`,
     [userId]
   );
 
   const count = parseInt(rows[0].cnt);
 
   if (count >= QUOTA_MAX) {
-    // LRU eviction: eliminar más antiguos
+    // LRU eviction: eliminar más antiguos (hard delete)
     await db.query(
       `DELETE FROM ai_embeddings
        WHERE id IN (
          SELECT id FROM ai_embeddings
-         WHERE user_id = $1 AND is_deleted = FALSE
+         WHERE user_id = $1
          ORDER BY created_at ASC
          LIMIT $2
        )`,
@@ -205,8 +194,8 @@ describe('MemoryService', () => {
     // Test LRU eviction
   });
 
-  it('should mark is_deleted for old embeddings', async () => {
-    // Test cleanup job
+  it('should delete old embeddings in cleanup job', async () => {
+    // Test cleanup job (hard delete)
   });
 });
 ```

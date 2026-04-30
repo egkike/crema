@@ -74,19 +74,19 @@ async function handleMemorySearch(input: {
 ```typescript
 // Job: memory:cleanup
 // Frequency: hourly
-// Action: UPDATE is_deleted = TRUE WHERE older than 30 days
+// Action: DELETE físico WHERE older than 30 days
 
 const cleanupJob: CronJobDef = {
   name: 'memory:cleanup',
   cron: '0 * * * *', // hourly
   processor: async () => {
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    await db.query(
-      `UPDATE ai_embeddings
-       SET is_deleted = TRUE
-       WHERE created_at < $1 AND is_deleted = FALSE`,
+    const result = await db.query(
+      `DELETE FROM ai_embeddings
+       WHERE created_at < $1`,
       [cutoff]
     );
+    logger.info({ affected: result.rowCount }, 'Memory cleanup completed');
   }
 };
 ```
@@ -105,17 +105,17 @@ const EVICT_BATCH = 100;
 async function checkQuotaAndEvict(userId: string): Promise<void> {
   const count = await db.query(
     `SELECT COUNT(*) as cnt FROM ai_embeddings
-     WHERE user_id = $1 AND is_deleted = FALSE`,
+     WHERE user_id = $1`,
     [userId]
   );
 
   if (count >= QUOTA_MAX) {
-    // LRU eviction: eliminar más antiguos
+    // LRU eviction: eliminar más antiguos (hard delete)
     await db.query(
       `DELETE FROM ai_embeddings
        WHERE id IN (
          SELECT id FROM ai_embeddings
-         WHERE user_id = $1 AND is_deleted = FALSE
+         WHERE user_id = $1
          ORDER BY created_at ASC
          LIMIT $2
        )`,
@@ -223,19 +223,16 @@ async validateProductAccess(
 | `ef_construction` | 64 | Balance quality/speed |
 | `ef_search` | 40-100 | Runtime, mayor = más preciso |
 
-### 7.2 Index Migration Strategy
+### 7.2 Index Creation Strategy
 
 ```sql
--- Paso 1: Crear HNSW sin borrar IVFFlat
-CREATE INDEX ai_embeddings_hnsw_idx ON ai_embeddings
+-- Crear índice HNSW (la tabla solo tiene UNIQUE constraint, no hay IVFFlat)
+CREATE INDEX CONCURRENTLY ai_embeddings_hnsw_idx ON ai_embeddings
 USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
 
--- Paso 2: Verificar que funciona correctamente
+-- Verificar que funciona correctamente
 -- SELECT * FROM ai_embeddings ORDER BY embedding <=> '[...]' LIMIT 10;
-
--- Paso 3: Una vez verificado, eliminar IVFFlat
--- DROP INDEX IF EXISTS idx_ai_embeddings_vector;
 ```
 
 ### 7.3 Vacuum Schedule

@@ -144,20 +144,21 @@ Múltiples proveedores LLM configurables
 | Gap | Descripción | Estado Actual | Impacto |
 |-----|-----------|-------------|-------------|--------|
 | **G-1** | Sin RBAC en memory-search | User puede ver memorias de productos sin acceso | 🔴 ALTO |
-| **G-2** | Índice IVFFlat (lento con grandes volúmenes) | En producción | 🟡 MEDIO |
-| **G-3** | No hay soft delete (is_deleted) | No hay forma de "borrar" sin perder datos | 🟡 MEDIO |
-| **G-4** | No hay política de "olvido" (cleanup) | Memoria infinita | 🟢 BAJO |
-| **G-5** | No hay per-user quota | Usuario puede acaparar recursos | 🟢 BAJO |
-| **G-6** | No hay rate limiting | Sin protección contra abuso | 🟢 BAJO |
+| **G-2** | Sin índice vectorial eficiente (HNSW) | Solo UNIQUE constraint, búsqueda lenta | 🟡 MEDIO |
+| **G-3** | No hay política de cleanup | No hay limpieza automática de registros >30 días | 🟡 MEDIO |
+| **G-4** | No hay per-user quota | Usuario puede acaparar recursos | 🟢 BAJO |
+| **G-5** | No hay rate limiting específico | Sin protección contra abuso | 🟢 BAJO |
+
+> **Nota**: `memory_type` e `is_deleted` (soft delete) NO aplican al patrón RAG de Crema. Se usa hard delete con cleanup job.
 
 #### 2.4.2 Mejoras Planificadas (Option C)
 
 | # | Mejora | Descripción | Prioridad |
 |---|-------|-------------|----------|
-| **T1** | **Schema Updates** | Agregar memory_type, is_deleted, índices | 🔴 ALTA |
+| **T1** | **Schema Updates** | HNSW index + índices de filtering | 🔴 ALTA |
 | **T2** | **RBAC Validation** | memory-search valida acceso al producto | 🔴 ALTA |
-| **T3** | **Migración a HNSW** | De IVFFlat → HNSW (más rápido) + ef_search | 🟡 MEDIA |
-| **T4** | **Cleanup Job** | Hourly: marca is_deleted=TRUE para >30 días | 🟡 MEDIA |
+| **T3** | **HNSW Index** | Índice vectorial eficiente para búsqueda | 🟡 MEDIA |
+| **T4** | **Cleanup Job** | Hourly: DELETE registros >30 días | 🟡 MEDIA |
 | **T5** | **Per-User Quota** | LRU eviction cuando >10K embeddings | 🟢 BAJA |
 | **T6** | **Rate Limiting** | 100 embeddings/min por usuario | 🟢 BAJA |
 
@@ -208,7 +209,7 @@ Múltiples proveedores LLM configurables
 
 | Job | Frecuencia | Descripción |
 |-----|-----------|-------------|
-| `memory:cleanup` | hourly | Marca is_deleted=TRUE para >30 días |
+| `memory:cleanup` | hourly | DELETE registros >30 días (hard delete) |
 
 #### 2.4.7 Especificaciones Técnicas
 
@@ -232,9 +233,9 @@ WITH (m = 16, ef_construction = 64);
 | Campo | Tipo | Notas |
 |-------|------|-------|
 | `user_id` | UUID | **OBLIGATORIO** — Aislamiento multi-tenant (ya existe) |
-| `memory_type` | VARCHAR(20) | CHECK constraint: 'message', 'summary', 'system_instruction' |
 | `metadata` | JSONB | Solo campos definidos, SIN PII |
-| `is_deleted` | BOOLEAN | Soft delete (no borrar originales) |
+
+> **Nota**: `source_type` ya existe y categoriza correctamente (lesson, faq, policy, qa, review, insight, saved_dashboard). No se necesita `memory_type` adicional.
 
 **Access Control (RBAC) para Crema:**
 
@@ -249,7 +250,7 @@ WITH (m = 16, ef_construction = 64);
 
 | Política | Threshold | Acción |
 |----------|-----------|--------|
-| **Ventana temporal** | >30 días | Marca is_deleted=TRUE (no borrar) |
+| **Ventana temporal** | >30 días | DELETE físico (hard delete) |
 | **Per-user quota** | >10K embeddings | LRU eviction (borra más antiguos) |
 | **Filtrado por relevancia** | K=5 (default) | Solo top-5, max 100 |
 | **Rate limiting** | 100 embeddings/min | Por user_id |
@@ -258,7 +259,7 @@ WITH (m = 16, ef_construction = 64);
 
 | Job | Frecuencia | Concurrency | Descripción |
 |-----|-----------|--------------|-------------|
-| `memory:cleanup` | hourly | 1 | Cleanup (is_deleted=TRUE + vacuum) |
+| `memory:cleanup` | hourly | 1 | DELETE >30 días + VACUUM |
 
 **Mantenimiento:**
 
