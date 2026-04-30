@@ -104,18 +104,29 @@ El ownership se valida por **acceso al producto**, no por `session_id`.
 
 ```
 1. Caller proporciona userId + query + (opcional) sourceTypes
-2. Si sourceTypes especificados → verificar acceso a CADA producto
-3. Si user NO tiene acceso → 403
-4. Si tiene acceso → continuar con búsqueda
+2. Para cada sourceId en los resultados, determinar el product_id asociado:
+   - source_type='lesson' → obtener product_id de la tabla lessons
+   - source_type='faq' → obtener product_id de la tabla product_faqs
+   - source_type='review' → obtener product_id de la tabla product_reviews
+   - etc.
+3. Verificar acceso al producto (creator OR buyer OR affiliate)
+4. Si user NO tiene acceso a cualquier producto → 403
+5. Si tiene acceso → continuar con búsqueda
 ```
+
+**Nota sobre sourceId → productId:**
+
+La tabla `ai_embeddings` no tiene `product_id` directamente. Para validar acceso:
+- **Opción recomendada**: Modificar `memory.repository.ts` para hacer un JOIN con las tablas originales
+- **Alternativa**: Modificar `semanticSearch()` para retornar `source_id` y validar acceso en el service
 
 **Casos de borde a manejar:**
 
 | Caso | Comportamiento esperado |
 |------|-------------------------|
-| Producto borrado | No retornar memorias huérfanas |
+| Producto borrado | Verificar que el source existe antes de retornar |
 | Acceso revocado | Verificar en cada request, no caching |
-| User sin purchases | Solo ver memorias públicas (si las hay) |
+| User sin purchases | Solo ver memorias propias (user_id match) |
 
 ### 6.2 Input Validation
 
@@ -128,9 +139,9 @@ El ownership se valida por **acceso al producto**, no por `session_id`.
 
 ### 6.3 Rate Limiting
 
-| Endpoint | Límite | Response |
-|----------|--------|----------|
-| `memory.search` | 100 requests/min/user | 429 Too Many Requests |
+| Endpoint | Límite | Response | Notas |
+|----------|--------|----------|-------|
+| `memory.search` | 30-100 requests/min/user | 429 Too Many Requests | **Verificar**: El endpoint ya usa `aiLimiter` (30/min) en `ai.routes.ts:274`. Ajustar si es necesario. |
 
 ---
 

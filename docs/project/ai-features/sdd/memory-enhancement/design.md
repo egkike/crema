@@ -129,24 +129,23 @@ async function checkQuotaAndEvict(userId: string): Promise<void> {
 
 ## 5. Rate Limiting
 
+**Verificar antes de implementar:**
+
+El endpoint `GET /api/ai/embeddings/search` ya utiliza `aiLimiter` (30/min) definido en `backend/src/middlewares/rateLimit/rateLimit.ts`.
+
 ```typescript
-// Rate limiter per user (usando Redis existente)
-const memoryRateLimiter = {
-  windowMs: 60 * 1000, // 1 minuto
-  maxRequests: 100,    // 100 embeddings por minuto
-
-  async check(userId: string): Promise<boolean> {
-    const key = `memory:ratelimit:${userId}`;
-    const count = await redis.incr(key);
-
-    if (count === 1) {
-      await redis.expire(key, 60);
-    }
-
-    return count <= 100;
-  }
-};
+// Rate limiter existente en ai.routes.ts:274
+router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req, res) => {
+  // aiLimiter = 30 requests/min por usuario
+});
 ```
+
+**Opciones:**
+1. **Mantener aiLimiter** (30/min) — si es suficiente para memory-search
+2. **Aumentar límite** — ajustar `maxRequests` en `rateLimit.ts`
+3. **Crear memory-specific limiter** — solo si memory-search necesita límites diferentes
+
+**NO crear rate limiter duplicado sin verificar el existente.**
 
 ---
 
@@ -180,35 +179,66 @@ async searchSimilar(
 ### 6.2 checkProductAccess Implementation
 
 ```typescript
-// El método debe verificar que el usuario tiene acceso a TODOS los productos
-// representados por los sourceTypes antes de hacer la búsqueda vectorial
-
-async validateProductAccess(
+// En memory.repository.ts - nuevo método para validar acceso
+async validateProductAccessForSources(
   userId: string,
-  sourceTypes: EmbeddingSourceType[]
-): Promise<void> {
-  // Para cada source_type, determinar qué productos están involucrados
-  // y verificar que el usuario tiene acceso (purchase, subscription, etc.)
+  sourceIds: { sourceType: EmbeddingSourceType; sourceId: string }[]
+): Promise<boolean> {
+  // Para cada source, determinar el product_id y verificar acceso
+  const schema = config.db?.schema || 'public';
 
-  // Si CUALQUIER sourceType no tiene acceso → 403
-  const hasAccess = await checkUserProductAccess(userId, sourceTypes);
-  if (!hasAccess) {
-    throw new AppError('No tienes acceso a este contenido', 403);
+  for (const { sourceType, sourceId } of sourceIds) {
+    // Obtener product_id según el source_type
+    let productIdQuery = '';
+    switch (sourceType) {
+      case 'lesson':
+        productIdQuery = `SELECT product_id FROM "${schema}".lessons WHERE id = $1`;
+        break;
+      case 'faq':
+        productIdQuery = `SELECT product_id FROM "${schema}".product_faqs WHERE id = $1`;
+        break;
+      case 'review':
+        productIdQuery = `SELECT product_id FROM "${schema}".product_reviews WHERE id = $1`;
+        break;
+      // ... otros casos
+    }
+
+    if (!productIdQuery) continue;
+
+    const { rows: products } = await pool.query(productIdQuery, [sourceId]);
+    if (products.length === 0) continue; // Source no existe
+
+    const productId = products[0].product_id;
+
+    // Verificar acceso: creator OR buyer OR affiliate
+    const accessCheck = await pool.query(`
+      SELECT 1 FROM (
+        SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2
+        UNION ALL
+        SELECT id FROM "${schema}".orders WHERE product_id = $1 AND buyer_id = $2 AND status = 'completed'
+        UNION ALL
+        SELECT id FROM "${schema}".affiliate_sales WHERE product_id = $1 AND affiliate_id = $2
+      ) AS access_check
+      LIMIT 1
+    `, [productId, userId]);
+
+    if (accessCheck.rows.length === 0) {
+      return false; // No tiene acceso
+    }
   }
+
+  return true; // Tiene acceso a todos
 }
 ```
 
-**Importante**: Usar los servicios/repositories existentes del proyecto:
-- `accessService` para verificar acceso
-- `purchaseRepository` para verificar compras
-- **NO** crear nuevos patrones de verificación
+**Nota**: Usar el mismo patrón de queries que `ai.routes.ts:1233-1256` para consistencia.
 
 ### 6.3 Casos de Borde
 
 | Scenario | Handling |
-|---------|----------|
-| User sin purchases | Retornar array vacío |
-| Producto eliminado | Excluir del resultado (soft delete o check) |
+|---------|---------|
+| User sin purchases | Retornar solo memorias propias (user_id match) |
+| Producto eliminado | Verificar que source existe antes de retornar |
 | Acceso revocado | Verificar en cada request, no cachear permisos |
 
 ---

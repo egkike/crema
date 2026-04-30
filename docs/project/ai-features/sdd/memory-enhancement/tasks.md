@@ -12,12 +12,12 @@
 
 | # | Task | Prioridad | Estado | Depende de |
 |---|------|:---------:|--------|-----------|
-| 1 | Schema updates: HNSW index + índices de filtering | 🔴 ALTA | - | - |
+| 1 | Schema: HNSW index + índices filtering | 🔴 ALTA | - | - |
 | 2 | RBAC: validar acceso al producto en memory-search | 🔴 ALTA | - | - |
-| 3 | HNSW index (reemplazar IVFFlat) | 🟡 MEDIA | - | - |
-| 4 | Cleanup job (hourly, DELETE registros >30 días) | 🟡 MEDIA | - | 1 |
+| 3 | HNSW index | 🟡 MEDIA | - | 1 |
+| 4 | Cleanup job (hourly, DELETE >30 días) | 🟡 MEDIA | - | 1 |
 | 5 | Per-user quota (10K) + LRU eviction | 🟢 BAJA | - | - |
-| 6 | Rate limiting (100/min) | 🟢 BAJA | - | - |
+| 6 | Rate limiting (verificar aiLimiter existente) | 🟢 BAJA | - | - |
 | 7 | Tests unitarios | 🟡 MEDIA | - | 2, 4, 5 |
 
 ---
@@ -71,16 +71,18 @@ async validateProductAccess(
 }
 ```
 
-### Task 3: HNSW Migration
+### Task 3: HNSW Index
+
+**Dependencia**: Task 1 (índices de filtering deben existir primero)
 
 ```sql
--- Crear índice HNSW (sin borrar IVFFlat primero)
-CREATE INDEX ai_embeddings_hnsw_idx ON ai_embeddings
+-- Crear índice HNSW CONCURRENTLY para no bloquear reads
+CREATE INDEX CONCURRENTLY ai_embeddings_hnsw_idx ON ai_embeddings
 USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
 
--- Cuando esté listo y verificado, eliminar IVFFlat
--- DROP INDEX IF EXISTS idx_ai_embeddings_vector;
+-- Verificar que funciona correctamente
+-- SELECT * FROM ai_embeddings ORDER BY embedding <=> '[...]' LIMIT 10;
 ```
 
 **Parámetros:**
@@ -89,6 +91,11 @@ WITH (m = 16, ef_construction = 64);
 | m | 16 | Grado de conexión (32 para >500K vectores) |
 | ef_construction | 64 | Calidad al construir el índice |
 | ef_search | 40-100 | Búsqueda runtime (mayor = más preciso pero lento) |
+
+**Consideraciones de performance:**
+- Usar `CONCURRENTLY` para no bloquear writes durante la creación
+- Crear en horas de baja actividad para datasets grandes
+- Monitorear `ef_search` en producción y ajustar según necesidad
 
 ### Task 4: Cleanup Job (Hard Delete)
 
@@ -156,30 +163,22 @@ async checkQuotaAndEvict(userId: string): Promise<void> {
 }
 ```
 
-### Task 6: Rate Limiting
+### Task 6: Rate Limiting (Verificar existente)
 
 ```typescript
-// En middleware o capability handler
-const memoryRateLimiter = {
-  windowMs: 60 * 1000,
-  maxRequests: 100,
+// VERIFICACIÓN REQUERIDA antes de implementar:
+// El endpoint /api/ai/embeddings/search ya usa aiLimiter (30/min)
+// Located at: backend/src/routes/ai.routes.ts:274
 
-  async check(userId: string): Promise<boolean> {
-    const key = `memory:ratelimit:${userId}`;
-    const count = await redis.incr(key);
+// Si 30/min es insuficiente para memory-search:
+// 1. Crear un rate limiter específico más permisivo (ej: 60/min)
+// 2. O aumentar el límite de aiLimiter globalmente
 
-    if (count === 1) {
-      await redis.expire(key, 60);
-    }
-
-    if (count > this.maxRequests) {
-      throw new AppError('Rate limit exceeded', 429);
-    }
-
-    return true;
-  }
-};
+// NO crear rate limiter duplicado sin verificar primero
 ```
+
+**Nota**: El endpoint `GET /api/ai/embeddings/search` ya tiene `aiLimiter` (30/min).
+Verificar si es suficiente antes de implementar rate limiting adicional.
 
 ### Task 7: Tests
 
