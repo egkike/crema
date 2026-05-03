@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Crema - Content Security & Upload Validation
 
-**Versión**: 2.1  
-**Fecha**: Abril 2026  
-**Estado**: Parcial - Validaciones técnicas implementadas, AI pending
+**Versión**: 2.2
+**Fecha**: Mayo 2026
+**Estado**: Parcial - Validaciones técnicas básicas implementadas, ejecutables y AI pending
 **Owner**: Kike García
 
 ## Tabla de Contenidos
@@ -33,9 +33,10 @@
 
 | Validador | Archivo | Descripción |
 |---------|---------|-------------|
-| **Upload middleware** | `src/middlewares/upload.middleware.ts` | Allowlist extensiones, MIME types, sanitización de filenames |
+| **Upload middleware** | `src/middlewares/storage/upload.middleware.ts` | Allowlist extensiones, MIME types, sanitización de filenames, límite de tamaño |
 | **GlobalErrorHandler** | `src/middlewares/global-error.middleware.ts` | Manejo centralizado de errores |
 | **RequestId middleware** | `src/middlewares/tracking/requestId.middleware.ts` | Trazabilidad de requests |
+| **Rate Limiting** | `src/middlewares/rateLimit.ts` | Límite general de requests por IP/usuario |
 
 ### 0.3 Ejemplo de Reutilización
 
@@ -79,16 +80,17 @@ Establecer un marco robusto de validaciones y controles para todo el contenido s
 
 | Control | Descripción | Implementación | Prioridad |
 |---------|-------------|----------------|:---------:|
-| **Allowlist de Extensiones** | Solo permitir extensiones aprobadas (pdf, mp4, etc.) | `upload.middleware.ts` | ✅ Hecho |
-| **Validación de MIME Types** | Verificar que el MIME type coincida con la extensión | `upload.middleware.ts` | ✅ Hecho |
-| **Sanitización de Filenames** | Remover caracteres peligrosos y prevenir path traversal | `upload.middleware.ts` | ✅ Hecho |
-| **Límite de Tamaño Global** | Máximo 100MB por archivo (configurable) | `upload.middleware.ts` | ✅ Hecho |
-| **Malware Scanning** | Escaneo de archivos subidos contra firmas de virus | Integración con ClamAV o servicio similar | ALTA |
-| **Bloqueo de Ejecutables** | Prohibir estrictamente `.exe`, `.bat`, `.sh`, `.msi` | Filtro en `upload.middleware.ts` | ALTA |
-| **Validación de Tamaño Mínimo** | Evitar archivos vacíos o corruptos (ej: PDF < 1KB) | Validación en `product.controller.ts` | BAJA |
-| **Quality Checks** | Verificar resolución mínima de video/imagen y duración | Análisis de metadata en `content-reader.service.ts` | BAJA |
-| **Validación de URLs Externas** | Solo permitir dominios seguros y conocidos (YouTube, Vimeo, etc.) | Allowlist de dominios en `products.schema.ts` | ALTA |
-| **Rate Limiting por Upload** | Limitar cantidad de uploads por usuario en ventana de tiempo | Middleware de rate limiting especializado | MEDIA |
+| **Allowlist de Extensiones** | Solo permitir extensiones aprobadas (pdf, mp4, etc.) | `storage/upload.middleware.ts` → `ALLOWED_EXTENSIONS` | ✅ Hecho |
+| **Validación de MIME Types** | Verificar que el MIME type coincida con la extensión | `storage/upload.middleware.ts` → `isAllowedMimeType()` | ✅ Hecho |
+| **Sanitización de Filenames** | Remover caracteres peligrosos y prevenir path traversal | `storage/upload.middleware.ts` → `sanitizeFilename()` | ✅ Hecho |
+| **Límite de Tamaño Global** | Máximo 100MB por archivo (configurable) | `storage/upload.middleware.ts` → `limits.fileSize` | ✅ Hecho |
+| **Rate Limiting (general)** | Límite de requests por IP/usuario | `middlewares/rateLimit.ts` | ✅ Hecho |
+| **Bloqueo de Ejecutables** | Prohibir estrictamente `.exe`, `.bat`, `.sh`, `.msi` | ❌ NO - `ALLOWED_EXTENSIONS` no incluye ejecutables, pero no hay block explícito | ALTA |
+| **Malware Scanning** | Escaneo de archivos subidos contra firmas de virus | ❌ Pendiente - requiere integración ClamAV | ALTA |
+| **Validación de Tamaño Mínimo** | Evitar archivos vacíos o corruptos (ej: PDF < 1KB) | ❌ Pendiente | BAJA |
+| **Quality Checks** | Verificar resolución mínima de video/imagen y duración | ❌ Pendiente | BAJA |
+| **Validación de URLs Externas** | Solo permitir dominios seguros y conocidos (YouTube, Vimeo, etc.) | ❌ Pendiente - allowlist no implementado | ALTA |
+| **Rate Limiting por Upload** | Limitar cantidad de uploads por usuario en ventana de tiempo | 🟡 PARCIAL - rate limit general existe, específico de uploads no | MEDIA |
 
 ---
 
@@ -290,7 +292,7 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 
 | ID | Task | Estado | Owner | Sprint | Notas |
 |----|------|--------|------|--------|-------|
-| CS-01 | Implementar bloqueo de ejecutables en `upload.middleware.ts` | 🟡 PARCIAL | Backend | Sprint 1 | Extensiones block done |
+| CS-01 | Implementar bloqueo de ejecutables en `upload.middleware.ts` | ❌ TODO | Backend | Sprint 1 | `ALLOWED_EXTENSIONS` no incluye ejecutables; se requiere block explícito |
 | CS-02 | Agregar checkbox de declaración de copyright general | ❌ TODO | Frontend | Sprint 1 | |
 | CS-03 | Agregar checkbox específico de "autorización" para links externos | ❌ TODO | Frontend | Sprint 1 | |
 | CS-04 | Agregar checkbox de derechos para ebooks | ❌ TODO | Frontend | Sprint 1 | |
