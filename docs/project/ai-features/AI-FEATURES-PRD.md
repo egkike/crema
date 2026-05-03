@@ -1,12 +1,12 @@
 # Product Requirements Document (PRD)
 ## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 3.2
-**Fecha**: Abril 2026
+**Versión**: 3.3
+**Fecha**: Mayo 2026
 **Estado**:
 - ✅ Backend Services (18 servicios)
 - ✅ Orchestrator registration (13 servicios registrados)
-- ✅ Memory Enhancement SDD: ✅ DOC COMPLETA (implementación pending)
+- ✅ Memory Enhancement SDD: ✅ TODO COMPLETO (Tasks 1-7 implementados + testeados)
 **Owner**: Kike García
 
 > **Dependencias**:
@@ -117,11 +117,14 @@ Crema busca posicionarse como la **plataforma de infoproductos más inteligente 
 
 | Integración | Estado | Notas |
 |-------------|--------|-------|
-| Memory → Agentes | ❌ Pendiente | M-1 |
+| Memory → Agentes | ✅ Implementado | M-1: RBAC validation en memory-search |
 | Orchestrator → Capabilities | ✅ Completado | 13 servicios registrados |
-| IVFFlat → HNSW | ❌ Pendiente | M-3 |
-| Cleanup jobs | ❌ Pendiente | M-4 |
-| Summarization | ❌ Pendiente | M-5 |
+| IVFFlat → HNSW | ✅ Implementado | M-3: HNSW index en db/init/11-hnsw-index.sql |
+| Cleanup jobs | ✅ Implementado | M-4: memory-cleanup job hourly en main.worker.ts |
+| Per-user quota + LRU | ✅ Implementado | M-5: Quota 10K con eviction en checkQuotaAndEvict |
+| Rate limiting | ✅ Implementado | aiLimiter aplicado a endpoints AI |
+
+> **Memory Enhancement Tasks 1-7**: ✅ TODO COMPLETO
 
 ### 2.3 Infraestructura Existente
 
@@ -139,28 +142,28 @@ Múltiples proveedores LLM configurables
 
 > **Nota importante**: El patrón de memoria de Crema es **RAG de contenido de productos** (lecciones, FAQs, reviews), NO conversaciones de chat. Por eso NO aplica: `session_id`, `memory.store/recall` capabilities, ni summarization de conversaciones.
 
-#### 2.4.1 Gaps Identificados (Reales para Crema)
+#### 2.4.1 Gaps Identificados (TODOS CORREGIDOS)
 
 | Gap | Descripción | Estado Actual | Impacto |
-|-----|-----------|-------------|-------------|--------|
-| **G-1** | Sin RBAC en memory-search | User puede ver memorias de productos sin acceso | 🔴 ALTO |
-| **G-2** | Sin índice vectorial eficiente (HNSW) | Solo UNIQUE constraint, búsqueda lenta | 🟡 MEDIO |
-| **G-3** | No hay política de cleanup | No hay limpieza automática de registros >30 días | 🟡 MEDIO |
-| **G-4** | No hay per-user quota | Usuario puede acaparar recursos | 🟢 BAJO |
-| **G-5** | No hay rate limiting específico | Sin protección contra abuso | 🟢 BAJO |
+|-----|-----------|-------------|-------------|
+| **G-1** | Sin RBAC en memory-search | ✅ Corregido | Validación de acceso implementada |
+| **G-2** | Sin índice vectorial eficiente (HNSW) | ✅ Corregido | HNSW index creado en 11-hnsw-index.sql |
+| **G-3** | No hay política de cleanup | ✅ Corregido | memory-cleanup job hourly en main.worker.ts |
+| **G-4** | No hay per-user quota | ✅ Corregido | 10K quota con LRU eviction en checkQuotaAndEvict |
+| **G-5** | No hay rate limiting específico | ✅ Corregido | aiLimiter (30/min) en endpoints AI |
 
 > **Nota**: `memory_type` e `is_deleted` (soft delete) NO aplican al patrón RAG de Crema. Se usa hard delete con cleanup job.
 
-#### 2.4.2 Mejoras Planificadas (Option C)
+#### 2.4.2 Mejoras Planificadas (TODAS COMPLETADAS)
 
-| # | Mejora | Descripción | Prioridad |
-|---|-------|-------------|----------|
-| **T1** | **Schema Updates** | HNSW index + índices de filtering | 🔴 ALTA |
-| **T2** | **RBAC Validation** | memory-search valida acceso al producto | 🔴 ALTA |
-| **T3** | **HNSW Index** | Índice vectorial eficiente para búsqueda | 🟡 MEDIA |
-| **T4** | **Cleanup Job** | Hourly: DELETE registros >30 días | 🟡 MEDIA |
-| **T5** | **Per-User Quota** | LRU eviction cuando >10K embeddings | 🟢 BAJA |
-| **T6** | **Rate Limiting** | 100 embeddings/min por usuario | 🟢 BAJA |
+| # | Mejora | Descripción | Prioridad | Estado |
+|---|-------|-------------|----------|--------|
+| **T1** | **Schema Updates** | HNSW index + índices de filtering | 🔴 ALTA | ✅ |
+| **T2** | **RBAC Validation** | memory-search valida acceso al producto | 🔴 ALTA | ✅ |
+| **T3** | **HNSW Index** | Índice vectorial eficiente para búsqueda | 🟡 MEDIA | ✅ |
+| **T4** | **Cleanup Job** | Hourly: DELETE registros >30 días | 🟡 MEDIA | ✅ |
+| **T5** | **Per-User Quota** | LRU eviction cuando >10K embeddings | 🟢 BAJA | ✅ |
+| **T6** | **Rate Limiting** | 30 requests/min por usuario | 🟢 BAJA | ✅ |
 
 #### 2.4.3 Servicios que Usarán Memoria (Post-Mejora)
 
@@ -267,15 +270,17 @@ WITH (m = 16, ef_construction = 64);
 - Autovacuum configurado para aggressively reclaim space
 - Alarma when user >8K embeddings (80% quota)
 
-#### 2.4.5 SDD Completado
+#### 2.4.5 SDD Completado e Implementado
 
-> El SDD de Memory Enhancement está completo en:
-> - `sdd/memory-enhancement/proposal.md`
-> - `sdd/memory-enhancement/spec.md`
-> - `sdd/memory-enhancement/design.md`
-> - `sdd/memory-enhancement/tasks.md`
+> El SDD de Memory Enhancement está completo E IMPLEMENTADO en:
+> - `sdd/memory-enhancement/proposal.md` ✅
+> - `sdd/memory-enhancement/spec.md` ✅
+> - `sdd/memory-enhancement/design.md` ✅
+> - `sdd/memory-enhancement/tasks.md` ✅ (Tasks 1-7 completados + testeados)
 
 > **Pattern**: El SDD está adaptado al patrón RAG de Crema (NO session_id, NO memory.store/recall, NO summarization).
+
+> **Implementación**: Mayo 2026 - Commits 7a4eb85, 1e2d3dd (PR #15 mergeado a master)
 
 ---
 
@@ -411,7 +416,7 @@ Todos los tipos de productos de Crema.
 - Rate limiting específico por operación
 
 #### Estado
-✅ **Implementado** (Fases 1-6 completadas) - Ampliable con más features
+✅ **Implementado** (Fases 1-9 completadas, incluyendo tests) - Phase 8 Testing	done (PR #12)
 
 ---
 
