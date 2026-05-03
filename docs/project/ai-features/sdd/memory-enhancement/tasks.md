@@ -3,7 +3,7 @@
 **Proyecto**: Crema - Sistema de Memoria AI
 **Tipo**: Arquitectura / Enhancement
 **SDD Phase**: Tasks
-**Estado**: ✅ DOC COMPLETA (implementación pendiente)
+**Estado**: ✅ COMPLETO (Tasks 1-7 implementados + testeados, Mayo 2026)
 **Depends on**: design.md
 
 ---

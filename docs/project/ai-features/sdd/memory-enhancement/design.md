@@ -3,7 +3,7 @@
 **Proyecto**: Crema - Sistema de Memoria AI
 **Tipo**: Arquitectura / Enhancement
 **SDD Phase**: Design
-**Estado**: ✅ DOC COMPLETA
+**Estado**: ✅ COMPLETO (implementado Mayo 2026)
 **Depends on**: spec.md
 
 > **Estandar de Verificación**: Ver `docs/project/common/verification-standard.md`
@@ -328,4 +328,4 @@ throw new Error('User does not have access'); // No AppError, mensaje genérico
 
 ## 9. Estado
 
-**Estado**: ✅ Completado (pendiente implementación)
+**Estado**: ✅ COMPLETO (implementado Mayo 2026 - PRs #13, #14, #15 mergeados)

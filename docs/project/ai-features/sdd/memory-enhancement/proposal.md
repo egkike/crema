@@ -2,8 +2,8 @@
 
 **Proyecto**: Crema - Sistema de Memoria AI
 **Tipo**: Arquitectura / Enhancement
-**Estado**: ✅ DOC COMPLETA
-**Fecha**: Abril 2026
+**Estado**: ✅ COMPLETO
+**Fecha**: Abril 2026 (implementado Mayo 2026)
 **Owner**: Kike García
 
 ---

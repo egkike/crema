@@ -3,7 +3,7 @@
 **Proyecto**: Crema - Sistema de Memoria AI
 **Tipo**: Arquitectura / Enhancement
 **SDD Phase**: Spec
-**Estado**: ✅ DOC COMPLETA
+**Estado**: ✅ COMPLETO (implementado Mayo 2026)
 **Depends on**: proposal.md
 
 > **Estandar de Verificación**: Ver `docs/project/common/verification-standard.md`
@@ -220,4 +220,4 @@ async function checkProductAccess(
 
 ## 9. Estado
 
-**Estado**: ✅ Completado (pendiente implementación)
+**Estado**: ✅ COMPLETO (implementado Mayo 2026 - PRs #13, #14, #15 mergeados)
