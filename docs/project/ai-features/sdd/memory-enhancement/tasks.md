@@ -12,13 +12,13 @@
 
 | # | Task | Prioridad | Estado | Depende de |
 |---|------|:---------:|--------|-----------|
-| 1 | Índices de filtering (user_id, created_at) | 🔴 ALTA | - | - |
-| 2 | RBAC: validar acceso al producto en memory-search | 🔴 ALTA | - | - |
-| 3 | HNSW index | 🟡 MEDIA | - | 1 |
-| 4 | Cleanup job (hourly, DELETE >30 días) | 🟡 MEDIA | - | 1 |
-| 5 | Per-user quota (10K) + LRU eviction | 🟢 BAJA | - | - |
-| 6 | Rate limiting (verificar aiLimiter existente) | 🟢 BAJA | - | - |
-| 7 | Tests unitarios | 🟡 MEDIA | - | 2, 4, 5 |
+| 1 | Índices de filtering (user_id, created_at) | 🔴 ALTA | ✅ | - |
+| 2 | RBAC: validar acceso al producto en memory-search | 🔴 ALTA | ✅ | - |
+| 3 | HNSW index | 🟡 MEDIA | ✅ | 1 |
+| 4 | Cleanup job (hourly, DELETE >30 días) | 🟡 MEDIA | ✅ | 1 |
+| 5 | Per-user quota (10K) + LRU eviction | 🟢 BAJA | ✅ | - |
+| 6 | Rate limiting (verificar aiLimiter existente) | 🟢 BAJA | ✅ | - |
+| 7 | Tests unitarios | 🟡 MEDIA | ✅ | 2, 4, 5 |
 
 ---
 
@@ -302,4 +302,4 @@ describe('Cleanup Job', () => {
 
 ## Estado
 
-**Estado**: ✅ Completado (pendiente implementación)
+**Estado**: ✅ COMPLETADO
