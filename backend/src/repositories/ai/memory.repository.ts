@@ -98,6 +98,7 @@ export const memoryRepository = {
 
   /**
    * Update embedding content and vector
+   * Returns the updated embedding row via RETURNING clause
    */
   async updateEmbedding(
     sourceId: string,
@@ -105,22 +106,29 @@ export const memoryRepository = {
     content: string,
     embedding: number[],
     metadata: Record<string, unknown>
-  ): Promise<void> {
+  ): Promise<AIEmbedding> {
     const query = `
       UPDATE "${schema}".ai_embeddings
-      SET content = $1, 
+      SET content = $1,
           embedding = $2,
           metadata = $3,
           updated_at = CURRENT_TIMESTAMP
       WHERE source_type = $4 AND source_id = $5
+      RETURNING id, user_id, source_type, source_id, content, embedding, metadata, created_at
     `;
-    await pool.query(query, [
+    const { rows } = await pool.query<AIEmbeddingRow>(query, [
       content,
       `[${embedding.join(',')}]`,
       JSON.stringify(metadata),
       sourceType,
       sourceId,
     ]);
+
+    if (rows.length === 0) {
+      throw new Error(`Embedding not found for source_type=${sourceType}, source_id=${sourceId}`);
+    }
+
+    return this.mapRowToEmbedding(rows[0]);
   },
 
   /**
@@ -137,6 +145,11 @@ export const memoryRepository = {
 
   /**
    * Semantic search using vector similarity (cosine distance)
+   *
+   * WARNING #7 (theoretical): Vector search without statement_timeout can block connection pool.
+   * This project likely handles this at connection level. If issues arise, consider:
+   * - SET statement_timeout = '30s' at session level
+   * - Or add per-query timeout using pool.query with cancellation
    */
   async semanticSearch(
     query: string,
@@ -212,6 +225,95 @@ export const memoryRepository = {
       deleted: result.rowCount || 0,
       message: 'Index rebuild requested. Embeddings need to be regenerated.',
     };
+  },
+
+  /**
+   * Validate if user has access to products associated with embeddings
+   * Uses same RBAC pattern as ai.routes.ts:1233-1256
+   *
+   * @param userId - User to check access for
+   * @param sourceTypes - Array of source types to validate
+   * @returns true if user has access to at least one product, false otherwise
+   *
+   * WARNING #4: Combined into single query with UNION ALL to reduce round trips
+   */
+  async validateProductAccess(
+    userId: string,
+    sourceTypes: EmbeddingSourceType[]
+  ): Promise<boolean> {
+    const schema = config.db?.schema || 'public';
+
+    // Get all embeddings for the given source types and find product_ids via JOINs in single query
+    const embeddingsQuery = `
+      WITH embedding_products AS (
+        SELECT DISTINCT ae.source_id, ae.source_type,
+          COALESCE(
+            pm.product_id,
+            pf.product_id,
+            pr.product_id
+          ) AS product_id
+        FROM "${schema}".ai_embeddings ae
+        LEFT JOIN "${schema}".product_lessons pl ON ae.source_id = pl.id AND ae.source_type = 'lesson'
+        LEFT JOIN "${schema}".product_modules pm ON pm.id = pl.module_id
+        LEFT JOIN "${schema}".product_faqs pf ON ae.source_id = pf.id AND ae.source_type = 'faq'
+        LEFT JOIN "${schema}".product_reviews pr ON ae.source_id = pr.id AND ae.source_type = 'review'
+        WHERE ae.source_type = ANY($1::text[])
+      ),
+      product_ids AS (
+        SELECT DISTINCT product_id FROM embedding_products WHERE product_id IS NOT NULL
+      )
+      SELECT 1 FROM (
+        SELECT id FROM "${schema}".products WHERE id IN (SELECT product_id FROM product_ids) AND creator_id = $2
+        UNION ALL
+        SELECT id FROM "${schema}".orders WHERE product_id IN (SELECT product_id FROM product_ids) AND buyer_id = $2 AND status = 'completed'
+        UNION ALL
+        SELECT id FROM "${schema}".affiliate_sales WHERE product_id IN (SELECT product_id FROM product_ids) AND affiliate_id = $2
+      ) AS access_check
+      LIMIT 1
+    `;
+
+    const { rows } = await pool.query(embeddingsQuery, [sourceTypes, userId]);
+    return rows.length > 0;
+  },
+
+  /**
+   * Get accessible source types for a user based on their products
+   * Returns all source types for embeddings associated with products the user can access
+   *
+   * WARNING #6: Note that policy, qa, insight, and saved_dashboard types are globally
+   * accessible (skip product validation) - this is intentional per design since these
+   * types don't have product associations.
+   */
+  async getAccessibleSourceTypes(userId: string): Promise<EmbeddingSourceType[]> {
+    const schema = config.db?.schema || 'public';
+
+    const query = `
+      WITH accessible_products AS (
+        SELECT id FROM "${schema}".products WHERE creator_id = $1
+        UNION ALL
+        SELECT product_id FROM "${schema}".orders WHERE buyer_id = $1 AND status = 'completed'
+        UNION ALL
+        SELECT product_id FROM "${schema}".affiliate_sales WHERE affiliate_id = $1
+      ),
+      accessible_source_types AS (
+        SELECT DISTINCT ae.source_type
+        FROM "${schema}".ai_embeddings ae
+        LEFT JOIN "${schema}".product_lessons pl ON ae.source_id = pl.id AND ae.source_type = 'lesson'
+        LEFT JOIN "${schema}".product_modules pm ON pl.module_id = pm.id
+        LEFT JOIN "${schema}".product_faqs pf ON ae.source_id = pf.id AND ae.source_type = 'faq'
+        LEFT JOIN "${schema}".product_reviews pr ON ae.source_id = pr.id AND ae.source_type = 'review'
+        WHERE (
+          pm.product_id IN (SELECT id FROM accessible_products)
+          OR pf.product_id IN (SELECT id FROM accessible_products)
+          OR pr.product_id IN (SELECT id FROM accessible_products)
+          OR ae.source_type NOT IN ('lesson', 'faq', 'review')
+        )
+      )
+      SELECT source_type FROM accessible_source_types
+    `;
+
+    const { rows } = await pool.query<{ source_type: string }>(query, [userId]);
+    return rows.map(r => r.source_type as EmbeddingSourceType);
   },
 
   /**

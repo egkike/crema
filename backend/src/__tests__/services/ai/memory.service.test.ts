@@ -14,9 +14,12 @@ vi.mock('../../../repositories/ai/memory.repository', () => ({
     getBySource: vi.fn(),
     getByUser: vi.fn(),
     deleteBySource: vi.fn(),
+    updateEmbedding: vi.fn(),
     semanticSearch: vi.fn(),
     countBySourceType: vi.fn(),
     rebuildIndex: vi.fn(),
+    validateProductAccess: vi.fn(),
+    getAccessibleSourceTypes: vi.fn(),
   },
 }));
 
@@ -138,6 +141,8 @@ describe('MemoryService', () => {
       vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([
         0.1, 0.2, 0.3,
       ]);
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(true);
       vi.mocked(memoryRepository.semanticSearch).mockResolvedValue([
         {
           id: 'result-1',
@@ -162,9 +167,10 @@ describe('MemoryService', () => {
       expect(memoryRepository.semanticSearch).toHaveBeenCalled();
     });
 
-    it('should filter by source types when provided', async () => {
+it('should filter by source types when provided', async () => {
       vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
       vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(true);
       vi.mocked(memoryRepository.semanticSearch).mockResolvedValue([]);
 
       await memoryService.searchSimilar(USER_ID, query, 10, ['lesson', 'faq']);
@@ -175,6 +181,29 @@ describe('MemoryService', () => {
         10,
         ['lesson', 'faq']
       );
+    });
+
+    it('should throw 403 when user has no product access', async () => {
+      vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
+      vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(false);
+
+      await expect(
+        memoryService.searchSimilar(USER_ID, query, 10, ['lesson', 'faq'])
+      ).rejects.toThrow(AppError);
+
+      await expect(
+        memoryService.searchSimilar(USER_ID, query, 10, ['lesson', 'faq'])
+      ).rejects.toThrow('No tienes acceso a este contenido');
+    });
+
+    it('should throw error when service is not configured', async () => {
+      vi.mocked(embeddingService.isConfigured).mockReturnValue(false);
+
+      await expect(
+        memoryService.searchSimilar(USER_ID, query)
+      ).rejects.toThrow('AI embedding service not configured');
     });
 
     it('should throw error when service is not configured', async () => {
@@ -194,6 +223,8 @@ describe('MemoryService', () => {
       vi.mocked(aiCreditService.useCredits).mockResolvedValue({} as any);
       vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
       vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(true);
       vi.mocked(memoryRepository.semanticSearch).mockResolvedValue([]);
 
       await memoryService.searchSimilarWithCredits(
