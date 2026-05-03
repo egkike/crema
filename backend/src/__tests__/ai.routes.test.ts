@@ -301,12 +301,19 @@ describe('AI Routes - POST Create/Update', () => {
   });
 
   describe('DELETE /api/ai/embeddings/:sourceType/:sourceId', () => {
-    it('debería eliminar un embedding', async () => {
+    it('debería rechazar request sin autenticación con 401', async () => {
+      const res = await request
+        .delete('/api/ai/embeddings/lesson/lesson-1');
+
+      expect(res.status).toBe(401);
+    });
+
+    it('debería retornar 401 si el usuario no tiene sesión válida', async () => {
       const res = await request
         .delete('/api/ai/embeddings/lesson/lesson-1')
-        .set('Cookie', userCookies);
+        .set('Cookie', 'invalid-cookie');
 
-      expect([200, 401, 500]).toContain(res.status);
+      expect(res.status).toBe(401);
     });
   });
 

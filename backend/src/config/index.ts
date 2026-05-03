@@ -69,6 +69,9 @@ const envSchema = z.object({
   ANTHROPIC_MODEL: z.string().optional().default('claude-3-haiku-20240307'),
   GEMINI_API_KEY: z.string().optional().default(''),
   GEMINI_MODEL: z.string().optional().default('gemini-1.5-flash'),
+  // --- AI Memory Configuration ---
+  MEMORY_QUOTA_MAX: z.coerce.number().default(10000),
+  MEMORY_LRU_EVICT_BATCH: z.coerce.number().default(100),
   // --- Blockonomics Configuration ---
   BLOCKONOMICS_API_KEY: z.string().optional().default(''),
   BLOCKONOMICS_CALLBACK_URL: z.string().optional().default(''),
@@ -107,9 +110,9 @@ const rawData = isTest
 const parsedEnv = envSchema.safeParse(rawData);
 
 if (!parsedEnv.success && !isTest) {
-  console.error(
-    '❌ Error en las variables de entorno:',
-    JSON.stringify(parsedEnv.error.format(), null, 2)
+  logger.error(
+    { error: parsedEnv.error.format() },
+    'Invalid environment variables'
   );
   process.exit(1);
 }
@@ -194,7 +197,7 @@ export const config = {
   allowedSchemas: ALLOWED_SCHEMAS,
   storage: {
     maxGlobalSizeMb: env.MAX_GLOBAL_UPLOAD_SIZE_MB,
-    maxGlobalSizeBytes: Number(process.env.MAX_GLOBAL_SIZE_BYTES) || 100 * 102 * 1024, // 100MB por defecto
+    maxGlobalSizeBytes: env.MAX_GLOBAL_UPLOAD_SIZE_MB * 1024 * 1024, // Derived from MB setting
   },
   ai: {
     // LLM Provider selection: 'openai' | 'ollama' | 'anthropic' | 'gemini' | 'simulator'
@@ -215,6 +218,9 @@ export const config = {
     // Default models for Ollama
     defaultOllamaChatModel: 'qwen2.5:3b',
     defaultOllamaEmbeddingModel: 'nomic-embed-text',
+    // Memory quota: max embeddings per user (LRU eviction when exceeded)
+    memoryQuotaMax: env.MEMORY_QUOTA_MAX || 10000,
+    memoryLruEvictBatch: env.MEMORY_LRU_EVICT_BATCH || 100,
   },
   blockonomics: {
     apiKey: env.BLOCKONOMICS_API_KEY,

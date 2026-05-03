@@ -44,6 +44,11 @@ export class MemoryService {
       throw new AppError('AI embedding service not configured', 503);
     }
 
+    // LRU eviction: check quota and evict oldest embeddings if user exceeds limit
+    if (userId) {
+      await memoryRepository.checkQuotaAndEvict(userId);
+    }
+
     // Generate embedding
     const embedding = await embeddingService.generateEmbedding(content);
 
@@ -182,7 +187,8 @@ export class MemoryService {
    */
   async deleteEmbedding(
     sourceType: EmbeddingSourceType,
-    sourceId: string
+    sourceId: string,
+    userId?: string
   ): Promise<boolean> {
     // Validate sourceId is a valid UUID for product-bound types
     const PRODUCT_BOUND_TYPES: EmbeddingSourceType[] = ['lesson', 'faq', 'review'];
@@ -192,7 +198,7 @@ export class MemoryService {
       }
     }
 
-    const result = await memoryRepository.deleteBySource(sourceType, sourceId);
+    const result = await memoryRepository.deleteBySource(sourceType, sourceId, userId);
     logger.info({ sourceType, sourceId, deleted: result }, 'Embedding deleted');
     return result;
   }
@@ -235,27 +241,27 @@ export class MemoryService {
 
   /**
    * Check if content needs re-embedding (content changed)
-   * Returns true if no existing embedding or content hash changed
+   * Returns object with boolean flag and the computed hash (to avoid recomputing in embed())
    */
   async needsReembed(
     sourceType: EmbeddingSourceType,
     sourceId: string,
     newContent: string
-  ): Promise<boolean> {
-    // Generate simple hash of content
+  ): Promise<{ needsEmbed: boolean; contentHash: string | null }> {
+    // Generate hash of new content
     const contentHash = this.hashContent(newContent);
-    
+
     // Get existing embedding
     const existing = await memoryRepository.getBySource(sourceType, sourceId);
-    
+
     // Need reembed if no existing or hash changed
     if (!existing) {
-      return true;
+      return { needsEmbed: true, contentHash };
     }
-    
+
     // Check if content hash in metadata matches
     const existingHash = existing.metadata?.contentHash as string | undefined;
-    return existingHash !== contentHash;
+    return { needsEmbed: existingHash !== contentHash, contentHash };
   }
 
   /**
@@ -271,8 +277,8 @@ export class MemoryService {
     productId?: string;
     creatorId?: string;
   }): Promise<AIEmbedding | null> {
-    // Check if needs re-embedding
-    const shouldEmbed = await this.needsReembed(params.type, params.id, params.content);
+    // Check if needs re-embedding — reuse contentHash from needsReembed
+    const { needsEmbed: shouldEmbed, contentHash } = await this.needsReembed(params.type, params.id, params.content);
 
     if (!shouldEmbed) {
       logger.debug({ type: params.type, id: params.id }, 'Content unchanged, skipping embed');
@@ -285,38 +291,71 @@ export class MemoryService {
       return null;
     }
 
+    // LRU eviction: check quota and evict oldest embeddings if user exceeds limit
+    if (params.creatorId) {
+      await memoryRepository.checkQuotaAndEvict(params.creatorId);
+    }
+
     // Generate embedding
     const embedding = await embeddingService.generateEmbedding(params.content);
 
-    // Prepare metadata with content hash
+    // Prepare metadata with content hash (reused from needsReembed, not recomputed)
     const metadata = {
       ...params.metadata,
-      contentHash: this.hashContent(params.content),
+      contentHash, // Reused from needsReembed to avoid double hash computation
       title: params.title,
       creatorId: params.creatorId,
     };
 
     // Try to update existing or create new
-    const existing = await memoryRepository.getBySource(params.type, params.id);
+    let existing = await memoryRepository.getBySource(params.type, params.id);
 
     if (existing) {
-      // Update and return directly - updateEmbedding now returns updated row
-      const updated = await memoryRepository.updateEmbedding(params.id, params.type, params.content, embedding, metadata);
-      logger.info({ type: params.type, id: params.id }, 'Embedding updated');
-      return updated;
-    } else {
-      // Create and return directly
-      const created = await memoryRepository.createEmbedding(
-        params.creatorId || null,
-        params.type,
-        params.id,
-        params.content,
-        embedding,
-        metadata
-      );
-      logger.info({ type: params.type, id: params.id }, 'Embedding created');
-      return created;
+      // TOCTOU fix: re-check after checkQuotaAndEvict — embedding may have been
+      // evicted between the needsReembed check and the quota eviction step.
+      // Also guards against concurrent deletion by another request.
+      existing = await memoryRepository.getBySource(params.type, params.id);
+      if (existing) {
+        // Pass creatorId for defense-in-depth user scoping on update
+        // Try/catch: if another request deletes the embedding between re-read and
+        // updateEmbedding, the UPDATE throws (no rows returned). Fall through to create.
+        try {
+          const updated = await memoryRepository.updateEmbedding(params.id, params.type, params.content, embedding, metadata, params.creatorId);
+          logger.info({ type: params.type, id: params.id }, 'Embedding updated');
+          return updated;
+        } catch (updateError) {
+          // If updateEmbedding throws because the row no longer exists (TOCTOU race),
+          // fall through to the create path below. This handles the race gracefully.
+          // But if the embedding exists and belongs to a DIFFERENT user, the UPDATE
+          // returns 0 rows (user_id mismatch) — we must NOT create a duplicate.
+          // Re-check: if embedding now exists, someone else owns it, so don't create.
+          if (updateError instanceof AppError && updateError.statusCode === 404) {
+            const stillExists = await memoryRepository.getBySource(params.type, params.id);
+            if (stillExists) {
+              // Embedding exists but belongs to different user — throw instead of creating duplicate
+              throw new AppError('Embedding belongs to a different user', 403);
+            }
+            // Was deleted (TOCTOU race) — safe to fall through to create
+            logger.debug({ type: params.type, id: params.id }, 'Embedding deleted during update, falling through to create');
+          } else {
+            throw updateError; // Re-throw unexpected errors
+          }
+        }
+      }
+      // Fall through to create path if embedding was evicted
     }
+
+    // Create path — embedding does not exist (or was evicted)
+    const created = await memoryRepository.createEmbedding(
+      params.creatorId || null,
+      params.type,
+      params.id,
+      params.content,
+      embedding,
+      metadata
+    );
+    logger.info({ type: params.type, id: params.id }, 'Embedding created');
+    return created;
   }
 
   /**

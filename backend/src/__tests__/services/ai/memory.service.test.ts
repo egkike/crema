@@ -7,6 +7,16 @@ import { aiCreditService } from '../../../services/ai/credits.service';
 import { AppError } from '../../../errors/AppError';
 import type { EmbeddingSourceType } from '../../../types/ai.types';
 
+// Mock config before importing the module
+vi.mock('../../../config/index', () => ({
+  config: {
+    ai: {
+      memoryQuotaMax: 10000,
+      memoryLruEvictBatch: 100,
+    },
+  },
+}));
+
 // Mocks
 vi.mock('../../../repositories/ai/memory.repository', () => ({
   memoryRepository: {
@@ -20,6 +30,7 @@ vi.mock('../../../repositories/ai/memory.repository', () => ({
     rebuildIndex: vi.fn(),
     validateProductAccess: vi.fn(),
     getAccessibleSourceTypes: vi.fn(),
+    checkQuotaAndEvict: vi.fn(),
   },
 }));
 
@@ -52,6 +63,7 @@ const SOURCE_ID = '660e8400-e29b-41d4-a716-446655440001';
 describe('MemoryService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(memoryRepository.checkQuotaAndEvict).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -246,7 +258,7 @@ it('should filter by source types when provided', async () => {
 
       await memoryService.deleteEmbedding('lesson', SOURCE_ID);
 
-      expect(memoryRepository.deleteBySource).toHaveBeenCalledWith('lesson', SOURCE_ID);
+      expect(memoryRepository.deleteBySource).toHaveBeenCalledWith('lesson', SOURCE_ID, undefined);
     });
 
     it('should return false when embedding not found', async () => {
@@ -255,6 +267,14 @@ it('should filter by source types when provided', async () => {
       const result = await memoryService.deleteEmbedding('lesson', SOURCE_ID);
 
       expect(result).toBe(false);
+    });
+
+    it('should pass userId to repository when provided', async () => {
+      vi.mocked(memoryRepository.deleteBySource).mockResolvedValue(true);
+
+      await memoryService.deleteEmbedding('lesson', SOURCE_ID, USER_ID);
+
+      expect(memoryRepository.deleteBySource).toHaveBeenCalledWith('lesson', SOURCE_ID, USER_ID);
     });
   });
 

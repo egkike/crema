@@ -17,10 +17,10 @@ export const loginLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '', 56);
+    return userId || ipKeyGenerator(req.ip || '');
   },
-handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de lectura admin alcanzado');
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de inicio de sesión alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -28,7 +28,7 @@ handler: (req, res, _next, options) => {
 // Rate limiter para AI Content Assistant (Phase 6)
 // Más restrictivo que aiLimiter general:
 // - 10/min for content assist
-// - 5/min for quiz generation  
+// - 5/min for quiz generation
 // - 3/min for transcription
 export const aiContentLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
@@ -41,10 +41,10 @@ export const aiContentLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '', 56);
+    return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de AI content alcanzado');
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de contenido AI alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -62,10 +62,10 @@ export const refreshLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '', 56);
+    return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, ip: req.ip }, 'Límite de refresh alcanzado');
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de refresh alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -95,7 +95,13 @@ export const aiLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '', 56);
+    if (!userId) {
+      // Use debug level — public endpoints (no jwtAuthMiddleware) legitimately
+      // have no userId. Warn would spam logs for normal public traffic.
+      // Upgrade to warn if you need to detect authenticated routes with missing userId.
+      logger.debug({ path: req.path, ip: req.ip }, 'aiLimiter falling back to IP-based key (no userId)');
+    }
+    return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de AI alcanzado');
@@ -116,7 +122,7 @@ export const aiChatLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '', 56);
+    return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de chat AI alcanzado');
@@ -150,7 +156,7 @@ export const adminReadLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '', 56);
+    return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de lectura admin alcanzado');
@@ -170,10 +176,10 @@ export const adminWriteLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '', 56);
+    return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de lectura admin alcanzado');
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de escritura admin alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });

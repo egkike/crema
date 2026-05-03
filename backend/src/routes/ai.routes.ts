@@ -242,7 +242,7 @@ router.get('/credits/transactions', jwtAuthMiddleware, aiLimiter, async (req: Re
  * POST /api/ai/embeddings
  * Create a new embedding
  */
-router.post('/embeddings', asMw(jwtAuthMiddleware), validate(createEmbeddingSchema), async (req: Request, res: Response) => {
+router.post('/embeddings', asMw(jwtAuthMiddleware), aiLimiter, validate(createEmbeddingSchema), async (req: Request, res: Response) => {
   try {
     
     const userId = uid(req);
@@ -308,7 +308,7 @@ router.get('/embeddings/search', jwtAuthMiddleware, aiLimiter, async (req: Reque
  * DELETE /api/ai/embeddings/:sourceType/:sourceId
  * Delete an embedding by source
  */
-router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req: Request, res: Response) => {
+router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { sourceType, sourceId } = req.params;
 
@@ -320,7 +320,8 @@ router.delete('/embeddings/:sourceType/:sourceId', jwtAuthMiddleware, async (req
       throw new AppError(`Invalid sourceType. Must be one of: ${validTypes.join(', ')}`, 400);
     }
 
-    const deleted = await memoryService.deleteEmbedding(sourceTypeStr as EmbeddingSourceType, sourceIdStr);
+    const userId = uid(req);
+    const deleted = await memoryService.deleteEmbedding(sourceTypeStr as EmbeddingSourceType, sourceIdStr, userId);
 
     res.json({
       success: true,

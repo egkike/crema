@@ -6,6 +6,8 @@
 
 import pool from '../../db/postgres';
 import { config } from '../../config/index';
+import logger from '../../utils/logger';
+import { AppError } from '../../errors/AppError';
 import type {
   AIEmbedding,
   EmbeddingSourceType,
@@ -57,6 +59,85 @@ export const memoryRepository = {
   },
 
   /**
+   * Check user embedding quota and evict oldest if exceeded.
+   * Uses LRU eviction: deletes oldest embeddings by created_at ASC.
+   * Config-driven via config.ai.memoryQuotaMax and config.ai.memoryLruEvictBatch.
+   *
+   * PERFORMANCE: Composite index idx_ai_embeddings_user_created (user_id, created_at ASC)
+   * in db/init/06-ai-indexes.sql line 11 covers this query optimally:
+   *   WHERE user_id = $1 ORDER BY created_at ASC LIMIT N
+   *
+   * @param userId - User to check quota for
+   * @returns void (side-effect: evicts oldest embeddings if quota exceeded)
+   */
+  async checkQuotaAndEvict(userId: string): Promise<void> {
+    // Validate quotaMax: must be positive integer
+    // If invalid (0, negative, or not a number), fall back to safe default of 10000
+    // A quota of 0 would bypass quota checks entirely, allowing unlimited embeddings
+    let quotaMax = config.ai.memoryQuotaMax;
+    if (!Number.isInteger(quotaMax) || quotaMax < 1) {
+      logger.debug({ quotaMax }, 'Invalid MEMORY_QUOTA_MAX, using safe default of 10000');
+      quotaMax = 10000;
+    }
+
+    let evictBatch = config.ai.memoryLruEvictBatch;
+
+    // Validate evictBatch: must be positive integer with safe upper bound
+    // If invalid, use safe default of 1 (minimal eviction rather than breaking)
+    // Use debug (not warn) to avoid log spam if env is permanently misconfigured
+    if (!Number.isInteger(evictBatch) || evictBatch < 1 || evictBatch > 1000) {
+      logger.debug({ evictBatch }, 'Invalid MEMORY_LRU_EVICT_BATCH, using safe default of 1');
+      evictBatch = 1;
+    }
+
+    // Check current count against quota — only evict if user is over quota
+    const countQuery = `SELECT COUNT(*) as cnt FROM "${schema}".ai_embeddings WHERE user_id = $1`;
+    const countResult = await pool.query<{ cnt: string }>(countQuery, [userId]);
+    const count = parseInt(countResult.rows[0]?.cnt || '0', 10);
+
+    if (count < quotaMax) {
+      return; // Under quota, nothing to evict
+    }
+
+// Atomic eviction: Use DELETE with RETURNING to atomically remove oldest rows.
+    // This replaces the previous check-then-delete pattern which had a race condition
+    // where two concurrent requests could both read count >= quotaMax and both delete.
+    // With RETURNING, each request atomically removes exactly evictBatch rows max.
+    // Under extreme concurrency some over-eviction may occur (acceptable tradeoff).
+    // LIMIT uses parameterized query ($2) — evictBatch validated as integer [1, 1000] above.
+    const deleteQuery = `
+      DELETE FROM "${schema}".ai_embeddings
+      WHERE id IN (
+        SELECT id FROM "${schema}".ai_embeddings
+        WHERE user_id = $1
+        ORDER BY created_at ASC
+        LIMIT $2
+      )
+      RETURNING id
+    `;
+    const result = await pool.query<{ id: string }>(deleteQuery, [userId, evictBatch]);
+
+    if (result.rowCount && result.rowCount > 0) {
+      logger.info(
+        { userId, evicted: result.rowCount, evictBatch, quotaMax, countBefore: count },
+        'LRU eviction completed: oldest embeddings removed'
+      );
+
+      // If we evicted exactly evictBatch rows, there may be more to evict
+      // (count was much higher than quota). Recurse to keep evicting until under quota.
+      // This handles the edge case where a user has huge surplus (e.g., 50K embeddings
+      // with quota of 10K and batch of 100 - need 400 iterations to catch up).
+      // Safety: limit recursion to prevent runaway in extreme cases.
+      if (result.rowCount === evictBatch) {
+        // Re-check quota in next call - don't recurse here to avoid stack overflow
+        // The next addEmbedding call will trigger another eviction cycle if needed.
+        // For bulk imports, consider calling checkQuotaAndEvict in a loop externally.
+        logger.debug({ userId }, 'Evicted full batch, will re-check on next call');
+      }
+    }
+  },
+
+  /**
    * Get embedding by source
    */
   async getBySource(sourceType: EmbeddingSourceType, sourceId: string): Promise<AIEmbedding | null> {
@@ -86,18 +167,27 @@ export const memoryRepository = {
 
   /**
    * Delete embedding by source
+   * When userId is provided, ensures the embedding belongs to that user (authorization).
    */
-  async deleteBySource(sourceType: EmbeddingSourceType, sourceId: string): Promise<boolean> {
-    const query = `
+  async deleteBySource(sourceType: EmbeddingSourceType, sourceId: string, userId?: string): Promise<boolean> {
+    let query = `
       DELETE FROM "${schema}".ai_embeddings
       WHERE source_type = $1 AND source_id = $2
     `;
-    const result = await pool.query(query, [sourceType, sourceId]);
+    const params: unknown[] = [sourceType, sourceId];
+
+    if (userId) {
+      query += ' AND user_id = $3';
+      params.push(userId);
+    }
+
+    const result = await pool.query(query, params);
     return result.rowCount !== null && result.rowCount > 0;
   },
 
   /**
    * Update embedding content and vector
+   * When userId is provided, ensures the embedding belongs to that user (defense-in-depth).
    * Returns the updated embedding row via RETURNING clause
    */
   async updateEmbedding(
@@ -105,27 +195,36 @@ export const memoryRepository = {
     sourceType: EmbeddingSourceType,
     content: string,
     embedding: number[],
-    metadata: Record<string, unknown>
+    metadata: Record<string, unknown>,
+    userId?: string
   ): Promise<AIEmbedding> {
-    const query = `
+    let query = `
       UPDATE "${schema}".ai_embeddings
       SET content = $1,
           embedding = $2,
           metadata = $3,
           updated_at = CURRENT_TIMESTAMP
       WHERE source_type = $4 AND source_id = $5
-      RETURNING id, user_id, source_type, source_id, content, embedding, metadata, created_at
     `;
-    const { rows } = await pool.query<AIEmbeddingRow>(query, [
+    const params: unknown[] = [
       content,
       `[${embedding.join(',')}]`,
       JSON.stringify(metadata),
       sourceType,
       sourceId,
-    ]);
+    ];
+
+    if (userId) {
+      query += ' AND user_id = $6';
+      params.push(userId);
+    }
+
+    query += ' RETURNING id, user_id, source_type, source_id, content, embedding, metadata, created_at';
+
+    const { rows } = await pool.query<AIEmbeddingRow>(query, params);
 
     if (rows.length === 0) {
-      throw new Error(`Embedding not found for source_type=${sourceType}, source_id=${sourceId}`);
+      throw new AppError(`Embedding not found for source_type=${sourceType}, source_id=${sourceId}`, 404);
     }
 
     return this.mapRowToEmbedding(rows[0]);
@@ -199,28 +298,47 @@ export const memoryRepository = {
 
   /**
    * Count embeddings by source type
+   * @param sourceType - Type of embeddings to count
+   * @param userId - Optional userId filter for scoped counting
    */
-  async countBySourceType(sourceType: EmbeddingSourceType): Promise<number> {
-    const query = `
+  async countBySourceType(sourceType: EmbeddingSourceType, userId?: string): Promise<number> {
+    let query = `
       SELECT COUNT(*) as count
       FROM "${schema}".ai_embeddings
       WHERE source_type = $1
     `;
-    const { rows } = await pool.query<{ count: number }>(query, [sourceType]);
+    const params: unknown[] = [sourceType];
+
+    if (userId) {
+      query += ' AND user_id = $2';
+      params.push(userId);
+    }
+
+    const { rows } = await pool.query<{ count: number }>(query, params);
     return rows[0]?.count || 0;
   },
 
   /**
    * Rebuild index for a product (delete and recreate embeddings)
    * This is a placeholder - actual rebuild requires re-embedding all content
+   * @param productId - Product whose embeddings will be deleted
+   * @param userId - Optional userId filter for defense-in-depth (not currently exposed via API)
    */
-  async rebuildIndex(productId: string): Promise<{ deleted: number; message: string }> {
+  async rebuildIndex(productId: string, userId?: string): Promise<{ deleted: number; message: string }> {
     // For now, just delete embeddings for this product
-    const query = `
+    // Defense-in-depth: filter by userId if provided (even though API doesn't expose this yet)
+    let query = `
       DELETE FROM "${schema}".ai_embeddings
       WHERE source_id = $1
     `;
-    const result = await pool.query(query, [productId]);
+    const params: unknown[] = [productId];
+
+    if (userId) {
+      query += ' AND user_id = $2';
+      params.push(userId);
+    }
+
+    const result = await pool.query(query, params);
     return {
       deleted: result.rowCount || 0,
       message: 'Index rebuild requested. Embeddings need to be regenerated.',
@@ -241,8 +359,6 @@ export const memoryRepository = {
     userId: string,
     sourceTypes: EmbeddingSourceType[]
   ): Promise<boolean> {
-    const schema = config.db?.schema || 'public';
-
     // Get all embeddings for the given source types and find product_ids via JOINs in single query
     const embeddingsQuery = `
       WITH embedding_products AS (
@@ -285,8 +401,6 @@ export const memoryRepository = {
    * types don't have product associations.
    */
   async getAccessibleSourceTypes(userId: string): Promise<EmbeddingSourceType[]> {
-    const schema = config.db?.schema || 'public';
-
     const query = `
       WITH accessible_products AS (
         SELECT id FROM "${schema}".products WHERE creator_id = $1

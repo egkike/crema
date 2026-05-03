@@ -9,6 +9,8 @@ vi.mock('../../config/index', () => ({
       defaultOllamaEmbeddingModel: 'nomic-embed-text',
       ollamaBaseUrl: '',
       ollamaEnabled: false,
+      memoryQuotaMax: 10000,
+      memoryLruEvictBatch: 100,
     },
   },
 }));
@@ -47,6 +49,7 @@ vi.mock('../../repositories/ai/memory.repository', () => ({
     updateEmbedding: vi.fn(),
     validateProductAccess: vi.fn(),
     getAccessibleSourceTypes: vi.fn(),
+    checkQuotaAndEvict: vi.fn(),
   },
 }));
 
@@ -70,6 +73,7 @@ import { AppError } from '../../errors/AppError';
 describe('MemoryService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(memoryRepository.checkQuotaAndEvict).mockResolvedValue(undefined);
   });
 
   describe('addEmbedding', () => {
@@ -265,7 +269,7 @@ describe('MemoryService', () => {
       const result = await memoryService.deleteEmbedding('lesson', '660e8400-e29b-41d4-a716-446655440001');
 
       expect(result).toBe(true);
-      expect(memoryRepository.deleteBySource).toHaveBeenCalledWith('lesson', '660e8400-e29b-41d4-a716-446655440001');
+      expect(memoryRepository.deleteBySource).toHaveBeenCalledWith('lesson', '660e8400-e29b-41d4-a716-446655440001', undefined);
     });
 
     it('should return false when not found', async () => {
@@ -274,6 +278,15 @@ describe('MemoryService', () => {
       const result = await memoryService.deleteEmbedding('lesson', '660e8400-e29b-41d4-a716-446655440001');
 
       expect(result).toBe(false);
+    });
+
+    it('should pass userId to repository when provided', async () => {
+      vi.mocked(memoryRepository.deleteBySource).mockResolvedValue(true);
+
+      const result = await memoryService.deleteEmbedding('lesson', '660e8400-e29b-41d4-a716-446655440001', 'user-123');
+
+      expect(result).toBe(true);
+      expect(memoryRepository.deleteBySource).toHaveBeenCalledWith('lesson', '660e8400-e29b-41d4-a716-446655440001', 'user-123');
     });
   });
 
@@ -330,15 +343,16 @@ describe('MemoryService', () => {
   });
 
   describe('needsReembed', () => {
-    it('should return true when no existing embedding', async () => {
+    it('should return needsEmbed=true when no existing embedding', async () => {
       vi.mocked(memoryRepository.getBySource).mockResolvedValue(null);
 
       const result = await memoryService.needsReembed('lesson', 'lesson-1', 'new content');
 
-      expect(result).toBe(true);
+      expect(result.needsEmbed).toBe(true);
+      expect(result.contentHash).toBeTruthy();
     });
 
-    it('should return true when content hash changed', async () => {
+    it('should return needsEmbed=true when content hash changed', async () => {
       vi.mocked(memoryRepository.getBySource).mockResolvedValue({
         id: 'emb-1',
         metadata: { contentHash: 'old-hash' },
@@ -346,23 +360,23 @@ describe('MemoryService', () => {
 
       const result = await memoryService.needsReembed('lesson', 'lesson-1', 'new content');
 
-      expect(result).toBe(true);
+      expect(result.needsEmbed).toBe(true);
     });
 
-    // Skipped: hashContent is a private method, cannot test directly
-    /*
-    it('should return false when content hash matches', async () => {
-      const hash = memoryService.hashContent('test content');
+    it('should return needsEmbed=false when content hash matches', async () => {
+      // First get a hash to use in metadata
+      const hashResult = await memoryService.needsReembed('lesson', 'lesson-1', 'same content');
+      const matchingHash = hashResult.contentHash!;
+
       vi.mocked(memoryRepository.getBySource).mockResolvedValue({
         id: 'emb-1',
-        metadata: { contentHash: hash },
+        metadata: { contentHash: matchingHash },
       } as any);
 
-      const result = await memoryService.needsReembed('lesson', 'lesson-1', 'test content');
+      const result = await memoryService.needsReembed('lesson', 'lesson-1', 'same content');
 
-      expect(result).toBe(false);
+      expect(result.needsEmbed).toBe(false);
     });
-    */
   });
 
   describe('embed (auto re-embed)', () => {
@@ -404,13 +418,14 @@ describe('MemoryService', () => {
   });
 
   describe('hashContent', () => {
-    it('should generate consistent hash for same content', () => {
+    it('should generate consistent hash for same content', async () => {
       // Test through needsReembed which uses hashContent internally
       vi.mocked(memoryRepository.getBySource).mockResolvedValue(null);
-      
-      const result = memoryService.needsReembed('lesson', 'lesson-1', 'test content');
-      
-      expect(result).resolves.toBe(true);
+
+      const result = await memoryService.needsReembed('lesson', 'lesson-1', 'test content');
+
+      expect(result.needsEmbed).toBe(true); // no existing = needs embed
+      expect(result.contentHash).toBeTruthy(); // hash was computed
     });
   });
 });

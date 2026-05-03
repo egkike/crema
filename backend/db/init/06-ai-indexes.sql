@@ -6,6 +6,12 @@
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_source ON ai_embeddings(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_user ON ai_embeddings(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_created ON ai_embeddings(created_at DESC);
+-- Composite covering index for LRU eviction queries (checkQuotaAndEvict)
+-- Optimizes: WHERE user_id = $1 ORDER BY created_at ASC LIMIT N
+-- Note: PostgreSQL can use this index for the WHERE+ORDER BY but requires heap access
+-- for the id column (not included to keep index lean). Full index-only scan would
+-- require including id, but that increases index size with no practical benefit.
+CREATE INDEX IF NOT EXISTS idx_ai_embeddings_user_created ON ai_embeddings(user_id, created_at ASC);
 
 -- Vector index for cosine similarity search (ivfflat for better performance with large datasets)
 -- Note: This requires pgvector extension
