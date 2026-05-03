@@ -342,4 +342,102 @@ it('should filter by source types when provided', async () => {
       expect(result.message).toBe('Index rebuild requested');
     });
   });
+
+  describe('checkQuotaAndEvict', () => {
+    it('should call repository checkQuotaAndEvict when creatorId provided', async () => {
+      // Must return null so needsEmbed=true and embed proceeds to eviction
+      vi.mocked(memoryRepository.getBySource).mockResolvedValue(null);
+      vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
+      vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.createEmbedding).mockResolvedValue({ id: 'emb-1' } as any);
+      vi.mocked(memoryRepository.checkQuotaAndEvict).mockResolvedValue(undefined);
+
+      await memoryService.embed({
+        type: 'lesson',
+        id: 'lesson-1',
+        content: 'test content',
+        creatorId: USER_ID,
+      });
+
+      expect(memoryRepository.checkQuotaAndEvict).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it('should not call checkQuotaAndEvict when no creatorId', async () => {
+      vi.mocked(memoryRepository.checkQuotaAndEvict).mockResolvedValue(undefined);
+      vi.mocked(memoryRepository.getBySource).mockResolvedValue(null);
+      vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
+      vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.createEmbedding).mockResolvedValue({ id: 'emb-1' } as any);
+
+      await memoryService.embed({
+        type: 'lesson',
+        id: 'lesson-1',
+        content: 'test content',
+      });
+
+      expect(memoryRepository.checkQuotaAndEvict).not.toHaveBeenCalled();
+    });
+
+    it('should handle quota eviction before embed', async () => {
+      vi.mocked(memoryRepository.getBySource).mockResolvedValue(null);
+      vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
+      vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.createEmbedding).mockResolvedValue({ id: 'emb-1' } as any);
+      vi.mocked(memoryRepository.checkQuotaAndEvict).mockResolvedValue(undefined);
+
+      await memoryService.embed({
+        type: 'faq',
+        id: 'faq-1',
+        content: 'Important FAQ content',
+        creatorId: USER_ID,
+      });
+
+      expect(memoryRepository.checkQuotaAndEvict).toHaveBeenCalledWith(USER_ID);
+    });
+  });
+
+  describe('validateProductAccess', () => {
+    it('should throw 403 when user has no product access', async () => {
+      vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
+      vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(false);
+
+      await expect(
+        memoryService.searchSimilar(USER_ID, 'test query', 10, ['lesson', 'faq'])
+      ).rejects.toThrow(AppError);
+
+      await expect(
+        memoryService.searchSimilar(USER_ID, 'test query', 10, ['lesson', 'faq'])
+      ).rejects.toThrow('No tienes acceso a este contenido');
+    });
+
+    it('should return results when user has product access', async () => {
+      vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
+      vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(true);
+      vi.mocked(memoryRepository.semanticSearch).mockResolvedValue([]);
+
+      const results = await memoryService.searchSimilar(USER_ID, 'test query', 10, ['lesson', 'faq']);
+
+      expect(memoryRepository.validateProductAccess).toHaveBeenCalledWith(USER_ID, ['lesson', 'faq']);
+      expect(results).toEqual([]);
+    });
+
+    it('should validate access even when no explicit sourceTypes provided', async () => {
+      // When no explicit sourceTypes, the service calls getAccessibleSourceTypes
+      // then validates access for those derived types
+      vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
+      vi.mocked(embeddingService.generateEmbedding).mockResolvedValue([0.1]);
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(true);
+      vi.mocked(memoryRepository.semanticSearch).mockResolvedValue([]);
+
+      await memoryService.searchSimilar(USER_ID, 'test query', 10);
+
+      // validateProductAccess is called with derived source types
+      expect(memoryRepository.validateProductAccess).toHaveBeenCalled();
+    });
+  });
 });
