@@ -45,6 +45,8 @@ vi.mock('../../repositories/ai/memory.repository', () => ({
     getByUser: vi.fn(),
     countBySourceType: vi.fn(),
     updateEmbedding: vi.fn(),
+    validateProductAccess: vi.fn(),
+    getAccessibleSourceTypes: vi.fn(),
   },
 }));
 
@@ -170,10 +172,14 @@ describe('MemoryService', () => {
   });
 
   describe('searchSimilar', () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+
     it('should return search results when configured', async () => {
       vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
       vi.mocked(embeddingService.generateEmbedding).mockResolvedValue(new Array(1536).fill(0.1));
-      
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(true);
+
       const mockResults = [
         {
           id: 'emb-1',
@@ -185,7 +191,7 @@ describe('MemoryService', () => {
       ];
       vi.mocked(memoryRepository.semanticSearch).mockResolvedValue(mockResults as any);
 
-      const results = await memoryService.searchSimilar(null, 'test query', 10);
+      const results = await memoryService.searchSimilar(userId, 'test query', 10);
 
       expect(results).toHaveLength(1);
       expect(results[0].similarity).toBe(0.95);
@@ -195,7 +201,7 @@ describe('MemoryService', () => {
       vi.mocked(embeddingService.isConfigured).mockReturnValue(false);
 
       await expect(
-        memoryService.searchSimilar(null, 'test query')
+        memoryService.searchSimilar(userId, 'test query')
       ).rejects.toThrow(AppError);
     });
 
@@ -204,28 +210,30 @@ describe('MemoryService', () => {
       vi.mocked(embeddingService.generateEmbedding).mockResolvedValue(new Array(1536).fill(0.1));
       vi.mocked(memoryRepository.semanticSearch).mockResolvedValue([]);
 
-      await memoryService.searchSimilar(null, 'test', 10, ['lesson', 'product'] as any);
+      await memoryService.searchSimilar(userId, 'test', 10, ['lesson', 'faq']);
 
       expect(memoryRepository.semanticSearch).toHaveBeenCalledWith(
         expect.any(String),
-        null,
+        userId,
         10,
-        ['lesson', 'product']
+        ['lesson', 'faq']
       );
     });
 
     it('should use custom limit', async () => {
       vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
       vi.mocked(embeddingService.generateEmbedding).mockResolvedValue(new Array(1536).fill(0.1));
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(true);
       vi.mocked(memoryRepository.semanticSearch).mockResolvedValue([]);
 
-      await memoryService.searchSimilar(null, 'test', 5);
+      await memoryService.searchSimilar(userId, 'test', 5);
 
       expect(memoryRepository.semanticSearch).toHaveBeenCalledWith(
         expect.any(String),
-        null,
+        userId,
         5,
-        undefined
+        ['lesson', 'faq']
       );
     });
   });
@@ -236,12 +244,14 @@ describe('MemoryService', () => {
       vi.mocked(aiCreditService.useCredits).mockResolvedValue({ success: true, remaining: 95 } as any);
       vi.mocked(embeddingService.isConfigured).mockReturnValue(true);
       vi.mocked(embeddingService.generateEmbedding).mockResolvedValue(new Array(1536).fill(0.1));
+      vi.mocked(memoryRepository.getAccessibleSourceTypes).mockResolvedValue(['lesson', 'faq']);
+      vi.mocked(memoryRepository.validateProductAccess).mockResolvedValue(true);
       vi.mocked(memoryRepository.semanticSearch).mockResolvedValue([]);
 
-      await memoryService.searchSimilarWithCredits('user-1', 'test query');
+      await memoryService.searchSimilarWithCredits('550e8400-e29b-41d4-a716-446655440000', 'test query');
 
       expect(aiCreditService.useCredits).toHaveBeenCalledWith(
-        'user-1',
+        '550e8400-e29b-41d4-a716-446655440000',
         5,
         'Semantic search: test query'
       );
@@ -252,16 +262,16 @@ describe('MemoryService', () => {
     it('should return true when deleted', async () => {
       vi.mocked(memoryRepository.deleteBySource).mockResolvedValue(true);
 
-      const result = await memoryService.deleteEmbedding('lesson', 'lesson-1');
+      const result = await memoryService.deleteEmbedding('lesson', '660e8400-e29b-41d4-a716-446655440001');
 
       expect(result).toBe(true);
-      expect(memoryRepository.deleteBySource).toHaveBeenCalledWith('lesson', 'lesson-1');
+      expect(memoryRepository.deleteBySource).toHaveBeenCalledWith('lesson', '660e8400-e29b-41d4-a716-446655440001');
     });
 
     it('should return false when not found', async () => {
       vi.mocked(memoryRepository.deleteBySource).mockResolvedValue(false);
 
-      const result = await memoryService.deleteEmbedding('lesson', 'lesson-1');
+      const result = await memoryService.deleteEmbedding('lesson', '660e8400-e29b-41d4-a716-446655440001');
 
       expect(result).toBe(false);
     });
