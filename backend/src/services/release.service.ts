@@ -30,9 +30,8 @@ export const ReleaseService = {
   ): Promise<ReleaseStats> {
     const schema = config.db?.schema || 'public';
 
-    // Validate schema against allowlist to prevent SQL injection
-    const ALLOWED_SCHEMAS = ['public', 'crema'];
-    if (!ALLOWED_SCHEMAS.includes(schema)) {
+    // Validate schema against allowlist (from config) to prevent SQL injection
+    if (!config.allowedSchemas.includes(schema)) {
       throw new AppError('Invalid schema configuration', 400);
     }
 

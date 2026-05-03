@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import {
   validateCUIT,
@@ -6,6 +6,14 @@ import {
   SpecialValidators,
   getValidatedSchema,
 } from '../../utils/validators.util';
+
+// Mock config before importing the module
+vi.mock('../../config/index', () => ({
+  config: {
+    db: { schema: 'public' },
+    allowedSchemas: ['public', 'crema'],
+  },
+}));
 
 describe('validators.util', () => {
   describe('validateCUIT', () => {

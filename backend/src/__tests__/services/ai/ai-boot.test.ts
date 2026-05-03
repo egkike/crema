@@ -20,6 +20,7 @@ vi.mock('../../../config/index', () => ({
     redis: { host: 'localhost', port: 6379, password: undefined },
     ai: { provider: 'simulator' },
     db: { schema: 'public' },
+    allowedSchemas: ['public', 'crema'],
   },
 }));
 

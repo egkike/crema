@@ -2,12 +2,11 @@ import pool from '../db/postgres';
 import logger from '../utils/logger';
 import { config } from '../config/index';
 
-// Allowlist para schemas - previene SQL injection
-const ALLOWED_SCHEMAS = ['public', 'crema'];
+// Schema validation uses config.allowedSchemas (from config/index.ts)
 
 function getSafeSchema(): string {
   const schema = config.db?.schema || 'public';
-  return ALLOWED_SCHEMAS.includes(schema) ? schema : 'public';
+  return config.allowedSchemas.includes(schema) ? schema : 'public';
 }
 
 export interface Gateway {

@@ -60,7 +60,7 @@ vi.mock('../../services/payment/PaymentProviderFactory', () => ({
 }));
 
 vi.mock('../../config/index', () => ({
-  config: { db: { schema: 'public' }, daysOfGuarantee: 7 },
+  config: { db: { schema: 'public' }, allowedSchemas: ['public', 'crema'], daysOfGuarantee: 7 },
 }));
 
 vi.mock('../../db/postgres', () => ({

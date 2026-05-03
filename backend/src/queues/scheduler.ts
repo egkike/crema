@@ -14,6 +14,7 @@ export const initScheduler = async () => {
     const jobs = [
       // --- TAREAS DE LIMPIEZA DE TABLAS ---
       { name: 'auth-cleanup', pattern: '0 3 * * *' }, // 03:00 AM
+      { name: 'memory-cleanup', pattern: '0 * * * *' }, // Cada hora (borrado de embeddings >30 días)
       // --- TAREAS DE MONITOREO FINANCIERO ---
       { name: 'release-balances', pattern: '*/30 * * * *' }, // Cada 30 min
       { name: 'subscription-check', pattern: '5 0 * * *' }, // 00:05 AM
@@ -22,6 +23,8 @@ export const initScheduler = async () => {
     ];
 
     // Limpiamos y re-programamos
+    // Known race condition: getRepeatableJobs + removeRepeatableByKey is not atomic.
+    // With single-instance scheduler this is safe. For multi-instance would need distributed lock.
     const currentRepeatables = await mainQueue.getRepeatableJobs();
     for (const job of currentRepeatables) {
       await mainQueue.removeRepeatableByKey(job.key);
