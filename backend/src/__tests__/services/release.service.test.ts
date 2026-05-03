@@ -47,6 +47,7 @@ vi.mock('../../utils/logger', () => ({
 vi.mock('../../config/index', () => ({
   config: {
     db: { schema: 'public' },
+    allowedSchemas: ['public', 'crema'],
     redis: { host: 'localhost', port: 6379 },
   },
 }));

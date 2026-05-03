@@ -12,7 +12,7 @@ vi.mock('../../db/postgres', () => ({
 }));
 
 vi.mock('../../config/index', () => ({
-  config: { db: { schema: 'public' }, nodeEnv: 'test' },
+  config: { db: { schema: 'public' }, allowedSchemas: ['public', 'crema'], nodeEnv: 'test' },
 }));
 
 vi.mock('../../utils/logger', () => ({

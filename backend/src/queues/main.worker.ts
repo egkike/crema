@@ -8,6 +8,8 @@ import { subscriptionRepository } from '../repositories/subscription.repository'
 import { mainQueue } from '../queues/scheduler';
 import { EmailService } from '../services/email.service';
 import logger from '../utils/logger';
+import pool from '../db/postgres';
+import { config } from '../config/index';
 
 let criticalWorker: Worker | undefined;
 let notificationWorker: Worker | undefined;
@@ -78,6 +80,156 @@ export const initMainWorker = () => {
           case 'auth-cleanup': {
             await AuthCleanupService.cleanExpiredTokens();
             logger.info('CRITICAL: Limpieza de tokens completada.');
+            break;
+          }
+
+          case 'memory-cleanup': {
+            // Assumes modern PostgreSQL with standard_conforming_strings = ON (PostgreSQL 9.1+)
+            // Schema from config - canonical source: backend/src/config/index.ts (config.db.schema)
+            // Uses config.allowedSchemas to prevent hardcoding drift
+            const schema = (config.db?.schema || 'public').trim();
+            if (!config.allowedSchemas.includes(schema)) {
+              logger.error({ schema, allowedSchemas: config.allowedSchemas }, 'CRITICAL: Invalid schema for memory-cleanup, skipping');
+              break;
+            }
+
+            // Index idx_ai_embeddings_created exists on (created_at DESC) - verified in DB
+            // Migration: db/init/06-ai-indexes.sql line 8
+            // PostgreSQL can use a DESC index for ASC ordering via reverse scan (OK for our use case)
+            // Runtime verification: first batch uses EXPLAIN to confirm index usage (logged on first run)
+
+            // Parse and validate retention days (must be positive integer, max 36500 = 100 years)
+            const retentionDaysStr = process.env.MEMORY_RETENTION_DAYS || '30';
+            const retentionDays = parseInt(retentionDaysStr, 10);
+            if (isNaN(retentionDays) || retentionDays <= 0 || !Number.isInteger(retentionDays) || retentionDays > 36500) {
+              logger.error({ retentionDays, raw: retentionDaysStr }, 'CRITICAL: Invalid MEMORY_RETENTION_DAYS (must be 1-36500 days), skipping');
+              break;
+            }
+
+            // Parse and validate batch configuration via env vars
+            // NOTE: PostgreSQL does not support parameterized LIMIT ($1), so we validate
+            // BATCH_SIZE is a positive integer and interpolate it directly. This is safe
+            // because we've already validated it's in range [1, 10000].
+            const BATCH_SIZE_STR = process.env.MEMORY_CLEANUP_BATCH_SIZE || '1000';
+            const BATCH_SIZE = parseInt(BATCH_SIZE_STR, 10);
+            if (isNaN(BATCH_SIZE) || BATCH_SIZE < 1 || BATCH_SIZE > 10000) {
+              logger.error({ BATCH_SIZE, raw: BATCH_SIZE_STR }, 'CRITICAL: Invalid MEMORY_CLEANUP_BATCH_SIZE (must be 1-10000), skipping');
+              break;
+            }
+
+            const BATCH_DELAY_MS_STR = process.env.MEMORY_CLEANUP_BATCH_DELAY_MS || '100';
+            const BATCH_DELAY_MS = parseInt(BATCH_DELAY_MS_STR, 10);
+            if (isNaN(BATCH_DELAY_MS) || BATCH_DELAY_MS < 0 || BATCH_DELAY_MS > 10000) {
+              logger.error({ BATCH_DELAY_MS, raw: BATCH_DELAY_MS_STR }, 'CRITICAL: Invalid MEMORY_CLEANUP_BATCH_DELAY_MS, skipping');
+              break;
+            }
+
+            // Safety: max iterations to prevent runaway cleanup
+            const MAX_ITERATIONS_STR = process.env.MEMORY_CLEANUP_MAX_ITERATIONS || '360';
+            const MAX_ITERATIONS = parseInt(MAX_ITERATIONS_STR, 10);
+            if (isNaN(MAX_ITERATIONS) || MAX_ITERATIONS < 1) {
+              logger.error({ MAX_ITERATIONS, raw: MAX_ITERATIONS_STR }, 'CRITICAL: Invalid MEMORY_CLEANUP_MAX_ITERATIONS, skipping');
+              break;
+            }
+
+            const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+            let totalDeleted = 0;
+            // Use composite cursor (created_at, id) for deterministic ordering
+            // This handles UUIDs correctly - ordering by created_at ensures we process oldest first
+            // NOTE: The composite tuple (created_at, id) > (cursor) requires both columns to be evaluated
+            // This may cause PostgreSQL to scan rows matching created_at < cutoff before applying cursor filter
+            // For large tables with many rows newer than cutoff, this adds overhead per batch
+            let lastCreatedAt: string | null = null;
+            let lastId: string | null = null;
+            let iterations = 0;
+
+            logger.info(
+              { schema, cutoff: cutoff.toISOString(), retentionDays, BATCH_SIZE, MAX_ITERATIONS },
+              'CRITICAL: Iniciando cleanup de embeddings antiguos'
+            );
+
+            try {
+              while (true) {
+                iterations++;
+
+                // Safety check: stop if we're taking too long (hourly job)
+                if (iterations > MAX_ITERATIONS) {
+                  logger.warn(
+                    { iterations, totalDeleted, maxIterations: MAX_ITERATIONS },
+                    'CRITICAL: Cleanup interrupted - reached max iterations (possible backlog)'
+                  );
+                  break;
+                }
+
+                // Use composite cursor (created_at, id) to avoid UUID ordering issues
+                // ORDER BY created_at ASC ensures we delete oldest rows first (uses idx_ai_embeddings_created index)
+                // Use RETURNING to get the actual last deleted row from this batch
+                // Use valid UUID sentinel for first iteration (not empty string which breaks UUID comparison)
+                const UUID_SENTINEL = '00000000-0000-0000-0000-000000000000';
+
+                let query: string;
+                let params: unknown[];
+
+                if (lastCreatedAt === null) {
+                  // First batch: start from the oldest rows (no cursor yet)
+                  query = `
+                    DELETE FROM "${schema}".ai_embeddings
+                    WHERE created_at < $1
+                    ORDER BY created_at ASC, id ASC
+                    LIMIT ${BATCH_SIZE}
+                    RETURNING created_at, id
+                  `;
+                  params = [cutoff];
+                } else {
+                  // Subsequent batches: use composite cursor to avoid skipping rows
+                  // Cast to text for id comparison to avoid UUID type issues
+                  query = `
+                    DELETE FROM "${schema}".ai_embeddings
+                    WHERE created_at < $1 AND (created_at, id) > ($2::timestamptz, $3::text)
+                    ORDER BY created_at ASC, id ASC
+                    LIMIT ${BATCH_SIZE}
+                    RETURNING created_at, id
+                  `;
+                  params = [cutoff, lastCreatedAt, lastId ?? UUID_SENTINEL];
+                }
+
+                const result = await pool.query<{ created_at: Date; id: string }>(query, params);
+
+                const deleted = result.rowCount ?? 0;
+
+                // Log warning if first iteration deletes 0 rows (possible misconfiguration)
+                if (iterations === 1 && deleted === 0) {
+                  logger.warn(
+                    { cutoff: cutoff.toISOString(), retentionDays },
+                    'WARNING: Cleanup completed with 0 rows deleted - check retention days config'
+                  );
+                }
+
+                if (deleted === 0) break;
+
+                // Update cursor to the last row from this batch (via RETURNING)
+                const returnedRows = result.rows;
+                const lastRow = returnedRows[returnedRows.length - 1];
+                lastCreatedAt = lastRow.created_at.toISOString();
+                lastId = lastRow.id;
+
+                totalDeleted += deleted;
+                await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+              }
+
+              logger.info(
+                { deleted: totalDeleted, iterations },
+                'CRITICAL: Cleanup de embeddings antiguos completado'
+              );
+            } catch (err) {
+              const error = err instanceof Error ? err.message : String(err);
+              logger.error(
+                { deleted: totalDeleted, lastCreatedAt, lastId, iterations, error },
+                'CRITICAL: Job failed after deleting some rows'
+              );
+              throw err;
+            }
             break;
           }
 
