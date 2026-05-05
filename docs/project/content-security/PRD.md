@@ -84,8 +84,8 @@ Establecer un marco robusto de validaciones y controles para todo el contenido s
 | **Validación de MIME Types** | Verificar que el MIME type coincida con la extensión | `storage/upload.middleware.ts` → `isAllowedMimeType()` | ✅ Hecho |
 | **Sanitización de Filenames** | Remover caracteres peligrosos y prevenir path traversal | `storage/upload.middleware.ts` → `sanitizeFilename()` | ✅ Hecho |
 | **Límite de Tamaño Global** | Máximo 100MB por archivo (configurable) | `storage/upload.middleware.ts` → `limits.fileSize` | ✅ Hecho |
-| **Rate Limiting (general)** | Límite de requests por IP/usuario | `middlewares/rateLimit.ts` | ✅ Hecho |
-| **Bloqueo de Ejecutables** | Prohibir estrictamente `.exe`, `.bat`, `.sh`, `.msi` | ❌ NO - `ALLOWED_EXTENSIONS` no incluye ejecutables, pero no hay block explícito | ALTA |
+| **Rate Limiting (general)** | Límite de requests por IP/usuario | `middlewares/rateLimit/rateLimit.ts` | ✅ Hecho |
+| **Bloqueo de Ejecutables** | Prohibir `.exe`, `.bat`, `.sh`, `.msi` | ✅ IMPLÍCITO - no están en ALLOWED_EXTENSIONS, son bloqueados. Mensaje genérico "Extension not allowed". Malware scanning pendiente (CS-18). | ALTA |
 | **Malware Scanning** | Escaneo de archivos subidos contra firmas de virus | ❌ Pendiente - requiere integración ClamAV | ALTA |
 | **Validación de Tamaño Mínimo** | Evitar archivos vacíos o corruptos (ej: PDF < 1KB) | ❌ Pendiente | BAJA |
 | **Quality Checks** | Verificar resolución mínima de video/imagen y duración | ❌ Pendiente | BAJA |
@@ -168,7 +168,7 @@ Los Ebooks tienen alto riesgo de infracción de copyright. Controles adicionales
 | **Curso** | mp4, webm, pdf, docx, link | Video/Audio coherente con tema | Al menos 1 lección |
 | **Ebook** | pdf, epub, mobi | Texto coherente con tema | Archivo PDF/Epub válido |
 | **Podcast** | mp3, wav, m4a | Audio coherente con tema | Duración > 1 min |
-| **Software** | zip, rar, 7z, exe (solo Pro) | Manual/Readme coherente | Archivo comprimido |
+| **Software** | zip, rar, 7z | Manual/Readme coherente | Archivo comprimido. `.exe` requiere malware scanning (CS-18 pending) |
 | **Membresía** | Mixto | Coherencia general | Estructura de módulos |
 
 ---
@@ -292,7 +292,7 @@ Para respaldar estos controles, se deben realizar las siguientes actualizaciones
 
 | ID | Task | Estado | Owner | Sprint | Notas |
 |----|------|--------|------|--------|-------|
-| CS-01 | Implementar bloqueo de ejecutables en `upload.middleware.ts` | ❌ TODO | Backend | Sprint 1 | `ALLOWED_EXTENSIONS` no incluye ejecutables; se requiere block explícito |
+| CS-01 | Implementar mensaje de error claro para ejecutables | ❌ TODO | Backend | Sprint 1 | Ejecutables ya bloqueados implícitamente; mejora: mensaje específico mencionando formato alternativo y malware scanning (CS-18) |
 | CS-02 | Agregar checkbox de declaración de copyright general | ❌ TODO | Frontend | Sprint 1 | |
 | CS-03 | Agregar checkbox específico de "autorización" para links externos | ❌ TODO | Frontend | Sprint 1 | |
 | CS-04 | Agregar checkbox de derechos para ebooks | ❌ TODO | Frontend | Sprint 1 | |

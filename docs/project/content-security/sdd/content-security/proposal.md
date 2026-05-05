@@ -46,13 +46,13 @@ const ALLOWED_EXTENSIONS = [
 ];
 ```
 
-**PROBLEMA**: `.exe`, `.bat`, `.sh`, `.msi` NO están en la lista, pero tampoco hay un block explícito. El allowlist funciona por inclusión, pero un archivo sin extensión válida sería bloqueado — sin embargo, archivos con extensiones no listadas (como `.exe`) simplemente no están permitidas. No hay block "explícito" de ejecutables más alla de no estar en el allowlist.
+**PROBLEMA**: `.exe`, `.bat`, `.sh`, `.msi` NO están en ALLOWED_EXTENSIONS, por lo que son bloqueados implícitamente. SIN EMBARGO, el mensaje de error es genérico ("Extension not allowed") en lugar de uno específico que explique que son ejecutables y que `.exe` para software requiere malware scanning (CS-18).
 
 ### 2.3 Problemas Identificados
 
 | Problema | Severidad | Descripción |
 |----------|-----------|-------------|
-| Bloqueo de ejecutables implícito | 🔴 CRITICAL | ALLOWED_EXTENSIONS no incluye .exe/.bat/.sh/.msi pero no hay block explícito con mensaje claro |
+| Mensaje de error confuso para ejecutables | 🔴 CRITICAL | El error dice "Extension not allowed" en lugar de "Executable files not allowed" con contexto de malware scanning |
 | Sin validación de URLs externas | 🔴 CRITICAL | Dominios permitidos no están implementados |
 | Sin checkboxes de copyright | 🟡 MEDIA | Cada tipo de producto requiere declaración de derechos |
 | Rate limiting específico de uploads | 🟡 MEDIA | NO existe uploadLimiter específico - usar patrón existente de express-rate-limit |
@@ -64,7 +64,7 @@ const ALLOWED_EXTENSIONS = [
 
 | # | Objetivo | Métrica de Éxito |
 |---|----------|------------------|
-| O1 | Bloqueo explícito de ejecutables | Archivos .exe/.bat/.sh/.msi rechazados con mensaje claro |
+| O1 | Mensaje de error claro para ejecutables | Archivo .exe rechazado con mensaje específico: "Executable files not allowed. Use .zip/.rar/.7z for software, or wait for malware scanning (CS-18)." |
 | O2 | Allowlist de dominios externos | Solo youtube.com, vimeo.com, drive.google.com, etc. aceptados |
 | O3 | Checkboxes de declaración de derechos | Todos los tipos de producto tienen checkbox obligatorio |
 | O4 | Rate limiting específico para uploads | Máximo 10 uploads/minuto por usuario |

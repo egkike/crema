@@ -120,123 +120,197 @@ Implementar controles de seguridad para uploads de contenido en Crema:
 
 ### 5.1 Backend Changes
 
-#### 5.1.1 upload.middleware.ts - Bloqueo de Ejecutables
+#### 5.1.1 upload.middleware.ts - Mejorar Mensaje de Error para Ejecutables
+
+**Situación actual**: Los ejecutables (.exe, .bat, .sh, .msi) NO están en ALLOWED_EXTENSIONS, por lo que son bloqueados implícitamente. El error dice "Extension not allowed" — sin contexto.
+
+**Cambio requerido**: Mejorar el mensaje de error para que sea específico y explica por qué.
 
 ```typescript
-// Extensiones BLOQUEADAS explícitamente (más alla del allowlist)
-const BLOCKED_EXTENSIONS = [
-  'exe', 'bat', 'sh', 'msi', 'scr', 'pif', 'cmd', 'vbs',
-  'com', 'pif', 'application/x-msdownload'
-];
+// Agregar constante para extensiones de ejecutables (para mensaje de error)
+const EXECUTABLE_EXTENSIONS = ['exe', 'bat', 'sh', 'msi', 'scr', 'pif', 'cmd', 'vbs', 'com', 'app', 'bin', 'dmg'];
 
 function fileFilter(req: any, file: { originalname: string; mimetype: string }, cb: (error: Error | null, acceptFile: boolean) => void) {
-  const ext = getSafeExtension(file.originalname);
+  const ext = getSafeExtension(file.originalname)?.toLowerCase();
+  const mimeType = file.mimetype.toLowerCase();
 
-  // Check bloqueados PRIMERO
-  const extLower = ext?.toLowerCase();
-  if (BLOCKED_EXTENSIONS.includes(extLower)) {
-    const error = new Error(`Executable files not allowed. Blocked: ${BLOCKED_EXTENSIONS.join(', ')}`);
+  // Check: extensión es de ejecutable?
+  if (ext && EXECUTABLE_EXTENSIONS.includes(ext)) {
+    const error = new Error(
+      `Executable files are not allowed. Use .zip, .rar, or .7z format for software. ` +
+      `.exe files require malware scanning (CS-18 pending implementation).`
+    );
     cb(error, false);
     return;
   }
 
-  // Luego validaciones existentes (allowlist, MIME type)
-  // ...
+  // Check allowlist existente (extensión válida)
+  if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
+    const error = new Error(`Extension not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`);
+    cb(error, false);
+    return;
+  }
+
+  // Check MIME type (existente)...
 }
 ```
 
-#### 5.1.2 URL Validation Service
+#### 5.1.2 URL Validation Utility
+
+**Archivo**: `src/utils/url-validator.util.ts` (CREAR)
 
 ```typescript
-// src/services/validation/url-validator.service.ts
-const ALLOWED_DOMAINS = [
+// src/utils/url-validator.util.ts
+
+const ALLOWED_VIDEO_DOMAINS = [
   'youtube.com', 'youtu.be',
   'vimeo.com', 'player.vimeo.com',
+] as const;
+
+const ALLOWED_STORAGE_DOMAINS = [
   'drive.google.com',
   'dropbox.com',
   'onedrive.live.com',
+] as const;
+
+const ALLOWED_DOC_DOMAINS = [
   'docs.google.com',
   'canva.com',
   'notion.so',
+] as const;
+
+const ALLOWED_AUDIO_DOMAINS = [
   'soundcloud.com',
   'spotify.com',
-];
+] as const;
 
-export function isAllowedExternalUrl(url: string): boolean {
+const ALL_ALLOWED_DOMAINS = [
+  ...ALLOWED_VIDEO_DOMAINS,
+  ...ALLOWED_STORAGE_DOMAINS,
+  ...ALLOWED_DOC_DOMAINS,
+  ...ALLOWED_AUDIO_DOMAINS,
+] as const;
+
+export interface UrlValidationResult {
+  valid: boolean;
+  error?: string;
+  normalizedUrl?: string;
+}
+
+export function validateExternalUrl(url: string): UrlValidationResult {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== 'https:') return false;
-    if (!ALLOWED_DOMAINS.some(d => parsed.hostname.endsWith(d))) {
-      return false;
+    if (parsed.protocol !== 'https:') {
+      return { valid: false, error: 'Only HTTPS URLs are allowed' };
     }
-    // Rechazar URLs con auth params
-    if (parsed.username || parsed.password) return false;
-    // Rechazar tokens en query (common auth patterns)
-    if (parsed.searchParams.has('token') || parsed.searchParams.has('key')) return false;
-    return true;
+    const hostname = parsed.hostname.toLowerCase();
+    const isAllowed = (ALL_ALLOWED_DOMAINS as readonly string[]).some(
+      domain => hostname === domain || hostname.endsWith('.' + domain)
+    );
+    if (!isAllowed) {
+      return { valid: false, error: `Domain not allowed. Allowed: ${(ALL_ALLOWED_DOMAINS as readonly string[]).join(', ')}` };
+    }
+    if (parsed.username || parsed.password) {
+      return { valid: false, error: 'URLs with authentication credentials are not allowed' };
+    }
+    const authParams = ['token', 'key', 'auth', 'access_token', 'api_key', 'signature'];
+    if (authParams.some(param => parsed.searchParams.has(param))) {
+      return { valid: false, error: 'URLs with authentication tokens are not allowed' };
+    }
+    return { valid: true, normalizedUrl: parsed.toString() };
   } catch {
-    return false;
+    return { valid: false, error: 'Invalid URL format' };
   }
 }
 ```
 
-#### 5.1.3 Tamaño Mínimo
+#### 5.1.3 Tamaño Mínimo de Archivo
+
+**Ubicación**: Controller (post-upload), NO en middleware.
 
 ```typescript
-// En product.controller.ts o en el upload middleware
-const MIN_FILE_SIZE = 1024; // 1KB
+// En el controller después de upload.single('file'):
+const MIN_FILE_SIZE_BYTES = 1024; // 1KB - hardcoded por seguridad
 
-// En fileFilter o después del upload:
-if (file.size < MIN_FILE_SIZE) {
-  throw new AppError(`File too small. Minimum size: ${MIN_FILE_SIZE} bytes`, 400);
+async handleUpload(req: Request, res: Response) {
+  const file = req.file;
+  if (!file) {
+    throw new AppError('No file uploaded', 400);
+  }
+
+  if (file.size < MIN_FILE_SIZE_BYTES) {
+    // Limpiar archivo temporal
+    try { await fs.unlink(file.path); } catch { /* ignore */ }
+    throw new AppError(
+      `File too small. Minimum: ${MIN_FILE_SIZE_BYTES} bytes (1KB). Received: ${file.size} bytes.`,
+      400
+    );
+  }
+  // Continuar...
 }
 ```
 
 ### 5.2 Rate Limiting para Uploads
 
+**Archivo**: `src/middlewares/rateLimit/rateLimit.ts` (AGREGAR)
+
+**Pattern**: Usar express-rate-limit (NO Redis manual).
+
 ```typescript
-// src/middlewares/upload-rate-limit.middleware.ts
-import { redisConnection } from '../config/redis';
+// ============================================================================
+// UPLOAD RATE LIMITER - Protect against upload flooding
+// ============================================================================
 
-export const uploadRateLimiter = async (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.user?.id;
-  if (!userId) return next();
-
-  const key = `ratelimit:upload:${userId}`;
-  const current = await redisConnection.incr(key);
-
-  if (current === 1) {
-    await redisConnection.expire(key, 60); // 1 minute window
-  }
-
-  const ttl = await redisConnection.ttl(key);
-  res.setHeader('X-RateLimit-Limit', '10');
-  res.setHeader('X-RateLimit-Remaining', String(Math.max(0, 10 - current)));
-  res.setHeader('X-RateLimit-Reset', String(ttl));
-
-  if (current > 10) {
-    throw new AppError('Upload rate limit exceeded. Max 10 uploads per minute.', 429);
-  }
-
-  next();
-};
+export const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 10, // máximo 10 uploads por minuto por usuario
+  message: {
+    success: false,
+    error: 'Límite de uploads alcanzado. Máximo 10 archivos por minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId || ipKeyGenerator(req.ip || '');
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de uploads alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
 ```
 
 ### 5.3 Schema Updates
 
+**Archivo**: `src/schemas/product-declarations.schema.ts` (CREAR)
+
 ```typescript
-// En createProductSchema - agregar declaración
-const createProductSchema = z.object({
-  // ... existing fields
-  declarationAccepted: z.boolean()
-    .refine(val => val === true, {
-      message: 'Debes aceptar la declaración de derechos para continuar',
-    }),
-  isExternalLinkOnly: z.boolean().optional(),
-  externalUrl: z.string().url().optional(),
-  // Para ebooks
-  isbn: z.string().regex(/^(?:ISBN(?:-1[03])?:? )?(?=[0-9X]{10}$|(?=(?:[0-9]+[- ]){3})[- 0-9X]{13}$|97[89][0-9]{10}$|(?=(?:[0-9]+[- ]){4})[- 0-9X]{17}$)(?:97[89][ -]?)?[0-9]{1,5}[ -]?[0-9]+[ -]?[0-9X]+$/).optional(),
+import { z } from 'zod';
+import { validateExternalUrl } from '../utils/url-validator.util';
+
+export const DECLARATION_LABELS: Record<string, string> = {
+  course: 'Declaro que este curso es contenido original creado por mí y tengo los derechos necesarios.',
+  ebook: 'Declaro que poseo los derechos de este ebook y no infringe copyrights de terceros.',
+  podcast: 'Declaro que tengo derechos sobre toda la música y audio de este podcast.',
+  software: 'Declaro que este software es legítimo, posee la licencia correspondiente y no contiene malware.',
+  membership: 'Declaro que poseo los derechos de todo el contenido incluido en esta membresía.',
+  link: 'Declaro que tengo autorización del creador del contenido enlazado.',
+} as const;
+
+export const productDeclarationSchema = z.object({
+  declarationAccepted: z.boolean().refine(val => val === true, {
+    message: 'Debes aceptar la declaración de derechos para continuar.',
+  }),
+  isExternalLinkOnly: z.boolean().optional().default(false),
+  externalUrl: z.string().url('URL inválida').optional().refine(
+    val => !val || validateExternalUrl(val).valid,
+    { message: val => validateExternalUrl(val || '').error || 'URL no válida' }
+  ),
+  isbn: z.string().regex(/^(?:ISBN(?:-1[03])?:? )?(?=[0-9X]{10}$|(?=(?:[0-9]+[- ]){3})[- 0-9X]{13}$|97[89][0-9]{10}$|(?=(?:[0-9]+[- ]){4})[- 0-9X]{17}$)(?:97[89][ -]?)?[0-9]{1,5}[ -]?[0-9]+[ -]?[0-9X]+$/, 'ISBN inválido').optional(),
 });
+
+export type ProductDeclarationInput = z.infer<typeof productDeclarationSchema>;
 ```
 
 ### 5.4 Allowed Domains Constant

@@ -25,20 +25,23 @@
 
 ## Task Details
 
-### Task 1: Bloqueo de Ejecutables
+### Task 1: Mejorar Mensaje de Error para Ejecutables
 
 **Archivos**: `src/middlewares/storage/upload.middleware.ts`
 
-**Patrón**: Inline constants (NO crear archivo separado).
+**Decisión de diseño (Opción A - mantener bloqueo)**:
+- Los ejecutables YA están bloqueados porque NO están en ALLOWED_EXTENSIONS
+- Mejora: cambiar el mensaje de error genérico "Extension not allowed" por uno específico
+- Hasta que CS-18 (malware scanning) esté implementado, no permitimos .exe
+
+**Código a agregar**:
 
 ```typescript
-// En upload.middleware.ts - AGREGAR antes de ALLOWED_EXTENSIONS
-
 // ============================================================================
-// BLOCKED EXTENSIONS - Security: Executables are never allowed
+// EXECUTABLE EXTENSIONS - Para mensaje de error mejorado
 // ============================================================================
 
-const BLOCKED_EXTENSIONS = [
+const EXECUTABLE_EXTENSIONS = [
   // Windows executables
   'exe', 'bat', 'cmd', 'msi', 'com', 'pif', 'scr',
   // Unix scripts
@@ -50,14 +53,6 @@ const BLOCKED_EXTENSIONS = [
   // Shortcuts
   'lnk', 'inf', 'reg',
 ] as const;
-
-const BLOCKED_MIME_TYPES = [
-  'application/x-msdownload',
-  'application/x-executable',
-  'application/x-sh',
-  'application/x-shellscript',
-  'text/x-shellscript',
-] as const;
 ```
 
 **Modificar fileFilter()**:
@@ -67,24 +62,17 @@ function fileFilter(req: any, file: { originalname: string; mimetype: string }, 
   const ext = path.extname(file.originalname).toLowerCase().replace(/^\./, '');
   const mimeType = file.mimetype.toLowerCase();
 
-  // [1] Check blocked extensions FIRST - clear security message
-  if (BLOCKED_EXTENSIONS.includes(ext as typeof BLOCKED_EXTENSIONS[number])) {
+  // [1] Check si es extensión de ejecutable - mensaje específico
+  if (ext && EXECUTABLE_EXTENSIONS.includes(ext)) {
     const error = new Error(
-      `Executable files are not allowed. Blocked: ${BLOCKED_EXTENSIONS.join(', ')}. ` +
-      `For software products, use the Software plan with proper licensing documentation.`
+      `Executable files are not allowed. Use .zip, .rar, or .7z format for software. ` +
+      `.exe files require malware scanning (CS-18 pending implementation).`
     );
     cb(error, false);
     return;
   }
 
-  // [2] Check blocked MIME types
-  if (BLOCKED_MIME_TYPES.includes(mimeType as typeof BLOCKED_MIME_TYPES[number])) {
-    const error = new Error(`File type not allowed: ${mimeType}`);
-    cb(error, false);
-    return;
-  }
-
-  // [3-5] Existing logic (allowlist, MIME type, etc.)...
+  // [2-4] Existing logic (allowlist, MIME type, etc.)...
 }
 ```
 
