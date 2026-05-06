@@ -188,6 +188,7 @@ import { auditMiddleware, logAudit, getAuditLogs } from '../middlewares/audit/au
 | `rounder` | Financial rounding to 2 decimals | `roundToTwo(value)` |
 | `streamingUtil` | Mux/Cloudflare signed URL generation | `streamingUtil.getSignedUrl()` |
 | `ip` | Client IP extraction | `extractClientIp(req)` |
+| `url-validator` | External URL validation with domain allowlist | `validateExternalUrl()`, `validateExternalUrlSafe()`, `getExternalUrlError()` |
 
 ---
 
