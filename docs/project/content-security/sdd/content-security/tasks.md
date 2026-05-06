@@ -17,7 +17,7 @@
 |---|------|:---------:|--------|-----------|
 | 1 | Bloqueo de ejecutables en upload.middleware.ts | 🔴 ALTA | ✅ | - |
 | 2 | Validación de URLs externas (allowlist dominios) | 🔴 ALTA | ✅ | - |
-| 3 | Rate limiting específico para uploads | 🟡 MEDIA | - |
+| 3 | Rate limiting específico para uploads | 🟡 MEDIA | ✅ | - |
 | 4 | Validación de tamaño mínimo (1KB) | 🟡 MEDIA | - |
 | 5 | Schema de declaraciones (declarationAccepted, isbn, externalUrl) | 🔴 ALTA | 2 |
 | 6 | Integración en routes (uploadLimiter middleware) | 🟡 MEDIA | 3 |
