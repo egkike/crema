@@ -183,3 +183,37 @@ export const adminWriteLimiter = rateLimit({
     res.status(options.statusCode || 429).json(options.message);
   },
 });
+
+// ============================================================================
+// UPLOAD RATE LIMITER - Protect against upload flooding
+// ============================================================================
+
+export const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 10, // máximo 10 solicitudes de upload por minuto por usuario
+  message: {
+    success: false,
+    error: 'Límite de uploads alcanzado. Máximo 10 solicitudes por minuto. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    // Only use userId if it's a non-empty scalar value
+    if (userId && typeof userId === 'string' && userId.length > 0) {
+      return userId;
+    }
+    // Fall back to IP-based keying (consistent with aiLimiter pattern)
+    logger.debug(
+      { path: req.path, ip: req.ip },
+      'uploadLimiter falling back to IP-based key (no userId)'
+    );
+    return ipKeyGenerator(req.ip || '');
+  },
+  handler: (req, res, _next, options) => {
+    const userId = req.user?.id;
+    const key = (userId && typeof userId === 'string') ? userId : ipKeyGenerator(req.ip || '');
+    logger.warn({ key, path: req.path }, 'Límite de uploads alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
