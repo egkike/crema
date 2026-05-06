@@ -21,7 +21,7 @@
 | 4 | Validación de tamaño mínimo (1KB) | 🟡 MEDIA | ✅ | - |
 | 5 | Schema de declaraciones (declarationAccepted, isbn, externalUrl) | 🔴 ALTA | ✅ | - |
 | 6 | Integración en routes (uploadLimiter middleware) | 🟡 MEDIA | ✅ | - |
-| 7 | Tests unitarios | 🟡 MEDIA | ⬜ | 1, 2, 3, 4, 5, 6 |
+| 7 | Tests unitarios | 🟡 MEDIA | ✅ | 1, 2, 3, 4, 5, 6 |
 
 ---
 
@@ -450,66 +450,62 @@ pnpm lint --filter @crema/backend
 
 ### Task 7: Tests Unitarios
 
-**Patrones del proyecto** (ver `backend/src/__tests__/`):
+**Patrones del proyecto** (ver `backend/src/__tests__/schemas/`):
 
 ```typescript
-// src/__tests__/validators/url-validator.test.ts
+// src/__tests__/schemas/products.schema.test.ts
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { validateExternalUrl, validateExternalUrlSafe } from '../../utils/url-validator.util';
+import { describe, it, expect } from 'vitest';
+import { validateISBN, DECLARATION_LABELS, createProductSchema } from '../../schemas/products.schema';
 
-vi.mock('../../utils/logger', () => ({
-  default: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}));
-
-describe('validateExternalUrl', () => {
-  describe('allowed domains', () => {
-    it('should accept youtube.com URLs', () => {
-      expect(validateExternalUrl('https://youtube.com/watch?v=abc').valid).toBe(true);
-      expect(validateExternalUrl('https://youtu.be/abc').valid).toBe(true);
-      expect(validateExternalUrl('https://video.youtube.com/watch?v=abc').valid).toBe(true);
+describe('products.schema', () => {
+  describe('validateISBN', () => {
+    it('should accept bare ISBN-10', () => {
+      expect(validateISBN('0306406152')).toBe(true);
     });
 
-    it('should accept vimeo.com URLs', () => {
-      expect(validateExternalUrl('https://vimeo.com/123456789').valid).toBe(true);
-      expect(validateExternalUrl('https://player.vimeo.com/video/123456789').valid).toBe(true);
+    it('should accept hyphenated ISBN-13', () => {
+      expect(validateISBN('978-0-306-40615-7')).toBe(true);
     });
 
-    it('should accept drive.google.com URLs', () => {
-      expect(validateExternalUrl('https://drive.google.com/file/d/abc/view').valid).toBe(true);
-    });
-
-    it('should accept dropbox.com URLs', () => {
-      expect(validateExternalUrl('https://www.dropbox.com/s/abc/file.pdf').valid).toBe(true);
+    it('should reject invalid check digit', () => {
+      expect(validateISBN('0306406158')).toBe(false);
     });
   });
 
-  describe('rejected patterns', () => {
-    it('should reject http:// URLs', () => {
-      const result = validateExternalUrl('http://youtube.com/watch?v=abc');
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('HTTPS');
+  describe('createProductSchema — declaration fields', () => {
+    it('should accept declarationAccepted: true', () => {
+      const result = createProductSchema.safeParse({
+        title: 'Test', type: 'course', prices: [{ currency: 'ARS', amount: 100 }],
+        declarationAccepted: true,
+      });
+      expect(result.success).toBe(true);
     });
 
-    it('should reject URLs with tokens', () => {
-      const result = validateExternalUrl('https://drive.google.com/file?token=abc');
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('token');
+    it('should reject declarationAccepted: false', () => {
+      const result = createProductSchema.safeParse({
+        title: 'Test', type: 'course', prices: [{ currency: 'ARS', amount: 100 }],
+        declarationAccepted: false,
+      });
+      expect(result.success).toBe(false);
     });
 
-    it('should reject URLs with auth credentials', () => {
-      const result = validateExternalUrl('https://user:pass@dropbox.com/file');
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('credentials');
-    });
-
-    it('should reject unknown domains', () => {
-      const result = validateExternalUrl('https://random-site.com/file');
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('not allowed');
+    it('should reject isExternalLinkOnly without externalUrl', () => {
+      const result = createProductSchema.safeParse({
+        title: 'Test', type: 'link', prices: [{ currency: 'ARS', amount: 0 }],
+        declarationAccepted: true, isExternalLinkOnly: true,
+      });
+      expect(result.success).toBe(false);
     });
   });
 });
+```
+
+**Verification**:
+```bash
+pnpm tsc --noEmit
+pnpm lint --filter @crema/backend
+pnpm test -- --run src/__tests__/schemas/products.schema.test.ts
 ```
 
 ```typescript
