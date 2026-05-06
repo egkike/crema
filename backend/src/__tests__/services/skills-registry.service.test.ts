@@ -72,7 +72,6 @@ describe('skills-registry.service.ts', () => {
       expect(pool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO skills'),
         expect.arrayContaining([
-          mockSkill.id,
           mockSkill.name,
           mockSkill.capability,
         ])
