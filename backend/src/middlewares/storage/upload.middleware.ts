@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 
 import multer from 'multer';
+import type { Request } from 'express';
 
 import { config } from '../../config/index';
 
@@ -24,6 +25,23 @@ const ALLOWED_EXTENSIONS = [
   // Other
   'epub', 'mobi', 'azw3',
 ];
+
+// ============================================================================
+// EXECUTABLE EXTENSIONS - Blocked with specific error message
+// ============================================================================
+
+const EXECUTABLE_EXTENSIONS = [
+  // Windows executables
+  'exe', 'bat', 'cmd', 'msi', 'com', 'pif', 'scr',
+  // Unix scripts
+  'sh', 'bash', 'csh', 'tcsh', 'zsh',
+  // Scripting
+  'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh',
+  // Other executables
+  'app', 'bin', 'dmg', 'pkg', 'deb', 'rpm',
+  // Shortcuts
+  'lnk', 'inf', 'reg',
+] as const;
 
 const ALLOWED_MIME_TYPES = [
   // Documents
@@ -80,26 +98,44 @@ const ALLOWED_MIME_TYPES = [
 // ============================================================================
 
 /**
- * Sanitize filename - remove path components and dangerous characters
+ * Multer file interface - replaces `any` types
  */
-function sanitizeFilename(filename: string): string {
-  // Get only the basename (remove any path components)
-  const basename = path.basename(filename);
-  
-  // Remove dangerous characters but keep basic punctuation
-  return basename
-    .replace(/[^a-zA-Z0-9._-]/g, '_')  // Replace dangerous chars with underscore
-    .replace(/\.+/g, '.')               // Remove multiple dots
-    .replace(/^-+|-+$/g, '')            // Remove leading/trailing dashes
-    .substring(0, 200);                 // Limit length
+interface MulterFile {
+  originalname: string;
+  mimetype: string;
 }
 
 /**
- * Validate and sanitize extension
+ * Compatible file filter callback - avoids union overload ambiguity
  */
-function getSafeExtension(filename: string): string | null {
-  const ext = path.extname(filename).toLowerCase().replace(/^\./, '');
-  return ALLOWED_EXTENSIONS.includes(ext) ? ext : null;
+type FileFilterCb = (error: Error | null, acceptFile?: boolean) => void;
+function sanitizeFilename(filename: string): string {
+  // Get only the basename (remove any path components)
+  const basename = path.basename(filename);
+
+  // Remove dangerous characters but keep basic punctuation
+  const sanitized = basename
+    .replace(/[^a-zA-Z0-9._-]/g, '_')  // Replace dangerous chars with underscore
+    .replace(/\.+/g, '.')             // Remove multiple dots
+    .replace(/^-+|-+$/g, '');         // Remove leading/trailing dashes
+
+  // Reject filenames that reduce to path special entries
+  if (sanitized === '.' || sanitized === '..') {
+    return 'invalid_filename';
+  }
+
+  // Reject hidden files (starting with dot)
+  if (sanitized.startsWith('.')) {
+    return 'dot_' + sanitized.slice(1);
+  }
+
+  // Reject filenames ending with a dot (causes extname() to return empty)
+  if (sanitized.endsWith('.')) {
+    return sanitized.slice(0, -1) + '_dot';
+  }
+
+  // Limit length accounting for UUID prefix (37 chars) + hyphen
+  return sanitized.slice(0, 180);
 }
 
 /**
@@ -117,9 +153,8 @@ const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     // Use originalname to create subdirs - this is safe after sanitization
     const tempPath = path.join(process.cwd(), 'uploads', 'temp');
-    if (!fs.existsSync(tempPath)) {
-      fs.mkdirSync(tempPath, { recursive: true });
-    }
+    // Use recursive:true directly - idempotent, avoids TOCTOU race of exists+mkdir
+    fs.mkdirSync(tempPath, { recursive: true });
     cb(null, tempPath);
   },
   filename: (_req, file, cb) => {
@@ -131,39 +166,60 @@ const storage = multer.diskStorage({
 });
 
 // File filter for upload validation
-function fileFilter(_req: any, file: { originalname: string; mimetype: string }, cb: (error: Error | null, acceptFile: boolean) => void) {
-  const ext = getSafeExtension(file.originalname);
+function fileFilter(_req: Request, file: MulterFile, cb: FileFilterCb) {
+  const originalName = file.originalname;
+  const ext = path.extname(originalName).toLowerCase().replace(/^\./, '');
   const mimeType = file.mimetype.toLowerCase();
-  
-  // Check extension
-  if (!ext) {
-    const error = new Error(`Extension not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`);
-    cb(error, false);
+
+  // Reject path traversal attempts - check for path separators in filename
+  if (originalName.includes('/') || originalName.includes('\\') || originalName.includes('..')) {
+    cb(new Error('Invalid filename. Path components not allowed.'), false);
     return;
   }
-  
+
+  // Check for executable extension - specific error message
+  if (ext && (EXECUTABLE_EXTENSIONS as readonly string[]).includes(ext)) {
+    cb(
+      new Error(
+        `Executable files are not allowed. Use .zip, .rar, or .7z format for software. ` +
+        `.exe files require malware scanning (CS-18 pending implementation).`
+      ),
+      false
+    );
+    return;
+  }
+
+  // Check extension (allowlist)
+  if (!ext) {
+    cb(new Error('File has no extension'), false);
+    return;
+  }
+
+  if (!ALLOWED_EXTENSIONS.includes(ext)) {
+    cb(new Error(`Extension not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`), false);
+    return;
+  }
+
   // Check MIME type (with fallback for common mismatches)
-  // Some browsers send different MIME types, so we also accept common variations
-  const mimeMatches = isAllowedMimeType(mimeType) || 
+  const mimeMatches = isAllowedMimeType(mimeType) ||
     // Common variations
     (ext === 'jpg' && mimeType === 'image/jpg') ||
     (ext === 'jpeg' && mimeType === 'image/jpg') ||
     (ext === 'svg' && mimeType === 'image/svg') ||
     (ext === 'webm' && mimeType === 'video/webm');
-  
+
   if (!mimeMatches) {
-    const error = new Error(`MIME type not allowed: ${mimeType}`);
-    cb(error, false);
+    cb(new Error('File type not allowed'), false);
     return;
   }
-  
+
   // All good
   cb(null, true);
 }
 
 export const upload = multer({
   storage,
-  fileFilter: (req: any, file: any, cb: any) => fileFilter(req, file, cb),
+  fileFilter,
   limits: { 
     fileSize: config?.storage?.maxGlobalSizeBytes || 100 * 1024 * 1024,
     files: 10,  // Max 10 files per request
@@ -171,4 +227,4 @@ export const upload = multer({
 });
 
 // Export allowlist for reference in other modules
-export { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES };
+export { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES, EXECUTABLE_EXTENSIONS };
