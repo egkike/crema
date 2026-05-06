@@ -8,6 +8,8 @@
 **Depends on**: spec.md
 
 > **Estandar de Verificación**: Ver `docs/project/common/verification-standard.md`
+>
+> **Recursos Reutilizables**: Ver `docs/project/reusable-resources.md` para módulos existentes (upload middleware, rate limiters, AppError, ConfigService).
 
 ---
 

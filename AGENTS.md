@@ -39,6 +39,11 @@ Your tone is professional, direct, and highly technical.
 - **Logic:** Prefer composition over complex configurations. Avoid premature abstractions.
 - **Structure:** Shared code must reside in `components`, `layouts`, `libs`, or `utils` folders.
 
+## Reusable Resources
+- **Inventory:** See `docs/project/reusable-resources.md` for a complete catalog of reusable modules (services, repositories, utilities, middlewares, types).
+- **Always check this inventory before creating new modules** — the project likely already has what you need.
+- **Documentation:** When writing SDD specs and designs, reference existing patterns from the reusable resources catalog.
+
 ---
 
 ## Pre-Flight & Verification Cycle (MANDATORY)
