@@ -10,8 +10,48 @@ import { ProductService } from '../services/product.service';
 import type { CreateProductData } from '../services/product.service';
 import { AppError } from '../errors/AppError';
 import { createProductSchema } from '../schemas/products.schema';
+import { MIN_FILE_SIZE_BYTES } from '../middlewares/storage/upload.middleware';
 import pool from '../db/postgres';
 import { config } from '../config/index';
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+interface UploadedFileMeta {
+  size: number;
+  filename: string;
+  path: string;
+}
+
+function getUploadedFile(req: Request): UploadedFileMeta | undefined {
+  return (req as Request & { file?: UploadedFileMeta }).file;
+}
+
+function cleanupTempFile(file: UploadedFileMeta): void {
+  try {
+    fs.unlinkSync(file.path);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn('Failed to cleanup temp file:', file.path, err);
+    }
+  }
+}
+
+function moveUploadedFile(userId: string, productId: string, file: UploadedFileMeta): string {
+  const relativeFolder = path.join('uploads', userId, productId);
+  const absoluteFolder = path.join(process.cwd(), relativeFolder);
+  if (!fs.existsSync(absoluteFolder)) {
+    fs.mkdirSync(absoluteFolder, { recursive: true });
+  }
+  const finalPath = path.join(absoluteFolder, file.filename);
+  fs.renameSync(file.path, finalPath);
+  return `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
+}
+
+// ============================================================================
+// SCHEMAS
+// ============================================================================
 
 const upsertQuizSchema = z.object({
   lessonId: z.string().uuid('ID de lección inválido'),
@@ -27,16 +67,21 @@ const upsertQuizSchema = z.object({
   maxAttempts: z.number().nullable().optional(),
 });
 
-/**
- * CREAR PRODUCTO: Delegación total al Service
- */
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req;
-    const reqWithFile = req as Request & { file?: { size: number; filename: string; path: string } };
-    const file = reqWithFile.file;
+    const file = getUploadedFile(req);
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
+
+    // Validate minimum file size
+    if (file && file.size < MIN_FILE_SIZE_BYTES) {
+      cleanupTempFile(file);
+      throw new AppError(
+        `File too small. Minimum size: ${MIN_FILE_SIZE_BYTES} bytes (1KB). Received: ${file.size} bytes.`,
+        400
+      );
+    }
 
     // 1. Validar body
     const validatedData = createProductSchema.parse(req.body);
@@ -57,28 +102,15 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     // 4. Mover archivo de TEMP a destino FINAL
     if (file) {
-      const relativeFolder = path.join('uploads', user.id, product.id);
-      const absoluteFolder = path.join(process.cwd(), relativeFolder);
-
-      if (!fs.existsSync(absoluteFolder)) {
-        fs.mkdirSync(absoluteFolder, { recursive: true });
-      }
-
-      const finalPath = path.join(absoluteFolder, file.filename);
-      fs.renameSync(file.path, finalPath);
-
-      const dbRelativeUrl = `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
+      const dbRelativeUrl = moveUploadedFile(user.id, product.id, file);
       await productRepository.updateProduct(product.id, { contentUrl: dbRelativeUrl });
       product.content_url = dbRelativeUrl;
     }
 
     res.status(201).json({ success: true, data: product });
   } catch (error: unknown) {
-    const reqWithFile = req as Request & { file?: { size: number; filename: string; path: string } };
-    const file = reqWithFile.file;
-    if (file && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-    }
+    const file = getUploadedFile(req);
+    if (file) cleanupTempFile(file);
     next(error);
   }
 };
@@ -90,10 +122,18 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
   try {
     const { user } = req;
     const productId = req.params.productId as string;
-    const reqWithFile = req as Request & { file?: { size: number; filename: string; path: string } };
-    const file = reqWithFile.file;
+    const file = getUploadedFile(req);
 
     if (!user) throw new AppError('Usuario no autenticado', 401);
+
+    // Validate minimum file size
+    if (file && file.size < MIN_FILE_SIZE_BYTES) {
+      cleanupTempFile(file);
+      throw new AppError(
+        `File too small. Minimum size: ${MIN_FILE_SIZE_BYTES} bytes (1KB). Received: ${file.size} bytes.`,
+        400
+      );
+    }
 
     // 1. Obtener producto actual para referencia
     const existingProduct = await productRepository.getProductById(productId);
@@ -123,25 +163,20 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       );
     }
 
-    // 4. Lógica de archivos (Mantenemos tu lógica actual...)
+    // 4. Lógica de archivos
     let finalContentUrl = existingProduct.content_url;
     let newSizeBytes = existingProduct.size_bytes;
 
     if (file) {
-      const relativeFolder = path.join('uploads', user.id, productId);
-      const absoluteFolder = path.join(process.cwd(), relativeFolder);
-      if (!fs.existsSync(absoluteFolder)) fs.mkdirSync(absoluteFolder, { recursive: true });
+      // Move to final location using helper
+      finalContentUrl = moveUploadedFile(user.id, productId, file);
+      newSizeBytes = file.size;
 
-      const finalPath = path.join(absoluteFolder, file.filename);
-      fs.renameSync(file.path, finalPath);
-
+      // Delete old file if it exists
       if (existingProduct.content_url?.startsWith('/uploads/')) {
         const oldAbsolutePath = path.join(process.cwd(), existingProduct.content_url.substring(1));
-        if (fs.existsSync(oldAbsolutePath)) fs.unlinkSync(oldAbsolutePath);
+        try { fs.unlinkSync(oldAbsolutePath); } catch { /* ignore if already deleted */ }
       }
-
-      finalContentUrl = `/${relativeFolder}/${file.filename}`.replace(/\\/g, '/');
-      newSizeBytes = file.size;
     }
 
     const productInput = {
@@ -153,11 +188,8 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     const updated = await productRepository.updateProduct(productId, productInput);
     res.status(200).json({ success: true, data: updated });
   } catch (error: unknown) {
-    const reqWithFile = req as Request & { file?: { size: number; filename: string; path: string } };
-    const file = reqWithFile.file;
-    if (file && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-    }
+    const file = getUploadedFile(req);
+    if (file) cleanupTempFile(file);
     next(error);
   }
 };

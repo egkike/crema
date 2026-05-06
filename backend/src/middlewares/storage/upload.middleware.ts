@@ -226,5 +226,11 @@ export const upload = multer({
   },
 });
 
+// ============================================================================
+// MINIMUM FILE SIZE - Prevent empty/tiny file uploads
+// ============================================================================
+
+export const MIN_FILE_SIZE_BYTES = 1024; // 1KB - hardcoded, no configurable
+
 // Export allowlist for reference in other modules
 export { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES, EXECUTABLE_EXTENSIONS };
