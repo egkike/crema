@@ -19,9 +19,9 @@
 | 2 | Validación de URLs externas (allowlist dominios) | 🔴 ALTA | ✅ | - |
 | 3 | Rate limiting específico para uploads | 🟡 MEDIA | ✅ | - |
 | 4 | Validación de tamaño mínimo (1KB) | 🟡 MEDIA | ✅ | - |
-| 5 | Schema de declaraciones (declarationAccepted, isbn, externalUrl) | 🔴 ALTA | 2 |
-| 6 | Integración en routes (uploadLimiter middleware) | 🟡 MEDIA | 3 |
-| 7 | Tests unitarios | 🟡 MEDIA | 1, 2, 3, 4 |
+| 5 | Schema de declaraciones (declarationAccepted, isbn, externalUrl) | 🔴 ALTA | ✅ | - |
+| 6 | Integración en routes (uploadLimiter middleware) | 🟡 MEDIA | ⬜ | - |
+| 7 | Tests unitarios | 🟡 MEDIA | ⬜ | 1, 2, 3, 4, 5 |)
 
 ---
 
@@ -289,19 +289,18 @@ pnpm tsc --noEmit
 
 ### Task 5: Schema de Declaraciones
 
-**Archivo**: `src/schemas/product-declarations.schema.ts` (CREAR)
+**Archivo**: `src/schemas/products.schema.ts` (MODIFICAR — agregar campos al schema existente)
 
-**Código**:
+**Código** (fragmento — campos a agregar en `createProductSchema`):
 
 ```typescript
-import { z } from 'zod';
-import { validateExternalUrlSafe, getExternalUrlError } from '../utils/url-validator.util';
+import { validateExternalUrlSafe } from '../utils/url-validator.util';
 
 // ============================================================================
 // DECLARATION LABELS - Required acceptances per product type
 // ============================================================================
 
-export const DECLARATION_LABELS: Record<string, string> = {
+export const DECLARATION_LABELS = {
   course: 'Declaro que este curso es contenido original creado por mí y tengo los derechos necesarios sobre todo el material.',
   ebook: 'Declaro que poseo los derechos de este ebook y no infringe copyrights de terceros.',
   podcast: 'Declaro que tengo derechos sobre toda la música y audio de este podcast.',
@@ -311,39 +310,93 @@ export const DECLARATION_LABELS: Record<string, string> = {
 } as const;
 
 // ============================================================================
-// PRODUCT DECLARATION SCHEMA - For create/update product operations
+// ISBN VALIDATOR - Check digit validation for ISBN-10 and ISBN-13
 // ============================================================================
 
-export const productDeclarationSchema = z.object({
-  declarationAccepted: z.boolean().refine(val => val === true, {
+export function validateISBN(raw: string): boolean {
+  const normalized = raw
+    .replace(/^ISBN(?:-1[03])?:?\s*/i, '')
+    .replace(/[\s-]/g, '');
+
+  const len = normalized.length;
+
+  if (len === 10) {
+    const sum = normalized.split('').slice(0, 9)
+      .reduce((acc, digit, i) => acc + Number(digit) * (10 - i), 0);
+    const check = normalized[9]?.toUpperCase();
+    const checksum = check === 'X' ? 10 : Number(check);
+    return !isNaN(checksum) && (sum + checksum) % 11 === 0;
+  }
+
+  if (len === 13) {
+    if (!/^\d{13}$/.test(normalized)) return false;
+    const sum = normalized.split('')
+      .reduce((acc, digit, i) => acc + Number(digit) * (i % 2 === 0 ? 1 : 3), 0);
+    return sum % 10 === 0;
+  }
+
+  return false;
+}
+
+// ============================================================================
+// STANDALONE DECLARATION SCHEMA - Independent validation
+// ============================================================================
+
+const productDeclarationFieldsSchema = z.object({
+  declarationAccepted: z.literal(true, {
     message: 'Debes aceptar la declaración de derechos para continuar.',
   }),
 
-  isExternalLinkOnly: z.boolean().optional().default(false),
-  externalUrl: z.string()
+  isExternalLinkOnly: z.boolean().default(false),
+
+  externalUrl: z
+    .string()
     .url('URL inválida')
     .optional()
     .refine(val => !val || validateExternalUrlSafe(val), {
-      message: getExternalUrlError(val || ''),
+      message: 'La URL externa no está en el dominio permitido.',
     }),
 
-  isbn: z.string()
-    .regex(
-      /^(?:ISBN(?:-1[03])?:? )?(?=[0-9X]{10}$|(?=(?:[0-9]+[- ]){3})[- 0-9X]{13}$|97[89][0-9]{10}$|(?=(?:[0-9]+[- ]){4})[- 0-9X]{17}$)(?:97[89][ -]?)?[0-9]{1,5}[ -]?[0-9]+[ -]?[0-9X]+$/,
-      'ISBN inválido. Formatos aceptados: ISBN-10, ISBN-13'
-    )
+  isbn: z
+    .string()
+    .regex(/^(?:ISBN(?:-1[03])?:?\s*)?[0-9X][0-9X\s-]{9,17}$/i, 'ISBN inválido. Formatos aceptados: ISBN-10, ISBN-13')
+    .refine(val => !val || validateISBN(val), {
+      message: 'ISBN con dígito de control inválido.',
+    })
     .optional(),
-});
+})
+  .refine(
+    data => {
+      if (data.isExternalLinkOnly && !data.externalUrl) return false;
+      return true;
+    },
+    { message: 'Si el producto es solo enlace externo, debes proporcionar la URL.', path: ['externalUrl'] }
+  );
 
-export type ProductDeclarationInput = z.infer<typeof productDeclarationSchema>;
+// ============================================================================
+// SCHEMA PRINCIPAL — merge en createProductSchema
+// ============================================================================
+
+export const createProductSchema = z.object({
+  // ... campos existentes ...
+  hasStructuredContent: z.boolean().default(false),
+  modules: z.array(moduleSchema).optional(),
+  ...productDeclarationFieldsSchema.shape,  // <-- campos de declaración via spread
+})
+  // Cross-field refine (REQUERIDO: .shape no hereda refines)
+  .refine(data => {
+    if (data.isExternalLinkOnly && !data.externalUrl) return false;
+    return true;
+  }, { message: 'Si el producto es solo enlace externo, debes proporcionar la URL.', path: ['externalUrl'] })
+  // ... refines existentes ...
 ```
 
-**Integración**: En el schema de producto existente, hacer merge del `productDeclarationSchema`.
+**Integración**: Los campos se agregan via spread de `productDeclarationFieldsSchema.shape` dentro de `createProductSchema`. El refine cross-field se duplica en `createProductSchema` porque `.shape` no hereda efectos (refinements) en Zod.
 
 **Verification**:
 ```bash
 pnpm tsc --noEmit
-pnpm test -- --grep "productDeclarationSchema"
+pnpm lint --filter @crema/backend
 ```
 
 ---
