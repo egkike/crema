@@ -6,6 +6,8 @@
 **Fecha**: Abril 2026 (implementado Mayo 2026)
 **Owner**: Kike García
 
+> **Recursos Reutilizables**: Ver `docs/project/reusable-resources.md` para módulos existentes.
+
 ---
 
 ## 1. Resumen Ejecutivo

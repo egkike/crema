@@ -7,6 +7,8 @@
 **Depends on**: proposal.md
 
 > **Estandar de Verificación**: Ver `docs/project/common/verification-standard.md`
+>
+> **Recursos Reutilizables**: Ver `docs/project/reusable-resources.md` para módulos existentes.
 
 ---
 

@@ -6,6 +6,8 @@
 **Estado**: ✅ COMPLETO (Tasks 1-7 implementados + testeados, Mayo 2026)
 **Depends on**: design.md
 
+> **Recursos Reutilizables**: Ver `docs/project/reusable-resources.md` para módulos existentes (memoryService, memoryRepository, embeddingService, hooks).
+
 ---
 
 ## Task List

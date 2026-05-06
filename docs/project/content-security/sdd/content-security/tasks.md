@@ -7,6 +7,8 @@
 **Fecha**: Mayo 2026
 **Depends on**: design.md
 
+> **Recursos Reutilizables**: Ver `docs/project/reusable-resources.md` para módulos existentes (upload middleware, rate limiters, AppError, ConfigService).
+
 ---
 
 ## Task List
