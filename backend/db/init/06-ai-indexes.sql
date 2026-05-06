@@ -6,6 +6,12 @@
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_source ON ai_embeddings(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_user ON ai_embeddings(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_embeddings_created ON ai_embeddings(created_at DESC);
+-- Composite covering index for memory-cleanup job (DELETE by age)
+-- Optimizes: WHERE created_at < cutoff ORDER BY created_at ASC, id ASC LIMIT N
+-- The cleanup job uses this for batch deletion of embeddings older than retention period.
+-- idx_ai_embeddings_created DESC is NOT used here because ASC order + id tiebreaker
+-- requires a separate index for efficient forward scan with LIMIT.
+CREATE INDEX IF NOT EXISTS idx_ai_embeddings_cleanup ON ai_embeddings(created_at ASC, id ASC);
 -- Composite covering index for LRU eviction queries (checkQuotaAndEvict)
 -- Optimizes: WHERE user_id = $1 ORDER BY created_at ASC LIMIT N
 -- Note: PostgreSQL can use this index for the WHERE+ORDER BY but requires heap access

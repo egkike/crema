@@ -107,9 +107,8 @@ export const initMainWorker = () => {
             }
 
             // Parse and validate batch configuration via env vars
-            // NOTE: PostgreSQL does not support parameterized LIMIT ($1), so we validate
-            // BATCH_SIZE is a positive integer and interpolate it directly. This is safe
-            // because we've already validated it's in range [1, 10000].
+            // BATCH_SIZE is validated as a positive integer in range [1, 10000].
+            // LIMIT uses $2 / $4 parameterization for safety (defense in depth).
             const BATCH_SIZE_STR = process.env.MEMORY_CLEANUP_BATCH_SIZE || '1000';
             const BATCH_SIZE = parseInt(BATCH_SIZE_STR, 10);
             if (isNaN(BATCH_SIZE) || BATCH_SIZE < 1 || BATCH_SIZE > 10000) {
@@ -173,25 +172,42 @@ export const initMainWorker = () => {
 
                 if (lastCreatedAt === null) {
                   // First batch: start from the oldest rows (no cursor yet)
+                  // PostgreSQL does not support ORDER BY/LIMIT directly in DELETE
+                  // Use CTE to select ids with ordering, then delete by id
+                  // Wrap outer DELETE in a SELECT FROM DELETE to guarantee RETURNING order matches CTE ORDER BY
                   query = `
-                    DELETE FROM "${schema}".ai_embeddings
-                    WHERE created_at < $1
+                    SELECT created_at, id FROM (
+                      WITH to_delete AS (
+                        SELECT id FROM "${schema}".ai_embeddings
+                        WHERE created_at < $1
+                        ORDER BY created_at ASC, id ASC
+                        LIMIT $2
+                      )
+                      DELETE FROM "${schema}".ai_embeddings
+                      WHERE id IN (SELECT id FROM to_delete)
+                      RETURNING created_at, id
+                    ) AS deleted_rows
                     ORDER BY created_at ASC, id ASC
-                    LIMIT ${BATCH_SIZE}
-                    RETURNING created_at, id
                   `;
-                  params = [cutoff];
+                  params = [cutoff, BATCH_SIZE];
                 } else {
                   // Subsequent batches: use composite cursor to avoid skipping rows
-                  // Cast to text for id comparison to avoid UUID type issues
+                  // Wrap outer DELETE in SELECT to guarantee RETURNING order
                   query = `
-                    DELETE FROM "${schema}".ai_embeddings
-                    WHERE created_at < $1 AND (created_at, id) > ($2::timestamptz, $3::text)
+                    SELECT created_at, id FROM (
+                      WITH to_delete AS (
+                        SELECT id FROM "${schema}".ai_embeddings
+                        WHERE created_at < $1 AND (created_at, id) > ($2::timestamptz, $3::text)
+                        ORDER BY created_at ASC, id ASC
+                        LIMIT $4
+                      )
+                      DELETE FROM "${schema}".ai_embeddings
+                      WHERE id IN (SELECT id FROM to_delete)
+                      RETURNING created_at, id
+                    ) AS deleted_rows
                     ORDER BY created_at ASC, id ASC
-                    LIMIT ${BATCH_SIZE}
-                    RETURNING created_at, id
                   `;
-                  params = [cutoff, lastCreatedAt, lastId ?? UUID_SENTINEL];
+                  params = [cutoff, lastCreatedAt, lastId ?? UUID_SENTINEL, BATCH_SIZE];
                 }
 
                 const result = await pool.query<{ created_at: Date; id: string }>(query, params);
@@ -209,9 +225,18 @@ export const initMainWorker = () => {
                 if (deleted === 0) break;
 
                 // Update cursor to the last row from this batch (via RETURNING)
+                // Note: outer SELECT wraps DELETE RETURNING to guarantee order matches CTE ORDER BY
+                // Use explicit column access and NULL guard on created_at
                 const returnedRows = result.rows;
                 const lastRow = returnedRows[returnedRows.length - 1];
-                lastCreatedAt = lastRow.created_at.toISOString();
+                if (!lastRow || lastRow.created_at === null) {
+                  logger.error({ iterations, totalDeleted }, 'CRITICAL: RETURNING produced NULL or empty row, aborting');
+                  throw new Error('memory-cleanup: RETURNING produced NULL row, cursor cannot advance');
+                }
+                // toISOString() gives ms precision (3 digits). PostgreSQL timestamptz uses µs (6 digits).
+                // Padding with zeros is safe: PostgreSQL will match the millisecond boundary.
+                // This is deterministic — no row between ms timestamps will be skipped.
+                lastCreatedAt = lastRow.created_at.toISOString().slice(0, -1) + '000';
                 lastId = lastRow.id;
 
                 totalDeleted += deleted;
