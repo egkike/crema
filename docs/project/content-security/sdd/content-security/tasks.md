@@ -20,8 +20,8 @@
 | 3 | Rate limiting específico para uploads | 🟡 MEDIA | ✅ | - |
 | 4 | Validación de tamaño mínimo (1KB) | 🟡 MEDIA | ✅ | - |
 | 5 | Schema de declaraciones (declarationAccepted, isbn, externalUrl) | 🔴 ALTA | ✅ | - |
-| 6 | Integración en routes (uploadLimiter middleware) | 🟡 MEDIA | ⬜ | - |
-| 7 | Tests unitarios | 🟡 MEDIA | ⬜ | 1, 2, 3, 4, 5 |)
+| 6 | Integración en routes (uploadLimiter middleware) | 🟡 MEDIA | ✅ | - |
+| 7 | Tests unitarios | 🟡 MEDIA | ⬜ | 1, 2, 3, 4, 5, 6 |
 
 ---
 
@@ -403,31 +403,42 @@ pnpm lint --filter @crema/backend
 
 ### Task 6: Integración en Routes
 
-**Archivos**: Donde se usa `upload.single('file')` — agregar `uploadLimiter` antes.
+**Archivos**: `backend/src/routes/products.routes.ts` y `backend/src/routes/ai.routes.ts`
 
-**Pattern**:
+**Pattern (implementación)**:
 
 ```typescript
-import { uploadLimiter } from '../middlewares/rateLimit/rateLimit';
-import { upload } from '../middlewares/storage/upload.middleware';
+// products.routes.ts — POST /create y PATCH /:productId
+import { productUploadLimiter } from '../middlewares/rateLimit/rateLimit';
 
 router.post(
-  '/products/:productId/upload',
-  jwtAuthMiddleware,
-  uploadLimiter,  // <-- ANTES de upload
+  '/create',
+  restrictTo('CREATOR'),
+  productUploadLimiter,  // <-- ANTES de checkPlanLimits (gatea DB queries)
+  checkPlanLimits,
   upload.single('file'),
-  productController.uploadFile
+  productController.createProduct
 );
 
-// Para AI content upload:
+// ai.routes.ts — POST /transcribe
+import { transcribeUploadLimiter } from '../middlewares/rateLimit/rateLimit';
+
 router.post(
-  '/ai/content/upload',
+  '/transcribe',
   jwtAuthMiddleware,
-  uploadLimiter,
+  transcribeUploadLimiter,  // <-- único limiter (independiente de productUploadLimiter)
   upload.single('file'),
-  aiContentController.uploadContent
+  async (req, res, next) => { ... }
 );
 ```
+
+**Rate limiters definidos**:
+- `productUploadLimiter`: 10/min, compartido entre POST /create y PATCH /:productId
+- `transcribeUploadLimiter`: 3/min, independiente para transcripciones
+- Ambos tienen `skipFailedRequests: true` (requests que fallan no consumen cuota)
+
+**Orden de middlewares**: `restrictTo → productUploadLimiter → checkPlanLimits → upload`
+(El rate limiter corre antes de checkPlanLimits para proteger las DB queries)
 
 **Verification**:
 ```bash
