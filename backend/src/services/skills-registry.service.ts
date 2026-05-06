@@ -135,9 +135,11 @@ export const skillsRegistry = {
     registeredSkills.set(skill.capability, skill);
 
     // Persist metadata to DB (NOT handler)
+    // NOTE: id is NOT passed - let DB generate UUID via DEFAULT gen_random_uuid()
+    // Following project standard: use DB-generated UUIDs (see product.repository.ts:669)
     await pool.query(
-      `INSERT INTO skills (id, name, capability, description, parameters, options)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO skills (name, capability, description, parameters, options)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (capability) DO UPDATE SET
          name = EXCLUDED.name,
          description = EXCLUDED.description,
@@ -145,7 +147,6 @@ export const skillsRegistry = {
          options = EXCLUDED.options,
          updated_at = NOW()`,
       [
-        skill.id,
         skill.name,
         skill.capability,
         skill.description,
