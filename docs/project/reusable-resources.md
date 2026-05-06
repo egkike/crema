@@ -286,4 +286,75 @@ These SDDs reference this catalog:
 
 ---
 
+## 10. Database Schema (`db/init/`)
+
+Database initialization scripts run **once on first container start** via docker-compose volume mount (`./db/init:/docker-entrypoint-initdb.d`). All scripts use `CREATE INDEX IF NOT EXISTS` and `CREATE TABLE IF NOT EXISTS` for idempotency.
+
+> **Always check this section before adding tables or indexes in an SDD.** Creating something that already exists wastes migration effort.
+
+### Init Script Inventory
+
+| File | What it sets up |
+|------|----------------|
+| `01-create-tables.sql` | Core tables: users, products, orders, balances, payouts, commissions, subscriptions |
+| `02-create-indexes.sql` | Core indexes on user, product, order, balance tables |
+| `03-create-seeds.sql` | Seed data (admin user, default plans) |
+| `04-refactor-types.sql` | Schema migrations (add columns, constraints) |
+| `05-ai-tables.sql` | `ai_embeddings`, `ai_credits`, `ai_credit_transactions`, `ai_credit_packages` |
+| `06-ai-indexes.sql` | AI indexes: source, user, created_at DESC/ASC, HNSW/IVFFlat vector, cleanup, LRU eviction |
+| `07-config-service-tables.sql` | `app_configs` table + config service setup |
+| `08-orchestrator-tables.sql` | Orchestrator tables, skills registry |
+| `09-error-handling-config.sql` | Error policies, content policies, report reasons |
+| `10-user-context-tables.sql` | Q&A (questions, FAQs), reviews/ratings, reports, analytics, AI agents |
+| `11-hnsw-index.sql` | HNSW vector index (alternative to IVFFlat, requires pgvector) |
+
+### Key Indexes for AI Features
+
+| Index | Columns | Purpose |
+|-------|---------|---------|
+| `idx_ai_embeddings_source` | `(source_type, source_id)` | Look up embeddings by source |
+| `idx_ai_embeddings_user` | `(user_id)` | User's embedding list |
+| `idx_ai_embeddings_created` | `(created_at DESC)` | Recent embeddings, vector search ordering |
+| `idx_ai_embeddings_cleanup` | `(created_at ASC, id ASC)` | memory-cleanup job batched deletes (ASC scan) |
+| `idx_ai_embeddings_user_created` | `(user_id, created_at ASC)` | LRU eviction (checkQuotaAndEvict) |
+| `idx_ai_embeddings_hnsw` | `(embedding vector_cosine_ops)` | Cosine similarity search |
+| `idx_ai_embeddings_ivfflat` | `(embedding vector_cosine_ops)` | Alternative to HNSW for large datasets |
+| `idx_ai_credits_user` | `(user_id)` | Credit balance lookups |
+| `idx_ai_credits_expires` | `(expires_at)` | Expired credits cleanup |
+
+### Index Naming Conventions
+
+```
+idx_<table>_<columns>     → btree single column:     idx_users_email
+idx_<table>_<col1>_<colN> → composite:               idx_orders_user_status
+idx_<table>_<purpose>     → purpose-driven:         idx_ai_embeddings_cleanup
+```
+
+### Adding Indexes — Checklist
+
+1. **Check existing indexes** in `06-ai-indexes.sql` (for AI tables) or `02-create-indexes.sql` (core tables)
+2. Use `CREATE INDEX IF NOT EXISTS` so rerunning init scripts is safe
+3. For vector indexes: wrap in `DO $$ BEGIN ... CREATE INDEX ... END $$` with `IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')` guard
+4. Add `IF NOT EXISTS` check if the index depends on conditional features (e.g., extension not yet loaded)
+
+### Database Connection
+
+```typescript
+import pool from '../db/postgres';
+// Usage: pool.query<T>(query, params) — always parameterized
+const result = await pool.query<{ created_at: Date; id: string }>(
+  'SELECT created_at, id FROM ai_embeddings WHERE user_id = $1 LIMIT $2',
+  [userId, 10]
+);
+```
+
+### Key Schema Notes
+
+- **`created_at` / `updated_at`**: Present on most tables but **NOT always NOT NULL** — always guard before calling `.toISOString()`
+- **`id`**: UUID v4 as primary key on all major tables
+- **Composite cursors**: For cursor-based pagination, use `(created_at, id)` tuple comparison with `::timestamptz` / `::text` casts, not separate `>` on each column
+- **Cleanup jobs**: Use ASC scan with `created_at < cutoff` + `ORDER BY created_at ASC, id ASC` — DESC indexes don't help for ascending iteration
+
+---
+
 *To update this catalog: edit this file and run `skill-registry` to sync changes to engram.*
