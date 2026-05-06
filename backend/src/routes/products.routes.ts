@@ -6,6 +6,7 @@ import { restrictTo } from '../middlewares/auth/role.middleware';
 import { checkPlanLimits } from '../middlewares/auth/checkPlanLimits.middleware';
 import { affiliateTracking } from '../middlewares/tracking/affiliateTracking.middleware';
 import { upload } from '../middlewares/storage/upload.middleware';
+import { productUploadLimiter } from '../middlewares/rateLimit/rateLimit';
 
 const router = Router();
 
@@ -45,8 +46,9 @@ router.post('/:productId/join', restrictTo('AFFILIATE'), productController.joinP
 router.post(
   '/create',
   restrictTo('CREATOR'),
-  checkPlanLimits, 
-  upload.single('file'), 
+  productUploadLimiter,
+  checkPlanLimits,
+  upload.single('file'),
   productController.createProduct
 );
 
@@ -58,7 +60,8 @@ router.post(
 router.patch(
   '/:productId',
   restrictTo('CREATOR'),
-  checkPlanLimits, 
+  productUploadLimiter,
+  checkPlanLimits,
   upload.single('file'),
   productController.updateProduct
 );

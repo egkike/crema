@@ -14,7 +14,7 @@ import { reportService } from '../services/ai/denunciation.service';
 import { qaAgentService, analyticsService, tutorService, insightsService } from '../services/ai/agents.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
-import { aiLimiter, aiChatLimiter, aiContentLimiter } from '../middlewares/rateLimit/rateLimit';
+import { aiLimiter, aiChatLimiter, aiContentLimiter, transcribeUploadLimiter } from '../middlewares/rateLimit/rateLimit';
 import { validate } from '../middlewares/auth/validate.middleware';
 import { AppError } from '../errors/AppError';
 import type { AuthenticatedRequest } from '../types/express';
@@ -1862,7 +1862,7 @@ router.post(
 router.post(
   '/transcribe',
   jwtAuthMiddleware,
-  aiContentLimiter,
+  transcribeUploadLimiter,
   upload.single('file'),
   async (req: Request, res: Response, next: NextFunction) => {
     await aiContentController.transcribe(req, res, next);

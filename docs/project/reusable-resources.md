@@ -153,7 +153,7 @@ router.post('/route', jwtAuthMiddleware, restrictTo('ADMIN'), validate(schema), 
 import { apiLimiter, loginLimiter, aiLimiter, adminWriteLimiter } from '../middlewares/rateLimit/rateLimit';
 ```
 
-Pre-configured limiters: `loginLimiter`, `refreshLimiter`, `apiLimiter`, `aiLimiter`, `aiChatLimiter`, `aiContentLimiter`, `uploadLimiter`, `webhookLimiter`, `adminReadLimiter`, `adminWriteLimiter`.
+Pre-configured limiters: `loginLimiter`, `refreshLimiter`, `apiLimiter`, `aiLimiter`, `aiChatLimiter`, `aiContentLimiter`, `productUploadLimiter`, `transcribeUploadLimiter`, `webhookLimiter`, `adminReadLimiter`, `adminWriteLimiter`.
 
 ### Storage
 
