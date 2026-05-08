@@ -3,10 +3,10 @@
 **Change**: interactive-agent
 **Type**: AI Feature
 **SDD Phase**: Spec
-**Status**: Draft
+**Status**: ✅ COMPLETED
 **Date**: Mayo 2026
 **Owner**: Kike García
-**Depends on**: proposal.md
+**Implementation note**: After adversarial judgment (3 rounds), all 11 SDD tasks completed and merged to master (commit eb30679). 1231 tests passing. Key features: idempotent credit flow, retry pattern, parallelized queries, field type validation.
 
 ---
 

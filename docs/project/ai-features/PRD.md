@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Crema - Sistema de Interacción y Analytics
 
-**Versión**: 1.5
+**Versión**: 1.6
 **Fecha**: Mayo 2026
-**Estado**: 🟢 MAYORMENTE IMPLEMENTADO — Faltan: Interactive Agent (§2.5) y SDD para Reports Agent triage IA
+**Estado**: 🟢 MAYORMENTE IMPLEMENTADO — Faltan: SDD para Reports Agent triage IA
 **Owner**: Kike García
 **Fases**: 2 (Memory + Q&A + Reviews + Denuncias | Analytics + IA avanzada)
 
@@ -2202,7 +2202,7 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 
 | Prioridad | Tarea | SDD | Dependencias |
 |-----------|-------|-----|--------------|
-| 🔴 ALTA | **Interactive Agent** (talleres dinámicos) | ✅ SDD en revisión | user_course_data, product_module_fields |
+| 🔴 ALTA | **Interactive Agent** (talleres dinámicos) | ✅ SDD completo | ✅ user_course_data, product_module_fields |
 | 🟢 BAJA | Orchestrator registration para servicios ya implementados | Opcional | - |
 
 > **Nota:** Los SDDs de memory-enhancement y ai-content-assistant fueron creados retrospectively. Interactive Agent sigue el mismo patrón: se implementó sin SDD y ahora se documenta.
@@ -2318,8 +2318,11 @@ RESPUENDE en JSON con este formato exacto.
 | 1.4 | Abril 2026 | Estado real documentado: Servicios base implementados (Content Assistant, Q&A, Reviews, Denunciation, Credits), Memory Enhancement Tasks pendientes, Orchestrator integración pendiente |
 | 1.5 | Mayo 2026 | Estado actualizado: 18 servicios AI implementados (sin SDD formal). Pendientes: Interactive Agent (§2.5), Reports Agent triage IA. Memory Enhancement y ai-content-assistant completados con SDD. |
 
+| 1.5 | Mayo 2026 | Estado actualizado: 18 servicios AI implementados (sin SDD formal). Pendientes: Interactive Agent (§2.5), Reports Agent triage IA. Memory Enhancement y ai-content-assistant completados con SDD. |
+| 1.6 | Mayo 2026 | Interactive Agent (§2.5) completado con SDD. Feature completo: SQL, types, schemas, repository, service, routes, tests (1231 passing). Credit flow idempotente con referenceId check. Retry pattern con double-charge prevention. |
+
 ---
 
 *Documento preparado para el proyecto Crema - Mayo 2026*
-*Versión: 1.5 - Estado: Parcialmente Implementado*
-*Última actualización: Mayo 2026 - Servicios base implementados, SDD para Interactive Agent y Reports Agent en revisión*
+*Versión: 1.6 - Estado: Interactive Agent implementado, Reports Agent pendiente*
+*Última actualización: Mayo 2026 - Interactive Agent SDD completo + merge a master*

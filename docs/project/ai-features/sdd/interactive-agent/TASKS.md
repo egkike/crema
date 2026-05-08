@@ -3,7 +3,7 @@
 **Change**: interactive-agent
 **Type**: AI Feature
 **SDD Phase**: Tasks
-**Status**: Draft
+**Status**: ✅ COMPLETED
 **Date**: Mayo 2026
 **Owner**: Kike García
 **Depends on**: design.md
@@ -361,9 +361,10 @@ pnpm test -- --grep "interactive"
 
 ## Definition of Done
 
-- [ ] Todas las tasks completadas
-- [ ] `pnpm tsc --noEmit` sin errores
-- [ ] `pnpm lint --filter backend` sin errores/warnings
-- [ ] Tests passing (coverage >= 80% service, >= 70% routes)
-- [ ] Tablas creadas en DB (via init script o migration manual)
-- [ ] Routes respondiendo correctamente (probar con curl/httpie)
+- [x] Todas las tasks completadas
+- [x] `pnpm tsc --noEmit` sin errores
+- [x] `pnpm lint --filter backend` sin errores/warnings
+- [x] Tests passing (1231 passing, coverage >= 80% service, >= 70% routes)
+- [x] Tablas creadas en DB (12-interactive-agent.sql)
+- [x] Routes respondiendo correctamente
+- [x] PR mergeado a master (commit eb30679)
