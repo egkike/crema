@@ -110,6 +110,8 @@ export function globalErrorHandler(
     statusCode = 400;
   } else if (err.name === 'UnauthorizedError') {
     statusCode = 401;
+  } else if (err.name === 'ZodError') {
+    statusCode = 400;
   }
 
   // Get error info

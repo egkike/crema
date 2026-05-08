@@ -222,6 +222,27 @@ export const productUploadLimiter = rateLimit({
   },
 });
 
+// Rate limiter específico para Interactive Agent (análisis)
+// SPEC §4.2: 10 requests/min per user para análisis
+export const interactiveAgentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 10, // máximo 10 análisis por minuto por usuario
+  message: {
+    success: false,
+    error: 'Demasiadas solicitudes de análisis. Intenta de nuevo en un minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId || ipKeyGenerator(req.ip || '');
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de análisis interactivo alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
 // TRANSCRIBE UPLOAD RATE LIMITER - Independent counter for transcription uploads
 // Separate from productUploadLimiter so transcription usage doesn't consume product quota
 // max: 3/min aligns with original design intent (documentado en ai-content.config.ts)

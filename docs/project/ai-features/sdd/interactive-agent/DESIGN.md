@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS user_course_data (
     module_key VARCHAR(100) NOT NULL,
     input_data JSONB NOT NULL DEFAULT '{}',
     output_analysis JSONB,
+    completed BOOLEAN DEFAULT FALSE,
     completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -185,7 +186,8 @@ CREATE TABLE IF NOT EXISTS user_course_data (
 COMMENT ON TABLE user_course_data IS 'User-specific course/module data for interactive workshops';
 COMMENT ON COLUMN user_course_data.input_data IS 'JSON: user answers for module fields';
 COMMENT ON COLUMN user_course_data.output_analysis IS 'JSON: AI-generated analysis results';
-COMMENT ON COLUMN user_course_data.completed_at IS 'Timestamp when user completed the module (all required fields filled + analysis generated)';
+COMMENT ON COLUMN user_course_data.completed IS 'Boolean flag indicating if the user completed the module (all required fields filled + analysis generated)';
+COMMENT ON COLUMN user_course_data.completed_at IS 'Timestamp when user completed the module';
 
 -- ============================================================================
 -- product_module_fields: Configuración de campos por módulo (creator defines)
@@ -199,7 +201,7 @@ CREATE TABLE IF NOT EXISTS product_module_fields (
     field_label VARCHAR(255) NOT NULL,
     field_placeholder VARCHAR(255),
     field_options JSONB DEFAULT '[]',
-    field_required BOOLEAN DEFAULT true,
+    field_required BOOLEAN DEFAULT false,
     field_validation JSONB DEFAULT '{}',
     order_index INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

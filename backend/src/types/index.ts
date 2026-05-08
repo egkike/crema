@@ -70,5 +70,14 @@ export type {
 } from './reports.types';
 export { REPORT_REASON_LABELS } from './reports.types';
 
+// Interactive Agent types
+export type {
+  FieldConfig,
+  ModuleFieldConfig,
+  UserModuleData,
+  AnalysisResult,
+  AnalyticsResult,
+} from './interactive.types';
+
 // Re-export PoolClient type from pg
 export type { PoolClient } from 'pg';
