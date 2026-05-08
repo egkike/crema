@@ -61,5 +61,14 @@ export type {
   SemanticSearchResponse,
 } from './ai.types';
 
+// Reports Agent types
+export type {
+  ReportReasonCode,
+  TriageSeverity,
+  TriageAction,
+  TriageResult,
+} from './reports.types';
+export { REPORT_REASON_LABELS } from './reports.types';
+
 // Re-export PoolClient type from pg
 export type { PoolClient } from 'pg';

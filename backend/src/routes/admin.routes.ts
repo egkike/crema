@@ -4,16 +4,18 @@ import { AdminController } from '../controllers/admin.controller';
 import { payoutRepository } from '../repositories/payout.repository';
 import { PayoutService } from '../services/payout.service';
 import { ExportService } from '../services/export.service';
-import { productRepository } from '../repositories/product.repository';
+import { productRepository, ProductInput } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { commissionRepository } from '../repositories/commission.repository';
 import { AppError } from '../errors/AppError';
 import logger from '../utils/logger';
-import { auditMiddleware } from '../middlewares/audit/audit.middleware';
+import { auditMiddleware, getAuditLogs } from '../middlewares/audit/audit.middleware';
 import { requireAdmin2FA } from '../middlewares/auth/admin2fa.middleware';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
 import { adminReadLimiter, adminWriteLimiter } from '../middlewares/rateLimit/rateLimit';
+import { reportService } from '../services/ai/denunciation.service';
+import { asyncHandler } from '../middlewares/global-error.middleware';
 
 const router = Router();
 
@@ -38,25 +40,27 @@ router.get('/retention-summary', AdminController.getRetentionSummary);
  */
 router.get('/products', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { search, type, status, creator_id, page, limit } = req.query;
+    const { search, type, status, creator_id } = req.query;
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
 
     const result = await productRepository.getAllProducts({
       search: search as string,
       type: type as string,
       status: status as string,
       creatorId: creator_id as string,
-      page: page ? parseInt(page as string) : 1,
-      limit: limit ? parseInt(limit as string) : 20,
+      page,
+      limit,
     });
 
     res.status(200).json({
       success: true,
       data: result.products,
       pagination: {
-        page: page ? parseInt(page as string) : 1,
-        limit: limit ? parseInt(limit as string) : 20,
+        page,
+        limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / (limit ? parseInt(limit as string) : 20)),
+        totalPages: Math.ceil(result.total / limit),
       },
     });
   } catch (error) {
@@ -110,7 +114,7 @@ router.patch('/products/:id', adminWriteLimiter, auditMiddleware('product_update
     }
 
     // Construir objeto de actualización (solo campos permitidos)
-    const updateData: any = {};
+    const updateData: Partial<ProductInput> = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (status !== undefined) updateData.status = status;
@@ -138,7 +142,9 @@ router.patch('/products/:id', adminWriteLimiter, auditMiddleware('product_update
  */
 router.get('/orders', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { status, currency, from, to, buyer_id, product_id, page, limit } = req.query;
+    const { status, currency, from, to, buyer_id, product_id } = req.query;
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
 
     const result = await orderRepository.getAllOrders({
       status: status as string,
@@ -147,18 +153,18 @@ router.get('/orders', async (req: Request, res: Response, next: NextFunction) =>
       to: to as string,
       buyerId: buyer_id as string,
       productId: product_id as string,
-      page: page ? parseInt(page as string) : 1,
-      limit: limit ? parseInt(limit as string) : 20,
+      page,
+      limit,
     });
 
     res.status(200).json({
       success: true,
       data: result.orders,
       pagination: {
-        page: page ? parseInt(page as string) : 1,
-        limit: limit ? parseInt(limit as string) : 20,
+        page,
+        limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / (limit ? parseInt(limit as string) : 20)),
+        totalPages: Math.ceil(result.total / limit),
       },
     });
   } catch (error) {
@@ -205,7 +211,7 @@ router.get('/commissions/stats', async (_req: Request, res: Response, next: Next
  */
 router.get('/commissions/top-products', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '10'), 10) || 10));
     const topProducts = await commissionRepository.getTopProductsByAffiliateSales(limit);
 
     res.status(200).json({
@@ -234,18 +240,17 @@ router.patch('/payouts/:id/status', adminWriteLimiter, auditMiddleware('payout_u
  */
 router.get('/audit-logs', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { from, to, action, admin_id, page, limit } = req.query;
-
-    // Importar la función del middleware de auditoría
-    const { getAuditLogs } = await import('../middlewares/audit/audit.middleware');
+    const { from, to, action, admin_id } = req.query;
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
 
     const result = getAuditLogs({
       from: from as string,
       to: to as string,
       action: action as string,
       adminId: admin_id as string,
-      page: page ? parseInt(page as string) : 1,
-      limit: limit ? parseInt(limit as string) : 20,
+      page,
+      limit,
     });
 
     res.status(200).json({
@@ -368,5 +373,30 @@ router.get('/export/lec-report', async (req, res, next) => {
     next(error);
   }
 });
+
+/* --- 5. REPORTS AGENT (AI MODERATION) --- */
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Triage manual de un reporte por admin
+ */
+router.post(
+  '/reports/:reportId/triage',
+  asyncHandler(async (req, res) => {
+    const reportId = String(req.params.reportId);
+
+    if (!UUID_REGEX.test(reportId)) {
+      throw new AppError('Invalid request', 400);
+    }
+
+    const adminId = req.user?.id;
+    if (!adminId) {
+      throw new AppError('Unauthorized', 401);
+    }
+    const result = await reportService.triageReport(reportId, adminId);
+    res.json({ success: true, data: result });
+  })
+);
 
 export default router;

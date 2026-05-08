@@ -17,7 +17,7 @@
 | 1 | Agregar tipos `TriageResult` y `ReportReasonCode` en `types/reports.types.ts` | 🔴 ALTA | - |
 | 2 | Extender `reportService` con método `triageReport()` | 🔴 ALTA | 1 |
 | 3 | Agregar endpoint en `admin.routes.ts` + UUID validation | 🔴 ALTA | 2 |
-| 4 | Unit tests del método `triageReport()` | 🟡 MEDIA | 2 |
+| 4 | Unit tests del método `triageReport()` | 🟡 MEDIA | 2 | [x] |
 
 ---
 
@@ -69,7 +69,7 @@ pnpm tsc --noEmit
 
 ---
 
-### Task 2: Extender reportService con triageReport()
+### Task 2: Extender reportService con triageReport() [x]
 
 **Archivo:** `backend/src/services/ai/denunciation.service.ts`
 
@@ -300,7 +300,7 @@ pnpm tsc --noEmit
 
 ---
 
-### Task 4: Unit Tests
+### Task 4: Unit Tests [x]
 
 **Archivo:** `backend/src/__tests__/services/ai/denunciation.service.test.ts`
 
