@@ -3,21 +3,22 @@
 **Change**: reports-agent
 **Type**: AI Feature
 **SDD Phase**: Tasks
-**Status**: Draft
+**Status**: Implemented
 **Date**: Mayo 2026
 **Owner**: Kike García
 **Depends on**: design.md
+**Implementation**: `backend/src/services/ai/denunciation.service.ts`, `backend/src/types/reports.types.ts`, `backend/src/routes/admin.routes.ts`
 
 ---
 
 ## Task List
 
-| # | Task | Priority | Depends on |
-|---|------|:---------:|------------|
-| 1 | Agregar tipos `TriageResult` y `ReportReasonCode` en `types/reports.types.ts` | 🔴 ALTA | - |
-| 2 | Extender `reportService` con método `triageReport()` | 🔴 ALTA | 1 |
-| 3 | Agregar endpoint en `admin.routes.ts` + UUID validation | 🔴 ALTA | 2 |
-| 4 | Unit tests del método `triageReport()` | 🟡 MEDIA | 2 | [x] |
+| # | Task | Priority | Depends on | Status |
+|---|------|:---------:|------------|--------|
+| 1 | Agregar tipos `TriageResult` y `ReportReasonCode` en `types/reports.types.ts` | 🔴 ALTA | - | ✅ Implementado |
+| 2 | Extender `reportService` con método `triageReport()` | 🔴 ALTA | 1 | ✅ Implementado |
+| 3 | Agregar endpoint en `admin.routes.ts` + UUID validation | 🔴 ALTA | 2 | ✅ Implementado |
+| 4 | Unit tests del método `triageReport()` | 🟡 MEDIA | 2 | ✅ Implementado |
 
 ---
 

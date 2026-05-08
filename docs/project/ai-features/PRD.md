@@ -2187,10 +2187,15 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 | Feature | Código | Rutas API | Tablas DB |
 |---------|--------|----------|-----------|
 | Q&A Agent | `qaAgentService` en `agents.service.ts` | ✅ `/qa/chat`, `/qa/config` | ✅ `product_qa_agent_config` |
+#### Implementado:
+
+| Feature | Servicio | API | Tablas |
+|---------|----------|-----|--------|
 | Tutor AI | `tutorService` en `agents.service.ts` | ✅ `/tutor/chat`, `/tutor/insights` | ✅ `product_tutor_config`, `tutor_insights` |
 | Analytics | `analyticsService.getDashboardMetrics()` | ✅ `/analytics/dashboard` | ✅ `creator_daily_metrics` |
 | Insights AI | `insightsService` (CRUD dashboards, NL→SQL) | ✅ `/insights/dashboards`, `/insights/query` | ✅ `creator_dashboards`, `insights_history` |
 | Reports | `reportService` en `denunciation.service.ts` | ✅ `/reports` CRUD | ✅ `reports`, `report_reasons`, `report_actions` |
+| **Reports Agent** | `reportService.triageReport()` en `denunciation.service.ts` | ✅ `POST /admin/reports/:reportId/triage` | ✅ Reports + AI classification |
 | Memory Enhancement | `memory-enhancement` SDD | ✅ RBAC, Quota, LRU | ✅ Índices HNSW, cleanup |
 
 #### Pendiente:
@@ -2198,7 +2203,6 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 | Prioridad | Tarea | SDD | Dependencias |
 |-----------|-------|-----|--------------|
 | 🔴 ALTA | **Interactive Agent** (talleres dinámicos) | ✅ SDD en revisión | user_course_data, product_module_fields |
-| 🟡 MEDIA | **Reports Agent** (triage IA automático) | ✅ SDD en revisión | Reports system existe pero sin clasificación IA |
 | 🟢 BAJA | Orchestrator registration para servicios ya implementados | Opcional | - |
 
 > **Nota:** Los SDDs de memory-enhancement y ai-content-assistant fueron creados retrospectively. Interactive Agent sigue el mismo patrón: se implementó sin SDD y ahora se documenta.
