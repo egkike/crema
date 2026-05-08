@@ -1,10 +1,10 @@
 # Product Requirements Document (PRD)
 ## Crema - Sistema de Interacción y Analytics
 
-**Versión**: 1.3  
-**Fecha**: Marzo-Abril 2026  
-**Estado**: 🟡 PARCIAL - Servicios base implementados, integración Orchestrator pendiente
-**Owner**: Kike García  
+**Versión**: 1.5
+**Fecha**: Mayo 2026
+**Estado**: 🟢 MAYORMENTE IMPLEMENTADO — Faltan: Interactive Agent (§2.5) y SDD para Reports Agent triage IA
+**Owner**: Kike García
 **Fases**: 2 (Memory + Q&A + Reviews + Denuncias | Analytics + IA avanzada)
 
 ---
@@ -149,9 +149,9 @@ CREATE TABLE ai_credits (
     balance INT DEFAULT 0 CHECK (balance >= 0),
     total_purchased INT DEFAULT 0,
     total_used INT DEFAULT 0,
-    expires_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user_id)
 );
 
@@ -166,7 +166,7 @@ CREATE TABLE ai_credit_transactions (
     balance_after INT NOT NULL,
     description TEXT,
     related_order_id UUID, -- Si fue por compra
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Packages de créditos disponibles
@@ -178,7 +178,7 @@ CREATE TABLE ai_credit_packages (
     price_ars DECIMAL(18,2) NOT NULL,
     price_usd DECIMAL(18,2) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Seeds de packages
@@ -238,45 +238,55 @@ class AiCreditsService {
   async getBalance(userId: string): Promise<CreditInfo>;
   
   // Usar crédito (atómico)
-  async useCredit(userId: string, amount: number = 1): Promise<boolean> {
+  async useCredits(userId: string, amount: number = 1): Promise<boolean> {
+    if (amount <= 0) {
+      throw new AppError('INVALID_AMOUNT', 400);
+    }
     const credits = await this.getBalance(userId);
     
-    if (credits.balance < amount) {
-      throw new AppError('Créditos insuficientes', 402, {
-        required: amount,
-        available: credits.balance
-      });
+    if (!credits || credits.balance < amount) {
+      throw new AppError('Créditos insuficientes', 402);
     }
     
-    await pool.query(`
+    const result = await pool.query(`
       UPDATE ai_credits 
       SET balance = balance - $1, 
           total_used = total_used + $1,
           updated_at = NOW()
-      WHERE user_id = $2
+      WHERE user_id = $2 AND balance >= $1
+      RETURNING balance
     `, [amount, userId]);
     
-    await this.logTransaction(userId, 'usage', -amount, credits.balance - amount);
+    if (result.rowCount === 0) {
+      throw new AppError('Créditos insuficientes (race condition)', 402);
+    }
+    
+    await this.logTransaction(userId, 'usage', -amount, result.rows[0].balance);
     
     return true;
   }
   
-  // Agregar créditos (post-pago)
-  async addCredits(userId: string, packageId: string): Promise<void> {
-    const pkg = await this.getPackage(packageId);
-    const expiresAt = addMonths(new Date(), 12);
-    
-    await pool.query(`
-      INSERT INTO ai_credits (user_id, balance, total_purchased, expires_at)
-      VALUES ($1, $2, $2, $3)
-      ON CONFLICT (user_id) DO UPDATE SET
-        balance = ai_credits.balance + $2,
-        total_purchased = ai_credits.total_purchased + $2,
-        expires_at = GREATEST(ai_credits.expires_at, $3)
-    `, [userId, pkg.credits, expiresAt]);
-    
-    await this.logTransaction(userId, 'purchase', pkg.credits, credits.balance + pkg.credits);
-  }
+    // Agregar créditos (post-pago)
+    async addCredits(userId: string, packageId: string): Promise<void> {
+      const pkg = await this.getPackage(packageId);
+      const expiresAt = addMonths(new Date(), 12);
+
+      // Obtener balance actual ANTES del upsert para calcular balance_after correcto
+      const current = await this.getBalance(userId);
+      const balanceBefore = current.balance || 0;
+
+      await pool.query(`
+        INSERT INTO ai_credits (user_id, balance, total_purchased, expires_at)
+        VALUES ($1, $2, $2, $3)
+        ON CONFLICT (user_id) DO UPDATE SET
+          balance = ai_credits.balance + $2,
+          total_purchased = ai_credits.total_purchased + $2,
+          expires_at = COALESCE(GREATEST(ai_credits.expires_at, $3), $3)
+      `, [userId, pkg.credits, expiresAt]);
+
+      const balanceAfter = balanceBefore + pkg.credits;
+      await this.logTransaction(userId, 'purchase', pkg.credits, balanceAfter);
+    }
   
   // Expirar créditos vencidos (job diario)
   async expireOldCredits(): Promise<void> {
@@ -294,7 +304,7 @@ class AiCreditsService {
 }
 ```
 
-### 1.4 Premisas del Sistema
+### 1.5 Premisas del Sistema
 
 | Premisa | Valor |
 |---------|-------|
@@ -395,8 +405,8 @@ CREATE TABLE ai_embeddings (
                                         -- }
     
     -- Timestamps
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     
     -- Constraints
     UNIQUE(source_type, source_id)
@@ -425,7 +435,7 @@ interface EmbeddingSource {
   creatorId?: string;
   content: string;
   title?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface MemoryQuery {
@@ -446,7 +456,7 @@ interface MemoryResult {
   };
   content: string;
   similarity: number; // 0.0 - 1.0
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 class CremaMemoryService {
@@ -587,7 +597,11 @@ async function onQuestionCreated(question: ProductQuestion) {
 }
 
 // Políticas globales (solo admin)
-async function onPolicyChange(policy: ContentPolicy, action: 'create' | 'update') {
+async function onPolicyChange(policy: ContentPolicy, action: 'create' | 'update' | 'delete') {
+  if (action === 'delete') {
+    await memoryService.deleteEmbedding('policy', policy.id);
+    return;
+  }
   if (action === 'update') {
     await memoryService.deleteEmbedding('policy', policy.id);
   }
@@ -660,8 +674,8 @@ CREATE TABLE product_questions (
     is_answered BOOLEAN DEFAULT FALSE,
     is_public BOOLEAN DEFAULT TRUE, -- Visible en página del producto
     helpful_count INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Tabla de votos de utilidad
@@ -669,7 +683,7 @@ CREATE TABLE question_votes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     question_id UUID NOT NULL REFERENCES product_questions(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(question_id, user_id) -- Un voto por usuario por pregunta
 );
 
@@ -681,8 +695,8 @@ CREATE TABLE product_faqs (
     answer TEXT NOT NULL,
     order_index INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
@@ -757,8 +771,8 @@ CREATE TABLE product_reviews (
     is_public BOOLEAN DEFAULT TRUE, -- Visible en producto
     is_featured BOOLEAN DEFAULT FALSE, -- Destacada por creator
     helpful_count INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(product_id, user_id) -- Un review por usuario por producto
 );
 
@@ -767,7 +781,7 @@ CREATE TABLE review_votes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     review_id UUID NOT NULL REFERENCES product_reviews(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(review_id, user_id)
 );
 
@@ -778,8 +792,8 @@ CREATE TABLE product_review_settings (
     show_in_product_page BOOLEAN DEFAULT TRUE,
     require_verified_purchase BOOLEAN DEFAULT TRUE,
     min_purchase_days INT DEFAULT 0, -- Días desde compra para hacer review
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
@@ -864,45 +878,30 @@ Canal formal para reportar contenido inapropiado, fraude o violaciones de térmi
 -- Tabla de motivos de denuncia
 CREATE TABLE report_reasons (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code VARCHAR(50) UNIQUE NOT NULL,
+    content_type VARCHAR(50) NOT NULL CHECK (content_type IN ('product', 'review', 'question', 'answer', 'faq', 'user')),
+    code VARCHAR(50) NOT NULL,
     label_es VARCHAR(100) NOT NULL,
     label_en VARCHAR(100) NOT NULL,
-    category VARCHAR(50) NOT NULL, -- 'product', 'creator', 'content'
-    severity_level INT DEFAULT 1 CHECK (severity_level >= 1 AND severity_level <= 3),
+    severity VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(content_type, code)
 );
 
 -- Tabla de denuncias
 CREATE TABLE reports (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- Tipos de entidad reportada
-    reporter_id UUID NOT NULL REFERENCES users(id),
-    reported_user_id UUID REFERENCES users(id), -- Si es denuncia de creador
-    reported_product_id UUID REFERENCES products(id), -- Si es denuncia de producto
-    reported_review_id UUID REFERENCES product_reviews(id), -- Si es denuncia de review
-    
-    -- Detalles
-    reason_id UUID NOT NULL REFERENCES report_reasons(id),
+    reporter_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content_type VARCHAR(50) NOT NULL CHECK (content_type IN ('product', 'review', 'question', 'answer', 'faq', 'user')),
+    content_id UUID NOT NULL,
+    reason_code VARCHAR(50) NOT NULL,
     description TEXT,
-    evidence_urls JSONB DEFAULT '[]', -- URLs de imágenes/evidence
-    
-    -- Workflow
-    status VARCHAR(20) DEFAULT 'pending' CHECK (
-        status IN ('pending', 'under_review', 'resolved', 'dismissed', 'escalated')
-    ),
-    admin_id UUID REFERENCES users(id), -- Admin que atiende
-    admin_notes TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'investigating', 'resolved', 'rejected')),
+    resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    resolved_at TIMESTAMPTZ,
     resolution_notes TEXT,
-    resolution_action VARCHAR(50), -- 'warned', 'suspended', 'banned', 'product_removed', 'funds_retained'
-    funds_retained_until TIMESTAMP WITH TIME ZONE, -- Para retención de fondos
-    resolved_at TIMESTAMP WITH TIME ZONE,
-    
-    -- Metadatos
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Tabla de historial de acciones sobre denuncias
@@ -912,7 +911,7 @@ CREATE TABLE report_actions (
     admin_id UUID NOT NULL REFERENCES users(id),
     action VARCHAR(50) NOT NULL,
     notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Tabla de políticas de contenido
@@ -926,20 +925,25 @@ CREATE TABLE content_policies (
     version INT DEFAULT 1,
     is_active BOOLEAN DEFAULT TRUE,
     effective_date DATE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Seeds de motivos predefinidos
-INSERT INTO report_reasons (code, label_es, label_en, category, severity_level) VALUES
-('COPYRIGHT', 'Contenido con derechos de autor', 'Copyrighted content', 'product', 2),
-('FRAUD', 'Estafa o fraude', 'Fraud or scam', 'creator', 3),
-('MISLEADING', 'Información engañosa', 'Misleading information', 'product', 2),
-('HARASSMENT', 'Acoso o contenido dañino', 'Harassment or harmful content', 'content', 3),
-('SPAM', 'Spam o publicidad masiva', 'Spam or mass advertising', 'creator', 1),
-('INAPPROPRIATE', 'Contenido inapropiado', 'Inappropriate content', 'product', 2),
-('TECHNICAL_ISSUE', 'Problema técnico con el producto', 'Technical issue with product', 'product', 1),
-('REFUND_ABUSE', 'Abuso de política de reembolso', 'Refund policy abuse', 'creator', 2);
+INSERT INTO report_reasons (content_type, code, label_es, label_en, severity) VALUES
+('product', 'copyright', 'Contenido con derechos de autor', 'Copyrighted content', 'high'),
+('product', 'fraud', 'Estafa o fraude', 'Fraud or scam', 'critical'),
+('product', 'misleading', 'Información engañosa', 'Misleading information', 'high'),
+('product', 'harassment', 'Acoso o contenido dañino', 'Harassment or harmful content', 'critical'),
+('product', 'spam', 'Spam o publicidad masiva', 'Spam or mass advertising', 'low'),
+('product', 'inappropriate', 'Contenido inapropiado', 'Inappropriate content', 'high'),
+('product', 'technical_issue', 'Problema técnico con el producto', 'Technical issue with product', 'low'),
+('product', 'refund_abuse', 'Abuso de política de reembolso', 'Refund policy abuse', 'high'),
+('product', 'not_as_described', 'No corresponde con la descripción', 'Not as described', 'high'),
+('product', 'malware', 'Software malicioso', 'Malware or malicious software', 'critical'),
+('review', 'fake_review', 'Reseña falsa', 'Fake review', 'high'),
+('review', 'offensive_review', 'Reseña ofensiva', 'Offensive review', 'medium'),
+('review', 'competitor_review', 'Reseña de competidor', 'Competitor review', 'medium');
 ```
 
 #### 2.3.4 Políticas de Contenido
@@ -1114,7 +1118,7 @@ class QAAgentService {
     sources: MemoryResult[];
   }> {
     // 1. Buscar contexto en memoria
-    const context = await memoryService.retrieveForTutor(productId, question, topK: 3);
+    const context = await memoryService.searchSimilar(null, question, 3, ['lesson', 'faq']);
     
     if (context.length === 0 && mode === 'faq-only') {
       return { confidence: 0, sources: [] };
@@ -1127,14 +1131,14 @@ class QAAgentService {
       { role: 'user', content: question },
     ];
     
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const response = await llmService.chat({
       messages,
+      model: config.ai.openaiModel,
       temperature: 0.7,
-      max_tokens: 300,
+      maxTokens: 300,
     });
     
-    const answer = response.choices[0].message.content!;
+    const answer = response.content;
     const confidence = await this.estimateConfidence(answer, context);
     
     if (mode === 'auto' && confidence >= 0.7) {
@@ -1158,16 +1162,14 @@ class ReportsAgentService {
     isSpam: boolean;
     suggestedAction?: string;
   }> {
-    // 1. Buscar políticas relevantes
-    const policies = await memoryService.retrieve({
-      query: description,
-      sources: ['policy'],
-      limit: 3
-    });
+    // 1. Buscar políticas relevantes (skip if description is empty)
+    const policies = description.trim().length > 0
+      ? await memoryService.searchSimilar(null, description, 3, ['policy'])
+      : [];
     
     // 2. Clasificar con IA
-    const classification = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const classification = await llmService.chat({
+      model: config.ai.openaiModel,
       messages: [
         { role: 'system', content: REPORTS_TRIAGE_PROMPT },
         { role: 'system', content: `Políticas relevantes:\n${formatPolicies(policies)}` },
@@ -1175,7 +1177,11 @@ class ReportsAgentService {
       ],
     });
     
-    return JSON.parse(classification.choices[0].message.content!);
+    try {
+      return JSON.parse(classification.content);
+    } catch {
+      return { severity: 2, isSpam: false, suggestedAction: 'no_action' };
+    }
   }
 }
 ```
@@ -1221,6 +1227,7 @@ CREATE TABLE user_course_data (
   module_key VARCHAR(100) NOT NULL,  -- ej: "modulo_1_finanzas"
   input_data JSONB NOT NULL DEFAULT '{}',  -- { "alquiler": 50000, "leche": 120 }
   output_analysis JSONB,  -- { "punto_equilibrio": 45, "margen": 0.25 }
+  completed_at TIMESTAMPTZ,  -- Timestamp cuando el usuario completó el módulo (todos los campos + análisis generado)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   
@@ -1366,7 +1373,7 @@ const interactiveAgentLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minuto
   max: 10,              // 10 análisis por minuto por usuario
   message: 'Demasiadas solicitudes. Intenta en un momento.',
-  keyGenerator: (req) => `${req.user?.id}:interactive`
+  keyGenerator: (req) => `${req.user?.id || req.ip}:interactive`
 });
 ```
 
@@ -1455,8 +1462,8 @@ CREATE TABLE creator_daily_metrics (
     churn_rate DECIMAL(5,4),
     retention_rate DECIMAL(5,4),
     -- Metadata
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(creator_id, date)
 );
 
@@ -1465,8 +1472,9 @@ SELECT
     creator_id,
     SUM(total_revenue) as lifetime_revenue,
     SUM(total_revenue) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as revenue_30d,
-    COUNT(*) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as reviews_30d,
-    AVG(avg_rating) FILTER (WHERE avg_rating IS NOT NULL AND date >= CURRENT_DATE - INTERVAL '90 days') as avg_rating_90d,
+    SUM(new_reviews) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as reviews_30d,
+    SUM(new_reviews * avg_rating) FILTER (WHERE avg_rating IS NOT NULL AND date >= CURRENT_DATE - INTERVAL '90 days') 
+      / NULLIF(SUM(new_reviews) FILTER (WHERE avg_rating IS NOT NULL AND date >= CURRENT_DATE - INTERVAL '90 days'), 0) as avg_rating_90d,
     SUM(new_questions) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as questions_30d,
     SUM(new_subscriptions) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as new_subs_30d,
     SUM(canceled_subscriptions) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as canceled_30d
@@ -1504,13 +1512,13 @@ CREATE TABLE product_tutor_config (
     system_prompt TEXT,
     model_name VARCHAR(50) DEFAULT 'gpt-4o-mini',
     is_trained BOOLEAN DEFAULT FALSE,
-    last_training_at TIMESTAMP WITH TIME ZONE,
+    last_training_at TIMESTAMPTZ,
     training_status VARCHAR(20) DEFAULT 'not_started',
     training_error TEXT,
     messages_used INT DEFAULT 0,
     messages_limit INT DEFAULT 100,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Conversaciones con el Tutor
@@ -1519,8 +1527,8 @@ CREATE TABLE tutor_conversations (
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     session_id UUID DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    last_message_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_message_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Mensajes individuales
@@ -1531,7 +1539,7 @@ CREATE TABLE tutor_messages (
     content TEXT NOT NULL,
     tokens_used INT,
     response_time_ms INT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Insights generados por IA
@@ -1544,7 +1552,7 @@ CREATE TABLE tutor_insights (
     confidence_score DECIMAL(3,2),
     related_lessons JSONB DEFAULT '[]',
     is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
@@ -1565,7 +1573,7 @@ class TutorService {
     }
     
     // 2. Buscar contexto en memoria (usando Crema Memory Service)
-    const context = await memoryService.retrieveForTutor(productId, message, topK: 3);
+    const context = await memoryService.searchSimilar(productId, message, 3, ['lesson', 'faq']);
     
     // 3. Obtener historial de conversación
     const history = await this.getConversationHistory(productId, userId);
@@ -1579,15 +1587,15 @@ class TutorService {
     ];
     
     const startTime = Date.now();
-    const response = await openai.chat.completions.create({
-      model: config.model_name,
+    const response = await llmService.chat({
+      model: config.ai.openaiModel,
       messages,
       temperature: 0.7,
-      max_tokens: 500,
+      maxTokens: 500,
     });
     
-    const answer = response.choices[0].message.content!;
-    const tokens = response.usage!.total_tokens;
+    const answer = response.content ?? '';
+    const tokens = response.usage?.total_tokens ?? 0;
     const responseTime = Date.now() - startTime;
     
     // 5. Guardar en historial
@@ -1727,8 +1735,8 @@ CREATE TABLE creator_dashboards (
     config JSONB DEFAULT '{}',         -- { xAxis, yAxis, filters, etc. }
     is_favorite BOOLEAN DEFAULT FALSE,
     view_count INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Historial de preguntas (para memoria y sugerencias)
@@ -1743,7 +1751,7 @@ CREATE TABLE insights_history (
     is_successful BOOLEAN DEFAULT TRUE,
     error_message TEXT,
     credits_used INT DEFAULT 1,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Índices
@@ -1773,7 +1781,7 @@ interface InsightsQuery {
 interface InsightsResponse {
   answer: string;
   sql?: string;
-  data?: any;
+  data?: Record<string, unknown>;
   chartType: 'bar' | 'line' | 'pie' | 'table' | 'number';
   suggestions?: string[];
   savedDashboardId?: string;
@@ -1783,15 +1791,15 @@ class InsightsAgentService {
   
   async askQuestion(query: InsightsQuery): Promise<InsightsResponse> {
     // 1. Usar créditos AI
-    await aiCreditsService.useCredit(query.creatorId);
+    await aiCreditService.useCredits(query.creatorId, 1, 'Insight query');
     
     // 2. Buscar contexto en memoria (preguntas anteriores del creador)
-    const memoryContext = await memoryService.retrieve({
-      query: query.question,
-      sources: ['insight'], // Tipo especial para insights
-      creatorId: query.creatorId,
-      limit: 3
-    });
+    const memoryContext = await memoryService.searchSimilar(
+      query.creatorId,
+      query.question,
+      3,
+      ['insight']
+    );
     
     // 3. Clasificar la intención
     const intent = await this.classifyIntent(query.question, memoryContext);
@@ -1853,12 +1861,12 @@ class InsightsAgentService {
   
   async getSuggestions(creatorId: string): Promise<string[]> {
     // Buscar en memoria dashboards guardados y preguntas frecuentes
-    const memory = await memoryService.retrieve({
-      query: 'suggestions questions dashboards',
-      sources: ['insight', 'saved_dashboard'],
+    const memory = await memoryService.searchSimilar(
       creatorId,
-      limit: 5
-    });
+      'suggestions questions dashboards',
+      5,
+      ['insight', 'saved_dashboard']
+    );
     
     // Generar sugerencias basadas en el contexto
     return this.generateContextualSuggestions(memory);
@@ -1912,7 +1920,7 @@ EJEMPLOS:
 | "¿Quiénes son mis mejores affiliates?" | AFFILIATE_PERFORMANCE | bar | GROUP BY affiliate |
 | "¿Cuál es mi rating promedio?" | ENGAGEMENT_ANALYSIS | number | AVG(rating) |
 | "¿De dónde vienen mis compradores?" | CUSTOMER_ANALYSIS | pie | GROUP BY country |
-| "¿Qué día vendo más?" | REVENUE_TREND | line | GROUP BY DAYOFWEEK |
+| "¿Qué día vendo más?" | REVENUE_TREND | line | GROUP BY EXTRACT(DOW FROM created_at) |
 | "¿Cuánto debería cobrar?" | FORECAST | - | Basado en benchmarks |
 
 #### 3.3.9 Reglas de Negocio
@@ -2150,41 +2158,50 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 
 ### Total Estimado: 18-22 semanas (~5 meses)
 
-### Estado de Implementación (Abril 2026)
+### Estado de Implementación (Mayo 2026)
 
-| Categoría | Servicio | Archivo | Tests | Orchestrator |
-|----------|----------|---------|-------|--------------|
-| **Base** | LLM Service | `ai/llm.service.ts` | ❌ | ✅ |
-| **Base** | Embedding Service | `ai/embedding.service.ts` | ❌ | ✅ |
-| **Base** | Memory Service | `ai/memory.service.ts` | ❌ | ❌ |
-| **Base** | Credits Service | `ai/credits.service.ts` | ❌ | ❌ |
-| **Content** | ContentAssistant | `ai/content/content-assistant.service.ts` | ✅ | ❌ |
-| **Content** | ContentReader | `ai/content/content-reader.service.ts` | ✅ | ❌ |
-| **Content** | QuizGenerator | `ai/content/quiz-generator.service.ts` | ✅ | ❌ |
-| **Content** | Transcription | `ai/content/transcription.service.ts` | ✅ | ❌ |
-| **Agents** | QAAgentService | `ai/agents.service.ts` | ❌ | ❌ |
-| **Agents** | TutorService | `ai/agents.service.ts` | ❌ | ❌ |
-| **Agents** | InsightsService | `ai/agents.service.ts` | ❌ | ❌ |
-| **Agents** | AnalyticsService | `ai/agents.service.ts` | ❌ | ❌ |
-| **Moderation** | ConciergeService | `ai/concierge.service.ts` | ❌ | ✅ |
-| **Moderation** | QAService | `ai/qa.service.ts` | ❌ | ❌ |
-| **Moderation** | ReviewService | `ai/review.service.ts` | ❌ | ❌ |
-| **Moderation** | DenunciationService | `ai/denunciation.service.ts` | ❌ | ❌ |
+| Categoría | Servicio | Archivo | Tests | Estado |
+|-----------|----------|---------|-------|--------|
+| **Base** | LLM Service | `ai/llm.service.ts` | ✅ | ✅ Implementado |
+| **Base** | Embedding Service | `ai/embedding.service.ts` | ✅ | ✅ Implementado |
+| **Base** | Memory Service | `ai/memory.service.ts` | ✅ | ✅ Implementado |
+| **Base** | Credits Service | `ai/credits.service.ts` | ✅ | ✅ Implementado |
+| **Content** | ContentAssistant | `ai/content/content-assistant.service.ts` | ✅ | ✅ Implementado |
+| **Content** | ContentReader | `ai/content/content-reader.service.ts` | ✅ | ✅ Implementado |
+| **Content** | QuizGenerator | `ai/content/quiz-generator.service.ts` | ✅ | ✅ Implementado |
+| **Content** | Transcription | `ai/content/transcription.service.ts` | ✅ | ✅ Implementado |
+| **Agents** | QAAgentService | `ai/agents.service.ts` | ✅ | ✅ Implementado |
+| **Agents** | TutorService | `ai/agents.service.ts` | ✅ | ✅ Implementado |
+| **Agents** | InsightsService | `ai/agents.service.ts` | ✅ | ✅ Implementado |
+| **Agents** | AnalyticsService | `ai/agents.service.ts` | ✅ | ✅ Implementado |
+| **Moderation** | ConciergeService | `ai/concierge.service.ts` | ✅ | ✅ Implementado |
+| **Moderation** | QAService | `ai/qa.service.ts` | ✅ | ✅ Implementado |
+| **Moderation** | ReviewService | `ai/review.service.ts` | ✅ | ✅ Implementado |
+| **Moderation** | DenunciationService | `ai/denunciation.service.ts` | ✅ | ✅ Implementado |
+| **Memory** | Memory Enhancement (RBAC, HNSW, Quota, LRU, Cleanup) | `ai/memory.service.ts` + workers | ✅ | ✅ SDD completo |
 
-**Total: 17 servicios implementados, 4 en Orchestrator**
+**Total: 18 servicios AI implementados (sin SDD formal, implementados directamente)**
+
+#### Implementado sin SDD (Mayo 2026):
+
+| Feature | Código | Rutas API | Tablas DB |
+|---------|--------|----------|-----------|
+| Q&A Agent | `qaAgentService` en `agents.service.ts` | ✅ `/qa/chat`, `/qa/config` | ✅ `product_qa_agent_config` |
+| Tutor AI | `tutorService` en `agents.service.ts` | ✅ `/tutor/chat`, `/tutor/insights` | ✅ `product_tutor_config`, `tutor_insights` |
+| Analytics | `analyticsService.getDashboardMetrics()` | ✅ `/analytics/dashboard` | ✅ `creator_daily_metrics` |
+| Insights AI | `insightsService` (CRUD dashboards, NL→SQL) | ✅ `/insights/dashboards`, `/insights/query` | ✅ `creator_dashboards`, `insights_history` |
+| Reports | `reportService` en `denunciation.service.ts` | ✅ `/reports` CRUD | ✅ `reports`, `report_reasons`, `report_actions` |
+| Memory Enhancement | `memory-enhancement` SDD | ✅ RBAC, Quota, LRU | ✅ Índices HNSW, cleanup |
 
 #### Pendiente:
 
 | Prioridad | Tarea | SDD | Dependencias |
 |-----------|-------|-----|--------------|
-| 🔴 ALTA | Registrar 13 servicios en Orchestrator | - | - |
-| 🔴 ALTA | Memory Enhancement Tasks 1-10 | ✅ spec+design+tasks | Orchestrator ✅ |
-| 🟡 MEDIA | QAAgent Orchestrator registration | ✅ proposal | - |
-| 🟡 MEDIA | Tutor AI Orchestrator registration | ✅ proposal | - |
-| 🟡 MEDIA | Insights Agent Orchestrator registration | ✅ proposal | - |
-| 🟡 MEDIA | Analytics Service Orchestrator registration | ✅ proposal | - |
-| 🟢 BAJA | Interactive Agent SDD | ❌ | Analytics |
-| 🟢 BAJA | Reports Agent SDD | ❌ | Reports system |
+| 🔴 ALTA | **Interactive Agent** (talleres dinámicos) | ✅ SDD en revisión | user_course_data, product_module_fields |
+| 🟡 MEDIA | **Reports Agent** (triage IA automático) | ✅ SDD en revisión | Reports system existe pero sin clasificación IA |
+| 🟢 BAJA | Orchestrator registration para servicios ya implementados | Opcional | - |
+
+> **Nota:** Los SDDs de memory-enhancement y ai-content-assistant fueron creados retrospectively. Interactive Agent sigue el mismo patrón: se implementó sin SDD y ahora se documenta.
 
 ---
 
@@ -2228,27 +2245,9 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 
 ---
 
-## Anexo A: Especificación de Report Reasons
+## Anexo A: ~~Especificación de Report Reasons~~ (DELETED — duplicate of §2.3.3 seeds at lines 934-947)
 
-```sql
-INSERT INTO report_reasons (code, label_es, label_en, category, severity_level) VALUES
--- Producto
-('COPYRIGHT', 'Contenido con derechos de autor', 'Copyrighted content', 'product', 2),
-('MISLEADING', 'Información engañosa o falsa', 'Misleading or false information', 'product', 2),
-('INAPPROPRIATE', 'Contenido inapropiado', 'Inappropriate content', 'product', 2),
-('TECHNICAL_ISSUE', 'El producto no funciona o está dañado', 'Product does not work or is damaged', 'product', 1),
-('NOT_AS_DESCRIBED', 'No coincide con la descripción', 'Does not match description', 'product', 2),
-('MALWARE', 'Contiene virus o malware', 'Contains virus or malware', 'product', 3),
--- Creador
-('FRAUD', 'Estafa o intento de fraude', 'Fraud or scam attempt', 'creator', 3),
-('HARASSMENT', 'Acoso o comportamiento abusivo', 'Harassment or abusive behavior', 'creator', 3),
-('SPAM', 'Spam o promoción masiva no deseada', 'Spam or unwanted mass promotion', 'creator', 1),
-('REFUND_ABUSE', 'Abuso de política de reembolsos', 'Refund policy abuse', 'creator', 2),
--- Reviews
-('FAKE_REVIEW', 'Review falsa o spam', 'Fake or spam review', 'review', 2),
-('OFFENSIVE_REVIEW', 'Review ofensiva o inapropiada', 'Offensive or inappropriate review', 'review', 2),
-('COMPETITOR_REVIEW', 'Review de competencia malintencionada', 'Malicious competitor review', 'review', 2);
-```
+> The report_reasons seed data in this section conflicted with the canonical set in §2.3.3. The canonical set (lines 934-947) is the single source of truth. This section has been removed to prevent confusion.
 
 ---
 
@@ -2313,9 +2312,10 @@ RESPUENDE en JSON con este formato exacto.
 | 1.2 | Marzo 2026 | Sistema de créditos prepagos agregado, Insights AI Agent con dashboards dinámicos usando Crema Memory MCP |
 | 1.3 | Abril 2026 | Multi-provider LLM support (OpenAI, Ollama, Anthropic, Gemini, Simulator), Streaming SSE implementado |
 | 1.4 | Abril 2026 | Estado real documentado: Servicios base implementados (Content Assistant, Q&A, Reviews, Denunciation, Credits), Memory Enhancement Tasks pendientes, Orchestrator integración pendiente |
+| 1.5 | Mayo 2026 | Estado actualizado: 18 servicios AI implementados (sin SDD formal). Pendientes: Interactive Agent (§2.5), Reports Agent triage IA. Memory Enhancement y ai-content-assistant completados con SDD. |
 
 ---
 
-*Documento preparado para el proyecto Crema - Abril 2026*
-*Versión: 1.4 - Estado: Parcialmente Implementado*
-*Última actualización: Abril 2026 - Servicios base implementados, integración pendiente*
+*Documento preparado para el proyecto Crema - Mayo 2026*
+*Versión: 1.5 - Estado: Parcialmente Implementado*
+*Última actualización: Mayo 2026 - Servicios base implementados, SDD para Interactive Agent y Reports Agent en revisión*

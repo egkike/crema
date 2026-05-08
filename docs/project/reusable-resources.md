@@ -282,6 +282,7 @@ Uses `AppError` class + `globalErrorHandler` middleware
 These SDDs reference this catalog:
 - `docs/project/content-security/sdd/content-security/` — uses upload middleware, config patterns
 - `docs/project/ai-features/sdd/memory-enhancement/` — uses memoryService, memoryRepository, hooks
+- `docs/project/ai-features/sdd/interactive-agent/` — uses aiCreditService, llmService, singleton pattern
 - `docs/project/architecture-improvements/sdd/config-service/` — defines ConfigService patterns
 
 ---
