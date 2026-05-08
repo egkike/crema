@@ -3,7 +3,8 @@
 **Change**: reports-agent
 **Type**: AI Feature
 **SDD Phase**: Design
-**Status**: Draft
+**Status**: ✅ COMPLETED
+**Implementation**: Extends `reportService` in `backend/src/services/ai/denunciation.service.ts`. No new service created. Triage uses LLM + policy context from memory.
 **Date**: Mayo 2026
 **Owner**: Kike García
 **Depends on**: SPEC.md

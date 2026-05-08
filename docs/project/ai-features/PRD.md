@@ -2202,10 +2202,9 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 
 | Prioridad | Tarea | SDD | Dependencias |
 |-----------|-------|-----|--------------|
-| 🔴 ALTA | **Interactive Agent** (talleres dinámicos) | ✅ SDD completo | ✅ user_course_data, product_module_fields |
 | 🟢 BAJA | Orchestrator registration para servicios ya implementados | Opcional | - |
 
-> **Nota:** Los SDDs de memory-enhancement y ai-content-assistant fueron creados retrospectively. Interactive Agent sigue el mismo patrón: se implementó sin SDD y ahora se documenta.
+> **Nota:** Los SDDs de memory-enhancement y ai-content-assistant fueron creados retrospectively. Interactive Agent y Reports Agent siguen el mismo patrón: implementados sin SDD formal y ahora documentados.
 
 ---
 

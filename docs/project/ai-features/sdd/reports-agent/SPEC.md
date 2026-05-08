@@ -3,7 +3,8 @@
 **Change**: reports-agent
 **Type**: AI Feature
 **SDD Phase**: Spec
-**Status**: Draft
+**Status**: ✅ COMPLETED
+**Implementation**: `backend/src/services/ai/denunciation.service.ts` — `reportService.triageReport()` método agregado. Endpoint: `POST /api/admin/reports/:reportId/triage` en `admin.routes.ts`.
 **Date**: Mayo 2026
 **Owner**: Kike García
 **Depends on**: proposal.md
