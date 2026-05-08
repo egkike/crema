@@ -2200,9 +2200,9 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 
 #### Pendiente:
 
-| Prioridad | Tarea | SDD | Dependencias |
-|-----------|-------|-----|--------------|
-| 🟢 BAJA | Orchestrator registration para servicios ya implementados | Opcional | - |
+| Prioridad | Tarea | SDD | Notas |
+|-----------|-------|-----|-------|
+| 🟢 BAJA | Orchestrator registration para servicios ya implementados | Descartado | Interactive Agent y Reports Agent usan rutas REST directas. Orchestrator disponible para futuras integraciones si hay caso de uso. |
 
 > **Nota:** Los SDDs de memory-enhancement y ai-content-assistant fueron creados retrospectively. Interactive Agent y Reports Agent siguen el mismo patrón: implementados sin SDD formal y ahora documentados.
 
