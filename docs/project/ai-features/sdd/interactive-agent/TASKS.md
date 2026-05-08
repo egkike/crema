@@ -166,8 +166,7 @@ export const interactiveAgentRepository = {
 
   // Analytics (agregado, sin datos personales)
   async getAggregatedStats(productId: string): Promise<AggregatedStats>
-  async countDistinctUsers(productId: string): Promise<number>
-  async countCompletedModules(productId: string): Promise<number>
+  async countUserStats(productId: string): Promise<{ distinctUsers: number; completedModules: number }>
 
   // Access helpers
   async hasProductAccess(userId: string, productId: string): Promise<boolean>

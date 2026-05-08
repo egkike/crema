@@ -31,6 +31,7 @@ CREATE TABLE user_course_data (
   module_key VARCHAR(100) NOT NULL,
   input_data JSONB NOT NULL DEFAULT '{}',
   output_analysis JSONB,
+  completed BOOLEAN DEFAULT FALSE,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -47,7 +48,7 @@ CREATE TABLE product_module_fields (
   field_label VARCHAR(255) NOT NULL,
   field_placeholder VARCHAR(255),
   field_options JSONB DEFAULT '[]',
-  field_required BOOLEAN DEFAULT true,
+  field_required BOOLEAN DEFAULT false,
   field_validation JSONB DEFAULT '{}',
   order_index INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -118,17 +119,20 @@ CREATE INDEX IF NOT EXISTS idx_product_module_fields_module ON product_module_fi
 **Response:**
 ```typescript
 {
-  modules: Array<{
-    moduleKey: string,
-    fields: Array<{
-      fieldName: string,
-      fieldType: string,
-      fieldLabel: string,
-      fieldPlaceholder?: string,
-      fieldOptions?: Array<{ value: string; label: string }>,
-      fieldRequired: boolean
-    }>
-  }>
+  success: true,
+  data: {
+    modules: Array<{
+      moduleKey: string,
+      fields: Array<{
+        fieldName: string,
+        fieldType: string,
+        fieldLabel: string,
+        fieldPlaceholder?: string,
+        fieldOptions?: Array<{ value: string; label: string }>,
+        fieldRequired: boolean
+      }>
+    })
+  }
 }
 ```
 
@@ -184,13 +188,16 @@ CREATE INDEX IF NOT EXISTS idx_product_module_fields_module ON product_module_fi
 **Response:**
 ```typescript
 {
-  modules: Array<{
-    moduleKey: string,
-    inputData: Record<string, unknown>,
-    outputAnalysis?: Record<string, unknown>,
-    completedAt?: string,
-    updatedAt: string
-  }>
+  success: true,
+  data: {
+    modules: Array<{
+      moduleKey: string,
+      inputData: Record<string, unknown>,
+      outputAnalysis?: Record<string, unknown>,
+      completedAt?: string,
+      updatedAt: string
+    })
+  }
 }
 ```
 
@@ -230,11 +237,14 @@ Genera:
 **Response:**
 ```typescript
 {
-  analysis: string,
-  recommendations: string[],
-  nextSteps: string[],
-  metrics: Record<string, number | string>,
-  creditsUsed: number
+  success: true,
+  data: {
+    analysis: string,
+    recommendations: string[],
+    nextSteps: string[],
+    metrics: Record<string, number | string>,
+    creditsUsed: number
+  }
 }
 ```
 
@@ -254,14 +264,9 @@ Genera:
   fieldStats: Array<{
     fieldName: string,
     moduleKey: string,
-    average: number,     // para number fields
-    responses: number    // count de respuestas
+    average: number | null,
+    responses: number
   }>,
-  recentActivity: Array<{
-    userId: string,      // anónimo, solo ID
-    moduleKey: string,
-    completedAt: string
-  }>
 }
 ```
 
@@ -282,8 +287,8 @@ Genera:
 
 ### 4.2 Rate Limiting
 
-- `interactiveAgentLimiter`: 10 requests/min per user para análisis
-- Save/get data: sin límite específico (usa `apiLimiter` global)
+- `interactiveAgentLimiter`: 10 requests/min per user para análisis y save/update endpoints
+- Get data/fields: sin límite específico (usa `apiLimiter` global)
 
 ### 4.3 Security
 

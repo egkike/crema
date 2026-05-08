@@ -53,6 +53,7 @@ export class AICreditService {
 
   /**
    * Use credits (deduct from balance)
+   * Idempotent when referenceId is provided — skips if transaction already exists.
    */
   async useCredits(
     userId: string,
@@ -60,6 +61,26 @@ export class AICreditService {
     description: string,
     referenceId?: string
   ): Promise<AICredit> {
+    // Idempotency: if referenceId provided, check for existing transaction
+    if (referenceId) {
+      const { transactions } = await creditsRepository.getTransactions(userId, 100, 0);
+      const existingTx = transactions.find(
+        (tx) => tx.reference_id === referenceId && tx.type === 'usage'
+      );
+      if (existingTx) {
+        logger.info({ userId, referenceId }, 'Credits already consumed — idempotent skip');
+        // Return current balance without charging
+        return this.getBalance(userId).then((b) => ({
+          balance: b.balance,
+          expires_at: b.expiresAt,
+          user_id: userId,
+          id: '',
+          created_at: new Date(),
+          updated_at: new Date(),
+        }));
+      }
+    }
+
     // First check if user has credit record
     await this.ensureCreditRecord(userId);
 

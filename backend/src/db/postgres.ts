@@ -18,7 +18,9 @@ const pool = new Pool({
   max: 20, // máximo de conexiones simultáneas
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000, // 10 segundos por conexión individual
-  // ssl: { rejectUnauthorized: false } // descomenta si usas SSL en producción
+  ssl: config.nodeEnv === 'production' ? { rejectUnauthorized: false } : undefined,
+  // W7: statement_timeout is set per-query where needed (e.g. analytics).
+  // Global timeout is NOT set here to avoid interfering with long-running migrations.
 });
 
 // Logs de eventos del pool
