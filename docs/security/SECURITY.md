@@ -355,6 +355,20 @@ INSTRUCCIONES DE SEGURIDAD:
 | POST /ai/products/:productId/tutor/chat/stream | SSE |
 | POST /ai/insights/query | REST |
 | POST /ai/insights/query/stream | SSE |
+| POST /api/interactive/analyze/:productId/:moduleKey | REST |
+| POST /api/interactive/data/:productId | REST |
+| PUT /api/interactive/data/:productId/:moduleKey | REST |
+
+### Interactive Agent Security
+
+El módulo Interactive Agent (talleres dinámicos) tiene controles de seguridad adicionales:
+
+- **Credit flow idempotente**: `useCredits` con `referenceId` check previene double-charging
+- **Retry pattern**: Si `upsertUserData` falla después de `useCredits`, el retry detecta `completed=false` y evita re-análisis
+- **Balance check antes de LLM**: Siempre verifica balance antes de consumir créditos
+- **Rate limiting dedicado**: `interactiveAgentLimiter` (10/min) en endpoints de análisis y data
+- **UUID validation**: `moduleKey` validado con regex `^[a-z0-9_]+$` en Zod schemas
+- **Size limits en capas**: Zod (50KB), service (50KB check), repository (50KB), DB constraint (10KB check)
 
 ---
 

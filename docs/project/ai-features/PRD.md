@@ -1,11 +1,11 @@
 # Product Requirements Document (PRD)
 ## Crema - Sistema de Interacción y Analytics
 
-**Versión**: 1.6
+**Versión**: 1.8
 **Fecha**: Mayo 2026
-**Estado**: 🟢 MAYORMENTE IMPLEMENTADO — Faltan: SDD para Reports Agent triage IA
+**Estado**: 🟢 MAYORMENTE IMPLEMENTADO — Interactive Agent SDD completo (Tasks 1-11), 20 servicios AI, Orchestrator con 18 capabilities, Reports Agent con triage IA
 **Owner**: Kike García
-**Fases**: 2 (Memory + Q&A + Reviews + Denuncias | Analytics + IA avanzada)
+**Fases**: 3 (Memory + Q&A + Reviews + Denuncias | Analytics + IA avanzada | Orchestration + Interactive + Content)
 
 ---
 
@@ -2179,8 +2179,10 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 | **Moderation** | ReviewService | `ai/review.service.ts` | ✅ | ✅ Implementado |
 | **Moderation** | DenunciationService | `ai/denunciation.service.ts` | ✅ | ✅ Implementado |
 | **Memory** | Memory Enhancement (RBAC, HNSW, Quota, LRU, Cleanup) | `ai/memory.service.ts` + workers | ✅ | ✅ SDD completo |
+| **Orchestration** | OrchestratorService | `ai/orchestrator.service.ts` | ✅ | ✅ 18 capabilities |
+| **Interactive** | InteractiveAgentService | `ai/interactive-agent.service.ts` | ✅ | ✅ SDD Tasks 1-11 |
 
-**Total: 18 servicios AI implementados (sin SDD formal, implementados directamente)**
+**Total: 20 servicios AI implementados**
 
 #### Implementado sin SDD (Mayo 2026):
 
@@ -2197,6 +2199,7 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 | Reports | `reportService` en `denunciation.service.ts` | ✅ `/reports` CRUD | ✅ `reports`, `report_reasons`, `report_actions` |
 | **Reports Agent** | `reportService.triageReport()` en `denunciation.service.ts` | ✅ `POST /admin/reports/:reportId/triage` | ✅ Reports + AI classification |
 | Memory Enhancement | `memory-enhancement` SDD | ✅ RBAC, Quota, LRU | ✅ Índices HNSW, cleanup |
+| Interactive Agent | `interactiveAgentService` + `interactive-agent.repository.ts` | ✅ `/api/interactive/*` | ✅ `user_course_data`, `product_module_fields` |
 
 #### Pendiente:
 

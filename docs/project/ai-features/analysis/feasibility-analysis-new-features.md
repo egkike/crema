@@ -1,8 +1,8 @@
 # Feasibility Analysis - AI Features 2025
 
-**Versión**: 1.0  
-**Fecha**: Abril 2026  
-**Estado**: Draft  
+**Versión**: 2.0
+**Fecha**: Mayo 2026
+**Estado**: Actualizado
 **Owner**: Kike García  
 
 ---
@@ -12,16 +12,20 @@
 1. [Resumen Ejecutivo](#1-resumen-ejecutivo)
 2. [Ideas Nuevas - Overview](#2-ideas-nuevas---overview)
 3. [Análisis Técnico por Idea](#3-análisis-técnico-por-idea)
-   - [3.1 Course Assistant](#311-idea-1-course-assistant)
+   - [3.1 AI Content Assistant](#311-idea-1-ai-content-assistant)
    - [3.2 Support Chatbot](#312-idea-2-support-chatbot)
    - [3.3 AI Afiliate Chat](#313-idea-3-ai-afiliate-chat)
    - [3.4 Description Generator](#314-idea-4-description-generator)
    - [3.5 Certificate PDF Generator](#315-idea-5-certificate-pdf-generator)
    - [3.6 Smart Recommendations](#316-idea-6-smart-recommendations)
    - [3.7 SEO Optimizer](#317-idea-7-seo-optimizer)
-   - [3.8 Data Export](#318-idea-9-data-export-descargar-mi-información)
-   - [3.9 Sentiment Analytics](#319-idea-10-sentiment-analytics-for-creators)
-   - [3.10 Advanced DRM](#3110-idea-11-advanced-drm-nivel-intermedio)
+   - [3.8 Data Export](#318-idea-8-data-export)
+   - [3.9 Sentiment Analytics](#319-idea-9-sentiment-analytics)
+   - [3.10 Advanced DRM](#3110-idea-10-advanced-drm)
+   - [3.11 Interactive Agent](#3111-idea-11-interactive-agent)
+   - [3.12 Reports Agent](#3112-idea-12-reports-agent)
+   - [3.13 Orchestrator](#3113-idea-13-orchestrator)
+   - [3.14 Memory Enhancement](#3114-idea-14-memory-enhancement)
 4. [Consideraciones UX](#4-consideraciones-ux)
 5. [Consideraciones de Seguridad](#5-consideraciones-de-seguridad)
 6. [Matriz de Interacciones](#6-matriz-de-interacciones)
@@ -31,7 +35,7 @@
 
 ## 1. Resumen Ejecutivo
 
-Este documento analiza la factibilidad técnica de 7 nuevas funcionalidades de AI para Crema, evaluando:
+Este documento analiza la factibilidad técnica de 14 funcionalidades de AI para Crema, evaluando:
 
 - Reutilización de infraestructura existente
 - Complejidad de implementación
@@ -39,53 +43,67 @@ Este documento analiza la factibilidad técnica de 7 nuevas funcionalidades de A
 - Experiencia de usuario
 - Priorización recomendada
 
-### Hallazgos Principales
+### Hallazgos Principales (v2.0 - Mayo 2026)
 
 | Métrica | Resultado |
 |---------|-----------|
-| **Ideas viables técnicamente** | 7/7 ✅ |
-| ** Ideas que reutilizan infraestructura** | 6/7 |
-| **Ideas que requieren nuevos componentes** | 4/7 |
+| **Ideas viables técnicamente** | 14/14 ✅ |
+| **Ideas implementadas** | 6/14 ✅ |
+| **Ideas pendientes** | 8/14 🔲 |
 | **Complejidad promedio** | Media |
 | **Riesgo de seguridad crítico** | 2 ideas |
-| **Requiere plan Pro** | 5 ideas |
-| **Acceso libre** | 2 ideas |
+| **Requiere plan Pro** | 9 ideas |
+| **Acceso libre** | 3 ideas |
 
-### Prioridad Recomendada
+### Estado de Implementación (v2.0)
 
-| Priority | Idea | Score |
-|----------|------|-------|
-| **1** | Idea 1: AI Content Assistant | 9/10 |
-| **2** | Idea 2: Support Chatbot | 9/10 |
-| **3** | Idea 10: Sentiment Analytics | 9/10 |
-| **4** | Idea 11: Advanced DRM | 8/10 |
-| **5** | Idea 9: Data Export | 8/10 |
-| **6** | Idea 8: Product Contact System | 8/10 |
-| **7** | Idea 4: Description Generator | 8/10 |
-| **8** | Idea 5: Certificate PDF | 8/10 |
-| **9** | Idea 3: AI Afiliate Chat | 7/10 |
-| **10** | Idea 6: Smart Recommendations | 6/10 |
-| **11** | Idea 7: SEO Optimizer | 6/10 |
+| Estado | Count | Ideas |
+|--------|-------|-------|
+| ✅ Implementado | 6 | Ideas 1, 2 (core), Orchestrator, Memory Enhancement, Interactive Agent, Reports |
+| ⚠️ Parcial | 1 | Idea 2 (Concierge - core sin RAG/tickets) |
+| 🔲 Pendiente | 7 | Ideas 3, 4, 5, 6, 7, 8, 9, 10, 11 |
+
+### Prioridad Recomendada (Actualizada)
+
+| Priority | Idea | Score | Estado |
+|----------|------|-------|--------|
+| **1** | Idea 1: AI Content Assistant | 9/10 | ✅ Implementado |
+| **2** | Idea 2: Support Chatbot | 9/10 | ⚠️ Parcial |
+| **3** | Idea 10: Sentiment Analytics | 9/10 | 🔲 Pendiente |
+| **4** | Idea 11: Advanced DRM | 8/10 | 🔲 Pendiente |
+| **5** | Idea 9: Data Export | 8/10 | 🔲 Pendiente |
+| **6** | Idea 8: Product Contact System | 8/10 | 🔲 Pendiente |
+| **7** | Idea 4: Description Generator | 8/10 | 🔲 Pendiente |
+| **8** | Idea 5: Certificate PDF | 8/10 | 🔲 Pendiente |
+| **9** | Idea 3: AI Afiliate Chat | 7/10 | 🔲 Pendiente |
+| **10** | Idea 6: Smart Recommendations | 6/10 | 🔲 Pendiente |
+| **11** | Idea 7: SEO Optimizer | 6/10 | 🔲 Pendiente |
+| **12** | Idea 12: Interactive Agent | — | ✅ Implementado |
+| **13** | Idea 13: Reports Agent | — | ✅ Implementado |
+| **14** | Idea 14: Orchestrator | — | ✅ Implementado |
 
 ---
 
 ## 2. Ideas Nuevas - Overview
 
-### Resumen de las 11 Ideas
+### Resumen de las 14 Ideas
 
-| # | Idea | Descripción | Plan Pro | Streaming | Complejidad |
-|---|------|------------|----------|----------|-------------|
-| **1** | AI Content Assistant | AI asiste al Creador con estructuración y generar contenido/interacciones para TODOS los tipos de productos | ✅ | ✅ | Media |
-| **2** | Support Chatbot | Chat de soporte técnico + escalación a email | ❌ | ✅ | Media |
-| **3** | AI Afiliate Chat | Chat de dudas para Afiliados y Compradores | ❌ | ✅ | Baja |
-| **4** | Description Generator | Genera título, descripción, tags SEO | ✅ | ✅ | Baja |
-| **5** | Certificate PDF | Genera PDF + QR para certificados | ❌ | ❌ | Media |
-| **6** | Smart Recommendations | Recomendaciones personalizadas | ✅ | ❌ | Alta |
-| **7** | SEO Optimizer | Genera meta tags automáticos | ✅ | ✅ | Baja |
-| **8** | Product Contact System | Sistema de consultas privadas comprador→creador por email | ❌ | ❌ | Baja |
-| **9** | Data Export | Exportar información del creador (alumnos, productos, órdenes) | ❌ | ❌ | Baja |
-| **10** | Sentiment Analytics | AI analiza comentarios y reviews para generar insights accionables | ✅ | ❌ | Media |
-| **11** | Advanced DRM (Intermedio) | Protección contra piratería con watermarks dinámicos y signed URLs | ✅ | ❌ | Media |
+| # | Idea | Descripción | Plan Pro | Streaming | Complejidad | Estado |
+|---|------|------------|----------|----------|-------------|--------|
+| **1** | AI Content Assistant | AI asiste al Creador con estructuración y generar contenido/interacciones para TODOS los tipos de productos | ✅ | ✅ | Media | ✅ Implementado |
+| **2** | Support Chatbot | Chat de soporte técnico + escalación a email | ❌ | ✅ | Media | ⚠️ Parcial (core) |
+| **3** | AI Afiliate Chat | Chat de dudas para Afiliados y Compradores | ❌ | ✅ | Baja | 🔲 Pendiente |
+| **4** | Description Generator | Genera título, descripción, tags SEO | ✅ | ❌ | Baja | 🔲 Pendiente |
+| **5** | Certificate PDF | Genera PDF + QR para certificados | ❌ | ❌ | Media | 🔲 Pendiente |
+| **6** | Smart Recommendations | Recomendaciones personalizadas | ✅ | ❌ | Alta | 🔲 Pendiente |
+| **7** | SEO Optimizer | Genera meta tags automáticos | ✅ | ✅ | Baja | 🔲 Pendiente |
+| **8** | Data Export | Exportar información del creador (alumnos, productos, órdenes) | ❌ | ❌ | Baja | 🔲 Pendiente |
+| **9** | Sentiment Analytics | AI analiza comentarios y reviews para generar insights accionables | ✅ | ❌ | Media | 🔲 Pendiente |
+| **10** | Advanced DRM (Intermedio) | Protección contra piratería con watermarks dinámicos y signed URLs | ✅ | ❌ | Media | 🔲 Pendiente |
+| **11** | Interactive Agent | Talleres dinámicos: usuario carga datos y recibe análisis personalizado | ✅ | ❌ | Media | ✅ Implementado |
+| **12** | Reports Agent | Sistema de denuncias y moderación con triage IA | ❌ | ❌ | Baja | ✅ Implementado |
+| **13** | Orchestrator | Router centralizado de capabilities AI (18 registered skills) | ❌ | ✅ | Baja | ✅ Implementado |
+| **14** | Memory Enhancement | Mejoras RAG: HNSW index, RBAC validation, cleanup jobs | ✅ | ❌ | Media | ✅ Implementado |
 
 ---
 
@@ -1051,6 +1069,248 @@ Usuario solicita ver lección:
 
 ---
 
+### 3.11 Idea 11: Interactive Agent (Talleres Dinámicos)
+
+**Descripción**: Permite que el comprador cargue sus datos específicos (caso práctico) en cada módulo y reciba análisis personalizado de la IA basado en SU realidad. Transforma cursos pasivos en herramientas de implementación.
+
+**Estado**: ✅ **IMPLEMENTADO** (SDD completo, Mayo 2026)
+
+#### Flujo
+
+```
+Creador configura campos por módulo (product_module_fields)
+    ↓
+Comprador interactúa: carga datos (user_course_data)
+    ↓
+Solicita análisis AI (output_analysis)
+    ↓
+Creador ve analytics agregados (anonimizados)
+```
+
+#### Infraestructura a Reutilizar
+
+| Componente | Status | Uso |
+|------------|--------|-----|
+| `LLMService` | ✅ Existe | Análisis de datos |
+| `aiCreditService` | ✅ Existe | Deducción de créditos (1 para save, 3 para analyze) |
+| `productRepository` | ✅ Existe | Validación ownership |
+| `userCourseData` table | ✅ Nueva | Tabla implementada |
+| `productModuleFields` table | ✅ Nueva | Tabla implementada |
+
+#### Nuevos Componentes
+
+| Componente | Nuevo | Descripción |
+|-----------|-------|--------------|
+| `interactive-agent.repository.ts` | ✅ Nuevo | Repository con Advisory Lock pattern |
+| `interactive-agent.service.ts` | ✅ Nuevo | Lógica de negocio + credit flow idempotente |
+| `interactive.routes.ts` | ✅ Nuevo | Rutas REST con rate limiting |
+
+#### Tablas Implementadas
+
+```sql
+-- user_course_data: datos del usuario por producto/módulo
+CREATE TABLE user_course_data (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    product_id UUID NOT NULL REFERENCES products(id),
+    module_key VARCHAR(100) NOT NULL CHECK (module_key ~ '^[a-z0-9_]+$'),
+    input_data JSONB NOT NULL DEFAULT '{}',
+    output_analysis JSONB,
+    completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id, module_key)
+);
+
+-- product_module_fields: configuración de campos por módulo
+CREATE TABLE product_module_fields (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id),
+    module_key VARCHAR(100) NOT NULL,
+    field_name VARCHAR(100) NOT NULL,
+    field_type VARCHAR(20) NOT NULL CHECK (field_type IN ('number', 'string', 'boolean', 'select')),
+    field_label VARCHAR(200) NOT NULL,
+    field_placeholder VARCHAR(500),
+    field_options JSONB,
+    field_required BOOLEAN DEFAULT FALSE,
+    field_validation JSONB,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### Endpoints Implementados
+
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/interactive/fields/:productId` | Crear campos de módulo | Creador |
+| GET | `/api/interactive/fields/:productId` | Obtener campos | JWT (owner/buyer) |
+| POST | `/api/interactive/data/:productId` | Guardar datos (1 crédito) | JWT (buyer) |
+| PUT | `/api/interactive/data/:productId/:moduleKey` | Actualizar datos | JWT (buyer) |
+| GET | `/api/interactive/data/:productId` | Obtener mis datos | JWT (buyer) |
+| POST | `/api/interactive/analyze/:productId/:moduleKey` | Solicitar análisis (3 créditos) | JWT (buyer) |
+| GET | `/api/interactive/analytics/:productId` | Analytics agregados | Creador |
+
+#### Credit Flow Idempotente
+
+- Primera grabación: 1 crédito
+- Análisis: 3 créditos
+- Retry pattern: double-charge prevention con referenceId check
+
+#### Rate Limiting
+
+- `interactiveAgentLimiter`: 10 req/min por usuario
+
+---
+
+### 3.12 Idea 12: Reports Agent (Denunciations)
+
+**Descripción**: Sistema de denuncias y moderación de contenido con triage automático por IA.
+
+**Estado**: ✅ **IMPLEMENTADO** (Phase 9)
+
+#### Infraestructura a Reutilizar
+
+| Componente | Status | Uso |
+|------------|--------|-----|
+| `LLMService` | ✅ Existe | Análisis de sentiment para triage |
+| `denunciationService` | ✅ Nuevo | Lógica de triage |
+| `platform_config` table | ✅ Nueva | Configuración |
+
+#### Tablas Implementadas
+
+```sql
+CREATE TABLE report_reasons (
+    id UUID PRIMARY KEY,
+    content_type VARCHAR(20) NOT NULL, -- 'product' | 'review' | 'comment'
+    code VARCHAR(50) NOT NULL UNIQUE,
+    label VARCHAR(100) NOT NULL,
+    description TEXT,
+    severity VARCHAR(20) DEFAULT 'medium', -- 'low' | 'medium' | 'high' | 'critical'
+    auto_triage BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id UUID NOT NULL REFERENCES users(id),
+    content_type VARCHAR(20) NOT NULL,
+    content_id UUID NOT NULL,
+    reason_code VARCHAR(50) NOT NULL REFERENCES report_reasons(code),
+    description TEXT,
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending' | 'reviewing' | 'resolved' | 'dismissed'
+    admin_id UUID REFERENCES users(id),
+    resolution_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE policies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content_type VARCHAR(20) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    content TEXT NOT NULL,
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### Endpoints Implementados
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/ai/reports/reasons` | Lista de motivos de denuncia |
+| POST | `/api/ai/reports` | Crear denuncia |
+| GET | `/api/ai/reports` | Listar denuncias (admin) |
+| GET | `/api/ai/reports/:reportId` | Ver denuncia |
+| PUT | `/api/ai/reports/:reportId/resolve` | Resolver denuncia |
+| POST | `/api/ai/reports/:reportId/actions` | Tomar acción |
+| GET | `/api/ai/content/policies` | Listar políticas |
+
+#### Estado Pendiente
+
+- Triage IA automático: definido en spec pero pendiente de implementación completa
+
+---
+
+### 3.13 Idea 13: Orchestrator
+
+**Descripción**: Router centralizado que registra y ejecuta capabilities de los servicios AI. Provee discovery, query y streaming.
+
+**Estado**: ✅ **IMPLEMENTADO** (Phase 2, SDD completo)
+
+#### Capabilities Registradas (18)
+
+| Category | Capabilities |
+|----------|--------------|
+| **QA** | `qa.ask`, `qa.stream` |
+| **Tutor** | `tutor.ask`, `tutor.stream`, `tutor.config`, `tutor.insights` |
+| **Insights** | `insights.ask`, `insights.stream`, `insights.list`, `insights.delete` |
+| **Credits** | `credits.balance`, `credits.packages`, `credits.purchase`, `credits.transactions` |
+| **Reports** | `reports.create` |
+| **Embeddings** | `embeddings.generate`, `embeddings.search`, `embeddings.delete` |
+| **Interactive** | `interactive.getFields`, `interactive.saveData`, `interactive.analyze`, `interactive.getAnalytics` |
+| **Memory** | `memory.search` |
+| **Concierge** | `concierge.chat` |
+
+#### Endpoints
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/orchestrator/capabilities` | Lista de capabilities |
+| GET | `/api/orchestrator/skills` | Skills disponibles |
+| POST | `/api/orchestrator/query` | Ejecución sin streaming |
+| GET | `/api/orchestrator/stream` | Ejecución con streaming |
+
+#### Configuración
+
+```typescript
+// Keys configurables via configService
+'orchestrator.default_timeout'  // default 30000ms
+'orchestrator.max_retries'       // default 2
+'orchestrator.cache_ttl'         // default 60000ms
+'orchestrator.stream_timeout'    // default 60000ms
+```
+
+---
+
+### 3.14 Idea 14: Memory Enhancement
+
+**Descripción**: Mejoras al sistema RAG existente: índice HNSW, validación RBAC, cleanup jobs.
+
+**Estado**: ✅ **IMPLEMENTADO** (SDD completo, Tasks 1-7)
+
+#### Mejoras Implementadas
+
+| Task | Descripción | Archivo |
+|------|-------------|---------|
+| M-1 | RBAC validation en memory-search | `memory.service.ts` |
+| M-2 | HNSW index creado | `11-hnsw-index.sql` |
+| M-3 | IVFFlat → HNSW migration | `11-hnsw-index.sql` |
+| M-4 | Cleanup job hourly | `main.worker.ts` |
+| M-5 | Per-user quota + LRU eviction | `checkQuotaAndEvict` |
+| M-6 | Rate limiting en memory endpoints | `memoryLimiter` |
+| M-7 | Error handling + fallback | `memory.service.ts` |
+
+#### Índice HNSW
+
+```sql
+CREATE INDEX idx_ai_embeddings_hnsw
+ON ai_embeddings
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+```
+
+#### Rate Limiting
+
+- `memoryLimiter`: 100 req/min (lectura), 20 req/min (escritura)
+
+---
+
 ## 4. Consideraciones UX
 
 ### 4.1 Streaming Responses
@@ -1062,19 +1322,22 @@ Todas las ideas que usan AI deben implementar streaming SSE:
 res.write('data: {"chunk": "..."}\n\n');
 ```
 
-| Idea | Streaming | Notas |
-|------|-----------|--------|
-| Idea 1 | ✅ | Course Assistant |
-| Idea 2 | ✅ | Support Chatbot |
-| Idea 3 | ✅ | Afiliate Chat |
-| Idea 4 | ⚠️ | No necesario (single response) |
-| Idea 5 | ❌ | PDF download |
-| Idea 6 | ❌ | No necesario |
-| Idea 7 | ⚠️ | No necesario |
-| Idea 8 | ❌ | Email-based |
-| Idea 9 | ❌ | Download ZIP |
-| Idea 10 | ❌ | No necesario (single response) |
-| Idea 11 | ❌ | Video player |
+| Idea | Streaming | Estado | Notas |
+|------|-----------|--------|--------|
+| Idea 1 | ✅ | ✅ Implementado | AI Content Assistant |
+| Idea 2 | ✅ | ⚠️ Parcial | Support Chatbot (Concierge core) |
+| Idea 3 | ✅ | 🔲 Pendiente | AI Afiliate Chat |
+| Idea 4 | ⚠️ | 🔲 Pendiente | Description Generator |
+| Idea 5 | ❌ | 🔲 Pendiente | Certificate PDF |
+| Idea 6 | ❌ | 🔲 Pendiente | Smart Recommendations |
+| Idea 7 | ⚠️ | 🔲 Pendiente | SEO Optimizer |
+| Idea 8 | ❌ | 🔲 Pendiente | Data Export |
+| Idea 9 | ❌ | 🔲 Pendiente | Sentiment Analytics |
+| Idea 10 | ❌ | 🔲 Pendiente | Advanced DRM |
+| Idea 11 | ❌ | ✅ Implementado | Interactive Agent |
+| Idea 12 | ❌ | ✅ Implementado | Reports Agent |
+| Idea 13 | ✅ | ✅ Implementado | Orchestrator |
+| Idea 14 | ❌ | ✅ Implementado | Memory Enhancement |
 
 ### 4.2 Estados de Carga
 
@@ -1112,6 +1375,13 @@ interface LoadingStates {
 | 5 | ✅ | Owner | ✅ | ✅ | ❌ |
 | 6 | ✅ | Auth | ✅ | ✅ | ❌ |
 | 7 | ✅ | Plan Pro | ✅ | ✅ | ✅ |
+| 8 | ✅ | Auth | ✅ | ✅ | ❌ |
+| 9 | ✅ | Plan Pro | ✅ | ✅ | ❌ |
+| 10 | ✅ | Plan Pro | ✅ | ✅ | ❌ |
+| 11 | ✅ | JWT | ✅ | ✅ | ✅ |
+| 12 | ✅ | JWT | ✅ | ✅ | ❌ |
+| 13 | ✅ | JWT | ✅ | ✅ | ❌ |
+| 14 | ✅ | JWT | ✅ | ✅ | ❌ |
 
 ### 5.2 Amenazas y Mitigaciones
 
@@ -1120,11 +1390,13 @@ interface LoadingStates {
 | **Prompt Injection** | Input sanitization, prompt isolation | 1, 2, 3, 4, 7 |
 | **File Upload Attacks** | Extension allowlist, size limit, virus scan | 1, 4 |
 | **Data Leakage** | No logs de inputs, isolation | Todas |
-| **Rate Limit Abuse** | throttling, per-user limits | 2, 3 |
-| **Unauthorized Access** | Plan check, role validation | 1, 4, 6, 7 |
+| **Rate Limit Abuse** | throttling, per-user limits | 2, 3, 11 |
+| **Unauthorized Access** | Plan check, role validation | 1, 4, 6, 7, 11 |
 | **Cost Attack** | Token limits, timeout, budget | Todas AI |
-| **Context Overflow** | Truncation | 1 |
+| **Context Overflow** | Truncation | 1, 11 |
 | **Output Exposure** | Filter sensitive data | 2, 3 |
+| **JSONB Injection** | Zod validation, size limits | 11, 12 |
+| **Advisory Lock Collisions** | Timeout + retry pattern | 11 |
 
 ### 5.3 Security Checklist General
 
@@ -1138,9 +1410,9 @@ interface LoadingStates {
 - [ ] Prompt injection guard
 
 ### Authentication
-- [ ] Plan Pro validation (Ideas 1, 4, 6, 7)
-- [ ] Role-based access (Idea 5: solo owner)
-- [ ] JWT validation required
+- [ ] Plan Pro validation (Ideas 1, 4, 6, 7, 9, 10, 11)
+- [ ] Role-based access (Idea 5: solo owner, Idea 12: admin)
+- [ ] JWT validation required (Ideas 8, 11, 12, 13, 14)
 
 ### Rate Limiting
 - [ ] Requests per minute: 5-20 según idea
@@ -1152,6 +1424,7 @@ interface LoadingStates {
 - [ ] Input data not stored
 - [ ] Output filtering
 - [ ] No internal paths exposed
+- [ ] JSONB size limits (Idea 11: 50KB input, 1MB output)
 
 ### Cost Control
 - [ ] Token budget per user
@@ -1168,85 +1441,108 @@ interface LoadingStates {
 | Usuario | Plan | Ideas Accesibles |
 |---------|------|------------------|
 | **Creador** | Free | Ninguna AI |
-| **Creador** | Pro | Ideas 1, 4, 6, 7 |
+| **Creador** | Pro | Ideas 1, 4, 6, 7, 11 |
 | **Afiliado** | Any | Idea 3 |
-| **Comprador** | Any | Idea 3 |
-| **Estudiante** | Any | Idea 5 |
+| **Comprador** | Any | Ideas 3, 11 |
+| **Estudiante** | Any | Idea 5, 11 |
 
 ### 6.2 Interacciones Existentes vs Nuevas
 
 | Usuario | Interacciones Existentes | + Nuevas Ideas |
 |---------|-------------------------|----------------|
-| **Creador Pro** | Q&A Agent, Tutor AI, Reviews AI | Course Assistant, Description Gen, Smart Recs, SEO Optimizer |
+| **Creador Pro** | Q&A Agent, Tutor AI, Reviews AI | Course Assistant, Description Gen, Smart Recs, SEO Optimizer, Interactive Agent |
 | **Creador Free** | Q&A básico | Ninguna |
 | **Afiliado** | Links, commissions | AI Afiliate Chat |
-| **Comprador** | Q&A, Reviews | AI Afiliate Chat |
-| **Estudiante** | Tutor AI | Certificate PDF |
+| **Comprador** | Q&A, Reviews | AI Afiliate Chat, Interactive Agent |
+| **Estudiante** | Tutor AI | Certificate PDF, Interactive Agent |
 
 ### 6.3 Resumen de Accesos
 
 | Feature | Creador Pro | Creador Free | Afiliado | Comprador | Estudiante |
 |---------|------------|-------------|-------------|----------|----------|------------|
-| **Course Assistant** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **AI Content Assistant** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Support Chatbot** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **AI Afiliate Chat** | N/A | N/A | ✅ | ✅ | N/A |
 | **Description Generator** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Certificate PDF** | ✅ | ✅ | ❌ | ❌ | ✅ |
 | **Smart Recs** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **SEO Optimizer** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Data Export** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Sentiment Analytics** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Advanced DRM** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Interactive Agent** | ✅ (config) | ❌ | ❌ | ✅ | ❌ |
+| **Reports Agent** | ✅ (admin) | ✅ (reportar) | ✅ (reportar) | ✅ (reportar) | ✅ (reportar) |
+| **Orchestrator** | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
 ## 7. Recomendaciones
 
-### 7.1 Implementación por Fases
+### 7.1 Implementación por Fases (Actualizado Mayo 2026)
 
-#### Fase 1: Core AI (Ideas 1-3)
-- Course Assistant
-- Support Chatbot  
-- AI Afiliate Chat
+#### Fase 1: Core AI ✅ COMPLETADO
+- ✅ Course Assistant (AI Content Assistant - Phase 3-6)
+- ✅ Support Chatbot (Concierge - Phase 7, core)
+- 🔲 AI Afiliate Chat (pendiente)
 
-#### Fase 2: Content AI (Ideas 4-5)
-- Description Generator
-- Certificate PDF
+#### Fase 2: Content AI 🔲 PENDIENTE
+- 🔲 Description Generator
+- 🔲 Certificate PDF
 
-#### Fase 3: Advanced AI (Ideas 6-7)
-- Smart Recommendations
-- SEO Optimizer
+#### Fase 3: Advanced AI 🔲 PENDIENTE
+- 🔲 Smart Recommendations
+- 🔲 SEO Optimizer
+
+#### Fase 4: Nuevas Features 🔲 PENDIENTE
+- 🔲 Data Export
+- 🔲 Sentiment Analytics
+- 🔲 Advanced DRM
+
+#### Infraestructura ✅ COMPLETADO
+- ✅ Orchestrator (Phase 2)
+- ✅ Memory Enhancement (SDD M-1 a M-7)
+- ✅ Interactive Agent (SDD Tasks 1-11)
+- ✅ Reports Agent (Phase 9)
 
 ### 7.2 Requisitos Comunes
 
-| Requisito | Ideas Affectadas |
-|-----------|-------------------|
-| `LLMService` | Todas (1,2,3,4,7) |
-| `EmbeddingService` | Ideas 2,3 (futuro 6) |
-| `emailService` | Ideas 2,3 |
-| `platform_config` | Ideas 2,3 |
+| Requisito | Ideas Afectadas |
+|-----------|-----------------|
+| `LLMService` | Todas (1,2,3,4,6,7,9) |
+| `EmbeddingService` | Ideas 2, 3, 6, 9, 14 |
+| `emailService` | Ideas 2, 3, 8 |
+| `platform_config` | Ideas 2, 3, 12 |
 | `pdfkit` | Idea 5 |
 | `qrcode` | Idea 5 |
 
 ### 7.3 KPIs a Medir
 
-| Idea | KPI |
-|------|-----|
-| Idea 1 | Quizzes creados, tiempo ahorrado |
-| Idea 2 | Tickets resueltos auto, escalation rate |
-| Idea 3 | Engagement, satisfacción |
-| Idea 4 | Tiempo de creación product |
-| Idea 5 | PDFs descargados |
-| Idea 6 | CTR en recomendaciones |
-| Idea 7 | SEO ranking mejora |
+| Idea | KPI | Estado |
+|------|-----|--------|
+| Idea 1 | Quizzes creados, tiempo ahorrado | ✅ Implementado |
+| Idea 2 | Tickets resueltos auto, escalation rate | ⚠️ Parcial |
+| Idea 3 | Engagement, satisfacción | 🔲 Pendiente |
+| Idea 4 | Tiempo de creación product | 🔲 Pendiente |
+| Idea 5 | PDFs descargados | 🔲 Pendiente |
+| Idea 6 | CTR en recomendaciones | 🔲 Pendiente |
+| Idea 7 | SEO ranking mejora | 🔲 Pendiente |
+| Idea 11 | Módulos completados, uso de análisis | ✅ Implementado |
+| Idea 12 | Reports creados, tiempo resolución | ✅ Implementado |
+| Idea 13 | Capabilities usadas, latency | ✅ Implementado |
+| Idea 14 | Búsquedas memory, accuracy | ✅ Implementado |
 
-### 7.4 Roadmap Sugerido
+### 7.4 Roadmap Original vs Estado Actual
 
-| Mes | Ideas | Entregable |
-|-----|-------|------------|
-| **Mes 1** | Idea 1 | Course Assistant beta |
-| **Mes 2** | Idea 2 | Support Chatbot |
-| **Mes 3** | Idea 3 | AI Afiliate Chat |
-| **Mes 4** | Idea 4 | Description Generator |
-| **Mes 5** | Idea 5 | Certificate PDF |
-| **Mes 6** | Ideas 6-7 | Recs + SEO |
+| Mes Original | Idea | Estado Actual |
+|--------------|------|---------------|
+| **Mes 1** | Idea 1 | ✅ Implementado |
+| **Mes 2** | Idea 2 | ⚠️ Parcial (core) |
+| **Mes 3** | Idea 3 | 🔲 Pendiente |
+| **Mes 4** | Idea 4 | 🔲 Pendiente |
+| **Mes 5** | Idea 5 | 🔲 Pendiente |
+| **Mes 6** | Ideas 6-7 | 🔲 Pendiente |
+
+**Nota**: Las fases de implementación real no siguieron el roadmap original. Se priorizaron Interactive Agent, Orchestrator y Memory Enhancement que no estaban en el roadmap inicial.
 
 ---
 

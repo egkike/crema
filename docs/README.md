@@ -52,12 +52,12 @@ Bienvenido a la documentación oficial de **Crema** - Plataforma all-in-one para
 
 ---
 
-## Estado del Proyecto (Marzo 2026)
+## Estado del Proyecto (Mayo 2026)
 
 | Componente | Estado | Notas |
 |------------|--------|-------|
 | Backend API Core | ✅ Completo | ~95% funcionalidades |
-| AI Features Backend | ✅ Completo | Phases 1-7 implementadas |
+| AI Features Backend | ✅ Completo | Phases 1-9 implementadas + Interactive Agent + Reports Agent |
 | Frontend | ❌ Pendiente | Por desarrollar |
 | AI Features Frontend | ❌ Pendiente | Por desarrollar |
 
@@ -66,10 +66,12 @@ Bienvenido a la documentación oficial de **Crema** - Plataforma all-in-one para
 - **Phase 1**: Memory Service (pgvector) + Credits System
 - **Phase 2**: Q&A System + FAQs
 - **Phase 3**: Reviews/Ratings
-- **Phase 4**: Denunciations + Content Policies
+- **Phase 4**: Denunciations + Content Policies + Reports Agent (Triage IA)
 - **Phase 5**: AI Agents (QA)
 - **Phase 6**: Analytics Dashboard
 - **Phase 7**: Tutor AI + Insights
+- **Phase 8**: AI Content Assistant (Content Analysis, Quizzes, Transcription)
+- **Phase 9**: Interactive Agent (Talleres Dinámicos con análisis personalizado)
 
 ## Recursos Externos
 
@@ -79,4 +81,4 @@ Bienvenido a la documentación oficial de **Crema** - Plataforma all-in-one para
 
 ---
 
-*Última actualización: Marzo 2026*
+*Última actualización: Mayo 2026*

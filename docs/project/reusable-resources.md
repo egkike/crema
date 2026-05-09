@@ -93,9 +93,10 @@ throw new AppError('message', 400);
 | `aiCreditService` | AI credit balance management |
 | `conciergeService` | AI support chatbot |
 | `contentAssistantService` | Content analysis (summary, topics, questions) |
-| `contentReaderService` | File content extraction (PDF, MD, TXT) |
+| `contentReaderService` | File content extraction (PDF, Md, TXT) |
 | `transcriptionService` | Audio/video transcription |
 | `qaAgentService`, `tutorService`, `insightsService`, `analyticsService` | Q&A agent, tutor, insights, analytics |
+| `interactiveAgentService` | Talleres dinámicos AI — user data + personalized analysis |
 
 ### Orchestrator
 
@@ -153,7 +154,7 @@ router.post('/route', jwtAuthMiddleware, restrictTo('ADMIN'), validate(schema), 
 import { apiLimiter, loginLimiter, aiLimiter, adminWriteLimiter } from '../middlewares/rateLimit/rateLimit';
 ```
 
-Pre-configured limiters: `loginLimiter`, `refreshLimiter`, `apiLimiter`, `aiLimiter`, `aiChatLimiter`, `aiContentLimiter`, `productUploadLimiter`, `transcribeUploadLimiter`, `webhookLimiter`, `adminReadLimiter`, `adminWriteLimiter`.
+Pre-configured limiters: `loginLimiter`, `refreshLimiter`, `apiLimiter`, `aiLimiter`, `aiChatLimiter`, `aiContentLimiter`, `productUploadLimiter`, `transcribeUploadLimiter`, `webhookLimiter`, `adminReadLimiter`, `adminWriteLimiter`, `interactiveAgentLimiter`.
 
 ### Storage
 
@@ -282,7 +283,7 @@ Uses `AppError` class + `globalErrorHandler` middleware
 These SDDs reference this catalog:
 - `docs/project/content-security/sdd/content-security/` — uses upload middleware, config patterns
 - `docs/project/ai-features/sdd/memory-enhancement/` — uses memoryService, memoryRepository, hooks
-- `docs/project/ai-features/sdd/interactive-agent/` — uses aiCreditService, llmService, singleton pattern
+- `docs/project/ai-features/sdd/interactive-agent/` — uses aiCreditService, llmService, singleton pattern, interactiveAgentLimiter
 - `docs/project/architecture-improvements/sdd/config-service/` — defines ConfigService patterns
 
 ---
@@ -308,6 +309,7 @@ Database initialization scripts run **once on first container start** via docker
 | `09-error-handling-config.sql` | Error policies, content policies, report reasons |
 | `10-user-context-tables.sql` | Q&A (questions, FAQs), reviews/ratings, reports, analytics, AI agents |
 | `11-hnsw-index.sql` | HNSW vector index (alternative to IVFFlat, requires pgvector) |
+| `12-interactive-agent.sql` | `user_course_data`, `product_module_fields` tables for interactive agent (talleres dinámicos AI) |
 
 ### Key Indexes for AI Features
 

@@ -91,6 +91,19 @@ Vende diferentes tipos de productos digitales:
 - Reportes de auditoría
 - Libro IVA Ventas automatizado
 
+### 9. AI Features (v1.3) ⭐
+
+| Feature | Descripción |
+|---------|-------------|
+| **Crema Memory Service** | Búsqueda semántica con pgvector (RAG) |
+| **Sistema de Créditos** | Créditos prepagos para features AI |
+| **Interactive Agent** | Talleres dinámicos con análisis personalizado (3 créditos/análisis) |
+| **Reports Agent** | Triage automático de denuncias con IA |
+| **AI Agents** | Agente Q&A entrenable por producto |
+| **Tutor AI** | Asistente inteligente para estudiantes |
+| **Insights AI** | Consultas en lenguaje natural a datos |
+| **AI Content Assistant** | Análisis de contenido, quizzes, transcripción |
+
 ---
 
 ## ¿Para quién es?

@@ -174,6 +174,25 @@
 | DELETE | `/api/ai/insights/dashboards/:id` | Eliminar dashboard |
 | POST | `/api/ai/insights/query` | Query con IA |
 
+#### Interactive Agent (Talleres Dinámicos)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/interactive/fields/:productId` | Ver campos configurados |
+| POST | `/api/interactive/fields/:productId` | Configurar campos (CREATOR) |
+| GET | `/api/interactive/data/:productId` | Ver datos guardados |
+| POST | `/api/interactive/data/:productId` | Guardar datos (1 crédito) |
+| PUT | `/api/interactive/data/:productId/:moduleKey` | Actualizar datos |
+| POST | `/api/interactive/analyze/:productId/:moduleKey` | Análisis IA (3 créditos) |
+| GET | `/api/interactive/analytics/:productId` | Analytics (CREATOR) |
+
+#### Orchestrator
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/orchestrator/capabilities` | Listar capabilities |
+| GET | `/api/orchestrator/skills` | Listar skills |
+| POST | `/api/orchestrator/query` | Ejecutar capability |
+| GET | `/api/orchestrator/stream` | Streaming SSE |
+
 ---
 
 ## 🛠️ Stack Tecnológico
@@ -223,8 +242,10 @@ El backend incluye un sistema completo de AI Features basado en créditos prepag
 - **embedding.service.ts** - Generación de embeddings con OpenAI
 - **qa.service.ts** - Sistema de Q&A con votos
 - **review.service.ts** - Sistema de reviews/ratings
-- **denunciation.service.ts** - Sistema de reportes
+- **denunciation.service.ts** - Sistema de reportes + Reports Agent (triage IA)
 - **phases-5-7.service.ts** - AI Agents, Analytics, Tutor, Insights
+- **interactive-agent.service.ts** - Talleres dinámicos con análisis personalizado
+- **credits.service.ts** - Sistema de créditos con useCredits idempotente
 
 ### Repositories AI
 - **credits.repository.ts** - CRUD de créditos
@@ -317,17 +338,18 @@ pnpm test:ci           # Tests en Docker
 
 | Métrica | Porcentaje |
 |---------|------------|
-| Statements | ~40% |
-| Functions | ~43% |
-| Lines | ~40% |
-| Branches | ~31% |
+| Statements | ~52% |
+| Functions | ~55% |
+| Lines | ~52% |
+| Branches | ~41% |
 
-**Total: 754 tests unitarios en 66 archivos de test**
+**Total: 1231 tests unitarios en 86 archivos de test** (1231 passed, 7 skipped)
 
 ### Archivos de Test
 
-- **Rutas**: auth, users, products, content, quiz, balance, payouts, payments, refunds, affiliates, admin, products-routes
-- **Servicios**: auth, user, product, payment, payout, order, commission, refund, release, access, subscription, payout_method, email, twoFactor, simulator-provider, ai (embedding, llm, tutor, agents, qa, review)
+- **Rutas**: auth, users, products, content, quiz, balance, payouts, payments, refunds, affiliates, admin, products-routes, interactive
+- **Servicios**: auth, user, product, payment, payout, order, commission, refund, release, access, subscription, payout_method, email, twoFactor, simulator-provider, ai (embedding, llm, tutor, agents, qa, review, interactive-agent)
+- **Repositorios**: ai (interactive-agent, memory, credits)
 - **Utils**: validators, jwt, params
 - **Config/DB**: config, postgres
 - **Setup**: setup.ts (mocks globales), vitest.setup.ts

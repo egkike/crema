@@ -442,7 +442,7 @@ Logs de desarrollo I+D.
 
 ---
 
-## Tablas de AI Features (v1.2 - Marzo 2026)
+## Tablas de AI Features (v1.3 - Mayo 2026)
 
 > ⚠️ Estas tablas fueron implementadas en el backend. Requieren extensión `pgvector` instalada.
 
@@ -545,10 +545,53 @@ FAQs predefinidas por el creador.
 | `product_id` | UUID | No | FK → products.id |
 | `question` | VARCHAR(500) | No | Pregunta |
 | `answer` | TEXT | No | Respuesta |
-| `sort_order` | INT | No | Orden de显示 |
+| `sort_order` | INT | No | Orden de visualización |
 | `is_active` | BOOLEAN | No | |
 | `created_at` | TIMESTAMP | No | |
 | `updated_at` | TIMESTAMP | No | |
+
+---
+
+### Interactive Agent
+
+#### user_course_data
+Almacena datos de entrada del usuario y análisis de resultados por producto/módulo en el flujo interactivo.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `user_id` | UUID | No | FK → users.id |
+| `product_id` | UUID | No | FK → products.id |
+| `module_key` | VARCHAR(100) | No | Identificador del módulo |
+| `input_data` | JSONB | No | Datos ingresados por el usuario |
+| `output_analysis` | JSONB | Sí | Análisis generado por el agente IA |
+| `completed` | BOOLEAN | No | Indica si el módulo fue completado |
+| `completed_at` | TIMESTAMPTZ | Sí | Timestamp de completitud |
+| `created_at` | TIMESTAMPTZ | No | |
+| `updated_at` | TIMESTAMPTZ | No | |
+
+> ⚠️ `input_data` limitado a 50KB. `output_analysis` limitado a 1MB.
+
+#### product_module_fields
+Define configuración de campos (tipo, label, validaciones) por producto y módulo para el agente interactivo.
+
+| Columna | Tipo | Nullable | Descripción |
+|---------|------|----------|-------------|
+| `id` | UUID | No | PK |
+| `product_id` | UUID | No | FK → products.id |
+| `module_key` | VARCHAR(100) | No | Identificador del módulo |
+| `field_name` | VARCHAR(100) | No | Nombre del campo |
+| `field_type` | VARCHAR(20) | No | number, string, boolean, select |
+| `field_label` | VARCHAR(200) | No | Etiqueta visible |
+| `field_placeholder` | VARCHAR(500) | Sí | Placeholder del input |
+| `field_options` | JSONB | Sí | Opciones para tipo select |
+| `field_required` | BOOLEAN | No | Obligatorio |
+| `field_validation` | JSONB | Sí | Reglas de validación (min, max, pattern) |
+| `order_index` | INTEGER | No | Orden de visualización |
+| `created_at` | TIMESTAMPTZ | No | |
+| `updated_at` | TIMESTAMPTZ | No | |
+
+> 📝 Campos select requieren al menos 1 opción en `field_options`.
 
 ---
 

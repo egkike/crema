@@ -39,15 +39,18 @@ Crema centraliza todas estas necesidades en una sola plataforma, permitiendo que
 7. **Gestión de Ganancias** - Saldos pendientes, disponibles, de plataforma
 8. **Cumplimiento Fiscal** - Ley de Economía del Conocimiento (Argentina)
 
-### Funcionalidades AI (v1.2) ⭐
+### Funcionalidades AI (v1.3) ⭐
 1. **Crema Memory Service** - Búsqueda semántica con pgvector
 2. **Q&A con IA** - Auto-respuesta de preguntas + FAQs
 3. **Reviews/Ratings** - Sistema de calificación con votos útiles
 4. **Denunciations** - Sistema de reportes con políticas de contenido
-5. **AI Agents** - Agente Q&A entrenable por producto
-6. **Analytics Dashboard** - Métricas diarias de creadores
-7. **Tutor AI** - Asistente inteligente para estudiantes
-8. **Insights AI** - Consultas en lenguaje natural a datos
+5. **Reports Agent** - Triage automático de denuncias con IA
+6. **AI Agents** - Agente Q&A entrenable por producto
+7. **Analytics Dashboard** - Métricas diarias de creadores
+8. **Tutor AI** - Asistente inteligente para estudiantes
+9. **Insights AI** - Consultas en lenguaje natural a datos
+10. **Interactive Agent** - Talleres dinámicos con análisis personalizado
+11. **AI Content Assistant** - Análisis de contenido, quizzes, transcripción
 
 ## Para quién es?
 
