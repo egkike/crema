@@ -1,17 +1,30 @@
 # Product Requirements Document (PRD)
 ## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 3.3
+**Versión**: 3.6
 **Fecha**: Mayo 2026
 **Estado**:
 - ✅ Backend Services (18 servicios)
-- ✅ Orchestrator registration (13 servicios registrados)
-- ✅ Memory Enhancement SDD: ✅ TODO COMPLETO (Tasks 1-7 implementados + testeados)
+- ✅ Orchestrator registration (18 capabilities)
+- ✅ Memory Enhancement SDD: COMPLETO (Tasks M-1 a M-7)
+- ✅ Interactive Agent SDD: COMPLETO (Tasks 1-11)
+- ✅ Reports Agent: Implementado con triage IA
+- ✅ AI Content Assistant: COMPLETO (ContentAssistant, ContentReader, QuizGenerator, Transcription)
+- ✅ AI Support Chatbot (Concierge core): COMPLETO
+- ✅ Credit Management Dashboard: COMPLETO
+- 🆕 Features pendientes: §4.3-§4.7, §4.10-§4.15, §4.17-§4.18, §4.20 (14 features) + ⚠️ Parciales: §4.8, §4.19 - Roadmap priorizado
 **Owner**: Kike García
 
 > **Dependencias**:
 > - Orchestrator, Config, User Context: ver **architecture-improvements PRD**
-> - Memory Enhancement (RAG + HWS): ver **architecture-improvements PRD** sección 4.4
+> - Memory Enhancement (RAG + HNSW): ver **architecture-improvements PRD** sección 4.4
+
+> **🎯 Jerarquía de Documentos AI**:
+> - **Este doc (AI-FEATURES-PRD.md)**: Catálogo maestro de features — qué existe, estados, user stories, acceso por rol
+> - **PRD.md (Sistema de Interacción y Analytics)**: Especificación técnica — cómo se implementa, archivos, tablas, APIs
+> - **feasibility-analysis.md**: Análisis de viabilidad — priorización, scores, costo/beneficio
+>
+> Las features implementadas incluyen referencia a su especificación técnica en PRD.md
 
 ---
 
@@ -42,6 +55,10 @@
    - [4.18 Audio Notes](#418-audio-notes)
    - [4.19 AI Summary](#419-ai-summary)
    - [4.20 Transcript Search](#420-transcript-search)
+   - [4.21 Interactive Agent](#421-interactive-agent)
+   - [4.22 Reports Agent](#422-reports-agent)
+   - [4.23 Orchestrator](#423-orchestrator)
+   - [4.24 Memory Enhancement](#424-memory-enhancement)
 5. [Matriz de Acceso por Rol y Tipo de Producto](#5-matriz-de-acceso-por-rol-y-tipo-de-producto)
 6. [Herramientas de Admin](#6-herramientas-de-admin)
 7. [Análisis de Viabilidad Económica](#7-análisis-de-viabilidad-económica)
@@ -380,6 +397,8 @@ Asistente IA que responde preguntas de estudiantes basadas en el contenido del c
 #### Estado
 ✅ **Implementado** - Requiere optimización de prompts y posibles mejoras
 
+> **Implementación técnica:** Ver PRD.md §3.2 Tutor AI Avanzado + §6 (Estado de Implementación)
+
 ---
 
 ### 4.2 AI Content Assistant
@@ -416,7 +435,12 @@ Todos los tipos de productos de Crema.
 - Rate limiting específico por operación
 
 #### Estado
-✅ **Implementado** (Fases 1-9 completadas, incluyendo tests) - Phase 8 Testing	done (PR #12)
+✅ **Implementado** (Fases 1-9 completadas, incluyendo tests) - Phase 8 Testing done (PR #12)
+
+> **Implementación técnica:** Ver PRD.md §2.5 (AI Content Assistant) + SDD `docs/project/ai-features/sdd/ai-content-assistant/`
+> - Servicios: `ContentAssistantService`, `ContentReaderService`, `QuizGeneratorService`, `TranscriptionService`
+> - Tablas: `product_lessons`, `product_lesson_quizzes`, `ai_transcription_usage`
+> - Endpoints: `/api/ai/content/assist`, `/api/ai/quiz/generate`, `/api/ai/transcribe`
 
 ---
 
@@ -649,7 +673,7 @@ Dashboard analytics para creadores.
 | INS-03 | Creador | recibir alertas de alumnos en riesgo | recuperar usuarios antes de que abandonen |
 
 #### Estado
-🆕 **NUEVO** - Requiere desarrollo (expandir existente)
+⚠️ **PARCIAL** - InsightsService existe con dashboards CRUD + NL→SQL query + streaming. Requiere expandir: predicción de churn, generación de email de recuperación, comparativas A/B.
 
 ---
 
@@ -789,7 +813,11 @@ El Admin tiene paneles específicos para gestionar el soporte:
 | **Reportes de Admin** | ❌ No | **Crema** |
 
 #### Estado
-🆕 **NUEVO** - Requiere desarrollo (basado en arquitectura de Agentes + Skills)
+✅ **IMPLEMENTADO (core)** - ConciergeService con system prompt configurable, sanitización de input, y defensive framing contra prompt injection. Skills avanzados (search_faqs, get_order_status, evaluate_refund_risk, escalate_to_human, create_support_ticket) pendientes de implementación.
+
+> **Implementación técnica:** Ver PRD.md §6 (Estado de Implementación) - Moderation/ConciergeService
+> - Servicio: `ConciergeService` en `services/ai/concierge.service.ts`
+> - Endpoint: Registrado como capability `concierge.chat` en Orchestrator
 
 ---
 
@@ -1120,7 +1148,7 @@ Genera un resumen ejecut IA del contenido (ebook, podcast, video) descargable en
 | SUM-03 | Comprador | exportar el resumen | compartirlo o guardarlo |
 
 #### Estado
-🆕 **NUEVO** - Requiere desarrollo
+⚠️ **PARCIAL** - Reutiliza ContentAssistantService con `analysisType: 'summary'` (endpoint `/api/ai/content/assist`). No es feature standalone dedicada.
 
 ---
 
@@ -1152,6 +1180,306 @@ Búsqueda semántica en transcripciones de audio/podcasts. "Buscar dónde mencio
 
 ---
 
+### 4.21 Interactive Agent
+
+#### Descripción
+Talleres dinámicos que permiten al comprador cargar sus datos específicos (caso práctico) en cada módulo y recibir análisis personalizado de la IA basado en SU realidad. Transforma cursos pasivos en herramientas de implementación.
+
+> **Ejemplo:** Curso "Cómo montar una cafetería"
+> - Módulo 1: El alumno carga su ubicación, costo de alquiler
+> - Módulo 2: La IA analiza y le da su punto de equilibrio personalizado
+> - Al final: Tiene su **Business Plan listo**, no solo un certificado
+
+#### Tipo de Producto
+- **Cursos** (variable input → análisis personalizado)
+- **Ebooks** (ejercicios interactivos)
+- **Membresías** (plan personalizado según objetivos)
+- **Software** (configuración guiada)
+
+#### Funcionalidades Principales
+
+| Funcionalidad | Descripción |
+|---------------|-------------|
+| **Field Configuration** | El creador define campos requeridos por módulo (number, string, boolean, select) |
+| **User Data Collection** | El comprador ingresa sus datos específicos |
+| **AI Analysis** | La IA genera análisis personalizado basado en los datos del usuario |
+| **Progress Tracking** | Centro de control con módulos completados |
+| **Creator Analytics** | Dashboard agregado (anonimizado) con tendencias de los alumnos |
+
+#### Modelo de Datos
+
+```sql
+-- Tabla: datos del usuario por producto/módulo
+CREATE TABLE user_course_data (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    product_id UUID NOT NULL REFERENCES products(id),
+    module_key VARCHAR(100) NOT NULL,
+    input_data JSONB NOT NULL DEFAULT '{}',
+    output_analysis JSONB,
+    completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id, module_key)
+);
+
+-- Tabla: configuración de campos por módulo
+CREATE TABLE product_module_fields (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id),
+    module_key VARCHAR(100) NOT NULL,
+    field_name VARCHAR(100) NOT NULL,
+    field_type VARCHAR(20) NOT NULL CHECK (field_type IN ('number', 'string', 'boolean', 'select')),
+    field_label VARCHAR(200) NOT NULL,
+    field_placeholder VARCHAR(500),
+    field_options JSONB,
+    field_required BOOLEAN DEFAULT FALSE,
+    field_validation JSONB,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### API Endpoints
+
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/interactive/fields/:productId` | Crear campos de módulo | Creador |
+| GET | `/api/interactive/fields/:productId` | Obtener campos | JWT (owner/buyer) |
+| POST | `/api/interactive/data/:productId` | Guardar datos (1 crédito) | JWT (buyer) |
+| PUT | `/api/interactive/data/:productId/:moduleKey` | Actualizar datos | JWT (buyer) |
+| GET | `/api/interactive/data/:productId` | Obtener mis datos | JWT (buyer) |
+| POST | `/api/interactive/analyze/:productId/:moduleKey` | Solicitar análisis (3 créditos) | JWT (buyer) |
+| GET | `/api/interactive/analytics/:productId` | Analytics agregados | Creador |
+
+#### Seguridad
+
+| Aspecto | Implementación |
+|---------|---------------|
+| **Input Validation** | Schema Zod con regex `^[a-z0-9_]+$` para moduleKey |
+| **Límites** | input_data: 50KB, output_analysis: 1MB, campos: 50/módulo |
+| **Rate Limiting** | `interactiveAgentLimiter`: 10 req/min por usuario |
+| **Authorization** | Owner del producto o buyer con orden activa |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| INT-01 | Comprador | cargar mis datos en cada módulo | el sistema guarde mis progresos |
+| INT-02 | Comprador | recibir análisis personalizado | la IA responda basado en MIS datos, no genérico |
+| INT-03 | Comprador | ver mi progreso en el "Centro de Control" | dashboard con módulos completados |
+| INT-04 | Creador | configurar qué datos se piden | definir campos requeridos por módulo |
+| INT-05 | Creador | ver los datos de mis alumnos | dashboard agregado (anonimizado) |
+
+#### Estado
+✅ **IMPLEMENTADO** (SDD completo, Mayo 2026) - Phase 11
+
+> **Implementación técnica:** Ver PRD.md §2.5 Agente de Implementación Interactiva + SDD `docs/project/ai-features/sdd/interactive-agent/`
+> - Servicio: `InteractiveAgentService` en `services/ai/interactive-agent.service.ts`
+> - Repository: `interactive-agent.repository.ts` con Advisory Lock pattern
+> - Tablas: `user_course_data`, `product_module_fields`
+> - Endpoints: `/api/interactive/fields/:productId`, `/api/interactive/data/:productId`, `/api/interactive/analyze/:productId/:moduleKey`
+> - Rate limiter: `interactiveAgentLimiter` (10 req/min)
+
+---
+
+### 4.22 Reports Agent
+
+#### Descripción
+Sistema de denuncias y moderación de contenido con triage automático por IA. Permite a cualquier usuario reportar contenido inapropiado y al admin gestionar las denuncias con herramientas de clasificación.
+
+#### Arquitectura de Skills
+
+| Skill | Función | Descripción |
+|-------|---------|-------------|
+| `reports.create` | Crear denuncia | Usuario crea report de contenido |
+| `reports.list` | Admin lista | Admin ve todas las denuncias |
+| `reports.triage` | Clasificación IA | Evalúa severidad y sugiere acción |
+
+#### Modelo de Datos
+
+```sql
+CREATE TABLE report_reasons (
+    id UUID PRIMARY KEY,
+    content_type VARCHAR(20) NOT NULL, -- 'product' | 'review' | 'comment'
+    code VARCHAR(50) NOT NULL UNIQUE,
+    label VARCHAR(100) NOT NULL,
+    description TEXT,
+    severity VARCHAR(20) DEFAULT 'medium',
+    auto_triage BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id UUID NOT NULL REFERENCES users(id),
+    content_type VARCHAR(20) NOT NULL,
+    content_id UUID NOT NULL,
+    reason_code VARCHAR(50) NOT NULL REFERENCES report_reasons(code),
+    description TEXT,
+    status VARCHAR(20) DEFAULT 'pending',
+    admin_id UUID REFERENCES users(id),
+    resolution_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE policies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content_type VARCHAR(20) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    content TEXT NOT NULL,
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT TRUE
+);
+```
+
+#### API Endpoints
+
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/ai/reports/reasons` | Lista de motivos | Público |
+| POST | `/api/ai/reports` | Crear denuncia | JWT |
+| GET | `/api/ai/reports` | Listar reportes | Admin |
+| GET | `/api/ai/reports/:reportId` | Ver reporte | Admin |
+| PUT | `/api/ai/reports/:reportId/resolve` | Resolver | Admin |
+| POST | `/api/ai/reports/:reportId/actions` | Agregar acción | Admin |
+| GET | `/api/ai/content/policies` | Listar políticas | Público |
+
+#### Modelo de Costos
+
+- El consumo de AI para triage es **pagado por Crema** (costo operativo)
+- No descuenta créditos del usuario
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| REP-01 | Usuario | reportar contenido inapropiado | el admin pueda revisarlo |
+| REP-02 | Admin | ver los tickets escalados | resolver casos pendientes |
+| REP-03 | Admin | ver métricas de reports | medir efectividad del sistema |
+| REP-04 | Admin | tomar acción sobre un report | resolver o descartar |
+
+#### Estado
+✅ **IMPLEMENTADO** (Phase 9) - `reportService.triageReport()` en `denunciation.service.ts` incluye clasificación IA de severidad y sugerencia de acción
+
+> **Implementación técnica:** Ver PRD.md §2.3 Sistema de Denuncias + §6 (Estado de Implementación)
+> - Servicio: `DenunciationService` en `services/ai/denunciation.service.ts`
+> - Endpoint: `/api/ai/reports` + `/api/admin/reports/:reportId/triage`
+> - Tablas: `reports`, `report_reasons`, `report_actions`, `policies`
+> - Capability: `reports.create` registrada en Orchestrator
+
+---
+
+### 4.23 Orchestrator
+
+#### Descripción
+Router centralizado que registra y ejecuta capabilities de los servicios AI. Provee discovery de capabilities, query execution y streaming responses. Es el punto de entrada unificado para todas las interacciones AI.
+
+#### Arquitectura
+
+```
+Cliente → Orchestrator → Skills Registry → Services
+                    ↓
+            Capabilities (18 registered)
+```
+
+#### Capabilities Registradas
+
+| Category | Capability | Descripción |
+|----------|------------|-------------|
+| **QA** | `qa.ask`, `qa.stream` | Q&A Agent chat |
+| **Tutor** | `tutor.ask`, `tutor.stream`, `tutor.config`, `tutor.insights` | Tutor AI |
+| **Insights** | `insights.ask`, `insights.stream`, `insights.list`, `insights.delete` | AI Insights |
+| **Credits** | `credits.balance`, `credits.packages`, `credits.purchase`, `credits.transactions` | Credit management |
+| **Reports** | `reports.create` | Report creation |
+| **Embeddings** | `embeddings.generate`, `embeddings.search`, `embeddings.delete` | Vector operations |
+| **Interactive** | `interactive.getFields`, `interactive.saveData`, `interactive.analyze`, `interactive.getAnalytics` | Interactive Agent |
+| **Memory** | `memory.search` | RAG search |
+| **Concierge** | `concierge.chat` | Support chatbot |
+
+#### API Endpoints
+
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/orchestrator/capabilities` | Lista de capabilities | JWT |
+| GET | `/api/orchestrator/skills` | Skills disponibles | JWT |
+| POST | `/api/orchestrator/query` | Ejecución sin streaming | JWT |
+| GET | `/api/orchestrator/stream` | Ejecución con streaming | JWT |
+
+#### Configuración
+
+| Key | Default | Descripción |
+|-----|--------|-------------|
+| `orchestrator.default_timeout` | 30000ms | Timeout para requests |
+| `orchestrator.max_retries` | 2 | Reintentos en error |
+| `orchestrator.cache_ttl` | 60000ms | TTL para caching |
+| `orchestrator.stream_timeout` | 60000ms | Timeout para streaming |
+
+#### Estado
+✅ **IMPLEMENTADO** (Phase 2) - 18 capabilities registradas
+
+> **Implementación técnica:** Ver PRD.md §0.2 (Servicios AI Implementados) + OrchestratorService
+> - Servicio: `OrchestratorService` en `services/orchestrator.service.ts`
+> - Routes: `routes/orchestrator.routes.ts`
+> - Endpoints: `/api/orchestrator/capabilities`, `/api/orchestrator/skills`, `/api/orchestrator/query`, `/api/orchestrator/stream`
+> - Skills Registry: `services/skills-registry.service.ts` con Redis cache
+> - Config keys: `orchestrator.*` (default_timeout, max_retries, cache_ttl, stream_timeout)
+
+---
+
+### 4.24 Memory Enhancement
+
+#### Descripción
+Mejoras al sistema RAG existente: índice HNSW para búsqueda vectorial eficiente, validación RBAC en búsquedas, cleanup jobs para gestión de memoria, y quotas por usuario.
+
+#### Mejoras Implementadas
+
+| Task | Descripción | Archivo |
+|------|-------------|---------|
+| **M-1** | RBAC validation en memory-search | `memory.service.ts` |
+| **M-2** | HNSW index creado | `11-hnsw-index.sql` |
+| **M-3** | IVFFlat → HNSW migration | `11-hnsw-index.sql` |
+| **M-4** | Cleanup job hourly | `main.worker.ts` |
+| **M-5** | Per-user quota + LRU eviction | `checkQuotaAndEvict` |
+| **M-6** | Rate limiting en memory endpoints | `memoryLimiter` |
+| **M-7** | Error handling + fallback | `memory.service.ts` |
+
+#### Índice HNSW
+
+```sql
+CREATE INDEX idx_ai_embeddings_hnsw
+ON ai_embeddings
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+```
+
+#### Rate Limiting
+
+| Limiter | Límite | Uso |
+|---------|--------|-----|
+| `memoryLimiter` (read) | 100 req/min | Búsquedas |
+| `memoryLimiter` (write) | 20 req/min | Creación embeddings |
+
+#### Quota System
+
+- **Per-user quota**: 10,000 embeddings máximo por usuario
+- **LRU eviction**: Cuando se excede, se eliminan los más antiguos
+- **Cleanup job**: Se ejecuta cada hora para limpiarhuérfanos
+
+#### Estado
+✅ **IMPLEMENTADO** (SDD completo) - Tasks M-1 a M-7
+
+> **Implementación técnica:** Ver PRD.md §2.4 Memory Enhancement + SDD `docs/project/ai-features/sdd/memory-enhancement/`
+> - Servicio: `MemoryService` en `services/ai/memory.service.ts` (mejoras M-1 a M-7)
+> - Migration: `db/init/11-hnsw-index.sql`
+> - Worker: `main.worker.ts` (cleanup job hourly)
+> - Quota: `checkQuotaAndEvict()` en memory service
+> - Rate limiter: `memoryLimiter` (100 req/min read, 20 req/min write)
+
+---
+
 ## 5. Matriz de Acceso por Rol y Tipo de Producto
 
 > **Leyenda de estados**:  
@@ -1169,8 +1497,8 @@ Búsqueda semántica en transcripciones de audio/podcasts. "Buscar dónde mencio
 | **Smart Chapters** | 🆕 | 🆕 Usa | 🆕 Usa | - | - |
 | **Personalized Learning Path** | 🆕 | 🆕 Configura | 🆕 Usa | - | - |
 | **AI Content Studio** | 🆕 | 🆕 Usa | - | - | - |
-| **AI Insights** | 🆕 | 🆕 Usa | - | - | - |
-| **AI Support Chatbot** | 🆕 | ✅ Usa | ✅ Usa | ✅ Usa | ✅ Usa |
+| **AI Insights** | ⚠️ Partial | 🆕 Usa | - | - | - |
+| **AI Support Chatbot** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | ✅ Usa |
 | **AI Afiliate Chat** | 🆕 | - | 🆕 Usa | 🆕 Usa | - |
 | **Description Generator** | 🆕 | 🆕 Usa | - | - | - |
 | **SEO Optimizer** | 🆕 | 🆕 Usa | - | - | - |
@@ -1180,8 +1508,12 @@ Búsqueda semántica en transcripciones de audio/podcasts. "Buscar dónde mencio
 | **Credit Management Dashboard** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | - |
 | **Book Highlights** | 🆕 | - | 🆕 Usa | - | - |
 | **Audio Notes** | 🆕 | - | 🆕 Usa | - | - |
-| **AI Summary** | 🆕 | 🆕 Usa | 🆕 Usa | - | - |
+| **AI Summary** | ⚠️ Partial | 🆕 Usa | 🆕 Usa | - | - |
 | **Transcript Search** | 🆕 | - | 🆕 Usa | - | - |
+| **Interactive Agent** | ✅ | 🆕 Configura | ✅ Usa | - | - |
+| **Reports Agent** | ✅ | ✅ Admin | ✅ Reporta | ✅ Reporta | - |
+| **Orchestrator** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | - |
+| **Memory Enhancement** | ✅ | - | - | - | - |
 
 ### Sistema de Créditos por Rol
 
@@ -1492,7 +1824,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | Smart Chapters | ❌ | ✅ |
 | Personalized Learning Path | ❌ | ✅ |
 | AI Content Studio | ❌ | ✅ |
-| AI Insights | ❌ | ✅ |
+| **AI Insights** | ⚠️ | ✅ |
 | AI Support Chatbot | ✅ | ✅ |
 | AI Afiliate Chat | ❌ (créditos) | ✅ |
 | Description Generator | ❌ | ✅ |
@@ -1657,73 +1989,124 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ## 9. Roadmap de Implementación
 
-> **Fecha inicio**: Mayo 2026  
-> **Duración total**: 32 semanas (8 meses)  
-> **Nota**: Todas las tareas de implementación siguen el Estándar de Verificación definido en `docs/project/common/verification-standard.md`
+> **Estado**: Mayo 2026 - Phase 1 completada, continuando con roadmap priorizado
+> **Duración total**: ~40 semanas restantes (10 meses)
+> **Basado en**: Análisis de viabilidad (feasibility-analysis.md v2.0) + prioridades de negocio
+> **Nota**: Las semanas indican tiempo estimado desde Mayo 2026, no semanas calendario reales
 
-### Fase 1: Fundamentos AI (Meses 1-2) [Mayo - Julio 2026]
+### Estado Actual (Mayo 2026) ✅ COMPLETADO
 
-| Semana | Funcionalidad | Entregable |
-|--------|---------------|------------|
-| 1-2 | **Expansión Credits Service** | Créditos para Comprador/Afiliado + Dashboard Mejorado | - |
-| 1-2 | **Credit Management Dashboard** | Panel de saldo y transacciones para usuarios | Credits Service |
-| 3-4 | **Skills Registry** | Sistema de skills implementadas | - |
-| 5-6 | **Agentes Especializados** | Arquitecturas de agentes definidas | Skills Registry |
-| 7-8 | **AI Support Chatbot** | MVP funcionando | Agentes + Skills |
+| Fase | Funcionalidades | Estado | Notes |
+|------|-----------------|--------|-------|
+| **Completada** | LLM, Embedding, Memory, Credits base | ✅ | 18 servicios AI |
+| **Completada** | AI Content Assistant (ContentAssistant, ContentReader, QuizGenerator, Transcription) | ✅ | Phases 3-6 |
+| **Completada** | AI Support Chatbot (Concierge - core) | ✅ | Phase 7 |
+| **Completada** | Reports Agent + DenunciationService | ✅ | Phase 9 |
+| **Completada** | Memory Enhancement (HNSW, RBAC, Quota, LRU, Cleanup) | ✅ | SDD M-1 a M-7 |
+| **Completada** | Orchestrator (18 capabilities) | ✅ | Phase 2 |
+| **Completada** | Interactive Agent (SDD Tasks 1-11) | ✅ | Phase 11 |
 
-### Fase 2: Creador AI Tools (Meses 3-4) [Agosto - Septiembre 2026]
+---
 
-| Semana | Funcionalidad | Entregable |
-|--------|---------------|------------|
-| 9-10 | **Description Generator** | Generador de descripciones | Agentes |
-| 11-12 | **SEO Optimizer** | Meta tags automáticos | Agentes |
-| 13-14 | **Certificate PDF Generator** | Generación de certificados | Agentes |
-| 15-16 | **Sentiment Analytics** | Dashboard de análisis | Agentes |
+### Roadmap Priorizado (Mayo 2026 en adelante)
 
-### Fase 3: Learning AI (Meses 5-6) [Octubre - Noviembre 2026]
+#### Fase A: Extender Existente (Meses 1-2) [Mayo - Julio 2026]
 
-| Semana | Funcionalidad | Entregable |
-|--------|---------------|------------|
-| 17-18 | **Conversational Reader** | Chat con PDF/Ebook | Memory Service |
-| 19-20 | **Smart Chapters** | Capitulación automática | Memory Service |
-| 21-22 | **Micro-Learning Generator** | Nuggets + Resumen + Quiz | Transcription |
-| 23-24 | **Personalized Learning Path** | Rutas personalizadas | User Profiles |
+> **Prioridad ALTA** -复用 infraestructura existente
 
-### Fase 4: Advanced AI (Meses 7-8) [Diciembre 2026 - Enero 2027]
+| Semana | Feature | Sección | Score | Entregable | Dependencias |
+|--------|---------|---------|-------|-------------|--------------|
+| 1-2 | **AI Afiliate Chat** | §4.10 | 7/10 | Chat para afiliados (variant de Concierge) | ConciergeService |
+| 3-4 | **SEO Optimizer** | §4.12 | 6/10 | Meta tags automáticos | ContentAssistant |
+| 5-6 | **AI Insights (expandido)** | §4.8 | — | Analytics mejorados | InsightsService existente |
 
-| Semana | Funcionalidad | Entregable | Depende de |
-|--------|---------------|------------|-------------|
-| 25-26 | **AI Content Studio** | Repurpose de contenido | Memory Service |
-| 27-28 | **AI Insights** | Analytics en lenguaje natural | Analytics DB |
-| 29-30 | **AI Afiliate Chat** | Chat para afiliados | Agentes |
-| 31-32 | **Advanced DRM** | Protección avanzada | - |
+> **Razón**:复用 código existente con bajo esfuerzo
 
-### Fase 5: Experiencia Comprador (Mes 9+) [Febrero 2027+]
+---
 
-| Semana | Funcionalidad | Entregable | Depende de |
-|--------|---------------|------------|-------------|
-| 33-34 | **Book Highlights** | Subrayar y notas en PDFs | Conversational Reader |
-| 35-36 | **Audio Notes** | Notas con timestamp | Transcription |
-| 37-38 | **AI Summary** | Resumen descargable | Transcription |
-| 39-40 | **Transcript Search** | Búsqueda en audio | Transcription |
+#### Fase B: Contenido y Monetización (Meses 3-4) [Agosto - Septiembre 2026]
 
-### Fase 6: Admin Tools (Mes 10+) [Marzo 2027+]
+| Semana | Feature | Sección | Score | Entregable | Dependencias |
+|--------|---------|---------|-------|-------------|--------------|
+| 7-8 | **Description Generator** | §4.11 | 8/10 | Título, descripción, tags SEO | ContentAssistant |
+| 9-10 | **Certificate PDF Generator** | §4.13 | 8/10 | PDF + QR para certificados | — |
+| 11-12 | **Transcript Search** | §4.20 | — | Búsqueda en transcripciones | TranscriptionService |
 
-| Semana | Funcionalidad | Entregable | Depende de |
-|--------|---------------|------------|-------------|
-| 41-42 | **Predictive Analytics** | Patrones de éxito/fracaso | AI Insights |
-| 43-44 | **Content Moderation** | Moderación de contenido | AI Content Assistant |
-| 45-46 | **Security Dashboard** | Monitoreo de seguridad | - |
-| 47-48 | **Revenue Analytics** | Métricas financieras | Analytics DB |
+> **Razón**: Alto impacto para creadores + reutiliza transcription existente
 
-### Fase 7: Optimización (Mes 12+) [Mayo 2027+]
+---
 
-- Refinamiento de prompts
-- Testing de usuarios
-- Optimización de costos
-- Escalabilidad
-- Workshop Builder AI
-- Affiliate Landing Builder
+#### Fase C: Analytics y Engagement (Meses 5-6) [Octubre - Noviembre 2026]
+
+| Semana | Feature | Sección | Score | Entregable | Dependencias |
+|--------|---------|---------|-------|-------------|--------------|
+| 13-14 | **Sentiment Analytics** | §4.14 | 9/10 | AI analiza reviews | ReviewsService |
+| 15-16 | **Conversational Reader** | §4.3 | — | Chat con PDF/Ebook | MemoryService |
+| 17-18 | **AI Summary** | §4.19 | — | Resumen de contenido | Transcription |
+
+> **Razón**: Score alto (Sentiment) + extensiones lógicas de transcription/memory
+
+---
+
+#### Fase D: Advanced Protection (Meses 7-8) [Diciembre 2026 - Enero 2027]
+
+| Semana | Feature | Sección | Score | Entregable | Dependencias |
+|--------|---------|---------|-------|-------------|--------------|
+| 19-20 | **Advanced DRM** | §4.15 | 8/10 | Watermarks + protección | — |
+| 21-22 | **Smart Chapters** | §4.5 | — | Timestamps + buscador | Transcription |
+| 23-24 | **Micro-Learning Generator** | §4.4 | — | Nuggets + resumen + quiz | Transcription + QuizGenerator |
+
+> **Razón**: Protección de contenido + extensiones de transcription
+
+---
+
+#### Fase E: Personalización y Expansión (Meses 9-10) [Febrero - Marzo 2027]
+
+| Semana | Feature | Sección | Descripción | Dependencias |
+|--------|---------|---------|-------------|--------------|
+| 25-26 | **Personalized Learning Path** | §4.6 | Rutas personalizadas por usuario | — |
+| 27-28 | **Book Highlights** | §4.17 | Highlights en PDFs | Conversational Reader |
+| 29-30 | **Audio Notes** | §4.18 | Notas con timestamp | Transcription |
+
+---
+
+#### Fase F: Consolidación y Admin (Meses 11-12) [Abril - Mayo 2027]
+
+| Semana | Feature | Sección | Descripción | Dependencias |
+|--------|---------|---------|-------------|--------------|
+| 31-32 | **AI Content Studio** | §4.7 | Suite completo de creación | Memory Service |
+| 33-36 | **Admin Tools** | — | Content Moderation, Security Dashboard | AI Content Assistant |
+| 37-40 | **Optimización** | — | Refinamiento prompts, testing, costos |Todas |
+
+---
+
+### Features Descartadas o Dependientes
+
+| Feature | Sección | Razón | Alternativa |
+|---------|---------|-------|-------------|
+| **Workshop Builder AI** | — | Muy amplio, poco definido | Phase incremental |
+| **Affiliate Landing Builder** | — | Depende de AI Afiliate Chat | Implementar §4.10 primero |
+
+---
+
+### Métricas de Éxito por Fase
+
+| Fase | Métrica | Objetivo |
+|------|---------|----------|
+| A |复用 código | >60% de features复用 servicios existentes |
+| B | Tiempo de implementación | <2 semanas por feature |
+| C | Engagement | +15% conversiones con analytics |
+| D | Seguridad | 0 reportes de piratería en 3 meses |
+| E | Personalización | +20% completitud de cursos |
+| F | Satisfacción | NPS > 50 |
+
+---
+
+### Verificación Estándar
+
+> Todas las tareas de implementación siguen el Estándar de Verificación definido en `docs/project/common/verification-standard.md`
+
+---
 
 ---
 
