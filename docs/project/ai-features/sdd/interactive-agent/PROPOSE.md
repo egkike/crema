@@ -6,7 +6,7 @@
 **Status**: ✅ APPROVED & COMPLETED
 **Date**: Mayo 2026
 **Owner**: Kike García
-**PRD Ref**: AI-FEATURES-PRD.md §2.5
+**PRD Ref**: PRD.md §2.5
 
 ---
 

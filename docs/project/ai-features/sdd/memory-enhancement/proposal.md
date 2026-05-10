@@ -111,7 +111,7 @@ Semana 4:
 
 ## 6. Documentos Relacionados
 
-- PRD: `docs/project/ai-features/AI-FEATURES-PRD.md`
+- PRD: `docs/project/ai-features/PRD.md`
 - Documento técnico: `Obsidian Vault/.../Como utilizar Pgvector.md`
 - Spec: `spec.md`
 - Design: `design.md`

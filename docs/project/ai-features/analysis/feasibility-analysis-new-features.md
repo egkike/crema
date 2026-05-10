@@ -1714,7 +1714,7 @@ Los siguientes endpoints están implementados pero NO están documentados en el 
 
 ## Anexo B: Referencias
 
-- `docs/project/ai-features/PRD.md` - AI Features original (ORIGINAL, requiere update)
+- `docs/project/ai-features/PRD.md` - AI Features catalog (maestro de features)
 - `docs/project/ai-features/specs/User-Stories-AI-Features.md` - User stories (verificar)
 - `docs/features/lms.md` - LMS features
 - `docs/features/affiliates.md` - Sistema de afiliados

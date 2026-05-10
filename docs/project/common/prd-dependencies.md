@@ -128,7 +128,7 @@
 
 | PRD | Archivo | Versión |
 |-----|---------|--------|
-| AI-FEATURES | `docs/project/ai-features/AI-FEATURES-PRD.md` | v3.1 |
+| AI-FEATURES | `docs/project/ai-features/PRD.md` | v3.6 |
 | ARCHITECTURE | `docs/project/architecture-improvements/PRD.md` | v3.1 |
 | CONTENT-SECURITY | `docs/project/content-security/PRD.md` | v2.1 |
 

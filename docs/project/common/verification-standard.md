@@ -114,7 +114,7 @@ Una task se considera completada cuando:
 
 Se debe hacer referencia a este documento en los PRDs:
 
-- AI-FEATURES-PRD.md
+- PRD.md (AI Features catalog)
 - CONTENT-SECURITY-PRD.md
 - ARCHITECTURE-IMPROVEMENTS-PRD.md
 

@@ -5,7 +5,7 @@
 **Fecha**: Abril 2026  
 **Estado**: ✅ Completado
 
-> **Stack disponible**: Ver **[AI-FEATURES-PRD.md > Stack Disponible](#0-stack-disponible)** antes de planificar. OrchestratorService, LLMService, MemoryService, SkillsRegistry y BullMQ ya están implementados.
+> **Stack disponible**: Ver **[PRD.md > Stack Disponible](#0-stack-disponible)** antes de planificar. OrchestratorService, LLMService, MemoryService, SkillsRegistry y BullMQ ya están implementados.
 
 ---
 

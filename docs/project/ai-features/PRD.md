@@ -1,2330 +1,2470 @@
 # Product Requirements Document (PRD)
-## Crema - Sistema de Interacción y Analytics
+## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 1.8
+**Versión**: 3.6
 **Fecha**: Mayo 2026
-**Estado**: 🟢 MAYORMENTE IMPLEMENTADO — Interactive Agent SDD completo (Tasks 1-11), 20 servicios AI, Orchestrator con 18 capabilities, Reports Agent con triage IA
+**Estado**:
+- ✅ Backend Services (18 servicios)
+- ✅ Orchestrator registration (18 capabilities)
+- ✅ Memory Enhancement SDD: COMPLETO (Tasks M-1 a M-7)
+- ✅ Interactive Agent SDD: COMPLETO (Tasks 1-11)
+- ✅ Reports Agent: Implementado con triage IA
+- ✅ AI Content Assistant: COMPLETO (ContentAssistant, ContentReader, QuizGenerator, Transcription)
+- ✅ AI Support Chatbot (Concierge core): COMPLETO
+- ✅ Credit Management Dashboard: COMPLETO
+- 🆕 Features pendientes: §4.3-§4.7, §4.10-§4.15, §4.17-§4.18, §4.20 (14 features) + ⚠️ Parciales: §4.8, §4.19 - Roadmap priorizado
 **Owner**: Kike García
-**Fases**: 3 (Memory + Q&A + Reviews + Denuncias | Analytics + IA avanzada | Orchestration + Interactive + Content)
+
+> **Dependencias**:
+> - Orchestrator, Config, User Context: ver **architecture-improvements PRD**
+> - Memory Enhancement (RAG + HNSW): ver **architecture-improvements PRD** sección 4.4
+
+> **🎯 Jerarquía de Documentos AI**:
+> - **Este doc (PRD.md)**: Catálogo maestro de features — qué existe, estados, user stories, acceso por rol
+> - **TECHNICAL-SPEC.md**: Especificación técnica — cómo se implementa, archivos, tablas, APIs
+> - **feasibility-analysis.md**: Análisis de viabilidad — priorización, scores, costo/beneficio
+>
+> Las features implementadas incluyen referencia a su especificación técnica en PRD.md
 
 ---
 
 ## Tabla de Contenidos
 
-1. [Visión General](#1-visión-general)
-2. [Fase 1: Memory + Q&A + Reviews + Denuncias](#2-fase-1-memory--qa--reviews--denuncias)
-   - [2.0 Crema Memory Service](#20-crema-memory-service) ⭐ PRIORIDAD 1
-   - [2.1 Sistema de Q&A](#21-sistema-de-qa)
-   - [2.2 Sistema de Reviews/Ratings](#22-sistema-de-reviewsratings)
-   - [2.3 Sistema de Denuncias](#23-sistema-de-denuncias)
-   - [2.4 Agentes IA](#24-agentes-ia)
-3. [Fase 2: Analytics + IA Avanzada](#3-fase-2-analytics--ia-avanzada)
-   - [3.1 Dashboard Analytics](#31-dashboard-analytics)
-   - [3.2 Tutor AI Avanzado](#32-tutor-ai-avanzado)
-4. [Arquitectura de Datos](#4-arquitectura-de-datos)
-5. [API Endpoints](#5-api-endpoints)
-6. [Roadmap de Implementación](#6-roadmap-de-implementación)
-7. [Dependencias y Costos](#7-dependencias-y-costos)
-8. [Stack Disponible](#0-stack-disponible)
+1. [Resumen Ejecutivo](#1-resumen-ejecutivo)
+2. [Estado Actual del Ecosistema AI](#2-estado-actual-del-ecosistema-ai)
+   - [2.4 Memory Enhancement](#24-memory-enhancement-mejoras-planificadas)
+3. [Arquitectura del Ecosistema AI](#3-arquitectura-del-ecosistema-ai)
+4. [Catálogo de Funcionalidades](#4-catálogo-de-funcionalidades)
+   - [4.1 Tutor IA](#41-tutor-ia)
+   - [4.2 AI Content Assistant](#42-ai-content-assistant)
+   - [4.3 Conversational Reader](#43-conversational-reader)
+   - [4.4 Micro-Learning Generator](#44-micro-learning-generator)
+   - [4.5 Smart Chapters](#45-smart-chapters)
+   - [4.6 Personalized Learning Path](#46-personalized-learning-path)
+   - [4.7 AI Content Studio](#47-ai-content-studio)
+   - [4.8 AI Insights](#48-ai-insights)
+   - [4.9 AI Support Chatbot](#49-ai-support-chatbot)
+   - [4.10 AI Afiliate Chat](#410-ai-afiliate-chat)
+   - [4.11 Description Generator](#411-description-generator)
+   - [4.12 SEO Optimizer](#412-seo-optimizer)
+   - [4.13 Certificate PDF Generator](#413-certificate-pdf-generator)
+   - [4.14 Sentiment Analytics](#414-sentiment-analytics)
+   - [4.15 Advanced DRM](#415-advanced-drm)
+   - [4.16 Credit Management Dashboard](#416-credit-management-dashboard)
+   - [4.17 Book Highlights](#417-book-highlights)
+   - [4.18 Audio Notes](#418-audio-notes)
+   - [4.19 AI Summary](#419-ai-summary)
+   - [4.20 Transcript Search](#420-transcript-search)
+   - [4.21 Interactive Agent](#421-interactive-agent)
+   - [4.22 Reports Agent](#422-reports-agent)
+   - [4.23 Orchestrator](#423-orchestrator)
+   - [4.24 Memory Enhancement](#424-memory-enhancement)
+5. [Matriz de Acceso por Rol y Tipo de Producto](#5-matriz-de-acceso-por-rol-y-tipo-de-producto)
+6. [Herramientas de Admin](#6-herramientas-de-admin)
+7. [Análisis de Viabilidad Económica](#7-análisis-de-viabilidad-económica)
+8. [Dependencias con otros PRDs](#8-dependencias-con-otros-prds)
+9. [Roadmap de Implementación](#9-roadmap-de-implementación)
+10. [Requisitos No Funcionales](#10-requisitos-no-funcionales)
+11. [Anexos](#11-anexos)
 
 ---
 
-## 0. Stack Disponible
+## 1. Resumen Ejecutivo
 
-> ⚠️ **Regla obligatoria**: Antes de proponer soluciones, verificar qué está ya implementado. Explorar lo existente antes de agregar dependencias nuevas.
+### 1.0 Visión: De Plataforma de Productos a Plataforma de Experiencia
 
-### 0.1 Infraestructura Disponible
+> **Del Análisis 6**: Crema evoluciona de un simple repositorio de archivos a un **Ecosistema de Valor Aumentado**. Cada usuario, en su rol, vive una experiencia que facilita la realización de sus objetivos.
 
-| Componente | Implementación | Archivo | Uso |
-|-----------|-------------|---------|-----|
-| **Redis** | `ioredis` con configuración centralizada | `backend/src/config/redis.ts` → `redisConnection` | Caching, rate limiting |
-| **BullMQ** | Cola + Worker para jobs asíncronos | `backend/src/queues/scheduler.ts` + `main.worker.ts` | Async processing, scheduling |
-| **PostgreSQL + pgvector** | Base de datos vectorial | `text-embedding-3-small` / `nomic-embed-text` | Memoria AI persistente |
+| Rol | Visión Producto (Hoy) | Visión Experiencia |
+|-----|---------------------|---------------------|
+| **Creador** | Sube archivos | Director de Producto AI con herramientas de consultoría |
+| **Comprador** | Descarga archivos | Estudiante con Mentoría 24/7 |
+| **Afiliado** | Comparte links | Partner Tecnológico con tools de venta |
+| **Admin** | Controla tickets | Arquitecto de Ecosistema |
 
-### 0.2 Servicios AI Implementados (reutilizables)
-
-| Servicio | Archivo | Descripción |
-|---------|---------|-------------|
-| **OrchestratorService** | `src/services/ai/orchestrator.service.ts` | Orquestación centralizada de agentes AI con SSE |
-| **LLMService** | `src/services/ai/llm.service.ts` | Multi-provider: OpenAI, Ollama, Anthropic, Gemini, Simulator |
-| **MemoryService** | `src/services/ai/memory.service.ts` | pgvector + PostgreSQL para memoria persistente |
-| **SkillsRegistry** | `src/services/skills-registry.service.ts` | Registro de skills con Redis cache |
-
-### 0.3 Ejemplo de Reutilización
-
-```typescript
-// Para análisis complejo (async con BullMQ):
-import { mainQueue } from '../queues/scheduler';
-await mainQueue.add('analyze-content', { userId, productId, contentHash }, { attempts: 3 });
-
-// Para caching de resultados:
-import { redisConnection } from '../config/redis';
-// Ver skills-registry.service.ts para patrón de Redis caching con TTL
-
-// Para embeddings (ya implementado):
-// Ver transcription.service.ts (sección "AI Embeddings")
-```
-
-### 0.4 Consideraciones para Módulos AI
-
-- **Memoria persistente** → Ya existe MemoryService con pgvector (no agregar Redis-based vector store)
-- **Procesamiento async** → Usar BullMQ queue `mainQueue` existente
-- **Rate limiting por usuario** → Usar patrón de NotificationService (Redis INCR + TTL)
-- **Caching de respuestas** → Usar patrón de SkillsRegistry (Redis con TTL)
-
-## 1. Visión General
-
-### 1.1 Objetivo del Documento
-
-Este PRD define los requisitos para implementar los módulos de:
-1. **Memoria AI Centralizada** (Crema Memory MCP)
-2. **Comunicación Comprador-Creador** (Q&A + FAQ)
-3. **Social Proof** (Reviews + Ratings)
-4. **Moderación** (Denuncias + Políticas + Agentes IA)
-5. **Analytics** (Dashboard para creadores)
-6. **Inteligencia Artificial** (Tutor automático)
-
-### 1.2 Referencia Competitiva
-
-Basado en análisis de Hotmart, la plataforma líder en digital products en Latinoamérica.
-
-### 1.3 Modelo de IA - Multi-Provider Support
-
-| Aspecto | Decisión |
-|---------|----------|
-| **Quién paga** | Crema (incluido en Plan Pro) |
-| **Modelo** | GPT-4o-mini (mejor relación precio/calidad) |
-| **Proveedores disponibles** | OpenAI, Ollama, Anthropic, Gemini, Simulator |
-| **Límite Pro** | 100 conversaciones/mes |
-| **Modelo de pago extra** | Créditos prepagos (no expiran en 6-12 meses) |
-| **Memoria persistente** | PostgreSQL + pgvector (Crema Memory MCP) |
-
-#### 1.3.1 Proveedores LLM Soportados
-
-| Provider | Modelo | Streaming | Uso recomendado |
-|----------|--------|-----------|-----------------|
-| **OpenAI** | GPT-4o-mini, GPT-4o | ✅ | Producción |
-| **Ollama** | llama3, mistral | ✅ | Desarrollo local |
-| **Anthropic** | Claude 3.5 Sonnet | ✅ | Alternativa a OpenAI |
-| **Gemini** | Gemini 1.5 Pro | ✅ | Multimodal |
-| **Simulator** | N/A | ✅ | Testing sin API |
-
-#### 1.3.2 Proveedores de Embeddings
-
-| Provider | Modelo | Dimensiones |
-|----------|--------|-------------|
-| **OpenAI** | text-embedding-3-small | 1536 |
-| **Ollama** | nomic-embed-text | 768 |
-| **Simulator** | N/A (vectores aleatorios) | Testing |
-
-### 1.4 Sistema de Créditos Prepagos
-
-El sistema de créditos permite a los creadores Pro extender sus límites de IA sin suscripción fija.
-
-#### 1.4.1 Packages Disponibles
-
-| Package | Créditos | Precio ARS | Precio USD | Por crédito |
-|---------|----------|-----------|-----------|-------------|
-| **Básico** | 500 | $4,000 | $2 | $0.004 |
-| **Standard** ⭐ | 2,000 | $14,000 | $7 | $0.0035 |
-| **Pro** | 5,000 | $30,000 | $15 | $0.003 |
-
-#### 1.4.2 Características
-
-| Feature | Detalle |
-|---------|---------|
-| **Validez** | 12 meses desde la compra |
-| **Acumulación** | Sí, los créditos no usados se acumulan |
-| **No resetean** | A diferencia de suscripciones, no se pierden al mes |
-| **Uso** | Tutor AI, Q&A Agent, Insights AI |
-| **Transferencia** | No transferibles entre usuarios |
-
-#### 1.4.3 Modelo de Datos
-
-```sql
--- Saldo de créditos AI por usuario
-CREATE TABLE ai_credits (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    balance INT DEFAULT 0 CHECK (balance >= 0),
-    total_purchased INT DEFAULT 0,
-    total_used INT DEFAULT 0,
-    expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id)
-);
-
--- Historial de transacciones de créditos
-CREATE TABLE ai_credit_transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type VARCHAR(20) NOT NULL CHECK (
-        type IN ('purchase', 'usage', 'expired', 'refund', 'bonus')
-    ),
-    amount INT NOT NULL,
-    balance_after INT NOT NULL,
-    description TEXT,
-    related_order_id UUID, -- Si fue por compra
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Packages de créditos disponibles
-CREATE TABLE ai_credit_packages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code VARCHAR(20) UNIQUE NOT NULL,
-    name VARCHAR(50) NOT NULL,
-    credits INT NOT NULL,
-    price_ars DECIMAL(18,2) NOT NULL,
-    price_usd DECIMAL(18,2) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Seeds de packages
-INSERT INTO ai_credit_packages (code, name, credits, price_ars, price_usd) VALUES
-('CREDITS_BASIC', 'Básico', 500, 4000.00, 2.00),
-('CREDITS_STANDARD', 'Standard', 2000, 14000.00, 7.00),
-('CREDITS_PRO', 'Pro', 5000, 30000.00, 15.00);
-
--- Índices
-CREATE INDEX idx_credits_user ON ai_credits(user_id);
-CREATE INDEX idx_credit_tx_user ON ai_credit_transactions(user_id);
-CREATE INDEX idx_credit_tx_created ON ai_credit_transactions(created_at DESC);
-```
-
-#### 1.4.4 Flujo de Uso
-
-```
-┌─────────────┐      ┌─────────────┐     ┌─────────────┐
-│  Usuario    │      │   Sistema   │     │  MercadoPago│
-└──────┬──────┘      └──────┬──────┘     └──────┬──────┘
-       │                    │                   │
-       │  Consultar saldo   │                   │
-       │───────────────────>│                   │
-       │                    │                   │
-       │  Respuesta         │                   │
-       │<────────────────── │                   │
-       │                    │                   │
-       │  Usar 1 crédito    │                   │
-       │───────────────────>│                   │
-       │                    │  Verificar balance│
-       │                    │──────────────────>│
-       │                    │                   │
-       │                    │  Balance OK       │
-       │                    │<──────────────────│
-       │                    │                   │
-       │                    │  Decrementar      │
-       │                    │──────────────────>│
-       │                    │                   │
-       │  Confirmación      │                   │
-       │<────────────────── │                   │
-```
-
-#### 1.4.5 API de Créditos
-
-```typescript
-// services/ai/ai-credits.service.ts
-interface CreditInfo {
-  balance: number;
-  totalPurchased: number;
-  totalUsed: number;
-  expiresAt: Date | null;
-}
-
-class AiCreditsService {
-  
-  // Consultar saldo
-  async getBalance(userId: string): Promise<CreditInfo>;
-  
-  // Usar crédito (atómico)
-  async useCredits(userId: string, amount: number = 1): Promise<boolean> {
-    if (amount <= 0) {
-      throw new AppError('INVALID_AMOUNT', 400);
-    }
-    const credits = await this.getBalance(userId);
-    
-    if (!credits || credits.balance < amount) {
-      throw new AppError('Créditos insuficientes', 402);
-    }
-    
-    const result = await pool.query(`
-      UPDATE ai_credits 
-      SET balance = balance - $1, 
-          total_used = total_used + $1,
-          updated_at = NOW()
-      WHERE user_id = $2 AND balance >= $1
-      RETURNING balance
-    `, [amount, userId]);
-    
-    if (result.rowCount === 0) {
-      throw new AppError('Créditos insuficientes (race condition)', 402);
-    }
-    
-    await this.logTransaction(userId, 'usage', -amount, result.rows[0].balance);
-    
-    return true;
-  }
-  
-    // Agregar créditos (post-pago)
-    async addCredits(userId: string, packageId: string): Promise<void> {
-      const pkg = await this.getPackage(packageId);
-      const expiresAt = addMonths(new Date(), 12);
-
-      // Obtener balance actual ANTES del upsert para calcular balance_after correcto
-      const current = await this.getBalance(userId);
-      const balanceBefore = current.balance || 0;
-
-      await pool.query(`
-        INSERT INTO ai_credits (user_id, balance, total_purchased, expires_at)
-        VALUES ($1, $2, $2, $3)
-        ON CONFLICT (user_id) DO UPDATE SET
-          balance = ai_credits.balance + $2,
-          total_purchased = ai_credits.total_purchased + $2,
-          expires_at = COALESCE(GREATEST(ai_credits.expires_at, $3), $3)
-      `, [userId, pkg.credits, expiresAt]);
-
-      const balanceAfter = balanceBefore + pkg.credits;
-      await this.logTransaction(userId, 'purchase', pkg.credits, balanceAfter);
-    }
-  
-  // Expirar créditos vencidos (job diario)
-  async expireOldCredits(): Promise<void> {
-    await pool.query(`
-      INSERT INTO ai_credit_transactions (user_id, type, amount, balance_after, description)
-      SELECT user_id, 'expired', balance, 0, 'Créditos expirados'
-      FROM ai_credits
-      WHERE expires_at < NOW() AND balance > 0
-    `);
-    
-    await pool.query(`
-      UPDATE ai_credits SET balance = 0 WHERE expires_at < NOW()
-    `);
-  }
-}
-```
-
-### 1.5 Premisas del Sistema
-
-| Premisa | Valor |
-|---------|-------|
-| **Todos los usuarios pueden preguntar** | Sí (registrados) |
-| **Solo compradores pueden hacer reviews** | Sí (verified purchase) |
-| **Q&A visible para todos** | Sí (pre-compra) |
-| **Reviews visibles en producto** | Sí (configurable por creator) |
-| **Denuncias anónimas** | No (debe identificarse) |
-| **Retención de fondos por fraude** | Sí (hasta 90 días) |
+Esta visión transforma el modelo de "entregable" al de "copiloto", resolviendo el mayor problema de los infoproductos: la baja tasa de finalización y el bajo ROI.
 
 ---
 
-## 2. Fase 1: Memory + Q&A + Reviews + Denuncias
+### 1.1 Visión del Ecosistema AI
 
-> ⚠️ **NOTA**: El Crema Memory Service es la BASE de toda la inteligencia artificial. Debe implementarse PRIMERO antes de cualquier feature que use IA.
+Crema busca posicionarse como la **plataforma de infoproductos más inteligente de Latam**, donde la IA no es un "extra" sino el núcleo que diferencia la experiencia del creador, comprador y afiliado.
+
+### 1.2 Objetivos Estratégicos
+
+| Objetivo | Métrica |
+|----------|---------|
+| **Reducir costos de soporte** | 80% de preguntas respondidas por IA |
+| **Aumentar conversión** | 15% mejora con herramientas AI para creadores |
+| **Retención de compradores** | 20% reducción de churn con rutas personalizadas |
+| **Ingresos por créditos** | $5,000 USD/mes (Meses 3-6) |
+
+### 1.3 Fuentes del Documento
+
+- Análisis de mercado para Crema (Obsidian Vault)
+- Feasibility Analysis - AI Features 2026
+- SDD implementado: AI Content Assistant
 
 ---
 
-### 2.0 Crema Memory Service ⭐ PRIORIDAD 1
+## 2. Estado Actual del Ecosistema AI
 
-#### 2.0.1 Visión
+### 2.1 Servicios Backend Implementados (Abril 2026)
 
-Servicio centralizado de memoria persistente que alimenta **TODAS** las funcionalidades AI de la plataforma. Evita repetir tokens enviando solo contexto relevante.
+| Servicio | Descripción | Estado | Notas |
+|----------|-------------|--------|-------|
+| **LLM Service** | Orquestación de múltiples modelos (OpenAI, Ollama, Gemini, Anthropic) | ✅ Producción | |
+| **Memory Service** | pgvector para búsqueda semántica (RAG) | ✅ Producción | Sin integrar en agentes |
+| **Credits Service** | Sistema de créditos para creadores | ✅ Producción | |
+| **QA Service** | Auto-respuesta de preguntas | ✅ Producción | |
+| **Review Service** | Reviews y ratings | ✅ Producción | |
+| **Agents Service** | Orquestación de agentes (QA Agent, Tutor, Insights) | ✅ Producción | Con orchestrator |
+| **Embedding Service** | Generación de embeddings | ✅ Producción | |
+| **ContentAssistantService** | Análisis de contenido y sugerencias | ✅ Completado | |
+| **ContentReaderService** | Lectura y síntesis de contenido | ✅ Completado | |
+| **QuizGeneratorService** | Generación de quizzes automáticos | ✅ Completado | |
+| **TranscriptionService** | Transcripción de audio/video (Whisper) | ✅ Completado | |
+| **Orchestrator Service** | Registro de 18 capabilities | ✅ Producción | |
 
-#### 2.0.2 Arquitectura
+> **Total: 18 servicios en Orchestrator** (13 registrados recently)
+
+### 2.2 Estado de Integración
+
+> **Problema principal**: Los servicios EXISTEN pero NO están integrados entre sí
+
+| Integración | Estado | Notas |
+|-------------|--------|-------|
+| Memory → Agentes | ✅ Implementado | M-1: RBAC validation en memory-search |
+| Orchestrator → Capabilities | ✅ Completado | 13 servicios registrados |
+| IVFFlat → HNSW | ✅ Implementado | M-3: HNSW index en db/init/11-hnsw-index.sql |
+| Cleanup jobs | ✅ Implementado | M-4: memory-cleanup job hourly en main.worker.ts |
+| Per-user quota + LRU | ✅ Implementado | M-5: Quota 10K con eviction en checkQuotaAndEvict |
+| Rate limiting | ✅ Implementado | aiLimiter aplicado a endpoints AI |
+
+> **Memory Enhancement Tasks 1-7**: ✅ TODO COMPLETO
+
+### 2.3 Infraestructura Existente
+
+```
+PostgreSQL + pgvector (1536 dimensiones)
+Redis (caching, rate limiting, BullMQ)
+BullMQ (jobs asíncronos)
+Múltiples proveedores LLM configurables
+```
+
+### 2.4 Memory Enhancement (Mejoras Planificadas)
+
+> **Estado**: SDD Completo (implementación pendiente — Option C)
+> **Origen**: Doc "Como utilizar Pgvector" + análisis de gaps actuales + revisión del patrón RAG de Crema
+
+> **Nota importante**: El patrón de memoria de Crema es **RAG de contenido de productos** (lecciones, FAQs, reviews), NO conversaciones de chat. Por eso NO aplica: `session_id`, `memory.store/recall` capabilities, ni summarization de conversaciones.
+
+#### 2.4.1 Gaps Identificados (TODOS CORREGIDOS)
+
+| Gap | Descripción | Estado Actual | Impacto |
+|-----|-----------|-------------|-------------|
+| **G-1** | Sin RBAC en memory-search | ✅ Corregido | Validación de acceso implementada |
+| **G-2** | Sin índice vectorial eficiente (HNSW) | ✅ Corregido | HNSW index creado en 11-hnsw-index.sql |
+| **G-3** | No hay política de cleanup | ✅ Corregido | memory-cleanup job hourly en main.worker.ts |
+| **G-4** | No hay per-user quota | ✅ Corregido | 10K quota con LRU eviction en checkQuotaAndEvict |
+| **G-5** | No hay rate limiting específico | ✅ Corregido | aiLimiter (30/min) en endpoints AI |
+
+> **Nota**: `memory_type` e `is_deleted` (soft delete) NO aplican al patrón RAG de Crema. Se usa hard delete con cleanup job.
+
+#### 2.4.2 Mejoras Planificadas (TODAS COMPLETADAS)
+
+| # | Mejora | Descripción | Prioridad | Estado |
+|---|-------|-------------|----------|--------|
+| **T1** | **Schema Updates** | HNSW index + índices de filtering | 🔴 ALTA | ✅ |
+| **T2** | **RBAC Validation** | memory-search valida acceso al producto | 🔴 ALTA | ✅ |
+| **T3** | **HNSW Index** | Índice vectorial eficiente para búsqueda | 🟡 MEDIA | ✅ |
+| **T4** | **Cleanup Job** | Hourly: DELETE registros >30 días | 🟡 MEDIA | ✅ |
+| **T5** | **Per-User Quota** | LRU eviction cuando >10K embeddings | 🟢 BAJA | ✅ |
+| **T6** | **Rate Limiting** | 30 requests/min por usuario | 🟢 BAJA | ✅ |
+
+#### 2.4.3 Servicios que Usarán Memoria (Post-Mejora)
+
+| Agente | Actualmente Usa Memoria? | Post-Mejora |
+|-------|------------------------|------------|
+| **Tutor IA** | ❌ No | ✅ Sí (busca contexto en ai_embeddings) |
+| **QA Agent** | ❌ No | ✅ Sí (busca contexto) |
+| **Insights AI** | ❌ No | ✅ Sí (busca contexto) |
+| **Content Producer** | ❌ No | ✅ Sí (busca contexto) |
+
+#### 2.4.4 Arquitectura Propuesta (Option C)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    CREMA MEMORY SERVICE                         │
-│                 (Servicio Central de Memoria)                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│   │  Tutor AI   │  │  Q&A Agent  │  │Reports Agent│             │
-│   │  (Students) │  │  (Auto-ans) │  │  (Triage)   │             │
-│   └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
-│          │                │                │                    │
-│          └────────────────┼────────────────┘                    │
-│                           │                                     │
-│                           ▼                                     │
-│                  ┌──────────────────┐                           │
-│                  │  CREMA MEMORY    │                           │
-│                  │     MCP          │                           │
-│                  └────────┬─────────┘                           │
-│                           │                                     │
-│          ┌────────────────┼────────────────┐                    │
-│          ▼                ▼                ▼                    │
-│   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │
-│   │  Lessons    │ │    FAQ      │ │   Policy    │               │
-│   │  (Embed)    │ │  (Embed)    │ │  (Embed)    │               │
-│   └─────────────┘ └─────────────┘ └─────────────┘               │
-│                                                                 │
-│   ┌─────────────────────────────────────────────────────┐       │
-│   │  Insights AI (Dashboards) - Guardado de queries     │       │
-│   │  source_type: 'insight' | 'saved_dashboard'         │       │
-│   └─────────────────────────────────────────────────────┘       │
-│                                                                 │
+│                    AGENTES AI                            │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐              │
+│  │   Tutor    │ │   QA      │ │ Insights  │              │
+│  └─────┬──────┘ └─────┬──────┘ └─────┬──────┘              │
+│        │             │             │                       │
+│        └─────────────┴─────────────┘                       │
+│                     ↓                                 │
+│         ┌─────────────────────────┐                   │
+│         │    Memory Service      │ ←── (existing)      │
+│         │  + Capabilities      │ ←── (new)           │
+│         └──────────┬──────────┘                    │
+│                    ↓                                 │
+│         ┌─────────────────────────┐                   │
+│         │  Memory Repository     │ ←── (existing)    │
+│         │  + HNSW Index         │ ←── (new)         │
+│         └──────────┬──────────┘                    │
+│                    ↓                                 │
+│         ┌─────────────────────────┐                   │
+│         │   PostgreSQL + pgvector  │                   │
+│         │   (ai_embeddings)     │                   │
+│         └─────────────────────────┘                   │
+│                                                      │
+│         ┌─────────────────────────┐                    │
+│         │   BullMQ + Worker       │ ←── (existing!)    │
+│         │  memory:cleanup-job    │ ←── (new)           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-#### 2.0.3 Casos de Uso
+> **Nota**: Se reutiliza el **Scheduler y Worker existentes** (`queues/scheduler.ts`, `queues/main.worker.ts`). No se crea nueva infraestructura.
 
-| Módulo | Cómo usa la memoria | Contexto recuperado |
-|--------|-------------------|---------------------|
-| **Tutor AI** | Responder preguntas de estudiantes | Lecciones del curso |
-| **Q&A Agent** | Auto-responder preguntas FAQs | FAQs del producto + Lecciones |
-| **Reports Agent** | Clasificar denuncias | Políticas de contenido |
-| **Analytics Insights** | Generar insights automáticos | Historial de conversaciones |
+#### 2.4.6 Jobs Planificados (BullMQ)
 
-#### 2.0.4 Modelo de Datos
+| Job | Frecuencia | Descripción |
+|-----|-----------|-------------|
+| `memory:cleanup` | hourly | DELETE registros >30 días (hard delete) |
+
+#### 2.4.7 Especificaciones Técnicas
+
+> **Del documento "Como utilizar Pgvector"**
+
+**Índice HNSW:**
 
 ```sql
--- Tabla unificada de embeddings para TODA la plataforma
-CREATE TABLE ai_embeddings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Identificación del source
-    source_type VARCHAR(20) NOT NULL, -- 'lesson', 'faq', 'policy', 'qa', 'review'
-    source_id VARCHAR(100) NOT NULL,  -- ID del objeto original
-    product_id UUID REFERENCES products(id), -- Puede ser null para políticas globales
-    creator_id UUID REFERENCES users(id), -- Quién creó el contenido
-    
-    -- Contenido
-    content_text TEXT NOT NULL,       -- Texto original para display
-    content_hash VARCHAR(64) NOT NULL, -- Para invalidación
-    title VARCHAR(255),               -- Título para referencia
-    
-    -- Embedding (pgvector - 1536 dimensiones para text-embedding-3-small)
-    embedding vector(1536),
-    
-    -- Metadatos específicos por tipo
-    metadata JSONB DEFAULT '{}',       -- {
-                                        --   lesson: { moduleTitle, orderIndex, duration },
-                                        --   faq: { orderIndex },
-                                        --   policy: { version, category },
-                                        --   qa: { isAnswered, votes },
-                                        --   review: { rating, isPublic }
-                                        -- }
-    
-    -- Timestamps
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    
-    -- Constraints
-    UNIQUE(source_type, source_id)
-);
-
--- Índices optimizados para búsqueda
-CREATE INDEX idx_embeddings_source ON ai_embeddings(source_type);
-CREATE INDEX idx_embeddings_product ON ai_embeddings(product_id) WHERE product_id IS NOT NULL;
-CREATE INDEX idx_embeddings_creator ON ai_embeddings(creator_id) WHERE creator_id IS NOT NULL;
-CREATE INDEX idx_embeddings_search ON ai_embeddings USING ivfflat (embedding vector_cosine_ops);
-CREATE INDEX idx_embeddings_updated ON ai_embeddings(updated_at DESC);
-
--- Habilitar pgvector (ejecutar como superuser)
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Parámetros sugeridos
+WITH (m = 16, ef_construction = 64);
 ```
 
-#### 2.0.5 API del Servicio
+| Parámetro | Valor | Descripción |
+|----------|-------|-------------|
+| `m` | 16 (32 para >500K) | Grado de conexión (tamaño del índice) |
+| `ef_construction` | 64 | Calidad al construir el índice |
+| `ef_search` | 40-100 | Búsqueda runtime (mayor = más preciso pero lento) |
 
-```typescript
-// services/ai/crema-memory.service.ts
+**Tabla ai_embeddings (actualización):**
 
-interface EmbeddingSource {
-  type: 'lesson' | 'faq' | 'policy' | 'qa' | 'review' | 'insight' | 'saved_dashboard';
-  id: string;
-  productId?: string;
-  creatorId?: string;
-  content: string;
-  title?: string;
-  metadata?: Record<string, unknown>;
-}
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `user_id` | UUID | **OBLIGATORIO** — Aislamiento multi-tenant (ya existe) |
+| `metadata` | JSONB | Solo campos definidos, SIN PII |
 
-interface MemoryQuery {
-  query: string;
-  sources?: EmbeddingSource['type'][]; // Filtrar por tipo
-  productId?: string;
-  creatorId?: string;
-  limit?: number;
-  threshold?: number; // Similitud mínima (0.0 - 1.0)
-}
+> **Nota**: `source_type` ya existe y categoriza correctamente (lesson, faq, policy, qa, review, insight, saved_dashboard). No se necesita `memory_type` adicional.
 
-interface MemoryResult {
-  source: {
-    type: EmbeddingSource['type'];
-    id: string;
-    productId?: string;
-    title?: string;
-  };
-  content: string;
-  similarity: number; // 0.0 - 1.0
-  metadata: Record<string, unknown>;
-}
+**Access Control (RBAC) para Crema:**
 
-class CremaMemoryService {
-  
-  // ==========================================
-  // INGESTIÓN: Guardar embeddings
-  // ==========================================
-  
-  /**
-   * Genera embedding y guarda en base de datos
-   * Solo re-embebe si el contenido cambió (usando content_hash)
-   */
-  async embed(source: EmbeddingSource): Promise<{ embedded: boolean; tokens: number }>;
-  
-  /**
-   * Batch insert para eficiente cuando se crean/actualizan muchos items
-   */
-  async embedBatch(sources: EmbeddingSource[]): Promise<{ count: number; errors: Error[] }>;
-  
-  /**
-   * Verifica si necesita re-embebido comparando hashes
-   */
-  async needsReembed(
-    type: EmbeddingSource['type'],
-    id: string,
-    content: string
-  ): Promise<boolean>;
-  
-  /**
-   * Elimina embedding (cuando se borra contenido)
-   */
-  async deleteEmbedding(type: EmbeddingSource['type'], id: string): Promise<void>;
-  
-  // ==========================================
-  // RECUPERACIÓN: Buscar contexto
-  // ==========================================
-  
-  /**
-   * Búsqueda semántica con filtros opcionales
-   * Retorna resultados ordenados por similitud
-   */
-  async retrieve(query: MemoryQuery): Promise<MemoryResult[]>;
-  
-  /**
-   * Versión optimizada para Tutor AI
-   * Filtra por producto y limita a top-k resultados
-   */
-  async retrieveForTutor(
-    productId: string,
-    question: string,
-    topK?: number
-  ): Promise<MemoryResult[]>;
-  
-  // ==========================================
-  // ADMINISTRACIÓN
-  // ==========================================
-  
-  /**
-   * Reconstruye todos los embeddings de un producto
-   * Usado cuando hay cambios masivos en contenido
-   */
-  async rebuildProductIndex(productId: string): Promise<{ embedded: number }>;
-  
-  /**
-   * Reconstruye embeddings de políticas globales
-   */
-  async rebuildGlobalPolicies(): Promise<{ embedded: number }>;
-  
-  /**
-   * Stats de embeddings por producto
-   */
-  async getProductMemoryStats(productId: string): Promise<{
-    totalEmbeddings: number;
-    byType: Record<EmbeddingSource['type'], number>;
-    lastUpdated: Date;
-  }>;
-}
-```
+| Capability | Requiere | Validación |
+|------------|----------|------------|
+| `memory.search` | user_id + sourceTypes | User debe tener acceso al producto |
+| Admin query | user_id | Solo datos del propio user |
 
-#### 2.0.6 Hooks de Sincronización
+> **CRITICAL**: memory-search DEBE validar que el user tiene acceso al producto antes de buscar.
 
-```typescript
-// hooks/sync-embeddings.ts
+**Políticas de gestión:**
 
-// Cuando se crea/actualiza una lección
-async function onLessonChange(lesson: Lesson, action: 'create' | 'update' | 'delete') {
-  if (action === 'delete') {
-    await memoryService.deleteEmbedding('lesson', lesson.id);
-  } else {
-    const content = formatLessonContent(lesson);
-    if (await memoryService.needsReembed('lesson', lesson.id, content)) {
-      await memoryService.embed({
-        type: 'lesson',
-        id: lesson.id,
-        productId: lesson.productId,
-        creatorId: lesson.product?.creatorId,
-        content,
-        title: lesson.title,
-        metadata: {
-          moduleTitle: lesson.module?.title,
-          orderIndex: lesson.orderIndex,
-          durationSeconds: lesson.durationSeconds,
-        }
-      });
-    }
-  }
-}
+| Política | Threshold | Acción |
+|----------|-----------|--------|
+| **Ventana temporal** | >30 días | DELETE físico (hard delete) |
+| **Per-user quota** | >10K embeddings | LRU eviction (borra más antiguos) |
+| **Filtrado por relevancia** | K=5 (default) | Solo top-5, max 100 |
+| **Rate limiting** | 100 embeddings/min | Por user_id |
 
-// Cuando se crea/actualiza una FAQ
-async function onFaqChange(faq: ProductFaq, action: 'create' | 'update' | 'delete') {
-  if (action === 'delete') {
-    await memoryService.deleteEmbedding('faq', faq.id);
-  } else {
-    const content = `Pregunta: ${faq.question}\nRespuesta: ${faq.answer}`;
-    await memoryService.embed({
-      type: 'faq',
-      id: faq.id,
-      productId: faq.productId,
-      creatorId: faq.product?.creatorId,
-      content,
-      title: faq.question,
-      metadata: { orderIndex: faq.orderIndex }
-    });
-  }
-}
+**Jobs (BullMQ):**
 
-// Cuando se crea una Q&A (para auto-respuesta futura)
-async function onQuestionCreated(question: ProductQuestion) {
-  await memoryService.embed({
-    type: 'qa',
-    id: question.id,
-    productId: question.productId,
-    creatorId: question.product?.creatorId,
-    content: `Pregunta: ${question.question}`,
-    title: question.question.substring(0, 50),
-    metadata: { isAnswered: question.isAnswered }
-  });
-}
+| Job | Frecuencia | Concurrency | Descripción |
+|-----|-----------|--------------|-------------|
+| `memory:cleanup` | hourly | 1 | DELETE >30 días + VACUUM |
 
-// Políticas globales (solo admin)
-async function onPolicyChange(policy: ContentPolicy, action: 'create' | 'update' | 'delete') {
-  if (action === 'delete') {
-    await memoryService.deleteEmbedding('policy', policy.id);
-    return;
-  }
-  if (action === 'update') {
-    await memoryService.deleteEmbedding('policy', policy.id);
-  }
-  await memoryService.embed({
-    type: 'policy',
-    id: policy.id,
-    content: `${policy.title_es}\n${policy.content_es}`,
-    title: policy.title_es,
-    metadata: { version: policy.version, category: policy.category }
-  });
-}
-```
+**Mantenimiento:**
 
-#### 2.0.7 Cálculo de Costos y Ahorro
+- `VACUUM ANALYZE` semanal en tabla ai_embeddings
+- Autovacuum configurado para aggressively reclaim space
+- Alarma when user >8K embeddings (80% quota)
 
-| Escenario | Sin Memoria | Con Memoria |
-|-----------|-------------|-------------|
-| **Tokens por pregunta** | ~3,100 | ~500-800 |
-| **Costo por pregunta** | $0.000465 | $0.000075-0.00012 |
-| **100 preguntas/mes** | $0.0465 | $0.0075-0.012 |
-| **Ahorro** | - | **~75-84%** |
+#### 2.4.5 SDD Completado e Implementado
 
-**Costo total AI para 30 usuarios Pro:**
+> El SDD de Memory Enhancement está completo E IMPLEMENTADO en:
+> - `sdd/memory-enhancement/proposal.md` ✅
+> - `sdd/memory-enhancement/spec.md` ✅
+> - `sdd/memory-enhancement/design.md` ✅
+> - `sdd/memory-enhancement/tasks.md` ✅ (Tasks 1-7 completados + testeados)
 
-| Métrica | Valor |
-|---------|-------|
-| Mensajes/mes | 3,000 (30 users × 100) |
-| Costo sin memoria | ~$1.40/mes |
-| Costo con memoria | ~$0.22/mes |
-| **Ahorro anual** | **~$14 USD/año** |
+> **Pattern**: El SDD está adaptado al patrón RAG de Crema (NO session_id, NO memory.store/recall, NO summarization).
 
-#### 2.0.8 Dependencias Técnicas
-
-```bash
-# Agregar pgvector a PostgreSQL
-# PostgreSQL 15+ ya soporta vector type
-
-# npm packages necesarios
-npm install @types/pg pgvector
-```
+> **Implementación**: Mayo 2026 - Commits 7a4eb85, 1e2d3dd (PR #15 mergeado a master)
 
 ---
 
-### 2.1 Sistema de Q&A
+## 3. Arquitectura del Ecosistema AI
 
-#### 2.1.1 Descripción
+### 3.1 Capas del Sistema
 
-Permite que compradores y visitantes hagan preguntas sobre un producto, y que el creador responda públicamente.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     FRONTEND (Astro/React)                      │
+│   Panel Creador | Panel Comprador | Panel Afiliado | Admin      │
+├─────────────────────────────────────────────────────────────────┤
+│                         API LAYER                               │
+│   Controllers: ai-content | tutor | insights | support          │
+├─────────────────────────────────────────────────────────────────┤
+│                     ORQUESTADOR DE AGENTES                      │
+│   ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│   │  Tutor   │ │ Analyst  │ │ Marketing│ │ Support  │           │
+│   └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘           │
+│        │            │            │            │                 │
+│   ┌────┴────────────┴────────────┴────────────┴────┐            │
+│   │              SKILLS REGISTRY                   │            │
+│   │  get_course_progress | search_product_memory   │            │
+│   │  generate_discount_link | get_sales_metrics    │            │
+│   │  evaluate_refund_risk | generate_coupon_code   │            │
+│   └───────────────────────┬────────────────────────┘            │
+├───────────────────────────┼─────────────────────────────────────┤
+│                    SERVICIOS CORE                               │
+│   ┌────────────┐ ┌─────────────┐ ┌─────────────┐                │
+│   │ LLM Service│ │   Memory    │ │  Credits    │                │
+│   │ (OpenAI,   │ │  Service    │ │  Service    │                │
+│   │ Ollama,    │ │ (pgvector)  │ │             │                │
+│   │ Gemini)    │ │             │ │             │                │
+│   └────────────┘ └─────────────┘ └─────────────┘                │
+├─────────────────────────────────────────────────────────────────┤
+│                       DATA LAYER                                │
+│   PostgreSQL (datos) + Redis (caché) + BullMQ (jobs)            │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-#### 2.1.2 User Stories
+### 3.2 Agentes Especializados
+
+| Agente | Objetivo Principal | Usuario Target |
+|--------|-------------------|----------------|
+| **Tutor de Aprendizaje** | Guiar al alumno, resolver dudas, evaluar conocimientos | Comprador |
+| **Analista de Negocios** | Métricas de ventas, tendencias, salud financiera | Creador |
+| **Estratega de Marketing** | Copys, ángulos de venta, contenido para redes | Afiliado / Creador |
+| **Concierge de Soporte** | Reembolsos (Safe-Guard), problemas de acceso, FAQs | Comprador |
+| **Content Producer** | Generar contenido derivados (resumen, quiz, clips) | Creador |
+
+### 3.3 Librería de Skills
+
+| Categoría | Skill | Descripción Técnica |
+|-----------|-------|-------------------|
+| **Memoria** | `search_semantic_content` | Busca en pgvector fragmentos del producto |
+| **Progreso** | `get_user_learning_stats` | Porcentaje de completitud y scores de quizzes |
+| **Finanzas** | `get_sales_report` | Agregaciones SQL sobre orders y commissions |
+| **Validación** | `evaluate_refund_risk` | Safe-Guard: consumo vs. tiempo de garantía |
+| **Marketing** | `get_product_usp` | Extrae Unique Selling Points del contenido |
+| **Utilidad** | `generate_coupon_code` | Crea cupón dinámico para cerrar ventas |
+
+---
+
+## 4. Catálogo de Funcionalidades
+
+### 4.1 Tutor IA
+
+#### Descripción
+Asistente IA que responde preguntas de estudiantes basadas en el contenido del curso. Usa Crema Memory Service para contexto optimizado.
+
+#### Tipo de Producto
+- **Cursos** (Video/Audio)
+- **Ebooks** (PDF/Docx)
+- **Membresías** (Contenido recurrente)
+
+#### Funcionalidades Principales
+- Chat en tiempo real con el contenido del producto
+- Historial de conversación por sesión
+- Configuración de personalidad del Tutor (nombre, tono)
+- Límite de mensajes configurable por plan
+
+#### User Stories
 
 | ID | Como | quiero | para |
 |----|------|--------|------|
-| Q&A-01 | Visitante | ver las preguntas y respuestas de un producto | resolver dudas antes de comprar |
-| Q&A-02 | Usuario registrado | hacer una pregunta sobre un producto | resolver dudas antes de comprar |
-| Q&A-03 | Creador | responder preguntas de usuarios | generar confianza y ventas |
-| Q&A-04 | Creador | eliminar preguntas inapropiadas | moderar mi producto |
-| Q&A-05 | Usuario | marcar respuesta como útil | ayudar a otros usuarios |
+| TUTOR-01 | Estudiante | hacer preguntas sobre el contenido | resolver dudas instantáneamente |
+| TUTOR-02 | Estudiante | ver respuestas del Tutor | aprender sin esperar al creador |
+| TUTOR-03 | Creador | entrenar el Tutor con mi contenido | ofrecer soporte 24/7 |
+| TUTOR-04 | Creador | ver insights de preguntas frecuentes | entender qué confunde a estudiantes |
+| TUTOR-05 | Creador | nombrar el Tutor | personalizar la experiencia |
 
-#### 2.1.3 Modelos de Datos
+#### Requisitos Técnicos
+- Reutiliza `memoryService.retrieveForTutor()`
+- Rate limiting por usuario/producto
+- Logging de tokens para control de costos
 
-```sql
--- Tabla de preguntas
-CREATE TABLE product_questions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    question TEXT NOT NULL,
-    parent_id UUID REFERENCES product_questions(id), -- Para respuestas
-    is_answered BOOLEAN DEFAULT FALSE,
-    is_public BOOLEAN DEFAULT TRUE, -- Visible en página del producto
-    helpful_count INT DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+#### Estado
+✅ **Implementado** - Requiere optimización de prompts y posibles mejoras
 
--- Tabla de votos de utilidad
-CREATE TABLE question_votes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    question_id UUID NOT NULL REFERENCES product_questions(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(question_id, user_id) -- Un voto por usuario por pregunta
-);
-
--- Tabla de FAQ predefinidas por creador
-CREATE TABLE product_faqs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    question TEXT NOT NULL,
-    answer TEXT NOT NULL,
-    order_index INT DEFAULT 0,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### 2.1.4 Flujos
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Visitor   │     │   Buyer     │     │   Creator   │
-└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
-       │                   │                   │
-       │  Ver Q&A          │  Hacer pregunta   │  Responder
-       │──────────────────>│─────────────────> │
-       │                   │                   │
-       │                   │  Notificación     │
-       │                   │<───────────────── │
-       │                   │                   │
-       │  Ver respuesta    │                   │
-       │<──────────────────│                   │
-       │                   │                   │
-```
-
-#### 2.1.5 Reglas de Negocio
-
-| Regla | Descripción |
-|-------|-------------|
-| **Quién puede preguntar** | Cualquier usuario registrado |
-| **Quién puede responder** | Solo el creador del producto |
-| **Visibilidad** | Por defecto pública (visible en producto) |
-| **Edición** | Solo dentro de 24 horas de creación |
-| **Eliminación** | Creador puede eliminar; admin puede ocultar |
-| **Votos útiles** | Un voto por usuario por pregunta |
-
-#### 2.1.6 Notificaciones
-
-| Evento | Destinatario | Canal |
-|--------|--------------|-------|
-| Nueva pregunta | Creador | Email + In-app |
-| Nueva respuesta | Preguntador | Email + In-app |
-| Marcar útil | Creador | In-app only |
+> **Implementación técnica:** Ver PRD.md §3.2 Tutor AI Avanzado + §6 (Estado de Implementación)
 
 ---
 
-### 2.2 Sistema de Reviews/Ratings
+### 4.2 AI Content Assistant
 
-#### 2.2.1 Descripción
+#### Descripción
+AI que asiste al Creador Pro en estructurar contenido y generar evaluaciones. Detecta el tipo de producto automáticamente y adapta la asistencia.
 
-Permite que compradores califiquen y reseñen productos que adquirieron.
+#### Tipo de Producto
+Todos los tipos de productos de Crema.
 
-#### 2.2.2 User Stories
+#### Funcionalidades Principales
+
+| Tipo Producto | Asistencia Principal | Output |
+|---------------|---------------------|--------|
+| **Curso** | Análisis de contenido, estructuración de lecciones | Resumen, temas, esquema |
+| **Ebook** | Análisis de capítulos, sugerencias de estructuración | Resumen, estructura propuesta |
+| **Podcast** | Análisis de episodio, generación de show notes | Resumen, timestamps, notas |
+| **Membresía** | Análisis de contenido recurrente | Plan de contenido mensual |
+| **Software** | Análisis de documentación técnica | FAQs, guías de uso |
+
+#### User Stories
 
 | ID | Como | quiero | para |
 |----|------|--------|------|
-| REV-01 | Comprador | calificar un producto con estrellas | expresar mi satisfacción |
-| REV-02 | Comprador | escribir una reseña | compartir mi experiencia |
-| REV-03 | Comprador | editar/eliminar mi reseña | corregir errores |
-| REV-04 | Creador | mostrar/ocultar reviews en mi producto | controlar presentación |
-| REV-05 | Visitante | ver reviews de un producto | decidir si comprar |
-| REV-06 | Admin | eliminar reviews inapropiadas | moderar contenido |
+| AI-CA-01 | Creador | subir un video/large archivo | que la IA analice y sugiera estructura |
+| AI-CA-02 | Creador | seleccionar tipo de producto | que la IA adapte el análisis |
+| AI-CA-03 | Creador | recibir un resumen ejecutivo | entender el contenido rápidamente |
+| AI-CA-04 | Creador | generar un quiz de evaluación | evaluar comprensión de mis alumnos |
+| AI-CA-05 | Creador | transcribir audio a texto | tener el contenido en formato texto |
 
-#### 2.2.3 Modelos de Datos
+#### Requisitos Técnicos
+- Integración con `TranscriptionService` (Whisper)
+- `ContentAssistantService`, `ContentReaderService`, `QuizGeneratorService`
+- Rate limiting específico por operación
 
-```sql
--- Tabla de reviews
-CREATE TABLE product_reviews (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    title VARCHAR(100),
-    content TEXT,
-    is_verified_purchase BOOLEAN DEFAULT TRUE, -- Verifica que compró
-    is_public BOOLEAN DEFAULT TRUE, -- Visible en producto
-    is_featured BOOLEAN DEFAULT FALSE, -- Destacada por creator
-    helpful_count INT DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(product_id, user_id) -- Un review por usuario por producto
-);
+#### Estado
+✅ **Implementado** (Fases 1-9 completadas, incluyendo tests) - Phase 8 Testing done (PR #12)
 
--- Tabla de votos útiles en reviews
-CREATE TABLE review_votes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    review_id UUID NOT NULL REFERENCES product_reviews(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(review_id, user_id)
-);
-
--- Tabla de configuración de reviews por producto
-CREATE TABLE product_review_settings (
-    product_id UUID PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
-    reviews_enabled BOOLEAN DEFAULT TRUE,
-    show_in_product_page BOOLEAN DEFAULT TRUE,
-    require_verified_purchase BOOLEAN DEFAULT TRUE,
-    min_purchase_days INT DEFAULT 0, -- Días desde compra para hacer review
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### 2.2.4 Flujos
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Buyer     │     │   Creator   │     │   Visitor   │
-└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
-       │                   │                   │
-       │  Hacer review     │                   │
-       │─────────────────> │                   │
-       │  (7 días post)    │                   │
-       │                   │                   │
-       │                   │  Config mostrar   │
-       │                   │─────────────────> │
-       │                   │                   │
-       │                   │                   │  Ver reviews
-       │                   │                   │<─────────────────
-```
-
-#### 2.2.5 Reglas de Negocio
-
-| Regla | Descripción |
-|-------|-------------|
-| **Quién puede hacer review** | Solo compradores con order status='paid' |
-| **Timing** | Disponible 7 días después de compra |
-| **Una review por producto** | Sí (un usuario, un producto) |
-| **Edición** | Solo el autor, dentro de 30 días |
-| **Eliminación** | Autor o admin |
-| **Rating** | 1-5 estrellas (obligatorio) |
-| **Contenido** | Título (opcional, 100 chars) + Texto (opcional) |
-| **Configuración** | Creator puede deshabilitar reviews |
-
-#### 2.2.6 Cálculo de Rating Promedio
-
-```sql
--- Vista materializada para performance
-CREATE MATERIALIZED VIEW product_rating_summary AS
-SELECT 
-    product_id,
-    COUNT(*) as review_count,
-    AVG(rating)::DECIMAL(3,2) as avg_rating,
-    COUNT(*) FILTER (WHERE rating >= 4) as positive_count,
-    COUNT(*) FILTER (WHERE rating <= 2) as negative_count
-FROM product_reviews
-WHERE is_public = TRUE
-GROUP BY product_id;
-
-CREATE UNIQUE INDEX ON product_rating_summary(product_id);
-```
-
-#### 2.2.7 Notificaciones
-
-| Evento | Destinatario | Canal |
-|--------|--------------|-------|
-| Nueva review | Creador | Email + In-app |
-| Review eliminada | Autor | Email |
-| Review reportada | Admin | In-app only |
+> **Implementación técnica:** Ver PRD.md §2.5 (AI Content Assistant) + SDD `docs/project/ai-features/sdd/ai-content-assistant/`
+> - Servicios: `ContentAssistantService`, `ContentReaderService`, `QuizGeneratorService`, `TranscriptionService`
+> - Tablas: `product_lessons`, `product_lesson_quizzes`, `ai_transcription_usage`
+> - Endpoints: `/api/ai/content/assist`, `/api/ai/quiz/generate`, `/api/ai/transcribe`
 
 ---
 
-### 2.3 Sistema de Denuncias
+### 4.3 Conversational Reader
 
-#### 2.3.1 Descripción
+#### Descripción
+Permite al usuario hacer preguntas específicas sobre el contenido de un PDF/Ebook. Reutiliza infraestructura pgvector existente.
 
-Canal formal para reportar contenido inapropiado, fraude o violaciones de términos.
+#### Tipo de Producto
+- **Ebooks** (PDF, Docx)
+- **Software** (Documentación técnica)
 
-#### 2.3.2 User Stories
+#### Flujo Técnico
+
+```
+1. Upload: Creador sube PDF → worker BullMQ
+2. Extracción: Texto plano por páginas
+3. Chunking: Bloques de ~1000 caracteres con 10% overlap
+4. Embedding: text-embedding-3-small (1536 dimensiones)
+5. Almacenamiento: Tabla product_memories con vectors
+
+Consulta Usuario:
+1. Pregunta → Vector
+2. Búsqueda pgvector → Top 3-5 fragmentos
+3. LLM + contexto → Respuesta
+4. Créditos: descuento del usuario
+```
+
+#### User Stories
 
 | ID | Como | quiero | para |
 |----|------|--------|------|
-| DEN-01 | Usuario | denunciar un producto | reportar contenido inapropiado |
-| DEN-02 | Usuario | denunciar un creador | reportar comportamiento fraudulento |
-| DEN-03 | Admin | revisar denuncias | tomar acciones apropiadas |
-| DEN-04 | Admin | retener fondos | proteger plataforma de fraude |
-| DEN-05 | Creador | ver denuncias sobre mi producto | entender quejas |
+| CR-01 | Comprador | hacer preguntas específicas sobre mi ebook | entender mejor el contenido |
+| CR-02 | Comprador | que me resuma los capítulos clave | optimizar mi tiempo |
+| CR-03 | Creador | ver qué preguntas hacen los compradores | mejorar mi contenido |
+| CR-04 | Comprador | tener resumen actionable del ebook | aplicar lo aprendido |
 
-#### 2.3.3 Modelo de Datos
+#### Costo Operativo
+| Escenario | Costo |
+|-----------|-------|
+| Ingesta (1 ebook 200 páginas) | ~$0.10 USD (one-time) |
+| Consulta (1 pregunta) | ~$0.001 USD |
 
-```sql
--- Tabla de motivos de denuncia
-CREATE TABLE report_reasons (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    content_type VARCHAR(50) NOT NULL CHECK (content_type IN ('product', 'review', 'question', 'answer', 'faq', 'user')),
-    code VARCHAR(50) NOT NULL,
-    label_es VARCHAR(100) NOT NULL,
-    label_en VARCHAR(100) NOT NULL,
-    severity VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(content_type, code)
-);
+#### Requisito de Plan
+- **Plan Pro**: Incluido
+- **Plan Initial**: No disponible
 
--- Tabla de denuncias
-CREATE TABLE reports (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    reporter_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    content_type VARCHAR(50) NOT NULL CHECK (content_type IN ('product', 'review', 'question', 'answer', 'faq', 'user')),
-    content_id UUID NOT NULL,
-    reason_code VARCHAR(50) NOT NULL,
-    description TEXT,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'investigating', 'resolved', 'rejected')),
-    resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
-    resolved_at TIMESTAMPTZ,
-    resolution_notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Tabla de historial de acciones sobre denuncias
-CREATE TABLE report_actions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
-    admin_id UUID NOT NULL REFERENCES users(id),
-    action VARCHAR(50) NOT NULL,
-    notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Tabla de políticas de contenido
-CREATE TABLE content_policies (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title_es VARCHAR(200) NOT NULL,
-    title_en VARCHAR(200) NOT NULL,
-    content_es TEXT NOT NULL,
-    content_en TEXT NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    version INT DEFAULT 1,
-    is_active BOOLEAN DEFAULT TRUE,
-    effective_date DATE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Seeds de motivos predefinidos
-INSERT INTO report_reasons (content_type, code, label_es, label_en, severity) VALUES
-('product', 'copyright', 'Contenido con derechos de autor', 'Copyrighted content', 'high'),
-('product', 'fraud', 'Estafa o fraude', 'Fraud or scam', 'critical'),
-('product', 'misleading', 'Información engañosa', 'Misleading information', 'high'),
-('product', 'harassment', 'Acoso o contenido dañino', 'Harassment or harmful content', 'critical'),
-('product', 'spam', 'Spam o publicidad masiva', 'Spam or mass advertising', 'low'),
-('product', 'inappropriate', 'Contenido inapropiado', 'Inappropriate content', 'high'),
-('product', 'technical_issue', 'Problema técnico con el producto', 'Technical issue with product', 'low'),
-('product', 'refund_abuse', 'Abuso de política de reembolso', 'Refund policy abuse', 'high'),
-('product', 'not_as_described', 'No corresponde con la descripción', 'Not as described', 'high'),
-('product', 'malware', 'Software malicioso', 'Malware or malicious software', 'critical'),
-('review', 'fake_review', 'Reseña falsa', 'Fake review', 'high'),
-('review', 'offensive_review', 'Reseña ofensiva', 'Offensive review', 'medium'),
-('review', 'competitor_review', 'Reseña de competidor', 'Competitor review', 'medium');
-```
-
-#### 2.3.4 Políticas de Contenido
-
-**Responsible Use Policy** (para Crema):
-
-1. **Productos Prohibidos**:
-   - Contenido que infrinja derechos de autor
-   - Estafas o esquemas piramidales
-   - Contenido para actividades ilegales
-   - Hate speech o acoso
-   - Pornografía explícita
-
-2. **Acciones por Violación**:
-   - **Level 1 (Spam, Technical)**: Warning + corrección
-   - **Level 2 (Copyright, Misleading)**: Contenido removido + Warning
-   - **Level 3 (Fraud, Harassment)**: Suspensión + Retención de fondos
-
-#### 2.3.5 Retención de Fondos
-
-```typescript
-// Lógica de retención de fondos
-const RETENTION_POLICIES = {
-  suspected_fraud: {
-    reason: 'suspected_fraud',
-    maxDays: 90,
-    notifyUser: true,
-    canWithdrawDuringRetention: false,
-  },
-  chargeback_risk: {
-    reason: 'chargeback_risk',
-    maxDays: 60,
-    notifyUser: true,
-    canWithdrawDuringRetention: false,
-  },
-  investigation: {
-    reason: 'investigation',
-    maxDays: 30,
-    notifyUser: true,
-    canWithdrawDuringRetention: false,
-  },
-};
-```
-
-#### 2.3.6 Flujo de Denuncia
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   User      │     │   Admin     │     │   System    │
-└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
-       │                   │                   │
-       │  Crear denuncia   │                   │
-       │─────────────────> │                   │
-       │                   │                   │
-       │                   │  Notificar admin  │
-       │                   │<──────────────────│
-       │                   │                   │
-       │                   │  Revisar caso     │
-       │                   │──────────────────>│
-       │                   │                   │
-       │  Email resumen    │  Si fraude:       │
-       │<──────────────────│  Retener fondos   │
-       │                   │──────────────────>│
-```
-
-#### 2.3.7 Reglas de Negocio
-
-| Regla | Descripción |
-|-------|-------------|
-| **Quién puede denunciar** | Cualquier usuario registrado |
-| **Identificación** | No anónimo (debe estar logueado) |
-| **Evidencia** | Opcional pero recomendado |
-| **Límite** | 5 denuncias por usuario por día |
-| **Retención fondos** | Hasta 90 días si hay investigación activa |
-| **Notificación** | Creator informado si su producto es denunciado |
-
-#### 2.3.8 Notificaciones
-
-| Evento | Destinatario | Canal |
-|--------|--------------|-------|
-| Denuncia creada | Admin | In-app + Email |
-| Denuncia asignada | Admin asignado | In-app |
-| Resolución | Denunciante | Email |
-| Acción en producto | Creador | Email |
-| Retención de fondos | Creador | Email |
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
 
 ---
 
-### 2.4 Agentes IA
+### 4.4 Micro-Learning Generator
 
-#### 2.4.1 Agente Q&A (Creador entrena)
+#### Descripción
+El creador sube un video largo y la IA genera automáticamente: resumen ejecutivo, mapa mental, 5 "nuggets" (clips cortos) para redes sociales y un quiz de 10 preguntas.
 
-| Aspecto | Detalle |
-|---------|---------|
-| **Qué hace** | Responde automáticamente preguntas de estudiantes |
-| **Quién lo entrena** | Creador (sube docs, configura, aprueba) |
-| **Nivel de autonomía** | Configurable: Auto-respuesta vs Sugerencia |
-| **Usa** | Crema Memory Service (lecciones + FAQs) |
-| **Flujo** | Pregunta → AI responde → Creador revisa/editar → Publica |
+#### Tipo de Producto
+- **Cursos** (Video)
+- **Podcasts** (Audio)
 
-**Configuraciones posibles:**
+#### Los 4 Pilares
+
+| Pilar | Descripción | Output |
+|-------|-------------|--------|
+| **Smart Nuggets** | Fragmentos de 1-3 min con "pepita de oro" | Clips para Reels/TikTok |
+| **Resumen Ejecutivo** | PDF con puntos clave + conclusión + esquema | PDF descargable |
+| **Mapa Mental** | Código Mermaid renderizado en frontend | Imagen/Diagrama |
+| **Quiz de Refuerzo** | 3-10 preguntas por segmento | Evaluación integrada |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| MLG-01 | Creador | subir un video de 1 hora | recibir 5 clips para redes en 5 min |
+| MLG-02 | Creador | ver un resumen del video | entender la estructura sin ver todo |
+| MLG-03 | Creador | generar un quiz automático | evaluar a mis alumnos |
+| MLG-04 | Creador | obtener un mapa mental del contenido | usarlo como recurso visual |
+| MLG-05 | Alumno | consumir micro-contenido | aprender en segmentos de 3 min |
+
+#### Costo Operativo
+| Operación | Costo Estimado |
+|-----------|----------------|
+| Transcripción (1 hora video) | $0.10 USD |
+| Resumen + Mapa mental | $0.05 USD |
+| Quiz (10 preguntas) | $0.02 USD |
+| **Total por video** | **~$0.17 USD** |
+
+#### Requisito de Plan
+- **Plan Pro**: Incluido (X videos/mes)
+- **Plan Initial**: No disponible
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.5 Smart Chapters
+
+#### Descripción
+La IA analiza audio/video y crea marcas de tiempo con títulos descriptivos basados en cambios de tema. Genera buscador de frases exacto.
+
+#### Tipo de Producto
+- **Podcasts**
+- **Audiolibros**
+- **Cursos** (Audio)
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **Capitulación Automática** | Timestamps con títulos descriptivos por tema |
+| **Buscador de Frases** | Usuario busca palabra → va al segundo exacto + muestra transcripción |
+| **Social Clips (Nuggets de Audio)** | Fragmentos 30-60s con subtítulos animados para redes |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| SC-01 | Creador | subir un podcast de 2 horas | que se genere la capitulación automática |
+| SC-02 | Oyente | buscar "inversión en ETFs" | ir al minuto exacto donde se habla |
+| SC-03 | Oyente | ver los capítulos del podcast | navegar rápidamente al tema que me interesa |
+| SC-04 | Creador | generar clips para Instagram | promocionar mi episodio |
+
+#### Costo Operativo
+| Operación | Costo |
+|-----------|-------|
+| Capitulación (1 hora audio) | $0.10 USD (Whisper) |
+| Generación clips (por clip) | $0.01 USD |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.6 Personalized Learning Path
+
+#### Descripción
+Para membresías con contenido extenso, la IA entrevista al usuario y le arma una ruta de consumo personalizada según sus objetivos.
+
+#### Tipo de Producto
+- **Membresías**
+
+#### Flujo
+
 ```
-┌─────────────────────────────────────────────────────┐
-│  Configuración Tutor Q&A                            │
-├─────────────────────────────────────────────────────┤
-│  Modo:  ○ Auto-respuesta completa                   │
-│          ○ Sugerencia (creador aprueba)             │
-│          ○ Solo FAQ (búsqueda)                      │
-│                                                     │
-│  Entrenamiento:                                     │
-│  ☑ Usar contenido del curso                        │
-│  ☑ Usar FAQ que cree                               │
-│  ☐ Subir documentos adicionales (.pdf, .txt)        │
-│                                                     │
-│  Comportamiento:                                    │
-│  ○ Solo responder si está seguro                    │
-│  ○ Responder siempre con disclaimer                 │
-│  ○ Solo sugerir respuestas al creador               │
-└─────────────────────────────────────────────────────┘
-```
-
-#### 2.4.2 Agente Denuncias (Admin entrena)
-
-| Aspecto | Detalle |
-|---------|---------|
-| **Qué hace** | Triage automático + Respuesta inicial |
-| **Quién lo entrena** | Admin de Crema (políticas, respuestas estándar) |
-| **Usa** | Crema Memory Service (políticas) |
-| **Flujo** | Denuncia → AI clasifica (severity) → Respuesta automática → Admin revisa |
-
-**Triage automático:**
-```
-Denuncia recibida
-       │
-       ▼
-┌──────────────────┐
-│  Clasificador IA │
-│  - Motivo?       │
-│  - Severity?     │
-│  - ¿Es spam?     │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────────────────────────┐
-│  Severity 1 (Spam/Fácil)             │
-│  → Respuesta automática              │
-│  → Resuelto sin intervención         │
-├──────────────────────────────────────┤
-│  Severity 2 (Requiere revisión)      │
-│  → Notificar admin                   │
-│  → AI sugiere resolución             │
-├──────────────────────────────────────┤
-│  Severity 3 (Fraude/Complejo)        │
-│  → Alertar admin urgent              │
-│  → AI prepara análisis               │
-│  → Retención de fondos si aplica     │
-└──────────────────────────────────────┘
-```
-
-#### 2.4.3 Modelo de Implementación
-
-```typescript
-// services/ai/qa-agent.service.ts
-class QAAgentService {
-  async generateAutoResponse(
-    question: string,
-    productId: string,
-    mode: 'auto' | 'suggest' | 'faq-only'
-  ): Promise<{
-    response?: string;
-    confidence: number;
-    sources: MemoryResult[];
-  }> {
-    // 1. Buscar contexto en memoria
-    const context = await memoryService.searchSimilar(null, question, 3, ['lesson', 'faq']);
-    
-    if (context.length === 0 && mode === 'faq-only') {
-      return { confidence: 0, sources: [] };
-    }
-    
-    // 2. Generar respuesta con contexto
-    const messages = [
-      { role: 'system', content: QA_AGENT_PROMPT },
-      { role: 'system', content: `Contexto relevante:\n${formatContext(context)}` },
-      { role: 'user', content: question },
-    ];
-    
-    const response = await llmService.chat({
-      messages,
-      model: config.ai.openaiModel,
-      temperature: 0.7,
-      maxTokens: 300,
-    });
-    
-    const answer = response.content;
-    const confidence = await this.estimateConfidence(answer, context);
-    
-    if (mode === 'auto' && confidence >= 0.7) {
-      return { response: answer, confidence, sources: context };
-    } else if (mode === 'suggest') {
-      return { response: answer, confidence, sources: context };
-    }
-    
-    return { confidence, sources: context };
-  }
-}
-
-// services/ai/reports-agent.service.ts  
-class ReportsAgentService {
-  async triageReport(
-    description: string,
-    evidenceUrls: string[]
-  ): Promise<{
-    suggestedReason?: string;
-    severity: 1 | 2 | 3;
-    isSpam: boolean;
-    suggestedAction?: string;
-  }> {
-    // 1. Buscar políticas relevantes (skip if description is empty)
-    const policies = description.trim().length > 0
-      ? await memoryService.searchSimilar(null, description, 3, ['policy'])
-      : [];
-    
-    // 2. Clasificar con IA
-    const classification = await llmService.chat({
-      model: config.ai.openaiModel,
-      messages: [
-        { role: 'system', content: REPORTS_TRIAGE_PROMPT },
-        { role: 'system', content: `Políticas relevantes:\n${formatPolicies(policies)}` },
-        { role: 'user', content: `Denuncia: ${description}` },
-      ],
-    });
-    
-    try {
-      return JSON.parse(classification.content);
-    } catch {
-      return { severity: 2, isSpam: false, suggestedAction: 'no_action' };
-    }
-  }
-}
+1. Onboarding: Usuario responde 3-5 preguntas sobre sus objetivos
+2. Análisis: IA procesa el contenido de la membresía
+3. Generación: Crea ruta personalizada (secuencia de módulos)
+4. Seguimiento: Actualiza la ruta según progreso del usuario
 ```
 
-### 2.5 Agente de Implementación Interactiva (Talleres Dinámicos) ⭐
+#### User Stories
 
-#### 2.5.1 Visión
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| PLP-01 | Miembro | responder un cuestionario inicial | obtener una ruta de aprendizaje personalizada |
+| PLP-02 | Miembro | ver mi progreso en la ruta | saber qué hacer next |
+| PLP-03 | Miembro | que la ruta se adapte a mi progreso | mantenerme motivado |
+| PLP-04 | Creador | ver qué rutas generan mejor retención | optimizar mi contenido |
 
-Permite que el comprador cargue sus datos específicos (caso práctico) en cada módulo y reciba análisis personalizado de la IA basado en SU realidad. Transforma cursos pasivos en **herramientas de implementación**.
+#### Costo Operativo
+| Operación | Costo |
+|-----------|-------|
+| Generación ruta inicial | $0.03 USD |
+| Actualización por progreso | $0.01 USD |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.7 AI Content Studio
+
+#### Descripción
+El creador sube un solo archivo (video o manuscrito) y la IA sugiere cómo empaquetarlo en diferentes productos.
+
+#### Tipo de Producto
+Aplica a todos los tipos.
+
+#### Ejemplo de Output
+```
+"Tu video de 2 horas puede ser:
+- 1 Curso de 8 módulos
+- 1 E-book resumen de 20 páginas
+- 4 Episodios de Podcast
+- 10 Posts para redes sociales"
+```
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| ACS-01 | Creador | subir un video de 2 horas | ver todas las formas de monetizarlo |
+| ACS-02 | Creador | seleccionar qué formatos generar | crear varios productos a la vez |
+| ACS-03 | Creador | editar la estructura sugerida | adaptar a mi estrategia |
+
+#### Requisito de Plan
+- **Plan Pro**: Incluido
+- **Plan Initial**: No disponible
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.8 AI Insights
+
+#### Descripción
+Consultas en lenguaje natural sobre métricas de ventas y alumnos. El creador pregunta "¿Por qué bajaron mis ventas?" y la IA analiza los datos.
+
+#### Tipo de Producto
+Dashboard analytics para creadores.
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **Métricas en lenguaje natural** | Preguntas sobre revenue, conversiones, tendencias |
+| **Predicción de churn** | "El alumno X tiene 80% de probabilidad de abandonar" |
+| **Generación de email de recuperación** | IA redacta email personalizado basado en progreso |
+| **Comparativas** | Este mes vs mes anterior, producto A vs producto B |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| INS-01 | Creador | preguntar "¿por qué bajaron mis ventas?" | entender las causas |
+| INS-02 | Creador | ver predicción de ingresos para el próximo mes | planificar |
+| INS-03 | Creador | recibir alertas de alumnos en riesgo | recuperar usuarios antes de que abandonen |
+
+#### Estado
+⚠️ **PARCIAL** - InsightsService existe con dashboards CRUD + NL→SQL query + streaming. Requiere expandir: predicción de churn, generación de email de recuperación, comparativas A/B.
+
+---
+
+### 4.9 AI Support Chatbot (Concierge de Soporte)
+
+#### Descripción
+Chat de soporte técnico con escalación a email. No requiere contexto de producto específico. Es el **Concierge de Soporte** de Crema - un agente IA que resuelve consultas de soporte, problemas de acceso, reembolsos y FAQs.
+
+**Diferencia clave**: El consumo de AI de este chatbot **es pagado por Crema**, no por el usuario. Es un costo operativo de la plataforma.
+
+#### Usuario Target
+- **Comprador** (soporte general de la plataforma)
+- **Afiliado** (soporte sobre la plataforma)
+- **Creador** (soporte sobre su cuenta y productos)
+
+#### Arquitectura de Skills
+
+El Concierge de Soporte utiliza una librería de skills específicos:
+
+| Skill | Función | Descripción |
+|-------|---------|-------------|
+| `search_faqs` | Buscar | Busca en FAQs existentes de la plataforma |
+| `get_order_status` | Consultar | Consulta estado de orden del usuario |
+| `get_access_details` | Consultar | Consulta acceso a productos comprados |
+| `evaluate_refund_risk` | Evaluar | Safe-Guard: consumo vs tiempo de garantía |
+| `escalate_to_human` | Escalar | Deriva a soporte humano |
+| `create_support_ticket` | Crear | Crea ticket automático si no puede resolver |
+| `get_user_orders` | Consultar | Lista órdenes del usuario |
+| `get_subscription_status` | Consultar | Estado de suscripción Pro |
+| `get_credit_balance` | Consultar | Saldo de créditos AI |
+| `list_refund_history` | Consultar | Historial de refunds |
+
+#### Flujo del Concierge
+
+```
+Usuario envía consulta
+         ↓
+Clasificar intención (orden, acceso, reembolso, crédito, otro)
+         ↓
+Skill asociado → Buscar / Resolver
+         ↓
+¿Puede resolver?
+  ├── SÍ → Responder + registrar interacción
+  └── NO → Escalar a humano
+              ↓
+        Crear ticket automático
+              ↓
+        Notificar a Admin
+```
+
+#### Casos de Uso
+
+| Query del Usuario | Cómo Responde el Concierge |
+|------------------|---------------------------|
+| "Cómo me inscribo a un curso?" | FAQ: pasos para comprar |
+| "Cuál es mi código de afiliado?" | Resuelve desde perfil del usuario |
+| "No puedo iniciar sesión" | Troubleshooting paso a paso |
+| "Quiero editar mi producto" | Redirecciona a panel del creador |
+| "Cómo funciona el programa de afiliados?" | Explicación del sistema |
+| "Por qué no puedo acceder al curso?" | Consulta access_details → resuelve o escala |
+| "Quiero pedir reembolso" | Evalúa refund_risk → informa o escala |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| SUP-01 | Usuario | hacer una pregunta de soporte | obtener respuesta inmediata |
+| SUP-02 | Usuario | que me deriven a un humano si no pueden ayudar | no perder tiempo |
+| SUP-03 | Admin | ver los tickets escalated | resolver casos pendientes |
+| SUP-04 | Admin | ver métricas de soporte AI | medir efectividad del chatbot |
+| SUP-05 | Admin | ver contenido reportado | moderar la plataforma |
+
+#### Modelo de Costos
+
+| Aspecto | Tratamiento |
+|---------|-------------|
+| **Consumo de AI** | **Pagado por Crema** (no por el usuario) |
+| **Costo tipo** | 'platform' (no 'user') |
+| **Categoría** | 'support' (para reportes) |
+| **Facturación** | Se registra como costo operativo |
+
+> **Nota**: Esto diferencia al Concierge de Soporte del Tutor IA y otras herramientas AI que **sí** cuestan créditos al usuario.
+
+#### Estado del Concierge en Admin
+
+El Admin tiene paneles específicos para gestionar el soporte:
+
+##### Panel 1: Tickets Escalados
+- Lista de tickets que el AI no pudo resolver
+- Tiempo de resolución
+- Satisfacción del usuario (encuesta post-interacción)
+
+##### Panel 2: Reportes de Soporte AI
+
+| Reporte | Descripción |
+|---------|-------------|
+| **Volumen de consultas** | Cantidad por día/semana/mes |
+| **Tasa de auto-resolución** | % casos resueltos por AI sin escalar |
+| **Topics más frecuentes** | Palabras/clusters de consultas |
+| **Tiempo promedio de respuesta** | Cuánto tarda el AI en responder |
+| **Satisfacción del usuario** | Rating de usuarios después del soporte |
+
+##### Panel 3: Dashboard de Análisis de Contenido (Content Security)
+
+| Feature | Descripción |
+|---------|-------------|
+| **Denuncias pendientes** | Dashboard de contenido reportado |
+| **Contenido violado detectado** | AI detecta y marca contenido |
+| **Tendencia de reportes** | Gráfico de reportes por tipo |
+| **Acciones tomadas** | Warn, ban, delete, etc. |
+
+##### Panel 4: Herramientas de Moderación AI (Admin)
+
+| Herramienta | Descripción |
+|------------|-------------|
+| **Auto-clasificador** | Clasifica denuncias por categoría automáticamente |
+| **Sugerencia de acción** | AI sugiere qué hacer (warn/ban/delete) |
+| **Bulk actions** | Aplicar acción a múltiples casos |
+
+#### Métricas de Éxito
+
+| Métrica | Objetivo |
+|---------|----------|
+| Tasa de auto-resolución | > 70% |
+| Tiempo promedio de respuesta | < 30 segundos |
+| Satisfacción del usuario | > 4/5 |
+| Tickets escalados por día | < 20% del total |
+
+#### Diferencia con otras herramientas AI
+
+| Herramienta | Usuario paga? | Pagado por |
+|------------|:------------:|------------|
+| **Tutor IA** | ✅ Sí | Usuario (créditos) |
+| **Chat con PDF** | ✅ Sí | Usuario (créditos) |
+| **Concierge de Soporte** | ❌ No | **Crema** |
+| **Moderación de contenido** | ❌ No | **Crema** |
+| **Reportes de Admin** | ❌ No | **Crema** |
+
+#### Estado
+✅ **IMPLEMENTADO (core)** - ConciergeService con system prompt configurable, sanitización de input, y defensive framing contra prompt injection. Skills avanzados (search_faqs, get_order_status, evaluate_refund_risk, escalate_to_human, create_support_ticket) pendientes de implementación.
+
+> **Implementación técnica:** Ver PRD.md §6 (Estado de Implementación) - Moderation/ConciergeService
+> - Servicio: `ConciergeService` en `services/ai/concierge.service.ts`
+> - Endpoint: Registrado como capability `concierge.chat` en Orchestrator
+
+---
+
+### 4.10 AI Afiliate Chat
+
+#### Descripción
+Chat de dudas para Afiliados y Compradores sobre productos específicos. Entrenado con el contenido del producto que promocionan.
+
+#### Usuario Target
+- **Afiliado** (ventas del producto que promote)
+- **Comprador** (dudas post-compra)
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **Contexto del producto** | IA conoce el contenido del producto |
+| **Ángulos de venta** | "¿Cuáles son las 3 objeciones más comunes?" |
+| **Generador de copy** | "Génerame 3 hilos de Twitter para este ebook" |
+| **Análisis de audiencia** | "¿La mayoría de tus referidos preguntan por...?" |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| AFC-01 | Afiliado | preguntar sobre el producto que vendo | entenderlo para vender mejor |
+| AFC-02 | Afiliado | generar contenido para mis redes | promocionar sin invertir horas |
+| AFC-03 | Afiliado | saber qué objeciones resolver | cerrar más ventas |
+
+#### Requisito de Plan
+- **Plan Pro**: Incluido
+- **Plan Initial**: Requiere créditos
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.11 Description Generator
+
+#### Descripción
+Genera título, descripción y tags SEO automáticamente basados en el contenido del producto.
+
+#### Usuario Target
+- **Creador**
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **Título sugerido** | Alternativas de título atractivas |
+| **Descripción** | Descripción completa optimizada para conversión |
+| **Tags SEO** | Keywords relevantes para el producto |
+| **Meta description** | Para SEO de la landing |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| DG-01 | Creador | subir mi contenido | recibir sugerencia de título |
+| DG-02 | Creador | editar la descripción generada | personalizarla a mi marca |
+| DG-03 | Creador | obtener tags para SEO | mejorar visibilidad |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.12 SEO Optimizer
+
+#### Descripción
+Genera meta tags automáticos para las páginas de productos.
+
+#### Usuario Target
+- **Creador**
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **Meta title** | Título SEO optimizado |
+| **Meta description** | Descripción para SEO |
+| **OG Tags** | Open Graph para redes sociales |
+| **Schema markup** | Datos estructurados para Rich Snippets |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.13 Certificate PDF Generator
+
+#### Descripción
+Genera PDF de certificado con código QR para verificación de autenticidad.
+
+#### Usuario Target
+- **Creador** (genera certificados)
+- **Comprador** (recibe certificado)
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **PDF personalizado** | Logo, colores del creador, información del curso |
+| **QR de verificación** | Código único que apunta a verification URL |
+| **Base de datos de certificados** | Verificación online del certificado |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| CERT-01 | Creador | que se genere un certificado automático | al completar mi curso |
+| CERT-02 | Alumno | descargar mi certificado | tener documentación de lo aprendido |
+| CERT-03 | Empleador | verificar un certificado | confirmar su autenticidad |
+
+#### Requisito de Plan
+- **Todos los planes**: Incluido
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.14 Sentiment Analytics
+
+#### Descripción
+IA analiza comentarios y reviews para generar insights accionables para el creador.
+
+#### Usuario Target
+- **Creador**
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **Análisis de reviews** | Detecta temas positivos/negativos |
+| **Tendencias de sentimiento** | Evolución del sentiment en el tiempo |
+| **Alertas de problemas** | "3 reviews mencionan 'audio malo' esta semana" |
+| **Sugerencias de mejora** | Basado en lo que los usuarios critican |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| SA-01 | Creador | ver un resumen de sentiment de mis reviews | entender cómo me perciben |
+| SA-02 | Creador | recibir alertas de problemas recurrentes | actuar rápidamente |
+| SA-03 | Creador | ver comparativa de sentiment por producto | saber cuál funciona mejor |
+
+#### Requisito de Plan
+- **Plan Pro**: Incluido
+- **Plan Initial**: No disponible
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.15 Advanced DRM
+
+#### Descripción
+Protección contra piratería con watermarks dinámicos y signed URLs. Nivel intermedio de DRM.
+
+#### Usuario Target
+- **Creador** (configura protección)
+- **Comprador** (experiencia normal)
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **Watermarks dinámicos** | Marca de agua con ID de usuario en video/PDF |
+| **Signed URLs** | URLs con expiry automático |
+| **Detección de screen recording** | Tecnología de detección de piratería |
+| **Bloqueo por geolocalización** | Restringir países específicos |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| DRM-01 | Creador | que mi contenido tenga marca de agua | disuadir la piratería |
+| DRM-02 | Creador | configurar países permitidos | cumplir regulaciones |
+| DRM-03 | Creador | ver intentos de piratería detectados | tomar acciones |
+
+#### Requisito de Plan
+- **Plan Pro**: Incluido
+- **Plan Initial**: No disponible
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.16 Credit Management Dashboard
+
+#### Descripción
+Panel de gestión de créditos que permite a los usuarios consultar su saldo disponible y ver el historial detallado de transacciones de débito y crédito. Esta feature reduce consultas y reclamos al dar transparencia total sobre el uso de créditos.
+
+#### Usuario Target
+- **Creador** (comprador de créditos)
+- **Comprador** (comprador de créditos)
+- **Afiliado** (comprador de créditos)
+
+#### Funcionalidades
+
+| Feature | Descripción |
+|---------|-------------|
+| **Saldo Disponible** | Muestra el balance actual de créditos con fecha de expiración |
+| **Historial de Transacciones** | Lista de todas las transacciones (compra, uso, bonus, expiración) con filtros |
+| **Detalle por Operación** | Cada transacción muestra en qué se usó (Tutor IA, Chat, Transcription, etc.) |
+| **Proyección de Expiración** | Alerta cuando los créditos están por vencer (7 días antes) |
+| **Filtros por Fecha** | Filtrar transacciones por rango de fechas |
+| **Exportación** | Exportar historial a CSV/Excel |
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| CRED-01 | Usuario | ver mi saldo de créditos | saber cuántos tengo disponibles |
+| CRED-02 | Usuario | ver mis transacciones | saber cómo gasté mis créditos |
+| CRED-03 | Usuario | filtrar transacciones por fecha | encontrar una operación específica |
+| CRED-04 | Usuario | recibir alerta cuando mis créditos están por expirar | usar mis créditos antes de que venzan |
+| CRED-05 | Creador | ver cuánto gasté en transcripciones vs análisis | entender mi consumo de AI |
+
+#### Detalle de Transacciones
+
+Cada transacción debe incluir:
+
+| Campo | Descripción |
+|-------|-------------|
+| **Fecha** | Timestamp de la transacción |
+| **Tipo** | `credit` (compra/bonus) / `debit` (uso) / `expired` (vencimiento) |
+| **Cantidad** | Número de créditos (+ o -) |
+| **Descripción** | Descripción legible (ej: "Compra: Paquete 100 créditos") |
+| **Operación** | En qué se usó (ej: "Tutor IA - Curso de Python", "Transcripción - Lección 3") |
+| **Producto** | ID del producto relacionado (si aplica) |
+| **Expiry** | Fecha de vencimiento de esos créditos |
+
+#### Requisitos Técnicos
+- Reutiliza `CreditsService.getBalance()` existente
+- Reutiliza `CreditsService.getTransactions()` existente
+- Agregar campo `operation_details` a la respuesta de transacciones
+- Sistema de notificaciones para créditos por expirar (email/in-app)
+
+#### Estado
+🆕 **MEJORA** - Requiere desarrollo (backend existe, mejorar frontend y agregar features)
+
+---
+
+### 4.17 Book Highlights
+
+#### Descripción
+Permite al comprador subrayar texto y agregar notas en los ebooks/PDFs comprados. Las notas se guardan y pueden exportarse.
+
+#### Tipo de Producto
+- **Ebooks** (PDF/Docx)
+- **Software** (Documentación técnica)
+
+#### Funcionalidades Principales
+- Subrayar texto con colores
+- Agregar notas en el margen
+- Marcar páginas importantes
+- Exportar notas (.md, .pdf)
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| BH-01 | Comprador | subrayar un pasaje importante | marcarlo para futura referencia |
+| BH-02 | Comprador | agregar una nota en un pasaje | explicar mi pensamiento |
+| BH-03 | Comprador | exportar mis notas | estudiarlas offline |
+| BH-04 | Comprador | ver mis highlights anteriores | recordar lo importante |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.18 Audio Notes
+
+#### Descripción
+Permite al comprador agregar notas ancladas a timestamps específicos en audio/podcasts. Las notas se sincronizan con el reproductor.
+
+#### Tipo de Producto
+- **Podcast** (Audio)
+- **Video/Curso** (Audio)
+
+#### Funcionalidades Principales
+- Agregar nota en timestamp específico
+- Sincronización nota ↔︎ reproductor
+- Exportar transcripción con notas
+- Buscar notas por tiempo
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| AN-01 | Comprador | agregar una nota en el minuto 5:30 | recordar lo que pensé allí |
+| AN-02 | Comprador | tocar la nota y que el audio salte a ese momento | escuchar desde esa parte |
+| AN-03 | Comprador | ver todas mis notas del audio | tener visión general |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.19 AI Summary
+
+#### Descripción
+Genera un resumen ejecut IA del contenido (ebook, podcast, video) descargable en formato .md o .pdf.
+
+#### Tipo de Producto
+- **Ebook/PDF**
+- **Podcast**
+- **Video/Curso**
+
+#### Funcionalidades Principales
+- Resumen ejecutivo (1 página)
+- Puntos clave
+- Action items
+- Exportar .md / .pdf
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| SUM-01 | Comprador | recibir un resumen del ebook | saber si vale la pena leerlo completo |
+| SUM-02 | Comprador | tener los puntos clave offline | estudiarlos después |
+| SUM-03 | Comprador | exportar el resumen | compartirlo o guardarlo |
+
+#### Estado
+⚠️ **PARCIAL** - Reutiliza ContentAssistantService con `analysisType: 'summary'` (endpoint `/api/ai/content/assist`). No es feature standalone dedicada.
+
+---
+
+### 4.20 Transcript Search
+
+#### Descripción
+Búsqueda semántica en transcripciones de audio/podcasts. "Buscar dónde menciona X tema en el podcast".
+
+#### Tipo de Producto
+- **Podcast**
+- **Video/Curso**
+
+#### Funcionalidades Principales
+- Búsqueda por palabras clave
+- Resultados con timestamp
+- Reproducir desde resultado
+- Exportar fragmentos
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| TS-01 | Comprador | buscar "marketing digital" en el audio | encontrar ese momento |
+| TS-02 | Comprador | tocar el resultado y que reproduzca desde ahí | escuchar la parte relevante |
+| TS-03 | Comprador | exportar los fragmentos encontrados | tener las citas |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+
+---
+
+### 4.21 Interactive Agent
+
+#### Descripción
+Talleres dinámicos que permiten al comprador cargar sus datos específicos (caso práctico) en cada módulo y recibir análisis personalizado de la IA basado en SU realidad. Transforma cursos pasivos en herramientas de implementación.
 
 > **Ejemplo:** Curso "Cómo montar una cafetería"
 > - Módulo 1: El alumno carga su ubicación, costo de alquiler
 > - Módulo 2: La IA analiza y le da su punto de equilibrio personalizado
 > - Al final: Tiene su **Business Plan listo**, no solo un certificado
 
-#### 2.5.2 Tipos de Producto Soportados
+#### Tipo de Producto
+- **Cursos** (variable input → análisis personalizado)
+- **Ebooks** (ejercicios interactivos)
+- **Membresías** (plan personalizado según objetivos)
+- **Software** (configuración guiada)
 
-| Producto | Datos que carga | Análisis que recibe |
-|----------|---------------|----------------|
-| **course** | Variables de su negocio | Punto de equilibrio, recomendaciones |
-| **ebook** | Respuestas a ejercicios | Feedback personalizado |
-| **membership** | Objetivos y perfil | Plan personalizado |
-| **software** | Configuración actual | Guía de setup paso a paso |
+#### Funcionalidades Principales
 
-#### 2.5.3 User Stories
+| Funcionalidad | Descripción |
+|---------------|-------------|
+| **Field Configuration** | El creador define campos requeridos por módulo (number, string, boolean, select) |
+| **User Data Collection** | El comprador ingresa sus datos específicos |
+| **AI Analysis** | La IA genera análisis personalizado basado en los datos del usuario |
+| **Progress Tracking** | Centro de control con módulos completados |
+| **Creator Analytics** | Dashboard agregado (anonimizado) con tendencias de los alumnos |
 
-| ID | Historia | Criterio de Aceptación |
-|----|---------|---------------------|
-| US-INT-01 | Como comprador, quiero cargar mis datos en cada módulo | El sistema guarda los datos y confirma con mensaje de éxito |
-| US-INT-02 | Como comprador, quiero recibir análisis personalizado | La IA responde basado en MIS datos, no genérico |
-| US-INT-03 | Como comprador, quiero ver mi progreso en el "Centro de Control" | Dashboard muestra metas completadas con analytics |
-| US-INT-04 | Como creador, quiero configurar qué datos se piden | El creator define los campos requeridos por módulo |
-| US-INT-05 | Como creador, quiero ver los datos de mis alumnos | Dashboard agregado (anonimizado) con tendencias |
-
-#### 2.5.4 Modelo de Datos
+#### Modelo de Datos
 
 ```sql
--- Tabla principal: datos del usuario por producto/módulo
+-- Tabla: datos del usuario por producto/módulo
 CREATE TABLE user_course_data (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  module_key VARCHAR(100) NOT NULL,  -- ej: "modulo_1_finanzas"
-  input_data JSONB NOT NULL DEFAULT '{}',  -- { "alquiler": 50000, "leche": 120 }
-  output_analysis JSONB,  -- { "punto_equilibrio": 45, "margen": 0.25 }
-  completed_at TIMESTAMPTZ,  -- Timestamp cuando el usuario completó el módulo (todos los campos + análisis generado)
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  CONSTRAINT uk_user_product_module UNIQUE (user_id, product_id, module_key)
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    product_id UUID NOT NULL REFERENCES products(id),
+    module_key VARCHAR(100) NOT NULL,
+    input_data JSONB NOT NULL DEFAULT '{}',
+    output_analysis JSONB,
+    completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id, module_key)
 );
 
--- Trigger para actualizar updated_at automáticamente (PostgreSQL)
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER user_course_data_updated_at
-    BEFORE UPDATE ON user_course_data
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Índice para analytics del creador (no para lookup - el UNIQUE constraint ya lo hace)
-CREATE INDEX idx_user_course_data_creator 
-  ON user_course_data (product_id, created_at);
-
--- Tabla: configuración de campos por módulo (para el creador)
+-- Tabla: configuración de campos por módulo
 CREATE TABLE product_module_fields (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  module_key VARCHAR(100) NOT NULL,
-  field_name VARCHAR(100) NOT NULL,
-  field_type VARCHAR(20) NOT NULL,  -- "number", "string", "boolean", "select"
-  field_label VARCHAR(255) NOT NULL,
-  field_placeholder VARCHAR(255),
-  field_options JSONB,  -- Para tipo "select": [{ "value": "x", "label": "X" }]
-  field_required BOOLEAN DEFAULT true,
-  field_validation JSONB,  -- { "min": 0, "max": 100 }
-  order_index INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  CONSTRAINT uk_product_module_field UNIQUE (product_id, module_key, field_name)
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id),
+    module_key VARCHAR(100) NOT NULL,
+    field_name VARCHAR(100) NOT NULL,
+    field_type VARCHAR(20) NOT NULL CHECK (field_type IN ('number', 'string', 'boolean', 'select')),
+    field_label VARCHAR(200) NOT NULL,
+    field_placeholder VARCHAR(500),
+    field_options JSONB,
+    field_required BOOLEAN DEFAULT FALSE,
+    field_validation JSONB,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
-
--- Trigger para actualizar updated_at automáticamente
-CREATE TRIGGER product_module_fields_updated_at
-    BEFORE UPDATE ON product_module_fields
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
 ```
 
-#### 2.5.5 Skills (Herramientas del Agente)
+#### API Endpoints
 
-```typescript
-// Skill: analyze_user_case_study
-const analyzeUserCaseStudy = {
-  name: 'analyze_user_case_study',
-  description: 'Analiza los datos específicos del usuario y devuelve insights personalizados',
-  input: {
-    type: 'object',
-    properties: {
-      product_id: { type: 'string', description: 'ID del producto' },
-      module_key: { type: 'string', description: 'Clave del módulo' },
-      user_data: { type: 'object', description: 'Datos cargados por el usuario' }
-    },
-    required: ['product_id', 'module_key', 'user_data']
-  },
-  output: {
-    type: 'object',
-    properties: {
-      analysis: { type: 'string', description: 'Análisis personalizado' },
-      recommendations: { type: 'array', description: 'Lista de recomendaciones' },
-      next_steps: { type: 'array', description: 'Próximos pasos sugeridos' },
-      metrics: { type: 'object', description: 'Métricas calculadas' }
-    }
-  }
-};
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/interactive/fields/:productId` | Crear campos de módulo | Creador |
+| GET | `/api/interactive/fields/:productId` | Obtener campos | JWT (owner/buyer) |
+| POST | `/api/interactive/data/:productId` | Guardar datos (1 crédito) | JWT (buyer) |
+| PUT | `/api/interactive/data/:productId/:moduleKey` | Actualizar datos | JWT (buyer) |
+| GET | `/api/interactive/data/:productId` | Obtener mis datos | JWT (buyer) |
+| POST | `/api/interactive/analyze/:productId/:moduleKey` | Solicitar análisis (3 créditos) | JWT (buyer) |
+| GET | `/api/interactive/analytics/:productId` | Analytics agregados | Creador |
 
-// Skill: get_user_case_study
-const getUserCaseStudy = {
-  name: 'get_user_case_study',
-  description: 'Recupera los datos que el usuario cargó en módulos anteriores',
-  input: {
-    type: 'object',
-    properties: {
-      user_id: { type: 'string', description: 'ID del usuario' },
-      product_id: { type: 'string', description: 'ID del producto' },
-      module_key: { type: 'string', description: 'Clave del módulo (opcional, empty = todos)' }
-    },
-    required: ['user_id', 'product_id']
-  },
-  output: {
-    type: 'object',
-    properties: {
-      modules: { 
-        type: 'array', 
-        items: {
-          module_key: { type: 'string' },
-          input_data: { type: 'object' },
-          output_analysis: { type: 'object' },
-          updated_at: { type: 'string', format: 'date-time' }
-        }
-      }
-    }
-  }
-};
-```
-
-#### 2.5.6 API Endpoints
-
-| Método | Endpoint | Descripción | Auth | Request Body |
-|--------|----------|------------|-------|--------------|
-| POST | `/ai/interactive/analyze` | Analiza datos del usuario | Usuario | `{ "productId": "uuid", "moduleKey": "string", "inputData": {} }` |
-| GET | `/ai/interactive/data/:productId` | Obtiene mis datos guardados | Usuario | - |
-| PUT | `/ai/interactive/data/:productId/:moduleKey` | Guarda inputs del usuario | Usuario | `{ "inputData": { "campo1": "valor" } }` |
-| GET | `/ai/interactive/fields/:productId` | Campos configurados por el creator | Creador | - |
-| POST | `/ai/interactive/fields/:productId` | Configura campos por módulo | Creador (owner) | `{ "moduleKey": "string", "fields": [{ "fieldName": "string", "fieldType": "string", "fieldLabel": "string" }] }` |
-| GET | `/ai/interactive/analytics/:productId` | Datos agregados de alumnos | Creador (owner) | - |
-
-#### Códigos de Respuesta
-
-| Código | Descripción |
-|--------|-------------|
-| 200 | Éxito |
-| 400 | Bad Request (validación fallida) |
-| 401 | No autenticado |
-| 403 | No autorizado (no owner/del producto) |
-| 404 | Producto o módulo no encontrado |
-| 429 | Rate limit excedido |
-| 500 | Error interno del servidor |
-
-#### 2.5.7 Seguridad
+#### Seguridad
 
 | Aspecto | Implementación |
 |---------|---------------|
-| **Input Validation** | Schema Zod: `moduleKey` con regex `^[a-z0-9_]+$`, `inputData` limitado a 50KB |
-| **Authorization** | Verificar ownership del producto O acceso de compra |
-| **Rate Limiting** | Nuevo `interactiveAgentLimiter`: 10 requests/minuto por usuario |
-| **SQL Injection** | SIEMPRE queries parametrizadas |
-| **Sensitive Data** | NO loggear `input_data` en errores |
+| **Input Validation** | Schema Zod con regex `^[a-z0-9_]+$` para moduleKey |
+| **Límites** | input_data: 50KB, output_analysis: 1MB, campos: 50/módulo |
+| **Rate Limiting** | `interactiveAgentLimiter`: 10 req/min por usuario |
+| **Authorization** | Owner del producto o buyer con orden activa |
 
-```typescript
-const interactiveAgentLimiter = rateLimit({
-  windowMs: 60 * 1000,  // 1 minuto
-  max: 10,              // 10 análisis por minuto por usuario
-  message: 'Demasiadas solicitudes. Intenta en un momento.',
-  keyGenerator: (req) => `${req.user?.id || req.ip}:interactive`
-});
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| INT-01 | Comprador | cargar mis datos en cada módulo | el sistema guarde mis progresos |
+| INT-02 | Comprador | recibir análisis personalizado | la IA responda basado en MIS datos, no genérico |
+| INT-03 | Comprador | ver mi progreso en el "Centro de Control" | dashboard con módulos completados |
+| INT-04 | Creador | configurar qué datos se piden | definir campos requeridos por módulo |
+| INT-05 | Creador | ver los datos de mis alumnos | dashboard agregado (anonimizado) |
+
+#### Estado
+✅ **IMPLEMENTADO** (SDD completo, Mayo 2026) - Phase 11
+
+> **Implementación técnica:** Ver PRD.md §2.5 Agente de Implementación Interactiva + SDD `docs/project/ai-features/sdd/interactive-agent/`
+> - Servicio: `InteractiveAgentService` en `services/ai/interactive-agent.service.ts`
+> - Repository: `interactive-agent.repository.ts` con Advisory Lock pattern
+> - Tablas: `user_course_data`, `product_module_fields`
+> - Endpoints: `/api/interactive/fields/:productId`, `/api/interactive/data/:productId`, `/api/interactive/analyze/:productId/:moduleKey`
+> - Rate limiter: `interactiveAgentLimiter` (10 req/min)
+
+---
+
+### 4.22 Reports Agent
+
+#### Descripción
+Sistema de denuncias y moderación de contenido con triage automático por IA. Permite a cualquier usuario reportar contenido inapropiado y al admin gestionar las denuncias con herramientas de clasificación.
+
+#### Arquitectura de Skills
+
+| Skill | Función | Descripción |
+|-------|---------|-------------|
+| `reports.create` | Crear denuncia | Usuario crea report de contenido |
+| `reports.list` | Admin lista | Admin ve todas las denuncias |
+| `reports.triage` | Clasificación IA | Evalúa severidad y sugiere acción |
+
+#### Modelo de Datos
+
+```sql
+CREATE TABLE report_reasons (
+    id UUID PRIMARY KEY,
+    content_type VARCHAR(20) NOT NULL, -- 'product' | 'review' | 'comment'
+    code VARCHAR(50) NOT NULL UNIQUE,
+    label VARCHAR(100) NOT NULL,
+    description TEXT,
+    severity VARCHAR(20) DEFAULT 'medium',
+    auto_triage BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id UUID NOT NULL REFERENCES users(id),
+    content_type VARCHAR(20) NOT NULL,
+    content_id UUID NOT NULL,
+    reason_code VARCHAR(50) NOT NULL REFERENCES report_reasons(code),
+    description TEXT,
+    status VARCHAR(20) DEFAULT 'pending',
+    admin_id UUID REFERENCES users(id),
+    resolution_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE policies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content_type VARCHAR(20) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    content TEXT NOT NULL,
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT TRUE
+);
 ```
 
-#### 2.5.8 Performance
+#### API Endpoints
 
-| Aspecto | Estratégia |
-|---------|-----------|
-| **Cache de Análisis** | Redis con key `analysis:{userId}:{productId}:{moduleKey}:{hash(data)}`, TTL 1 hora. **IMPORTANTE**: Siempre incluir `userId` para evitar data leaks entre usuarios. |
-| **Límites por Operación** | Campos por módulo: 50, Tamaño input_data: 50KB, Análisis guardados: 1000/user |
-| **Índices** | ya definidos en modelo de datos (no duplicar) |
-| **Async Processing** | Para análisis complejos, usar BullMQ queue |
-| **Algoritmo de Hash** | SHA256 de `JSON.stringify(userData)` para cache key |
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/ai/reports/reasons` | Lista de motivos | Público |
+| POST | `/api/ai/reports` | Crear denuncia | JWT |
+| GET | `/api/ai/reports` | Listar reportes | Admin |
+| GET | `/api/ai/reports/:reportId` | Ver reporte | Admin |
+| PUT | `/api/ai/reports/:reportId/resolve` | Resolver | Admin |
+| POST | `/api/ai/reports/:reportId/actions` | Agregar acción | Admin |
+| GET | `/api/ai/content/policies` | Listar políticas | Público |
 
-#### 2.5.9 Modelo de Créditos
+#### Modelo de Costos
+
+- El consumo de AI para triage es **pagado por Crema** (costo operativo)
+- No descuenta créditos del usuario
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| REP-01 | Usuario | reportar contenido inapropiado | el admin pueda revisarlo |
+| REP-02 | Admin | ver los tickets escalados | resolver casos pendientes |
+| REP-03 | Admin | ver métricas de reports | medir efectividad del sistema |
+| REP-04 | Admin | tomar acción sobre un report | resolver o descartar |
+
+#### Estado
+✅ **IMPLEMENTADO** (Phase 9) - `reportService.triageReport()` en `denunciation.service.ts` incluye clasificación IA de severidad y sugerencia de acción
+
+> **Implementación técnica:** Ver PRD.md §2.3 Sistema de Denuncias + §6 (Estado de Implementación)
+> - Servicio: `DenunciationService` en `services/ai/denunciation.service.ts`
+> - Endpoint: `/api/ai/reports` + `/api/admin/reports/:reportId/triage`
+> - Tablas: `reports`, `report_reasons`, `report_actions`, `policies`
+> - Capability: `reports.create` registrada en Orchestrator
+
+---
+
+### 4.23 Orchestrator
+
+#### Descripción
+Router centralizado que registra y ejecuta capabilities de los servicios AI. Provee discovery de capabilities, query execution y streaming responses. Es el punto de entrada unificado para todas las interacciones AI.
+
+#### Arquitectura
+
+```
+Cliente → Orchestrator → Skills Registry → Services
+                    ↓
+            Capabilities (18 registered)
+```
+
+#### Capabilities Registradas
+
+| Category | Capability | Descripción |
+|----------|------------|-------------|
+| **QA** | `qa.ask`, `qa.stream` | Q&A Agent chat |
+| **Tutor** | `tutor.ask`, `tutor.stream`, `tutor.config`, `tutor.insights` | Tutor AI |
+| **Insights** | `insights.ask`, `insights.stream`, `insights.list`, `insights.delete` | AI Insights |
+| **Credits** | `credits.balance`, `credits.packages`, `credits.purchase`, `credits.transactions` | Credit management |
+| **Reports** | `reports.create` | Report creation |
+| **Embeddings** | `embeddings.generate`, `embeddings.search`, `embeddings.delete` | Vector operations |
+| **Interactive** | `interactive.getFields`, `interactive.saveData`, `interactive.analyze`, `interactive.getAnalytics` | Interactive Agent |
+| **Memory** | `memory.search` | RAG search |
+| **Concierge** | `concierge.chat` | Support chatbot |
+
+#### API Endpoints
+
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/orchestrator/capabilities` | Lista de capabilities | JWT |
+| GET | `/api/orchestrator/skills` | Skills disponibles | JWT |
+| POST | `/api/orchestrator/query` | Ejecución sin streaming | JWT |
+| GET | `/api/orchestrator/stream` | Ejecución con streaming | JWT |
+
+#### Configuración
+
+| Key | Default | Descripción |
+|-----|--------|-------------|
+| `orchestrator.default_timeout` | 30000ms | Timeout para requests |
+| `orchestrator.max_retries` | 2 | Reintentos en error |
+| `orchestrator.cache_ttl` | 60000ms | TTL para caching |
+| `orchestrator.stream_timeout` | 60000ms | Timeout para streaming |
+
+#### Estado
+✅ **IMPLEMENTADO** (Phase 2) - 18 capabilities registradas
+
+> **Implementación técnica:** Ver PRD.md §0.2 (Servicios AI Implementados) + OrchestratorService
+> - Servicio: `OrchestratorService` en `services/orchestrator.service.ts`
+> - Routes: `routes/orchestrator.routes.ts`
+> - Endpoints: `/api/orchestrator/capabilities`, `/api/orchestrator/skills`, `/api/orchestrator/query`, `/api/orchestrator/stream`
+> - Skills Registry: `services/skills-registry.service.ts` con Redis cache
+> - Config keys: `orchestrator.*` (default_timeout, max_retries, cache_ttl, stream_timeout)
+
+---
+
+### 4.24 Memory Enhancement
+
+#### Descripción
+Mejoras al sistema RAG existente: índice HNSW para búsqueda vectorial eficiente, validación RBAC en búsquedas, cleanup jobs para gestión de memoria, y quotas por usuario.
+
+#### Mejoras Implementadas
+
+| Task | Descripción | Archivo |
+|------|-------------|---------|
+| **M-1** | RBAC validation en memory-search | `memory.service.ts` |
+| **M-2** | HNSW index creado | `11-hnsw-index.sql` |
+| **M-3** | IVFFlat → HNSW migration | `11-hnsw-index.sql` |
+| **M-4** | Cleanup job hourly | `main.worker.ts` |
+| **M-5** | Per-user quota + LRU eviction | `checkQuotaAndEvict` |
+| **M-6** | Rate limiting en memory endpoints | `memoryLimiter` |
+| **M-7** | Error handling + fallback | `memory.service.ts` |
+
+#### Índice HNSW
+
+```sql
+CREATE INDEX idx_ai_embeddings_hnsw
+ON ai_embeddings
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+```
+
+#### Rate Limiting
+
+| Limiter | Límite | Uso |
+|---------|--------|-----|
+| `memoryLimiter` (read) | 100 req/min | Búsquedas |
+| `memoryLimiter` (write) | 20 req/min | Creación embeddings |
+
+#### Quota System
+
+- **Per-user quota**: 10,000 embeddings máximo por usuario
+- **LRU eviction**: Cuando se excede, se eliminan los más antiguos
+- **Cleanup job**: Se ejecuta cada hora para limpiarhuérfanos
+
+#### Estado
+✅ **IMPLEMENTADO** (SDD completo) - Tasks M-1 a M-7
+
+> **Implementación técnica:** Ver PRD.md §2.4 Memory Enhancement + SDD `docs/project/ai-features/sdd/memory-enhancement/`
+> - Servicio: `MemoryService` en `services/ai/memory.service.ts` (mejoras M-1 a M-7)
+> - Migration: `db/init/11-hnsw-index.sql`
+> - Worker: `main.worker.ts` (cleanup job hourly)
+> - Quota: `checkQuotaAndEvict()` en memory service
+> - Rate limiter: `memoryLimiter` (100 req/min read, 20 req/min write)
+
+---
+
+## 5. Matriz de Acceso por Rol y Tipo de Producto
+
+> **Leyenda de estados**:  
+> - ✅ = Implementado en producción  
+> - 🆕 = Nuevo, en desarrollo (Fase correspondiente del roadmap)  
+> - 🆕 Configura/Usa = Disponible para configurar/usar cuando se implemente  
+> - "-" = No disponible
+
+| Funcionalidad | Estado | Creador | Comprador | Afiliado | Visitante |
+|---------------|:------:|:-------:|:---------:|:--------:|:---------:|
+| **Tutor IA** | ✅ | Configura | ✅ Usa | - | - |
+| **AI Content Assistant** | ✅ | ✅ Usa | - | - | - |
+| **Conversational Reader** | 🆕 | 🆕 Configura | 🆕 Usa | - | - |
+| **Micro-Learning Generator** | 🆕 | 🆕 Usa | - | - | - |
+| **Smart Chapters** | 🆕 | 🆕 Usa | 🆕 Usa | - | - |
+| **Personalized Learning Path** | 🆕 | 🆕 Configura | 🆕 Usa | - | - |
+| **AI Content Studio** | 🆕 | 🆕 Usa | - | - | - |
+| **AI Insights** | ⚠️ Partial | 🆕 Usa | - | - | - |
+| **AI Support Chatbot** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | ✅ Usa |
+| **AI Afiliate Chat** | 🆕 | - | 🆕 Usa | 🆕 Usa | - |
+| **Description Generator** | 🆕 | 🆕 Usa | - | - | - |
+| **SEO Optimizer** | 🆕 | 🆕 Usa | - | - | - |
+| **Certificate PDF Generator** | 🆕 | 🆕 Genera | 🆕 Descarga | - | 🆕 Verifica |
+| **Sentiment Analytics** | 🆕 | 🆕 Usa | - | - | - |
+| **Advanced DRM** | 🆕 | 🆕 Configura | - | - | - |
+| **Credit Management Dashboard** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | - |
+| **Book Highlights** | 🆕 | - | 🆕 Usa | - | - |
+| **Audio Notes** | 🆕 | - | 🆕 Usa | - | - |
+| **AI Summary** | ⚠️ Partial | 🆕 Usa | 🆕 Usa | - | - |
+| **Transcript Search** | 🆕 | - | 🆕 Usa | - | - |
+| **Interactive Agent** | ✅ | 🆕 Configura | ✅ Usa | - | - |
+| **Reports Agent** | ✅ | ✅ Admin | ✅ Reporta | ✅ Reporta | - |
+| **Orchestrator** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | - |
+| **Memory Enhancement** | ✅ | - | - | - | - |
+
+### Sistema de Créditos por Rol
+
+| Rol | Puede Comprar Créditos | Gasta Créditos En |
+|----|:----------------------:|-------------------|
+| **Creador** | ✅ Sí | Generación de contenido, análisis |
+| **Comprador** | ✅ Sí | Tutor, Conversational Reader |
+| **Afiliado** | ✅ Sí | AI Afiliate Chat, Generador de copy |
+| **Visitante** | ❌ No | - |
+
+### Modelo de Créditos Detallado
+
+#### CREADOR (Plan Pro)
 
 | Operación | Costo | Notas |
 |-----------|-------|-------|
-| Guardar datos (input) | 1 crédito | Por save |
-| Análisis completo | 3-5 créditos | Depende complejidad |
-| Consulta historial | 0 créditos | Reading es gratis |
+| Transcription (incluida) | 60 min/mes | Incluida en Plan Pro |
+| Transcription extra | 3 créditos/min | O ARS $12/min |
+| Análisis de contenido | 1 crédito/operación | - |
+| Generación de quiz | 2 créditos/operación | - |
+| Micro-Learning Generator | 5 créditos/video | Incluye resumen + nuggets + quiz |
+| Conversational Reader | 1 crédito/pregunta | Para PDFs del creador |
+| AI Insights | 5 créditos/consulta | - |
+| AI Afiliate Chat | Configurable | Herramienta para afiliados |
+
+**Flujo actual**: Una vez agotados los créditos incluidos, debe comprar paquetes.
 
 ---
 
-## 3. Fase 2: Analytics + IA Avanzada
+#### COMPRADOR (Nueva Implementación)
 
-### 3.1 Dashboard Analytics
+**Modelo Adoptado**: Opción A (Pack de Bienvenida) + Opción C (Freemium por operación)
 
-#### 3.1.1 Descripción
+**Pack de Bienvenida (del Creador)**:
+- El creador puede configurar cuántos créditos incluir con su producto
+- Ej: "Al comprar este curso, recibís 50 créditos gratis para usar el Tutor IA"
+- El creador compra estos créditos en paquete y se "regalan" al comprador
 
-Dashboard unificado "My Insights" para creadores con métricas de negocio avanzadas.
+**Operaciones por Tipo**:
 
-#### 3.1.2 Métricas por Categoría
+| Operación | Costo | ¿Quién paga? |
+|-----------|:-----:|---------------|
+| **Ver resumen del contenido** | **GRATIS** | El creador lo generó |
+| **Ver mapa mental** | **GRATIS** | El creador lo generó |
+| **Ver Smart Chapters** | **GRATIS** | El creador lo generó |
+| **Usar Tutor IA (preguntas)** | **PAGA** | Comprador con créditos |
+| **Chat con PDF/Ebook** | **PAGA** | Comprador con créditos |
+| **Descargar certificado** | **GRATIS** | Una vez completado el curso |
 
-**A. Revenue Metrics**
+**Adquisición de Créditos del Comprador**:
+1. **Pack de Bienvenida** (del creador): Gratis al comprar
+2. **Recarga propia**: Puede comprar créditos cuando se agoten
+3. **Upsell opcional**: "Activá el Tutor IA por $2 USD" (créditos incluidos)
 
-| Métrica | Descripción | Fórmula |
-|---------|-------------|---------|
-| **Total Revenue** | Ingresos totales | SUM(commissions.net_amount) |
-| **Revenue by Product** | Ingresos por producto | GROUP BY product_id |
-| **Revenue by Period** | Ingresos por día/semana/mes | DATE_TRUNC |
-| **Top Products** | Top 5 productos por revenue | ORDER BY revenue DESC LIMIT 5 |
-| **Average Order Value** | Valor promedio de venta | AVG(order.amount) |
-| **Sales Forecast** | Proyección próxima semana/mes | Basado en tendencia |
+---
 
-**B. Subscription Metrics**
+#### AFILIADO
 
-| Métrica | Descripción | Fórmula |
-|---------|-------------|---------|
-| **MRR** | Monthly Recurring Revenue | SUM(active_subscriptions.price) |
-| **ARR** | Annual Recurring Revenue | MRR * 12 |
-| **Churn Rate** | Tasa de cancelación mensual | canceled / total_at_period_start |
-| **LTV** | Lifetime Value | MRR / Churn_Rate |
-| **Retention Rate** | % usuarios que mantienen suscripción | 1 - Churn_Rate |
+**Modelo Adoptado**: Presupuesto Finito por Producto (100% pagado por el Creador)
 
-**C. Engagement Metrics**
+**Definición por Producto (del Creador)**:
+
+| Configuración | Descripción |
+|---------------|-------------|
+| **Presupuesto total** | Total de créditos disponibles para afiliados de este producto |
+| **Créditos por afiliado** | Cuántos créditos gratis recibe cada afiliado que active la feature |
+
+**Ejemplo**:
+```
+Presupuesto: 500 créditos
+Créditos por afiliado: 50
+→ Primeros 10 afiliados reciben trial gratis
+→ Afiliado #11 en adelante → "Presupuesto agotado, comprá créditos si querés usar"
+```
+
+**Flujo del Afiliado**:
+
+```
+Afiliado se registra en producto
+        ↓
+Hay presupuesto disponible? (activated_count * credits_per_affiliate < total_budget)
+        ↓
+SÍ: 50 créditos gratis (contados del presupuesto del creador)
+NO: Debe comprar créditos si quiere usar herramientas
+```
+
+**Operaciones y Costos**:
+
+| Operación | Costo | Notas |
+|-----------|-------|-------|
+| AI Afiliate Chat | 2 créditos/consulta | Consultas sobre el producto |
+| Generador de copy | 3 créditos/generación | Threads, reels, posts |
+| Análisis de audiencia | 5 créditos/consulta | Insights de conversión |
+
+**Dashboard del Creador**:
+
+- "Presupuesto: 500 | Usados: 250 (5 afiliados) | Quedan: 5 afiliados con trial"
+- Alerta cuando queden <2 disponibles
+
+---
+
+**Controles de Abuso**:
+
+| Escenario | Control | Implementación |
+|-----------|---------|---------------|
+| **Multi-cuentas** | 1 trial por usuario | `afiliate_trials` con `user_id` único + email verificado |
+| **Auto-afiliado** | No permitir que creador sea afiliado de su propio producto | Verificar `creator_id != affiliate_id` |
+| **Ventas fake** | ReleaseService como gate | Solo dar créditos cuando `order.balance_released = TRUE` (ReleaseService procesó la orden) |
+| **Afiliado inactivo** | Expiración de créditos del trial | Los 50 créditos expiran en 30 días si no se usan |
+| **Reventa de créditos** | No transferibles | Los créditos solo pueden usarse en la cuenta del afiliado que los recibió |
+| **Contenido spam** | Rate limiting | Max X generaciones por día por usuario |
+
+**Límites Recomendados**:
+
+| Parámetro | Límite |
+|-----------|:------:|
+| Trial por usuario | 1 vez (con email verificado) |
+| Productos con trial/mes | 3 máximo |
+| Créditos por afiliado | Min 25, Max 100 (configurable por creador) |
+| Presupuesto mínimo por producto | 100 créditos |
+| Expiración de créditos del trial | 30 días |
+
+---
+
+### Arquitectura de Precios y Paquetes (Base de Datos)
+
+Los precios y paquetes de créditos se administran dinámicamente desde la base de datos, permitiendo cambios sin necesidad de deploy.
+
+#### Tablas de Configuración
+
+```sql
+-- Catálogo de operaciones con costos base
+CREATE TABLE ai_operation_types (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    operation_key VARCHAR(50) UNIQUE NOT NULL,  -- 'tutor_chat', 'pdf_chat', 'analysis', 'quiz', 'transcription'
+    operation_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    base_cost_credits INTEGER NOT NULL DEFAULT 1,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Paquetes de créditos disponibles para compra
+CREATE TABLE ai_credit_packages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    package_name VARCHAR(50) NOT NULL,
+    credits INTEGER NOT NULL,
+    price_ars DECIMAL(18,2) NOT NULL,
+    price_usdt DECIMAL(18,6),
+    bonus_credits INTEGER DEFAULT 0,  -- créditos extra de bonus
+    is_active BOOLEAN DEFAULT TRUE,
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Precios especiales por rol (opcional)
+CREATE TABLE ai_credit_role_pricing (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    operation_key VARCHAR(50) REFERENCES ai_operation_types(operation_key),
+    role VARCHAR(20) NOT NULL,  -- 'creator', 'buyer', 'affiliate'
+    credits_cost INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### Operaciones Predefinidas (Valores por defecto)
+
+| operation_key | operation_name | base_cost_credits |
+|---------------|----------------|:-----------------:|
+| tutor_chat | Tutor IA (pregunta) | 1 |
+| pdf_chat | Chat con PDF/Ebook | 2 |
+| content_analysis | Análisis de contenido | 3 |
+| quiz_generation | Generación de quiz | 5 |
+| transcription_min | Transcripción (por minuto) | 10 |
+| micro_learning | Micro-Learning Generator | 15 |
+| copy_generator | Generador de copy (afiliado) | 3 |
+| sentiment_analysis | Sentiment Analytics | 5 |
+
+#### Paquetes Sugeridos (Precios sugeridos)
+
+| package_name | credits | price_ars | price_usdt | bonus_credits |
+|--------------|:-------:|----------:|----------:|-------------:|
+| Básico | 50 | $50,000 | $50 | 0 |
+| Intermedio | 150 | $135,000 | $135 | 10 |
+| Pro | 500 | $400,000 | $400 | 50 |
+| Enterprise | 1000 | $750,000 | $750 | 100 |
+
+> **Nota**: Los valores son referensi únicamente. Los precios reales se configuran en la tabla `ai_credit_packages` y pueden modificarse dinámicamente.
+
+---
+
+### Adecuaciones Contables e Impositivas
+
+La tercera línea de ingresos (Venta de Créditos AI) sigue el **mismo modelo contable** que las líneas existentes (Comisiones y Suscripciones), reutilizando el cálculo de impuestos desde la base de datos.
+
+#### Modelo de Ingresos de Crema
+
+| Línea | Tipo de Ingreso | Tratamiento Actual |
+|-------|-----------------|-------------------|
+| **Línea 1** | Comisiones (10% + fee por venta de productos) | ✅ Implementado |
+| **Línea 2** | Suscripciones mensuales (Plan Pro) | ✅ Implementado |
+| **Línea 3** | Venta de Créditos AI | 🆕 Por implementar |
+
+#### Cálculo de Impuestos (mismo modelo que suscripciones)
+
+El sistema actual ya calcula impuestos dinámicamente desde `currency_validation_rules`:
+
+```typescript
+// 1. Obtener reglas fiscales de la DB
+const rules = await configRepository.getCurrencyValidationRules(currency);
+const taxConfig = rules?.tax_config;
+
+// 2. Cálculo "Tax Inside" (IVA incluido en el precio)
+if (taxConfig.enabled && taxConfig.calculation === 'inside') {
+    factor = taxConfig.tax_factor; // ej: 1.21 para 21%
+    base_imponible = grossAmount / factor;
+    iva = grossAmount - base_imponible;
+}
+
+// 3. Utilidad Neta = Base Imponible - Fees - Impuestos
+netProfit = base_imponible - gatewayFee - gatewayTax;
+```
+
+#### Estructura de Costos e Ingresos para Créditos AI
+
+```
+Venta de Paquete de Créditos (ej: $100,000 ARS)
+├── Bruto: $100,000
+├── IVA (21%): $17,356 (recaudado → pasa a ARBA/AFIP)
+└── Base Imponible: $82,644
+        ├── Fee Pasarela (~5.4%): $5,400
+        └── Margen Bruto: $77,244
+                ├── Costo API (OpenAI, etc.): $30,000 (gasto operacional)
+                └── Margen Neto: $47,244 (ganancia real)
+```
+
+#### Tablas Necesarias
+
+```sql
+-- Transacciones de compra de créditos (facturación)
+CREATE TABLE ai_credit_purchases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    package_id UUID REFERENCES ai_credit_packages,
+    amount_paid DECIMAL(18,2) NOT NULL,  -- precio con IVA
+    base_imponible DECIMAL(18,2),        -- sin IVA
+    iva DECIMAL(18,2),                    -- 21%
+    currency VARCHAR(10) NOT NULL,
+    payment_method VARCHAR(50),           -- 'mercadopago', 'usdt'
+    payment_status VARCHAR(20),           -- 'pending', 'paid', 'failed'
+    transaction_id VARCHAR(100),         -- ID de la pasarela
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Costos de API por mes (tracking de gastos)
+CREATE TABLE ai_monthly_costs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    month DATE NOT NULL,                  -- primer día del mes
+    provider VARCHAR(50),                -- 'openai', 'google', 'anthropic'
+    tokens_input_cost DECIMAL(18,6),
+    tokens_output_cost DECIMAL(18,6),
+    transcription_cost DECIMAL(18,6),
+    total_cost DECIMAL(18,6),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### Registro en Platform Earnings
+
+Las compras de créditos se registran en `platform_earnings` con tipo `credit_purchase`:
+
+| Campo | Descripción |
+|-------|-------------|
+| `type` | 'credit_purchase' |
+| `gross_amount` | Precio con IVA |
+| `net_amount` | Margen después de IVA y fees |
+| `currency` | Moneda de la transacción |
+
+#### Diferencia con otras líneas de ingresos
+
+| Aspecto | Comisiones | Suscripciones | Créditos AI |
+|---------|-----------|---------------|-------------|
+| IVA | ✅ 21% | ✅ 21% | ✅ 21% |
+| Fee pasarela | ✅ ~5.4% | ✅ ~5.4% | ✅ ~5.4% |
+| Costo operacional | ❌ No | ❌ No | ✅ Sí (APIs de AI) |
+| Tracking de costos | N/A | N/A | ✅ `ai_monthly_costs` |
+
+#### Beneficios del modelo
+
+| Beneficio | Descripción |
+|-----------|-------------|
+| **Consistencia** | Mismo manejo contable para las 3 líneas |
+| **Configurable** | Impuestos se cambian desde DB (tax_config) |
+| **Reutilizable** | Mismo código de cálculo de IVA que suscripciones |
+| **Reportes unificados** | Todos los ingresos en platform_earnings |
+| **Margen claro** | Costo de APIs tracking → margen neto real |
+
+---
+
+### Modelo de Inclusión por Plan
+
+| Funcionalidad | Plan Initial | Plan Pro |
+|---------------|:------------:|:--------:|
+| Tutor IA (uso básico) | ✅ | ✅ |
+| AI Content Assistant | ❌ | ✅ |
+| Conversational Reader | ❌ | ✅ |
+| Micro-Learning Generator | ❌ | ✅ |
+| Smart Chapters | ❌ | ✅ |
+| Personalized Learning Path | ❌ | ✅ |
+| AI Content Studio | ❌ | ✅ |
+| **AI Insights** | ⚠️ | ✅ |
+| AI Support Chatbot | ✅ | ✅ |
+| AI Afiliate Chat | ❌ (créditos) | ✅ |
+| Description Generator | ❌ | ✅ |
+| SEO Optimizer | ❌ | ✅ |
+| Certificate PDF Generator | ✅ | ✅ |
+| Sentiment Analytics | ❌ | ✅ |
+| Advanced DRM | ❌ | ✅ |
+| Book Highlights | ❌ | 🆕 |
+| AI Summary | ❌ | 🆕 |
+
+---
+
+## 6. Herramientas de Admin
+
+> Estas herramientas son para la administración de la plataforma y están disponibles para usuarios con rol Admin.
+
+### 6.1 Dashboard de Admin
+
+| Herramienta | Descripción |
+|-------------|-------------|
+| **Sentiment Analytics** | Análisis de reviews de todos los productos |
+| **Predictive Analytics** | Patrones de éxito/fracaso usando pgvector |
+| **Content Moderation** | Moderación de contenido subenido |
+| **Security Dashboard** | Monitoreo de seguridad de la plataforma |
+| **Revenue Analytics** | Ganancias, métricas financieras |
+| **User Insights** | Comportamiento de usuarios |
+| **Product Health** | Estado de productos (ventas, refunds) |
+| **AI Usage Stats** | Uso de créditos AI por producto/usuario |
+
+### 6.2 Métricas Disponibles
 
 | Métrica | Descripción |
-|---------|-------------|
-| **Avg. Rating** | Calificación promedio del producto |
-| **Review Count** | Total de reviews recibidas |
-| **Q&A Activity** | Preguntas y respuestas del período |
-| **Time to First Response** | Tiempo promedio de respuesta del creator |
+|-------------|-------------|
+| **Churn Prediction** | Predecir usuarios en riesgo de cancelar |
+| **Refund Risk** | Productos con alto riesgo de reembolso |
+| **Success Patterns** | Qué tipos de productos venden más |
+| **Conversion Funnel** | Embudo de conversión por tipo |
+| **AI Adoption** | % de usuarios usando herramientas AI |
 
-#### 3.1.3 Modelo de Datos
+---
+
+## 6b. Matriz de Herramientas por Tipo de Producto
+
+### CREADOR
+
+| Herramienta | Video/Curso | | Ebook | | | Podcast | | Software | | Membresía | | Link | |
+|-------------|:----------:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Plan** | Free | Pro | Free | Pro | Free | Pro | Pro | Free | Pro | Pro |
+| **Tutor IA** | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Transcripción** | 💰 | ✅ | ❌ | ✅ | 💰 | ✅ | ✅ | ✅ | 💰 | 💰 |
+| **Content Asst** | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **SEO Optimizer** | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+
+### COMPRADOR
+
+| Herramienta | Video/Curso | Ebook | Podcast | Software | Membresía | Link |
+|-------------|:---------:|:-----:|:-------:|:--------:|:--------:|:---:|
+| **Tutor IA** | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Chat PDF** | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **Smart Chapters** | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| **Transcripción** | 💰 | ❌ | 💰 | ❌ | 💰 | 💰 |
+| **Micro-Learning** | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| **Book Highlights** | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **Audio Notes** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **AI Summary** | 💰 | 💰 | 💰 | ❌ | 💰 | ❌ |
+| **Transcript Search** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Certificate** | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+
+### AFILIADO
+
+| Herramienta | Acceso |
+|-------------|-------|
+| **Gen. de Copy** | 💰 |
+| **Chat Producto** | 💰 |
+| **Landing Page Builder** | 💰 |
+
+---
+
+### 7.1 Costo de Implementación por Funcionalidad
+
+| Funcionalidad | Complejidad | Tiempo Est. | Costo API | Dependencias |
+|---------------|:------------:|:------------:|:---------:|--------------|
+| Tutor IA | Media | 2 semanas | $0.001/msg | Memory Service |
+| AI Content Assistant | Media | 3 semanas | $0.17/video | Transcription |
+| Conversational Reader | Media | 2 semanas | $0.001/msg | pgvector existente |
+| Micro-Learning Generator | Alta | 4 semanas | $0.17/video | Transcription + Video processing |
+| Smart Chapters | Media | 2 semanas | $0.10/audio | Transcription |
+| Personalized Learning Path | Alta | 3 semanas | $0.03/user | User profiles |
+| AI Content Studio | Alta | 4 semanas | $0.20/process | Content analysis |
+| AI Insights | Media | 3 semanas | $0.005/query | Analytics DB |
+| AI Support Chatbot | Baja | 1 semana | $0.001/msg | FAQ base |
+| AI Afiliate Chat | Baja | 2 semanas | $0.001/msg | Product context |
+| Description Generator | Baja | 1 semana | $0.01/generate | Content analysis |
+| SEO Optimizer | Baja | 1 semana | $0.01/generate | Content analysis |
+| Certificate PDF Generator | Media | 2 semanas | $0.01/generate | PDF library |
+| Sentiment Analytics | Media | 2 semanas | $0.02/review | Reviews DB |
+| Advanced DRM | Alta | 4 semanas | $0.00 | Video processing |
+
+### 7.2 Modelo de Ingresos Proyectado
+
+| Fuente de Ingreso | Descripción | Proyección Mensual |
+|-------------------|-------------|-------------------|
+| **Créditos AI (Creador)** | Venta de paquetes de créditos | $2,500 USD (Mes 3) → $5,000 USD (Mes 6) |
+| **Créditos AI (Comprador)** | Recargas de compradores | $500 USD (Mes 3) → $2,000 USD (Mes 6) |
+| **Créditos AI (Afiliado)** | Recargas de afiliados | $200 USD (Mes 3) → $1,000 USD (Mes 6) |
+| **Plan Pro** | Diferencia vs Plan Initial | Incluido |
+| **Upsell de features** | Micro-learning extra, etc. | $300 USD (Mes 3) → $1,500 USD (Mes 6) |
+
+### 7.3 ROI Esperado
+
+| Métrica | Actual | Objetivo (12 meses) |
+|---------|--------|---------------------|
+| Costo de soporte por ticket | $15 USD | -50% ($7.50) |
+| Tasa de conversión landing | 2.5% | +15% (2.875%) |
+| Churn de membresías | 8% | -20% (6.4%) |
+| Ingresos por créditos AI | $0 | $8,500 USD/mes |
+
+---
+
+## 8. Dependencias con otros PRDs
+
+> Las features de AI-FEATURES-PRD dependen de componentes definidos en otros PRDs. Esta sección clarifica las dependencias.
+
+### Dependencias con ARCHITECTURE-PRD (v2.0)
+
+| Feature AI-FEATURES | Dependencia Arquitectura | Fase对应 |
+|---------------------|--------------------------|----------|
+| **Tutor IA** | Memory Service (pgvector) | ✅ Existente |
+| **Conversational Reader** | Memory Service + pgvector | Existente |
+| **Smart Chapters** | Transcription Service | Existente |
+| **Personalized Learning Path** | User Context Memory | Fase 5 (Sem 20-24) |
+| **User Notes & Highlights** | User Context Memory | Fase 5 (Sem 20-24) |
+| **AI Summary** | User Context Memory | Fase 5 (Sem 20-24) |
+| **Predictive Analytics** | AI Insights + pgvector | Fase 6 (Sem 41-42) |
+| **Content Moderation** | AI Content Assistant | Fase 6 (Sem 43-44) |
+
+### Dependencias con CONTENT-SECURITY-PRD (v2.0)
+
+| Feature AI-FEATURES | Validación Requerida | Sección Content-Security |
+|---------------------|---------------------|------------------------|
+| **Book Highlights** | Notas de usuario | 10.1 |
+| **Audio Notes** | Notas con timestamp | 10.3 |
+| **AI Summary** | Generación de contenido | 10.2 |
+| **Transcripción** | Contenido del creador | Validaciones existentes |
+| **Content Moderation** | Moderación AI | 10.x |
+
+### Orden de Implementación Recomendado
+
+1. **ARCHITECTURE Fase 1-4** (Semanas 1-10): ConfigService → Orchestrator → Skills → Errors
+2. **AI-FEATURES Fases 1-4** (Semanas 1-32): Credits → Tools → Learning → Advanced
+3. **CONTENT-SECURITY**: En paralelo, las validaciones se implementan según la necesidad de cada feature
+
+### Timeline Coordinación
+
+- AI-FEATURES Fase 3 (Learning AI): Semanas 17-24
+- ARCHITECTURE Fase 5 (User Context): Semanas 20-24
+- Ambos sincronizados para dependencias cruzadas
+
+> **Nota**: Para implementación, seguir primero el Architecture PRD (base) y luego AI-FEATURES (features).
+
+---
+
+## 9. Roadmap de Implementación
+
+> **Estado**: Mayo 2026 - Phase 1 completada, continuando con roadmap priorizado
+> **Duración total**: ~40 semanas restantes (10 meses)
+> **Basado en**: Análisis de viabilidad (feasibility-analysis.md v2.0) + prioridades de negocio
+> **Nota**: Las semanas indican tiempo estimado desde Mayo 2026, no semanas calendario reales
+
+### Estado Actual (Mayo 2026) ✅ COMPLETADO
+
+| Fase | Funcionalidades | Estado | Notes |
+|------|-----------------|--------|-------|
+| **Completada** | LLM, Embedding, Memory, Credits base | ✅ | 18 servicios AI |
+| **Completada** | AI Content Assistant (ContentAssistant, ContentReader, QuizGenerator, Transcription) | ✅ | Phases 3-6 |
+| **Completada** | AI Support Chatbot (Concierge - core) | ✅ | Phase 7 |
+| **Completada** | Reports Agent + DenunciationService | ✅ | Phase 9 |
+| **Completada** | Memory Enhancement (HNSW, RBAC, Quota, LRU, Cleanup) | ✅ | SDD M-1 a M-7 |
+| **Completada** | Orchestrator (18 capabilities) | ✅ | Phase 2 |
+| **Completada** | Interactive Agent (SDD Tasks 1-11) | ✅ | Phase 11 |
+
+---
+
+### Roadmap Priorizado (Mayo 2026 en adelante)
+
+#### Fase A: Extender Existente (Meses 1-2) [Mayo - Julio 2026]
+
+> **Prioridad ALTA** -复用 infraestructura existente
+
+| Semana | Feature | Sección | Score | Entregable | Dependencias |
+|--------|---------|---------|-------|-------------|--------------|
+| 1-2 | **AI Afiliate Chat** | §4.10 | 7/10 | Chat para afiliados (variant de Concierge) | ConciergeService |
+| 3-4 | **SEO Optimizer** | §4.12 | 6/10 | Meta tags automáticos | ContentAssistant |
+| 5-6 | **AI Insights (expandido)** | §4.8 | — | Analytics mejorados | InsightsService existente |
+
+> **Razón**:复用 código existente con bajo esfuerzo
+
+---
+
+#### Fase B: Contenido y Monetización (Meses 3-4) [Agosto - Septiembre 2026]
+
+| Semana | Feature | Sección | Score | Entregable | Dependencias |
+|--------|---------|---------|-------|-------------|--------------|
+| 7-8 | **Description Generator** | §4.11 | 8/10 | Título, descripción, tags SEO | ContentAssistant |
+| 9-10 | **Certificate PDF Generator** | §4.13 | 8/10 | PDF + QR para certificados | — |
+| 11-12 | **Transcript Search** | §4.20 | — | Búsqueda en transcripciones | TranscriptionService |
+
+> **Razón**: Alto impacto para creadores + reutiliza transcription existente
+
+---
+
+#### Fase C: Analytics y Engagement (Meses 5-6) [Octubre - Noviembre 2026]
+
+| Semana | Feature | Sección | Score | Entregable | Dependencias |
+|--------|---------|---------|-------|-------------|--------------|
+| 13-14 | **Sentiment Analytics** | §4.14 | 9/10 | AI analiza reviews | ReviewsService |
+| 15-16 | **Conversational Reader** | §4.3 | — | Chat con PDF/Ebook | MemoryService |
+| 17-18 | **AI Summary** | §4.19 | — | Resumen de contenido | Transcription |
+
+> **Razón**: Score alto (Sentiment) + extensiones lógicas de transcription/memory
+
+---
+
+#### Fase D: Advanced Protection (Meses 7-8) [Diciembre 2026 - Enero 2027]
+
+| Semana | Feature | Sección | Score | Entregable | Dependencias |
+|--------|---------|---------|-------|-------------|--------------|
+| 19-20 | **Advanced DRM** | §4.15 | 8/10 | Watermarks + protección | — |
+| 21-22 | **Smart Chapters** | §4.5 | — | Timestamps + buscador | Transcription |
+| 23-24 | **Micro-Learning Generator** | §4.4 | — | Nuggets + resumen + quiz | Transcription + QuizGenerator |
+
+> **Razón**: Protección de contenido + extensiones de transcription
+
+---
+
+#### Fase E: Personalización y Expansión (Meses 9-10) [Febrero - Marzo 2027]
+
+| Semana | Feature | Sección | Descripción | Dependencias |
+|--------|---------|---------|-------------|--------------|
+| 25-26 | **Personalized Learning Path** | §4.6 | Rutas personalizadas por usuario | — |
+| 27-28 | **Book Highlights** | §4.17 | Highlights en PDFs | Conversational Reader |
+| 29-30 | **Audio Notes** | §4.18 | Notas con timestamp | Transcription |
+
+---
+
+#### Fase F: Consolidación y Admin (Meses 11-12) [Abril - Mayo 2027]
+
+| Semana | Feature | Sección | Descripción | Dependencias |
+|--------|---------|---------|-------------|--------------|
+| 31-32 | **AI Content Studio** | §4.7 | Suite completo de creación | Memory Service |
+| 33-36 | **Admin Tools** | — | Content Moderation, Security Dashboard | AI Content Assistant |
+| 37-40 | **Optimización** | — | Refinamiento prompts, testing, costos |Todas |
+
+---
+
+### Features Descartadas o Dependientes
+
+| Feature | Sección | Razón | Alternativa |
+|---------|---------|-------|-------------|
+| **Workshop Builder AI** | — | Muy amplio, poco definido | Phase incremental |
+| **Affiliate Landing Builder** | — | Depende de AI Afiliate Chat | Implementar §4.10 primero |
+
+---
+
+### Métricas de Éxito por Fase
+
+| Fase | Métrica | Objetivo |
+|------|---------|----------|
+| A |复用 código | >60% de features复用 servicios existentes |
+| B | Tiempo de implementación | <2 semanas por feature |
+| C | Engagement | +15% conversiones con analytics |
+| D | Seguridad | 0 reportes de piratería en 3 meses |
+| E | Personalización | +20% completitud de cursos |
+| F | Satisfacción | NPS > 50 |
+
+---
+
+### Verificación Estándar
+
+> Todas las tareas de implementación siguen el Estándar de Verificación definido en `docs/project/common/verification-standard.md`
+
+---
+
+---
+
+## 10. Requisitos No Funcionales
+
+### 9.1 Performance y Experiencia de Usuario (UX)
+
+#### 9.1.1 Tiempos de Respuesta
+
+| Métrica | Objetivo | Notas |
+|---------|----------|-------|
+| **Chat/Tutor respuesta inicial** | < 2 segundos | Primer token streaming |
+| **Chat/Tutor respuesta completa** | < 30 segundos | Para respuestas largas |
+| **Generación de contenido** | < 60 segundos | Resumen, quiz, etc. |
+| **Transcripción** | < tiempo_audio × 0.5 | Async con job |
+| **Búsqueda semántica (pgvector)** | < 500ms | Para RAG |
+
+#### 9.1.2 Streaming (SSE - Server-Sent Events)
+
+| Requisito | Descripción |
+|-----------|-------------|
+| **Streaming obligatorio** | Todas las respuestas de chat/generación deben usar streaming |
+| **Fallback sync** | Si SSE falla, responder con timeout (no dejar colgado) |
+| **Progress indicators** | Mostrar "escribiendo..." durante generación |
+| **Cancelación** | Usuario puede cancelar generación en progreso |
+
+#### 9.1.3 Timeouts y Handling
+
+| Escenario | Timeout | Manejo |
+|-----------|---------|--------|
+| LLM responde | 60s | Timeout → error genérico |
+| Búsqueda pgvector | 5s | Timeout → búsqueda simple fallback |
+| Transcripción job | 10 min | Async con status polling |
+| UI wait | 30s | Mostrar spinner + opción de email cuando esté listo |
+
+#### 9.1.4 Caching
+
+| Tipo de request | TTL | Notas |
+|-----------------|-----|-------|
+| Embeddings (contenido estable) | 30 días | Cache por content_hash |
+| Respuestas FAQs | 24 horas | Cache por pregunta normalizada |
+| Stats/Analytics | 1 hora | Cache por dashboard |
+
+---
+
+### 9.2 Seguridad y Ciberseguridad
+
+#### 8.2.1 Protección de APIs
+
+| Control | Implementación |
+|---------|---------------|
+| **Autenticación** | JWT válido para todas las endpoints AI |
+| **Rate limiting por usuario** | Ventana deslizante (sliding window) |
+| **Rate limiting por IP** | Prevenir ataques DDoS |
+| **Role-based access** | Verificar rol (creador/comprador/afiliado) antes de procesar |
+| **Ownership check** | Verificar que usuario tiene acceso al recurso |
+
+#### 8.2.2 Protección contra Prompt Injection
+
+| Control | Descripción |
+|---------|-------------|
+| **Input sanitization** | Remover caracteres de injection del input usuario |
+| **System prompt isolation** | Nunca concatenar input directo en system prompt |
+| **Output filtering** | Filtrar outputs que contengan tokens sensibles |
+| **Prompt templates** | Usar templates predefinidos, no strings dinámicos |
+
+#### 8.2.3 Datos y Privacidad
+
+| Control | Descripción |
+|---------|-------------|
+| **No training** | Datos de usuarios NO se usan para entrenar modelos |
+| **Audit logs** | Todas las interacciones con IA registradas (sin PII) |
+| **Data retention** | Historial de chats: 90 días, luego anonimizar |
+| **PII en logs** | NO loggear: passwords, tokens, credit cards, emails |
+| **Encryption at rest** | PostgreSQL con encryption habilitado |
+| **Encryption in transit** | TLS 1.3 obligatorio |
+
+#### 8.2.4 Rate Limiting Detallado
+
+| Endpoint | Límite | Ventana |
+|----------|:------:|---------|
+| `/ai/chat/*` | 60 | minuto |
+| `/ai/generate/*` | 20 | minuto |
+| `/ai/transcribe` | 5 | hora |
+| `/ai/embed` | 100 | minuto |
+
+#### 8.2.5 Content Safety
+
+| Control | Descripción |
+|---------|-------------|
+| **Input moderation** | Moderar input de usuario (OpenAI Moderation o similar) |
+| **Output moderation** | Moderar output del LLM antes de enviar |
+| **Banned topics** | Configurar topics prohibidos en prompts |
+| **Denial handling** | Si se detecta contenido banned → mensaje genérico |
+
+---
+
+### 9.3 Escalabilidad
+
+| Aspecto | Requisito |
+|---------|-----------|
+| **Horizontal scaling** | Soporte múltiples instancias (stateless) |
+| **Queue processing** | BullMQ para jobs pesados (transcription, embedding) |
+| **Caching** | Redis para respuestas frecuentes y tokens |
+| **Database** | Índices optimizados para pgvector (IVFFlat/HNSW) |
+| **Connection pooling** | Reuse PostgreSQL connections |
+| **Circuit breaker** | Si LLM provider falla → fallback a otro provider |
+
+---
+
+### 9.4 Monitoreo y Observabilidad
+
+| Métrica | Descripción | Alerta |
+|---------|-------------|--------|
+| **Token usage** | Consumo por usuario/feature/día | > 80% del budget |
+| **Error rate LLM** | Fallos de API externos | > 5% en 5 min |
+| **Latency p95** | Percentil 95 de respuesta | > 30s |
+| **Latency p99** | Percentil 99 de respuesta | > 60s |
+| **Credit consumption** | Tracking de gastos por usuario | > $50/día |
+| **Queue backlog** | Jobs pendientes en BullMQ | > 1000 |
+| **pgvector query time** | Tiempo de búsquedasemántica | > 1s |
+
+---
+
+### 9.5 Disponibilidad y Recoverability
+
+| Aspecto | Requisito |
+|---------|-----------|
+| **Uptime objetivo** | 99.9% mensual |
+| **Fallback providers** | Si OpenAI falla → Gemini → Ollama |
+| **Retry logic** | Exponential backoff para APIs de LLM |
+| **Dead letter queue** | Jobs fallidos 3 veces → DLQ para revisión |
+| **Backup de embeddings** | Export/import de índices pgvector |
+| **Graceful degradation** | Si AI falla → mostrar contenido sin AI |
+
+---
+
+## 11. Anexos
+
+### A. Glosario de Términos
+
+| Término | Definición |
+|---------|------------|
+| **RAG** | Retrieval Augmented Generation - Técnica de IA que busca contexto relevante antes de generar respuesta |
+| **pgvector** | Extensión de PostgreSQL para vectores - usada en búsqueda semántica |
+| **Embedding** | Representación numérica de texto - permite búsqueda por similitud |
+| **Chunks** | Fragmentos de texto en que se divide un documento para embedding |
+| **Skill** | Función que el LLM puede ejecutar para interactuar con sistemas externos |
+| **Agent** | Orquestador de tareas que usa múltiples skills |
+| **Micro-learning** | Contenido educativas en segmentos cortos (1-3 min) |
+| **Nuggets** | Fragmentos de alto impacto para redes sociales |
+
+### B. Referencias
+
+- Análisis de mercado para Crema.md (Obsidian Vault)
+- Feasibility Analysis - AI Features 2026
+- SDD AI Content Assistant - Documentación completa
+
+### C. Verificación de Infraestructura Existente
+
+#### C.1 Tablas de Base de Datos ya Implementadas
+
+Las siguientes tablas ya existen en `backend/db/init/05-ai-tables.sql` y `01-create-tables.sql`:
+
+| Tabla | Ubicación | Funcionalidad Relacionada |
+|-------|-----------|---------------------------|
+| `ai_credits` | 05-ai-tables.sql | Credits Service |
+| `ai_credit_transactions` | 05-ai-tables.sql | Credits Service |
+| `ai_credit_packages` | 05-ai-tables.sql | Credits Service |
+| `ai_embeddings` | 05-ai-tables.sql | Memory Service / RAG |
+| `product_questions` | 05-ai-tables.sql | Q&A System |
+| `product_faqs` | 05-ai-tables.sql | Q&A System |
+| `product_reviews` | 05-ai-tables.sql | Reviews |
+| `product_review_settings` | 05-ai-tables.sql | Reviews |
+| `reports` | 05-ai-tables.sql | Denuncias |
+| `report_reasons` | 05-ai-tables.sql | Denuncias |
+| `content_policies` | 05-ai-tables.sql | Denuncias |
+| `product_tutor_config` | 05-ai-tables.sql | Tutor IA |
+| `product_qa_agent_config` | 05-ai-tables.sql | QA Agent |
+| `agent_conversations` | 05-ai-tables.sql | Agentes IA |
+| `agent_messages` | 05-ai-tables.sql | Agentes IA |
+| `creator_daily_metrics` | 05-ai-tables.sql | Analytics |
+| `tutor_insights` | 05-ai-tables.sql | Tutor Insights |
+| `user_certificates` | 01-create-tables.sql | Certificates |
+
+#### C.2 Tablas que FALTAN crear
+
+| Tabla | Funcionalidad | Notas |
+|-------|---------------|-------|
+| `product_memories` | Conversational Reader | Almacena chunks de PDFs/Ebooks |
+| `user_learning_paths` | Personalized Learning Path | Rutas personalizadas por usuario |
+| `micro_learning_assets` | Micro-Learning Generator | Nuggets, resúmenes, mapas mentales |
+| `product_seo_configs` | SEO Optimizer | Meta tags por producto |
+| `sentiment_analyses` | Sentiment Analytics | Historial de análisis de reviews |
+| `drm_configs` | Advanced DRM | Configuración de protección por producto |
+
+##### Schemas SQL
 
 ```sql
--- Tabla de métricas diarias agregadas
-CREATE TABLE creator_daily_metrics (
+-- product_memories:Chunks de PDFs/Ebooks para Conversational Reader
+CREATE TABLE product_memories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    date DATE NOT NULL,
-    -- Revenue
-    total_sales INT DEFAULT 0,
-    total_revenue DECIMAL(18,8) DEFAULT 0,
-    total_refunds INT DEFAULT 0,
-    refund_amount DECIMAL(18,8) DEFAULT 0,
-    -- Engagement
-    new_reviews INT DEFAULT 0,
-    avg_rating DECIMAL(3,2),
-    new_questions INT DEFAULT 0,
-    questions_answered INT DEFAULT 0,
-    -- Subscriptions
-    new_subscriptions INT DEFAULT 0,
-    canceled_subscriptions INT DEFAULT 0,
-    -- Calculados
-    churn_rate DECIMAL(5,4),
-    retention_rate DECIMAL(5,4),
-    -- Metadata
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    chunk_text TEXT NOT NULL,
+    embedding VECTOR(1536),
+    page_number INTEGER,
+    section_title VARCHAR(255),
+    content_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_product_memories_product ON product_memories(product_id);
+CREATE INDEX idx_product_memories_embedding ON product_memories USING ivfflat (embedding vector_cosine_ops);
+
+-- user_learning_paths:Rutas personalizadas por usuario
+CREATE TABLE user_learning_paths (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    path_data JSONB NOT NULL DEFAULT '{}',  -- {milestones:[],current_step,completed[]}
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(creator_id, date)
+    UNIQUE(user_id, product_id)
 );
 
-CREATE VIEW creator_insights_summary AS
-SELECT 
-    creator_id,
-    SUM(total_revenue) as lifetime_revenue,
-    SUM(total_revenue) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as revenue_30d,
-    SUM(new_reviews) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as reviews_30d,
-    SUM(new_reviews * avg_rating) FILTER (WHERE avg_rating IS NOT NULL AND date >= CURRENT_DATE - INTERVAL '90 days') 
-      / NULLIF(SUM(new_reviews) FILTER (WHERE avg_rating IS NOT NULL AND date >= CURRENT_DATE - INTERVAL '90 days'), 0) as avg_rating_90d,
-    SUM(new_questions) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as questions_30d,
-    SUM(new_subscriptions) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as new_subs_30d,
-    SUM(canceled_subscriptions) FILTER (WHERE date >= CURRENT_DATE - INTERVAL '30 days') as canceled_30d
-FROM creator_daily_metrics
-GROUP BY creator_id;
-```
+-- micro_learning_assets:Nuggets, resúmenes, mapas mentales
+CREATE TABLE micro_learning_assets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    asset_type VARCHAR(20) NOT NULL,  -- 'nugget','summary','mindmap','quiz'
+    content JSONB NOT NULL,
+    video_url VARCHAR(500),
+    thumbnail_url VARCHAR(500),
+    duration_seconds INTEGER,
+    is_published BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_micro_assets_product ON micro_learning_assets(product_id, asset_type);
 
----
-
-### 3.2 Tutor AI Avanzado
-
-#### 3.2.1 Descripción
-
-Asistente IA que responde preguntas de estudiantes basadas en el contenido del curso. Usa Crema Memory Service para contexto optimizado.
-
-#### 3.2.2 User Stories
-
-| ID | Como | quiero | para |
-|----|------|--------|------|
-| AI-01 | Estudiante | hacer preguntas sobre el contenido | resolver dudas instantáneamente |
-| AI-02 | Estudiante | ver respuestas del Tutor | aprender sin esperar al creator |
-| AI-03 | Creador | entrenar el Tutor con mi contenido | ofrecer soporte 24/7 |
-| AI-04 | Creador | ver insights de preguntas | entender qué confunde a estudiantes |
-| AI-05 | Creador | nombrar el Tutor | personalizar la experiencia |
-
-#### 3.2.3 Modelo de Datos
-
-```sql
--- Configuración del Tutor por producto
-CREATE TABLE product_tutor_config (
-    product_id UUID PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
-    is_enabled BOOLEAN DEFAULT FALSE,
-    tutor_name VARCHAR(50) DEFAULT 'Tutor',
-    welcome_message TEXT,
-    system_prompt TEXT,
-    model_name VARCHAR(50) DEFAULT 'gpt-4o-mini',
-    is_trained BOOLEAN DEFAULT FALSE,
-    last_training_at TIMESTAMPTZ,
-    training_status VARCHAR(20) DEFAULT 'not_started',
-    training_error TEXT,
-    messages_used INT DEFAULT 0,
-    messages_limit INT DEFAULT 100,
+-- product_seo_configs:Meta tags por producto
+CREATE TABLE product_seo_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+    meta_title VARCHAR(70),
+    meta_description VARCHAR(160),
+    og_title VARCHAR(70),
+    og_description VARCHAR(160),
+    og_image_url VARCHAR(500),
+    schema_markup JSONB,
+    keywords TEXT[],
+    canonical_url VARCHAR(500),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Conversaciones con el Tutor
-CREATE TABLE tutor_conversations (
+-- sentiment_analyses:Historial de análisis de reviews
+CREATE TABLE sentiment_analyses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    session_id UUID DEFAULT gen_random_uuid(),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    last_message_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Mensajes individuales
-CREATE TABLE tutor_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    conversation_id UUID NOT NULL REFERENCES tutor_conversations(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-    tokens_used INT,
-    response_time_ms INT,
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    analysis_date DATE NOT NULL,
+    total_reviews INTEGER,
+    positive_count INTEGER,
+    neutral_count INTEGER,
+    negative_count INTEGER,
+    average_score DECIMAL(3,2),
+    top_positive_themes TEXT[],
+    top_negative_themes TEXT[],
+    trends JSONB,  -- {date:[],score:[]}
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE INDEX idx_sentiment_product_date ON sentiment_analyses(product_id, analysis_date);
 
--- Insights generados por IA
-CREATE TABLE tutor_insights (
+-- drm_configs:Configuración de protección por producto
+CREATE TABLE drm_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    insight_type VARCHAR(50) NOT NULL,
-    title VARCHAR(200) NOT NULL,
-    description TEXT NOT NULL,
-    confidence_score DECIMAL(3,2),
-    related_lessons JSONB DEFAULT '[]',
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### 3.2.4 Integración con Crema Memory
-
-```typescript
-// services/ai/tutor.service.ts
-class TutorService {
-  async chat(
-    productId: string,
-    userId: string,
-    message: string
-  ): Promise<{ response: string; tokens: number }> {
-    // 1. Verificar límites
-    const config = await this.getConfig(productId);
-    if (config.messages_used >= config.messages_limit) {
-      throw new AppError('Límite de mensajes alcanzado', 429);
-    }
-    
-    // 2. Buscar contexto en memoria (usando Crema Memory Service)
-    const context = await memoryService.searchSimilar(productId, message, 3, ['lesson', 'faq']);
-    
-    // 3. Obtener historial de conversación
-    const history = await this.getConversationHistory(productId, userId);
-    
-    // 4. Generar respuesta
-    const messages = [
-      { role: 'system', content: this.buildPrompt(config) },
-      { role: 'system', content: `Contexto del curso:\n${this.formatContext(context)}` },
-      ...history.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: message },
-    ];
-    
-    const startTime = Date.now();
-    const response = await llmService.chat({
-      model: config.ai.openaiModel,
-      messages,
-      temperature: 0.7,
-      maxTokens: 500,
-    });
-    
-    const answer = response.content ?? '';
-    const tokens = response.usage?.total_tokens ?? 0;
-    const responseTime = Date.now() - startTime;
-    
-    // 5. Guardar en historial
-    await this.saveMessage(productId, userId, message, answer, tokens, responseTime);
-    
-    // 6. Actualizar contador
-    await this.incrementUsage(productId);
-    
-    return { response: answer, tokens };
-  }
-}
-```
-
-#### 3.2.5 Reglas de Negocio
-
-| Regla | Descripción |
-|-------|-------------|
-| **Disponibilidad** | Solo para productos con contenido estructurado |
-| **Límite de mensajes** | 100/mes (incluido en Pro) |
-| **Upsell** | Créditos prepagos (500 por $2 USD) |
-| **Training** | Se actualiza cuando creator modifica contenido |
-| **Fallback** | Si IA no sabe, sugiere contactar al creator |
-
----
-
-### 3.3 Insights AI Agent (Dashboards Dinámicos con IA) 🤖
-
-#### 3.3.1 Visión
-
-Dashboards dinámicos impulsados por IA que permiten a los creadores hacer preguntas en lenguaje natural y obtener insights accionables con visualizaciones automáticas.
-
-**Diferenciador vs Hotmart**: Hotmart ofrece dashboards estáticos. Crema ofrece dashboards inteligentes con conversación.
-
-#### 3.3.2 User Stories
-
-| ID | Como | quiero | para |
-|----|------|--------|------|
-| INS-01 | Creador | hacer preguntas en lenguaje natural | obtener insights sin saber SQL |
-| INS-02 | Creador | ver gráficos automáticos | visualizar datos rápidamente |
-| INS-03 | Creador | guardar dashboards útiles | acceder rápido después |
-| INS-04 | Creador | recibir sugerencias de IA | saber qué preguntar |
-| INS-05 | Creador | comparar períodos | ver evolución de mi negocio |
-
-#### 3.3.3 Interfaz de Usuario
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  My Insights - Dashboard AI                                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  💬 Ask Insights                                          │ │
-│  │                                                            │ │
-│  │  ┌────────────────────────────────────────────────────┐ │ │
-│  │  │ "¿Cuál fue mi mejor mes de ventas?"                │ │ │
-│  │  └────────────────────────────────────────────────────┘ │ │
-│  │                                                            │ │
-│  │  💬 "Tu mejor mes fue Marzo 2026 con $450,000 ARS      │ │
-│  │     en ventas. Eso representa un crecimiento del 45%      │ │
-│  │     vs el mes anterior. El producto más vendido fue      │ │
-│  │     'Curso de React' con 45 ventas."                    │ │
-│  │                                                            │ │
-│  │  📊 [Gráfico de barras: Ventas por mes]                │ │
-│  │                                                            │ │
-│  │  💡 Preguntas sugeridas:                                │ │
-│  │     - "¿Qué productos están decayendo?"                 │ │
-│  │     - "¿Cuál es mi tasa de conversión?"                  │ │
-│  │     - "¿De dónde vienen mis compradores?"                │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │   💰 Revenue   │  │   ⭐ Reviews   │  │   📚 Q&A      │ │
-│  │   $45,000     │  │   4.5 ★ (23)  │  │   89% resp.   │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  📌 Mis Dashboards Guardados                              │ │
-│  │                                                            │ │
-│  │  ⭐ "Ventas por Producto"       [Ver] [Eliminar]          │ │
-│  │  ⭐ "Conversión Mensual"        [Ver] [Eliminar]          │ │
-│  │  ⭐ "Top Affiliates"            [Ver] [Eliminar]          │ │
-│  │                                                            │ │
-│  │  [+ Crear nuevo dashboard]                                 │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-#### 3.3.4 Flujo de Pregunta
-
-```
-┌─────────────┐     ┌─────────────────┐     ┌─────────────┐
-│  Creador    │     │  Insights AI    │     │  Database   │
-└──────┬──────┘     └────────┬────────┘     └──────┬──────┘
-       │                       │                       │
-       │  "¿Cuál fue mi       │                       │
-       │   mejor mes?"         │                       │
-       │──────────────────────>│                       │
-       │                       │                       │
-       │                       │  1. Clasificar intención
-       │                       │───────────────────────│
-       │                       │                       │
-       │                       │  2. Generar SQL
-       │                       │───────────────────────│
-       │                       │                       │
-       │                       │  3. Ejecutar query
-       │                       │───────────────────────│
-       │                       │                       │
-       │                       │  4. Resultados
-       │                       │<──────────────────────│
-       │                       │                       │
-       │                       │  5. Generar insight
-       │                       │  + Determinar chart
-       │                       │                       │
-       │                       │  6. Guardar en memoria
-       │                       │  (para contexto futuro)
-       │                       │───────────────────────│
-       │                       │                       │
-       │  📊 Respuesta +      │                       │
-       │  Gráfico +            │                       │
-       │  Sugerencias          │                       │
-       │<───────────────────────│                       │
-```
-
-#### 3.3.5 Modelo de Datos
-
-```sql
--- Dashboards guardados por el creador
-CREATE TABLE creator_dashboards (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    question TEXT NOT NULL,           -- Pregunta original que generó el dashboard
-    sql_query TEXT NOT NULL,          -- SQL generado
-    chart_type VARCHAR(20) DEFAULT 'bar', -- 'bar', 'line', 'pie', 'table', 'number'
-    config JSONB DEFAULT '{}',         -- { xAxis, yAxis, filters, etc. }
-    is_favorite BOOLEAN DEFAULT FALSE,
-    view_count INT DEFAULT 0,
+    product_id UUID UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+    watermark_enabled BOOLEAN DEFAULT TRUE,
+    watermark_text VARCHAR(100),
+    view_limit INTEGER,  -- 0 = ilimitado
+    download_disabled BOOLEAN DEFAULT FALSE,
+    expiration_hours INTEGER,  -- 0 = nunca
+    regions_allowed TEXT[],  -- NULL = todas
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Historial de preguntas (para memoria y sugerencias)
-CREATE TABLE insights_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    question TEXT NOT NULL,
-    answer TEXT,
-    sql_generated TEXT,
-    chart_type VARCHAR(20),
-    data_preview JSONB,               -- Primeros 10 resultados
-    is_successful BOOLEAN DEFAULT TRUE,
-    error_message TEXT,
-    credits_used INT DEFAULT 1,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Índices
-CREATE INDEX idx_dashboards_creator ON creator_dashboards(creator_id);
-CREATE INDEX idx_dashboards_favorite ON creator_dashboards(creator_id, is_favorite) WHERE is_favorite = TRUE;
-CREATE INDEX idx_insights_creator ON insights_history(creator_id);
-CREATE INDEX idx_insights_created ON insights_history(created_at DESC);
 ```
 
-#### 3.3.6 Integración con Crema Memory MCP
+#### C.3 Servicios ya Implementados
 
-El Insights AI Agent usa el Crema Memory Service para:
+| Servicio | Ubicación | Funcionalidad |
+|----------|-----------|---------------|
+| `LLMService` | `backend/src/services/ai/llm.service.ts` | Orquestación de múltiples modelos |
+| `MemoryService` | `backend/src/services/ai/memory.service.ts` | pgvector + embeddings |
+| `CreditsService` | `backend/src/services/ai/credits.service.ts` | Sistema de créditos |
+| `QAService` | `backend/src/services/ai/qa.service.ts` | Auto-respuesta |
+| `AgentsService` | `backend/src/services/ai/agents.service.ts` | Orquestación de agentes |
+| `EmbeddingService` | `backend/src/services/ai/embedding.service.ts` | Generación de embeddings |
+| `ContentAssistantService` | `backend/src/services/ai/content/content-assistant.service.ts` | AI Content Assistant |
+| `ContentReaderService` | `backend/src/services/ai/content/content-reader.service.ts` | Lectura de contenido |
+| `QuizGeneratorService` | `backend/src/services/ai/content/quiz-generator.service.ts` | Generación de quizzes |
+| `TranscriptionService` | `backend/src/services/ai/content/transcription.service.ts` | Transcripción Whisper |
 
-1. **Contexto del negocio**: Historial de preguntas y dashboards del creador
-2. **Sugerencias personalizadas**: Basadas en qué dashboards son más útiles
-3. **Optimización de tokens**: No repetir contexto, usar solo lo relevante
+---
+
+## 16. Testing
+
+### 16.1 Unit Tests
+
+| Servicio | Tests | Archivo |
+|----------|-------|---------|
+| AiCreditsService | TC-01 a TC-06 | `ai/credits.service.test.ts` |
+| LLMService | TC-01 a TC-03 | `ai/llm.service.test.ts` |
+| MemoryService | TC-01 a TC-04 | `ai/memory.service.test.ts` |
+| EmbeddingService | TC-01 a TC-03 | `ai/embedding.service.test.ts` |
+| QAService | TC-01 a TC-02 | `ai/qa.service.test.ts` |
+| TranscriptionService | TC-01 a TC-02 | `content/transcription.service.test.ts` |
+| ContentAssistantService | TC-01 a TC-04 | `content/content-assistant.service.test.ts` |
+| QuizGeneratorService | TC-01 a TC-02 | `content/quiz-generator.service.test.ts` |
+
+### 16.2 Integration Tests
+
+| Test Case | Descripción |
+|---------|-------------|
+| IT-01 | Full flow: credits → LLM → response |
+| IT-02 | Memory: store → search → recall |
+| IT-03 | QA: question → answer with context |
+| IT-04 | Transcription: audio → transcript |
+| IT-05 | Quiz: content → questions |
+
+### 16.3 Test Fixtures
 
 ```typescript
-// services/ai/insights-agent.service.ts
-interface InsightsQuery {
-  question: string;
-  creatorId: string;
-  productId?: string;
-  period?: '7d' | '30d' | '90d' | '1y' | 'all';
-}
+// src/__tests__/fixtures/ai-features.ts
+export const mockCredits = [
+  { userId: 'user-1', balance: 100, totalPurchased: 100 },
+  { userId: 'user-2', balance: 0, totalPurchased: 0 },
+];
 
-interface InsightsResponse {
-  answer: string;
-  sql?: string;
-  data?: Record<string, unknown>;
-  chartType: 'bar' | 'line' | 'pie' | 'table' | 'number';
-  suggestions?: string[];
-  savedDashboardId?: string;
-}
+export const mockMessages = [
+  { role: 'user', content: 'Hello' },
+  { role: 'assistant', content: 'Hi there!' },
+];
 
-class InsightsAgentService {
-  
-  async askQuestion(query: InsightsQuery): Promise<InsightsResponse> {
-    // 1. Usar créditos AI
-    await aiCreditService.useCredits(query.creatorId, 1, 'Insight query');
-    
-    // 2. Buscar contexto en memoria (preguntas anteriores del creador)
-    const memoryContext = await memoryService.searchSimilar(
-      query.creatorId,
-      query.question,
-      3,
-      ['insight']
-    );
-    
-    // 3. Clasificar la intención
-    const intent = await this.classifyIntent(query.question, memoryContext);
-    
-    // 4. Generar SQL basado en la intención
-    const sql = await this.generateSQL(intent, query, memoryContext);
-    
-    // 5. Ejecutar query
-    const data = await this.executeQuery(sql);
-    
-    // 6. Generar respuesta en lenguaje natural + chart
-    const answer = await this.generateNaturalResponse(intent, data, query.question);
-    
-    // 7. Determinar tipo de gráfico óptimo
-    const chartType = this.inferChartType(intent, data);
-    
-    // 8. Generar sugerencias basadas en contexto
-    const suggestions = await this.generateSuggestions(intent, data, memoryContext);
-    
-    // 9. Guardar en historial
-    await this.saveHistory(query, answer, sql, chartType, data);
-    
-    // 10. Guardar en memoria para futuro
-    await memoryService.embed({
-      type: 'insight',
-      id: `insight-${Date.now()}`,
-      creatorId: query.creatorId,
-      content: `Pregunta: ${query.question}\nRespuesta: ${answer}\nSQL: ${sql}`,
-      metadata: { intent: intent.category, chartType }
-    });
-    
-    return { answer, sql, data, chartType, suggestions };
-  }
-  
-  async saveDashboard(
-    creatorId: string,
-    question: string,
-    sql: string,
-    chartType: string,
-    name: string
-  ): Promise<string> {
-    const { rows } = await pool.query(`
-      INSERT INTO creator_dashboards (creator_id, name, description, question, sql_query, chart_type)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id
-    `, [creatorId, name, question, question, sql, chartType]);
-    
-    // Agregar a memoria para sugerencias futuras
-    await memoryService.embed({
-      type: 'saved_dashboard',
-      id: rows[0].id,
-      creatorId,
-      content: `Dashboard guardado: ${name}\nPregunta: ${question}`,
-      metadata: { name, chartType }
-    });
-    
-    return rows[0].id;
-  }
-  
-  async getSuggestions(creatorId: string): Promise<string[]> {
-    // Buscar en memoria dashboards guardados y preguntas frecuentes
-    const memory = await memoryService.searchSimilar(
-      creatorId,
-      'suggestions questions dashboards',
-      5,
-      ['insight', 'saved_dashboard']
-    );
-    
-    // Generar sugerencias basadas en el contexto
-    return this.generateContextualSuggestions(memory);
-  }
-}
+export const mockEmbeddings = [
+  { text: 'test embedding', vector: [0.1, 0.2, 0.3] },
+];
 ```
 
-#### 3.3.7 Clasificación de Intenciones
+### 16.4 Coverage Target
 
-```typescript
-const INSIGHTS_INTENT_CLASSIFIER = `
-Clasifica la siguiente pregunta del creador en una categoría:
-
-CATEGORÍAS:
-- REVENUE_TOTAL: Ingresos totales, sumas
-- REVENUE_COMPARISON: Comparar períodos o productos
-- PRODUCT_PERFORMANCE: Performance de productos específicos
-- PRODUCT_TREND: Tendencia de un producto
-- CUSTOMER_ANALYSIS: Análisis de compradores
-- AFFILIATE_PERFORMANCE: Performance de afiliados
-- SUBSCRIPTION_ANALYSIS: Métricas de suscripción
-- ENGAGEMENT_ANALYSIS: Reviews, Q&A, engagement
-- FORECAST: Proyecciones futuras
-- CONVERSION_ANALYSIS: Tasas de conversión
-
-RESPUESTA en JSON:
-{
-  "category": "...",
-  "subcategory": "...",
-  "period": "7d|30d|90d|1y|all",
-  "productId": "uuid o null",
-  "filters": {...},
-  "chartType": "bar|line|pie|table|number",
-  "aggregation": "sum|avg|count|min|max"
-}
-
-EJEMPLOS:
-- "¿Cuánto vendí este mes?" → { category: "REVENUE_TOTAL", period: "30d" }
-- "¿Qué producto vende más?" → { category: "PRODUCT_PERFORMANCE", chartType: "bar" }
-- "¿De dónde vienen mis clientes?" → { category: "CUSTOMER_ANALYSIS", chartType: "pie" }
-`;
-```
-
-#### 3.3.8 Casos de Uso Comunes
-
-| Pregunta Natural | Categoría | Chart | SQL generado |
-|-----------------|-----------|-------|--------------|
-| "¿Cuánto vendí?" | REVENUE_TOTAL | number | SUM(amount) |
-| "¿Cuál fue mi mejor mes?" | REVENUE_COMPARISON | line | GROUP BY month ORDER BY sum |
-| "¿Qué productos venden más?" | PRODUCT_PERFORMANCE | bar | GROUP BY product ORDER BY count |
-| "¿Quiénes son mis mejores affiliates?" | AFFILIATE_PERFORMANCE | bar | GROUP BY affiliate |
-| "¿Cuál es mi rating promedio?" | ENGAGEMENT_ANALYSIS | number | AVG(rating) |
-| "¿De dónde vienen mis compradores?" | CUSTOMER_ANALYSIS | pie | GROUP BY country |
-| "¿Qué día vendo más?" | REVENUE_TREND | line | GROUP BY EXTRACT(DOW FROM created_at) |
-| "¿Cuánto debería cobrar?" | FORECAST | - | Basado en benchmarks |
-
-#### 3.3.9 Reglas de Negocio
-
-| Regla | Descripción |
-|-------|-------------|
-| **Créditos por query** | 1 crédito por pregunta |
-| **Dashboards guardados** | Máximo 50 por creador |
-| **Historial** | Últimas 100 preguntas guardadas |
-| **Sugerencias** | Basadas en dashboards guardados y frecuencia |
-| **Solo datos propios** | Creador solo ve sus propios datos |
-
-#### 3.3.10 Notificaciones
-
-| Evento | Destinatario | Canal |
-|--------|--------------|-------|
-| Dashboard guardado | Creador | In-app |
-| Nuevo insight sugerido | Creador | In-app |
+| Tipo | Target |
+|------|--------|
+| Unit Tests | >= 80% |
+| Integration | Core AI flows |
+| E2E (Playwright) | User stories |
 
 ---
 
-## 4. Arquitectura de Datos
+**Documento preparado para revisión y posterior inicio de SDD por funcionalidad.**
 
-### 4.1 Diagrama de Entidades
-
-```
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│   products  │       │   users     │       │   orders    │
-│─────────────│       │─────────────│       │─────────────│
-│ id (PK)     │       │ id (PK)     │       │ id (PK)     │
-│ creator_id  │───────│             │───────│ buyer_id    │
-│             │       │             │       │ product_id  │
-└─────────────┘       └─────────────┘       └─────────────┘
-       │
-       │
-       ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    ai_embeddings                                  │
-│  (MEMORIA CENTRAL - alimenta TODAS las features AI)             │
-│─────────────────────────────────────────────────────────────────│
-│  source_type: 'lesson' | 'faq' | 'policy' | 'qa' | 'review'   │
-│  embedding: vector(1536)                                        │
-│  content_text, metadata                                         │
-└─────────────────────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│ product_qa  │       │product_rev  │       │  reports    │
-│─────────────│       │─────────────│       │─────────────│
-│ id (PK)     │       │ id (PK)     │       │ id (PK)     │
-│ product_id  │       │ product_id  │       │ reporter_id │
-│ user_id     │       │ user_id     │       │ reported_*  │
-│ question    │       │ rating      │       │ reason_id   │
-│ parent_id   │       │ content     │       │ status      │
-└─────────────┘       └─────────────┘       └─────────────┘
-
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│product_faqs │       │ tutor_conv  │       │daily_metrics│
-│─────────────│       │─────────────│       │─────────────│
-│ id (PK)     │       │ id (PK)     │       │ id (PK)     │
-│ product_id  │       │ product_id  │       │ creator_id  │
-│ question    │       │ user_id     │       │ date        │
-│ answer      │       │ session_id  │       │ metrics...  │
-└─────────────┘       └─────────────┘       └─────────────┘
-```
-
-### 4.2 Índices Recomendados
-
-```sql
--- Memory Service (pgvector)
-CREATE INDEX idx_embeddings_source ON ai_embeddings(source_type);
-CREATE INDEX idx_embeddings_product ON ai_embeddings(product_id) WHERE product_id IS NOT NULL;
-CREATE INDEX idx_embeddings_search ON ai_embeddings USING ivfflat (embedding vector_cosine_ops);
-
--- Q&A
-CREATE INDEX idx_questions_product ON product_questions(product_id) WHERE is_public = TRUE;
-CREATE INDEX idx_questions_user ON product_questions(user_id);
-
--- Reviews
-CREATE INDEX idx_reviews_product ON product_reviews(product_id) WHERE is_public = TRUE;
-CREATE INDEX idx_reviews_rating ON product_reviews(product_id, rating DESC);
-
--- Reports
-CREATE INDEX idx_reports_status ON reports(status) WHERE status = 'pending';
-CREATE INDEX idx_reports_reporter ON reports(reporter_id);
-
--- Tutor
-CREATE INDEX idx_conversations_product ON tutor_conversations(product_id);
-CREATE INDEX idx_conversations_user ON tutor_conversations(user_id);
-CREATE INDEX idx_messages_conversation ON tutor_messages(conversation_id);
-```
-
----
-
-## 5. API Endpoints
-
-### 5.1 Memory Service (Interno)
-
-```typescript
-// servicios internos, no expuestos como REST API
-
-// services/ai/crema-memory.service.ts
-CremaMemoryService.embed(source: EmbeddingSource)
-CremaMemoryService.embedBatch(sources: EmbeddingSource[])
-CremaMemoryService.retrieve(query: MemoryQuery)
-CremaMemoryService.retrieveForTutor(productId, question, topK)
-CremaMemoryService.deleteEmbedding(type, id)
-CremaMemoryService.rebuildProductIndex(productId)
-```
-
-### 5.2 Q&A Endpoints
-
-```
-# Públicos
-GET    /api/products/:productId/questions      - Listar preguntas públicas
-GET    /api/products/:productId/faqs            - Listar FAQs
-
-# Protegidos (Usuario)
-POST   /api/products/:productId/questions       - Crear pregunta
-PATCH  /api/questions/:questionId             - Editar mi pregunta
-DELETE /api/questions/:questionId             - Eliminar mi pregunta
-POST   /api/questions/:questionId/vote         - Marcar como útil
-
-# Protegidos (Creador)
-POST   /api/questions/:questionId/answer       - Responder pregunta
-DELETE /api/questions/:questionId             - Eliminar pregunta
-
-# FAQs (Creador)
-GET    /api/products/:productId/faqs           - Listar FAQs
-POST   /api/products/:productId/faqs         - Crear FAQ
-PATCH  /api/faqs/:faqId                      - Editar FAQ
-DELETE /api/faqs/:faqId                      - Eliminar FAQ
-POST   /api/products/:productId/faqs/reorder  - Reordenar FAQs
-```
-
-### 5.3 Reviews Endpoints
-
-```
-# Públicos
-GET    /api/products/:productId/reviews        - Listar reviews públicas
-GET    /api/products/:productId/rating-summary - Rating promedio
-
-# Protegidos (Comprador con order)
-POST   /api/products/:productId/reviews       - Crear review
-PATCH  /api/reviews/:reviewId                - Editar mi review
-DELETE /api/reviews/:reviewId                - Eliminar mi review
-POST   /api/reviews/:reviewId/vote           - Marcar como útil
-
-# Protegidos (Creador)
-GET    /api/products/:productId/reviews/all  - Todas las reviews
-PATCH  /api/products/:productId/review-settings - Configurar visibility
-PATCH  /api/reviews/:reviewId/feature        - Destacar review
-
-# Admin
-DELETE /api/admin/reviews/:reviewId          - Eliminar review
-```
-
-### 5.4 Reports/Denuncias Endpoints
-
-```
-# Protegidos (Usuario)
-POST   /api/reports                          - Crear denuncia
-GET    /api/reports/my-reports               - Mis denuncias
-
-# Admin
-GET    /api/admin/reports                    - Listar todas
-GET    /api/admin/reports/:reportId         - Detalle
-PATCH  /api/admin/reports/:reportId         - Actualizar estado
-POST   /api/admin/reports/:reportId/actions - Agregar acción
-POST   /api/admin/reports/:reportId/retain-funds - Retener fondos
-POST   /api/admin/reports/:reportId/resolve  - Resolver
-
-# Creador
-GET    /api/creator/reports/my-products     - Denuncias sobre mis productos
-```
-
-### 5.5 Analytics Endpoints
-
-```
-# Creador
-GET    /api/creator/insights/summary        - Resumen general
-GET    /api/creator/insights/revenue        - Métricas de revenue
-GET    /api/creator/insights/products        - Performance por producto
-GET    /api/creator/insights/subscriptions  - Métricas de suscripción
-GET    /api/creator/insights/engagement      - Métricas de engagement
-
-# Admin
-GET    /api/admin/analytics/platform        - Analytics de toda la plataforma
-```
-
-### 5.6 Tutor AI Endpoints
-
-```
-# Estudiante
-POST   /api/products/:productId/tutor/chat   - Enviar mensaje
-GET    /api/products/:productId/tutor/history - Historial de conversación
-
-# Creador
-GET    /api/products/:productId/tutor/config - Ver configuración
-PATCH  /api/products/:productId/tutor/config - Editar configuración
-POST   /api/products/:productId/tutor/train - Iniciar entrenamiento
-GET    /api/products/:productId/tutor/insights - Ver insights generados
-POST   /api/products/:productId/tutor/insights/:id/read - Marcar como leído
-
-# Admin
-GET    /api/admin/tutor/stats               - Stats globales de uso
-```
-
----
-
-## 6. Roadmap de Implementación
-
-### Fase 1: Memory + Q&A + Reviews + Denuncias (10-12 semanas)
-
-| Semana | Módulo | Tareas |
-|--------|--------|--------|
-| **1-2** | ⭐ **Crema Memory Service** | Tabla ai_embeddings, pgvector, servicio base, hooks de sync |
-| **3-4** | Q&A Base | Tablas, CRUD básico, listados públicos |
-| **5** | Q&A Avanzado + Q&A Agent | Votos útiles, FAQs, auto-respuesta IA |
-| **6-7** | Reviews Base | Tablas, CRUD, rating summary |
-| **8** | Reviews Avanzado | Configuración creator, votes, moderation |
-| **9-10** | Denuncias Base | Tablas, motivos, CRUD, admin panel |
-| **11** | Denuncias Workflow + Reports Agent | Retención de fondos, acciones, triage IA |
-| **12** | Testing + Integración | Tests, CI, deployment |
-
-### Fase 2: Analytics + IA Avanzada (8-10 semanas)
-
-| Semana | Módulo | Tareas |
-|--------|--------|--------|
-| **1-2** | Analytics Base | Tablas daily_metrics, agregaciones, jobs |
-| **3-4** | Dashboard Frontend | Gráficos, KPIs, filtros |
-| **5-6** | Tutor AI Avanzado | Chat con memoria, insights automáticos |
-| **7** | Métricas Avanzadas | Churn, LTV, cohort retention |
-| **8** | Testing + Integración | Tests, CI, deployment |
-
-### Total Estimado: 18-22 semanas (~5 meses)
-
-### Estado de Implementación (Mayo 2026)
-
-| Categoría | Servicio | Archivo | Tests | Estado |
-|-----------|----------|---------|-------|--------|
-| **Base** | LLM Service | `ai/llm.service.ts` | ✅ | ✅ Implementado |
-| **Base** | Embedding Service | `ai/embedding.service.ts` | ✅ | ✅ Implementado |
-| **Base** | Memory Service | `ai/memory.service.ts` | ✅ | ✅ Implementado |
-| **Base** | Credits Service | `ai/credits.service.ts` | ✅ | ✅ Implementado |
-| **Content** | ContentAssistant | `ai/content/content-assistant.service.ts` | ✅ | ✅ Implementado |
-| **Content** | ContentReader | `ai/content/content-reader.service.ts` | ✅ | ✅ Implementado |
-| **Content** | QuizGenerator | `ai/content/quiz-generator.service.ts` | ✅ | ✅ Implementado |
-| **Content** | Transcription | `ai/content/transcription.service.ts` | ✅ | ✅ Implementado |
-| **Agents** | QAAgentService | `ai/agents.service.ts` | ✅ | ✅ Implementado |
-| **Agents** | TutorService | `ai/agents.service.ts` | ✅ | ✅ Implementado |
-| **Agents** | InsightsService | `ai/agents.service.ts` | ✅ | ✅ Implementado |
-| **Agents** | AnalyticsService | `ai/agents.service.ts` | ✅ | ✅ Implementado |
-| **Moderation** | ConciergeService | `ai/concierge.service.ts` | ✅ | ✅ Implementado |
-| **Moderation** | QAService | `ai/qa.service.ts` | ✅ | ✅ Implementado |
-| **Moderation** | ReviewService | `ai/review.service.ts` | ✅ | ✅ Implementado |
-| **Moderation** | DenunciationService | `ai/denunciation.service.ts` | ✅ | ✅ Implementado |
-| **Memory** | Memory Enhancement (RBAC, HNSW, Quota, LRU, Cleanup) | `ai/memory.service.ts` + workers | ✅ | ✅ SDD completo |
-| **Orchestration** | OrchestratorService | `ai/orchestrator.service.ts` | ✅ | ✅ 18 capabilities |
-| **Interactive** | InteractiveAgentService | `ai/interactive-agent.service.ts` | ✅ | ✅ SDD Tasks 1-11 |
-
-**Total: 20 servicios AI implementados**
-
-#### Implementado sin SDD (Mayo 2026):
-
-| Feature | Código | Rutas API | Tablas DB |
-|---------|--------|----------|-----------|
-| Q&A Agent | `qaAgentService` en `agents.service.ts` | ✅ `/qa/chat`, `/qa/config` | ✅ `product_qa_agent_config` |
-#### Implementado:
-
-| Feature | Servicio | API | Tablas |
-|---------|----------|-----|--------|
-| Tutor AI | `tutorService` en `agents.service.ts` | ✅ `/tutor/chat`, `/tutor/insights` | ✅ `product_tutor_config`, `tutor_insights` |
-| Analytics | `analyticsService.getDashboardMetrics()` | ✅ `/analytics/dashboard` | ✅ `creator_daily_metrics` |
-| Insights AI | `insightsService` (CRUD dashboards, NL→SQL) | ✅ `/insights/dashboards`, `/insights/query` | ✅ `creator_dashboards`, `insights_history` |
-| Reports | `reportService` en `denunciation.service.ts` | ✅ `/reports` CRUD | ✅ `reports`, `report_reasons`, `report_actions` |
-| **Reports Agent** | `reportService.triageReport()` en `denunciation.service.ts` | ✅ `POST /admin/reports/:reportId/triage` | ✅ Reports + AI classification |
-| Memory Enhancement | `memory-enhancement` SDD | ✅ RBAC, Quota, LRU | ✅ Índices HNSW, cleanup |
-| Interactive Agent | `interactiveAgentService` + `interactive-agent.repository.ts` | ✅ `/api/interactive/*` | ✅ `user_course_data`, `product_module_fields` |
-
-#### Pendiente:
-
-| Prioridad | Tarea | SDD | Notas |
-|-----------|-------|-----|-------|
-| 🟢 BAJA | Orchestrator registration para servicios ya implementados | Descartado | Interactive Agent y Reports Agent usan rutas REST directas. Orchestrator disponible para futuras integraciones si hay caso de uso. |
-
-> **Nota:** Los SDDs de memory-enhancement y ai-content-assistant fueron creados retrospectively. Interactive Agent y Reports Agent siguen el mismo patrón: implementados sin SDD formal y ahora documentados.
-
----
-
-## 7. Dependencias y Costos
-
-### 7.1 Externas
-
-| Servicio | Uso | Costo Estimado |
-|----------|-----|----------------|
-| **OpenAI API** | Todos los features AI (embeddings + chat) | $0.50-2 USD/mes |
-| **Anthropic API** | Alternative LLM provider | Opcional |
-| **Gemini API** | Alternative LLM provider | Opcional |
-| **Ollama** | Local LLM (desarrollo) | $0 (local) |
-| **Resend** | Notificaciones email | Ya integrado |
-| **PostgreSQL + pgvector** | Memoria AI + Base de datos | Ya existe |
-
-### 7.2 Costos AI Detallados
-
-| Concepto | Sin Memoria | Con Memoria | Ahorro |
-|----------|-------------|-------------|--------|
-| **Tokens por pregunta** | ~3,100 | ~500-800 | ~75% |
-| **Costo/mes (30 Pro)** | ~$1.40 | ~$0.22 | ~85% |
-| **Costo/año (30 Pro)** | ~$17 | ~$2.64 | ~85% |
-
-### 7.3 Técnicas
-
-| Dependencia | Versión Mínima |
-|-------------|----------------|
-| Node.js | 20.x |
-| PostgreSQL | 15+ (pgvector) |
-| Redis | 7+ |
-| BullMQ | 2.x |
-
-### 7.4 Frontend Requirements
-
-| Page | Dependencias |
-|------|--------------|
-| Detalle producto | Q&A section, Reviews section |
-| Dashboard creador | Analytics tabs, Tutor config, Reports |
-| Admin panel | Reports management, Moderation tools |
-
----
-
-## Anexo A: ~~Especificación de Report Reasons~~ (DELETED — duplicate of §2.3.3 seeds at lines 934-947)
-
-> The report_reasons seed data in this section conflicted with the canonical set in §2.3.3. The canonical set (lines 934-947) is the single source of truth. This section has been removed to prevent confusion.
-
----
-
-## Anexo B: Prompts del Sistema
-
-```typescript
-// Tutor AI Prompt
-const TUTOR_SYSTEM_PROMPT = `
-Eres {tutor_name}, el asistente de IA del creador de este curso.
-Tu rol es ayudar a los estudiantes a resolver dudas sobre el contenido del curso.
-
-INSTRUCCIONES:
-1. Responde SOLO preguntas sobre el contenido del curso
-2. Usa un tono amigable y profesional
-3. Si no tienes certeza sobre algo, di que no lo sabes y sugiere contactar al creador
-4. Usa ejemplos del contenido para ilustrar tus respuestas
-5. Sé conciso pero completo
-
-LIMITACIONES:
-- NO inventes información que no esté en el contenido
-- NO des consejos fuera del alcance del curso
-
-CONTEXTO (del curso):
-{lesson_context}
-`;
-
-// Q&A Agent Prompt
-const QA_AGENT_PROMPT = `
-Eres un asistente que responde preguntas sobre productos digitales.
-Tu rol es ayudar a compradores potenciales resolviendo dudas.
-
-INSTRUCCIONES:
-1. Responde basándote SOLO en el contexto proporcionado
-2. Si no hay información suficiente, sugiere contactar al creador
-3. Usa un tono amigable y profesional
-4. Si la pregunta es sobre algo fuera del contenido, redirige
-
-CONTEXTO (lecciones + FAQs):
-{context}
-`;
-
-// Reports Triage Prompt
-const REPORTS_TRIAGE_PROMPT = `
-Analiza la siguiente denuncia y clasifica:
-1. suggestedReason: El motivo más probable (usando los códigos disponibles)
-2. severity: 1 (spam/técnico), 2 (moderado), 3 (fraude/grave)
-3. isSpam: boolean
-4. suggestedAction: Acción sugerida
-
-RESPUENDE en JSON con este formato exacto.
-`;
-```
-
----
-
-## Anexo C: Changelog
-
-| Versión | Fecha | Cambios |
-|---------|-------|---------|
-| 1.0 | Marzo 2026 | Versión inicial |
-| 1.1 | Marzo 2026 | Crema Memory Service como prioridad 1, reorganización de fases, modelo de IA detallado con costos, Agentes IA agregados |
-| 1.2 | Marzo 2026 | Sistema de créditos prepagos agregado, Insights AI Agent con dashboards dinámicos usando Crema Memory MCP |
-| 1.3 | Abril 2026 | Multi-provider LLM support (OpenAI, Ollama, Anthropic, Gemini, Simulator), Streaming SSE implementado |
-| 1.4 | Abril 2026 | Estado real documentado: Servicios base implementados (Content Assistant, Q&A, Reviews, Denunciation, Credits), Memory Enhancement Tasks pendientes, Orchestrator integración pendiente |
-| 1.5 | Mayo 2026 | Estado actualizado: 18 servicios AI implementados (sin SDD formal). Pendientes: Interactive Agent (§2.5), Reports Agent triage IA. Memory Enhancement y ai-content-assistant completados con SDD. |
-
-| 1.5 | Mayo 2026 | Estado actualizado: 18 servicios AI implementados (sin SDD formal). Pendientes: Interactive Agent (§2.5), Reports Agent triage IA. Memory Enhancement y ai-content-assistant completados con SDD. |
-| 1.6 | Mayo 2026 | Interactive Agent (§2.5) completado con SDD. Feature completo: SQL, types, schemas, repository, service, routes, tests (1231 passing). Credit flow idempotente con referenceId check. Retry pattern con double-charge prevention. |
-
----
-
-*Documento preparado para el proyecto Crema - Mayo 2026*
-*Versión: 1.6 - Estado: Interactive Agent implementado, Reports Agent pendiente*
-*Última actualización: Mayo 2026 - Interactive Agent SDD completo + merge a master*
+*Versión: 2.0 - Abril 2026*
