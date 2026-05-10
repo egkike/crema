@@ -1944,24 +1944,37 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 ---
 
-## 8. Dependencias con otros PRDs
+## 8. Dependencias entre Features y otros PRDs
 
-> Las features de AI-FEATURES-PRD dependen de componentes definidos en otros PRDs. Esta sección clarifica las dependencias.
+> Esta sección clarifica las dependencias entre features AI y con otros PRDs del proyecto.
 
-### Dependencias con ARCHITECTURE-PRD (v2.0)
+### 8.1 Dependencias entre Features AI-FEATURES
 
-| Feature AI-FEATURES | Dependencia Arquitectura | Fase对应 |
-|---------------------|--------------------------|----------|
+| Feature | Depende de | Estado Dependencia | Notas |
+|---------|------------|-------------------|-------|
+| **§4.17 Book Highlights** | §4.3 Conversational Reader | ❌ Debe implementarse después | Requiere que MemoryService tenga chunks de PDFs |
+| **§4.6 Personalized Learning Path** | §4.24 Memory Enhancement | ✅ Resuelta | Memory Enhancement (HNSW + RBAC + Quota) ya está completo |
+| **§4.4 Micro-Learning Generator** | TranscriptionService + QuizGenerator | ✅ Disponible | Servicios ya implementados |
+| **§4.5 Smart Chapters** | TranscriptionService | ✅ Disponible | Servicio existente |
+| **§4.18 Audio Notes** | TranscriptionService | ✅ Disponible | Servicio existente |
+| **§4.20 Transcript Search** | TranscriptionService | ✅ Disponible | Servicio existente |
+| **§4.19 AI Summary** | ContentAssistantService | ✅ Disponible | Ya existe `analysisType: 'summary'` |
+| **§4.14 Sentiment Analytics** | ReviewsService | ✅ Disponible | Servicio existente |
+
+### 8.2 Dependencias con ARCHITECTURE-PRD (v2.0)
+
+| Feature AI-FEATURES | Dependencia Arquitectura | Estado |
+|---------------------|--------------------------|--------|
 | **Tutor IA** | Memory Service (pgvector) | ✅ Existente |
-| **Conversational Reader** | Memory Service + pgvector | Existente |
-| **Smart Chapters** | Transcription Service | Existente |
-| **Personalized Learning Path** | User Context Memory | Fase 5 (Sem 20-24) |
-| **User Notes & Highlights** | User Context Memory | Fase 5 (Sem 20-24) |
-| **AI Summary** | User Context Memory | Fase 5 (Sem 20-24) |
-| **Predictive Analytics** | AI Insights + pgvector | Fase 6 (Sem 41-42) |
-| **Content Moderation** | AI Content Assistant | Fase 6 (Sem 43-44) |
+| **Conversational Reader** | Memory Service + pgvector | ✅ Existente |
+| **Smart Chapters** | Transcription Service | ✅ Existente |
+| **Personalized Learning Path** | §4.24 Memory Enhancement | ✅ Completado (Mayo 2026) |
+| **User Notes & Highlights** | §4.24 Memory Enhancement | ✅ Completado |
+| **AI Summary** | ContentAssistantService | ✅ Disponible |
+| **Predictive Analytics** | AI Insights + pgvector | ⚠️ Pendiente (§4.8) |
+| **Content Moderation** | AI Content Assistant | ✅ Disponible |
 
-### Dependencias con CONTENT-SECURITY-PRD (v2.0)
+### 8.3 Dependencias con CONTENT-SECURITY-PRD (v2.0)
 
 | Feature AI-FEATURES | Validación Requerida | Sección Content-Security |
 |---------------------|---------------------|------------------------|
@@ -1971,19 +1984,41 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | **Transcripción** | Contenido del creador | Validaciones existentes |
 | **Content Moderation** | Moderación AI | 10.x |
 
-### Orden de Implementación Recomendado
+### 8.4 Orden de Implementación Recomendado
 
-1. **ARCHITECTURE Fase 1-4** (Semanas 1-10): ConfigService → Orchestrator → Skills → Errors
-2. **AI-FEATURES Fases 1-4** (Semanas 1-32): Credits → Tools → Learning → Advanced
-3. **CONTENT-SECURITY**: En paralelo, las validaciones se implementan según la necesidad de cada feature
+> Dado que la mayoria de dependencias ya están resueltas, el orden se basa en score de viabilidad y复用 de código.
 
-### Timeline Coordinación
+**Fase A (Meses 1-2):复用 existente**
+1. §4.10 AI Afiliate Chat —复用 ConciergeService
+2. §4.12 SEO Optimizer —复用 ContentAssistant
+3. §4.8 AI Insights expand —复用 InsightsService
 
-- AI-FEATURES Fase 3 (Learning AI): Semanas 17-24
-- ARCHITECTURE Fase 5 (User Context): Semanas 20-24
-- Ambos sincronizados para dependencias cruzadas
+**Fase B (Meses 3-4): Contenido y monetización**
+4. §4.11 Description Generator —复用 ContentAssistant
+5. §4.13 Certificate PDF — score 8/10, infraestructura parcial existe
+6. §4.20 Transcript Search —复用 TranscriptionService
 
-> **Nota**: Para implementación, seguir primero el Architecture PRD (base) y luego AI-FEATURES (features).
+**Fase C (Meses 5-6): Engagement**
+7. §4.14 Sentiment Analytics — score 9/10
+8. §4.3 Conversational Reader — base para §4.17
+9. §4.19 AI Summary —复用 existente
+
+**Fase D (Meses 7-8): Protección y expansión**
+10. §4.15 Advanced DRM
+11. §4.5 Smart Chapters —复用 Transcription
+12. §4.4 Micro-Learning Generator —复用 Transcription + QuizGenerator
+
+**Fase E (Meses 9-10): Personalización**
+13. §4.6 Personalized Learning Path — dependencias resueltas ✅
+14. §4.17 Book Highlights — requiere §4.3 primero ❌
+
+### 8.5 Resumen de Estado de Dependencias
+
+| Métrica | Cantidad |
+|---------|----------|
+| Dependencias resueltas (infraestructura existente) | 12 |
+| Dependencias pendientes (entre features) | 1 (§4.3 → §4.17) |
+| Dependencias bloqueantes | 0 |
 
 ---
 
