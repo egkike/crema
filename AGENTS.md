@@ -323,6 +323,47 @@ Before any commit:
 □ User confirmed ready to commit
 ```
 
+### Commit Split Procedure (Standard)
+
+Para TODO feature que involucre código + tests + docs, SIEMPRE split en 3 partes:
+
+#### Parte 1: CODE (feature branch)
+```
+□ Pre-flight (TSC, Lint, Tests)
+□ git checkout -b feat/<feature-name>
+□ git add <code files only>
+□ git commit -m "feat(area): description"
+□ git push -u origin feat/<feature-name>
+□ gh pr create --title "feat(area): description" --body "..."
+□ Esperar merge en GitHub antes de continuar
+```
+
+#### Parte 2: TESTS (feature branch)
+```
+□ Pre-flight (TSC, Lint, Tests)
+□ git add <test files>
+□ git commit -m "test(area): add tests for feature"
+□ git push
+□ gh pr create --title "test(area): add tests for feature" --body "..."
+□ Esperar merge en GitHub antes de continuar
+```
+
+#### Parte 3: DOCS (master directo)
+```
+□ Pre-flight (verificar compilación)
+□ git checkout master
+□ git pull
+□ git add <docs files only>
+□ git commit -m "docs(area): add documentation for feature"
+□ git push
+```
+
+**Reglas:**
+- Siempre ejecutar en orden: CODE → TESTS → DOCS
+- Esperar merge de cada parte antes de continuar con la siguiente
+- Si solo hay código (≤ 8 archivos, sin tests ni docs): commit normal
+- DOCS va directo a master porque son solo archivos markdown
+
 ### Pull Request Requirements
 
 1. Create feature branch from `master`
