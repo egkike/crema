@@ -22,6 +22,7 @@ import { qaAgentService, tutorService, insightsService, analyticsService } from 
 import { contentAssistantService, type ProductType } from './content/content-assistant.service';
 import { contentReaderService } from './content/content-reader.service';
 import { quizGeneratorService, type QuizQuestionType } from './content/quiz-generator.service';
+import { affiliateChatService } from './affiliate-chat.service';
 import { transcriptionService } from './content/transcription.service';
 import { qaService } from './qa.service';
 import { reviewService } from './review.service';
@@ -290,6 +291,64 @@ const options: ChatStreamOptions = {
       }
 
       return conciergeService.chat({ message, userId });
+    },
+  },
+
+  // ========================================================================
+  // Affiliate Chat Service
+  // ========================================================================
+  {
+    id: 'affiliate-chat',
+    name: 'AI Affiliate Chat',
+    capability: 'affiliate.chat',
+    description: 'Chat contextualizado sobre productos para afiliados y compradores',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'productId', type: 'string', required: true },
+      { name: 'message', type: 'string', required: true },
+      { name: 'userId', type: 'string', required: true },
+    ],
+    options: { timeout: 30000, retries: 2, cacheable: false },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const { requestingUserId, productId, message, userId } = input as {
+        requestingUserId: unknown;
+        productId: unknown;
+        message: unknown;
+        userId: unknown;
+      };
+
+      // Validate requestingUserId (required for authorization)
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required and must be a non-empty string', 400);
+      }
+
+      // Validate message
+      if (typeof message !== 'string' || message.length === 0) {
+        throw new AppError('message is required and must be a non-empty string', 400);
+      }
+      if (message.length > 2000) {
+        throw new AppError('message must be less than 2000 characters', 400);
+      }
+
+      // Validate productId
+      if (typeof productId !== 'string' || productId.length === 0) {
+        throw new AppError('productId is required and must be a non-empty string', 400);
+      }
+
+      // Validate userId
+      if (typeof userId !== 'string' || userId.length === 0) {
+        throw new AppError('userId is required and must be a non-empty string', 400);
+      }
+
+      // Authorization: verify caller owns this resource
+      if (requestingUserId !== userId) {
+        throw new AppError('Unauthorized access to user affiliate chat', 403);
+      }
+
+      return affiliateChatService.chat({ productId, userId, message });
     },
   },
 

@@ -2,6 +2,7 @@
 // spam y sobrecarga (especialmente en rutas sensibles como /login y /refresh).
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
+import { configService } from '../../services/config.service';
 import logger from '../../utils/logger';
 
 // Limite para login (anti-brute force)
@@ -239,6 +240,27 @@ export const interactiveAgentLimiter = rateLimit({
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de análisis interactivo alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
+// Rate limiter para Affiliate Chat — configurable via affiliate_chat.rate_limit
+// SPEC AC-6: default 30/min, overrides aiChatLimiter (10/min) for this endpoint
+export const affiliateChatLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: async () => await configService.getNumber('affiliate_chat.rate_limit', 30), // configurable via affiliate_chat.rate_limit, default 30
+  message: {
+    success: false,
+    error: 'Límite de chat con IA alcanzado. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId || ipKeyGenerator(req.ip || '');
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de chat de afiliado alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });

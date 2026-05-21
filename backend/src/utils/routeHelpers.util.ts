@@ -51,9 +51,9 @@ export async function verifyProductAccess(
   );
   if (creatorCheck.rows.length > 0) return;
 
-  // 2. Check if user has purchased the product (completed order)
+  // 2. Check if user has purchased the product (confirmed order)
   const purchaseCheck = await pool.query(
-    `SELECT id FROM "${schema}"."orders" WHERE product_id = $1 AND buyer_id = $2 AND status = 'completed'`,
+    `SELECT id FROM "${schema}"."orders" WHERE product_id = $1 AND buyer_id = $2 AND status = 'confirmed'`,
     [productId, userId]
   );
   if (purchaseCheck.rows.length > 0) return;

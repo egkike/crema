@@ -62,6 +62,8 @@ export const ALLOWED_CONFIG_KEYS = [
   'support.model',
   'support.temperature',
   'support.max_tokens',
+  // AI Affiliate Chat
+  'affiliate_chat.rate_limit',
 ];
 
 // Redis client for cache - lazy initialization
