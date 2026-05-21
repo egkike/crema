@@ -249,6 +249,7 @@ vi.mock('../config/index', () => ({
     passwordPepper: 'test-pepper',
     nodeEnv: 'test',
     db: { schema: 'public' },
+    allowedSchemas: ['public'],
     smtp: { host: 'localhost', port: 587, user: 'test', pass: 'test', from: 'test@crema.com' },
     mercadoPago: { accessToken: 'test' },
     cors: { origins: '*' },
