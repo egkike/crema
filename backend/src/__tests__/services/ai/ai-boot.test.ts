@@ -91,10 +91,10 @@ describe('AI Services - registerAISkills', () => {
     expect(skillsRegistry.register).toHaveBeenCalledWith(expect.objectContaining({ id: 'embedding-batch', capability: 'embedding.batch' }));
   });
 
-it('should register all 18 skills', async () => {
+it('should register all 19 skills', async () => {
   await registerAISkills();
-  expect(skillsRegistry.register).toHaveBeenCalledTimes(18);
-  expect(registerCallCount).toBe(18);
+  expect(skillsRegistry.register).toHaveBeenCalledTimes(19);
+  expect(registerCallCount).toBe(19);
 });
 
   it('should have streaming=false for llm.chat', async () => {
