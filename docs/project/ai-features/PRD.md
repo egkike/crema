@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD)
 ## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 3.6
+**Versión**: 3.7
 **Fecha**: Mayo 2026
 **Estado**:
 - ✅ Backend Services (18 servicios)
@@ -12,7 +12,8 @@
 - ✅ AI Content Assistant: COMPLETO (ContentAssistant, ContentReader, QuizGenerator, Transcription)
 - ✅ AI Support Chatbot (Concierge core): COMPLETO
 - ✅ Credit Management Dashboard: COMPLETO
-- 🆕 Features pendientes: §4.3-§4.7, §4.10-§4.15, §4.17-§4.18, §4.20 (14 features) + ⚠️ Parciales: §4.8, §4.19 - Roadmap priorizado
+- ✅ AI Affiliate Chat: COMPLETO (Tasks 1-7)
+- 🆕 Features pendientes: §4.3-§4.7, §4.11-§4.15, §4.17-§4.18, §4.20 (13 features) + ⚠️ Parciales: §4.8, §4.19 - Roadmap priorizado
 **Owner**: Kike García
 
 > **Dependencias**:
@@ -852,7 +853,20 @@ Chat de dudas para Afiliados y Compradores sobre productos específicos. Entrena
 - **Plan Initial**: Requiere créditos
 
 #### Estado
-🆕 **NUEVO** - Requiere desarrollo
+✅ **IMPLEMENTADO** (Tasks 1-7 completados, Mayo 2026)
+
+> **Implementación técnica:** Ver SDD `docs/project/ai-features/sdd/ai-affiliate-chat/`
+> - Servicio: `affiliateChatService` en `services/ai/affiliate-chat.service.ts`
+> - Endpoint: `POST /api/ai/affiliate/chat`
+> - Rate limiter: `affiliateChatLimiter` (configurable via `affiliate_chat.rate_limit`, default 30/min)
+> - Capability: `affiliate.chat` registrada en Orchestrator
+> - Config keys: `affiliate_chat.temperature`, `affiliate_chat.max_tokens`, `affiliate_chat.model`, `affiliate_chat.system_prompt_product_info`, `affiliate_chat.system_prompt_promo_copy`, `affiliate_chat.rate_limit`
+>
+> **Implementation Notes:**
+> - Credit deduction happens AFTER LLM success only (atomicity guaranteed)
+> - `affiliate_metrics` intent returns stub without LLM call — no credits deducted
+> - Prompt injection: sanitization warning logged but processing continues (SPEC §7.2 compliant)
+> - Tests: 14 unit + 14 integration = 28 total, all passing
 
 ---
 
@@ -1499,7 +1513,7 @@ WITH (m = 16, ef_construction = 64);
 | **AI Content Studio** | 🆕 | 🆕 Usa | - | - | - |
 | **AI Insights** | ⚠️ Partial | 🆕 Usa | - | - | - |
 | **AI Support Chatbot** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | ✅ Usa |
-| **AI Afiliate Chat** | 🆕 | - | 🆕 Usa | 🆕 Usa | - |
+| **AI Afiliate Chat** | ✅ | - | ✅ Usa | ✅ Usa | - |
 | **Description Generator** | 🆕 | 🆕 Usa | - | - | - |
 | **SEO Optimizer** | 🆕 | 🆕 Usa | - | - | - |
 | **Certificate PDF Generator** | 🆕 | 🆕 Genera | 🆕 Descarga | - | 🆕 Verifica |

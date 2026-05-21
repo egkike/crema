@@ -147,6 +147,17 @@ export const qaChatSchema = z.object({
   message: z.string().min(1, 'Message is required').max(2000, 'Message too long'),
 });
 
+// Affiliate Chat
+export const affiliateChatSchema = z.object({
+  productId: z.string().uuid({ message: 'productId must be a valid UUID' }),
+  message: z.string()
+    .min(1, { message: 'message is required' })
+    .max(2000, { message: 'message must be less than 2000 characters' }),
+  userId: z.string().uuid({ message: 'userId must be a valid UUID' }),
+});
+
+export type AffiliateChatRequest = z.infer<typeof affiliateChatSchema>;
+
 // =============================================================================
 // Query Parameter Validation Schemas
 // =============================================================================

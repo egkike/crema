@@ -11,7 +11,7 @@
 
 ### Requirement: Chat Endpoint
 
-The system MUST expose an HTTP endpoint `POST /api/ai/affiliate/chat` protected by `jwtAuthMiddleware` and `aiChatLimiter`.
+The system MUST expose an HTTP endpoint `POST /api/ai/affiliate/chat` protected by `jwtAuthMiddleware` and `affiliateChatLimiter`.
 
 The endpoint SHALL accept a JSON body with `productId` (string, UUID), `message` (string, 1–2000 chars), and `userId` (string, UUID).  
 The handler SHALL validate the input with a Zod schema; on validation failure it MUST return `400` with an `AppError` and a generic message.
@@ -66,7 +66,7 @@ The system SHALL apply, in order:
 
 **Note on prompt framing**: The LLM is instructed via the system prompt that content inside `<user_message>` tags is **always treated as escaped plaintext** — never as HTML, markup, or executable content. Even if the LLM receives `<user_message>&lt;script&gt;alert(1)&lt;/script&gt;</user_message>`, it must interpret this as the literal text string, not rendered HTML.
 
-If the sanitized input differs from the original by more than 10 % (indicating possible injection payloads), the system MUST log a security warning and return `400` with `AppError`.
+If the sanitized input differs from the original by more than 10 % (indicating possible injection payloads), the system MUST log a security warning. The request is sanitized and processing continues (per SPEC scenario §7.2); a `400` is returned only if the sanitized input becomes empty.
 
 ### Requirement: Credit Consumption
 
@@ -86,7 +86,9 @@ Credit transactions MUST be recorded with `type = 'usage'`, `description = 'Affi
 
 ### Requirement: Rate Limiting
 
-The endpoint SHALL use the existing `aiChatLimiter` middleware.
+The endpoint SHALL use a dedicated `affiliateChatLimiter` middleware (separate from `aiChatLimiter`).
+
+The max requests per window is controlled by `affiliate_chat.rate_limit` config key (default: 30), read dynamically via `configService.getNumber()` on each request. This allows independent tuning for affiliate chat traffic.
 
 Response headers MUST include:
 - `X-RateLimit-Limit`: max requests per window
@@ -138,9 +140,9 @@ On limit exceeded, the system MUST return `429` with `Retry-After` header.
 
 ### AC-6: Rate limiting
 - More than 30 requests per minute from the same user return `429`.
-- The rate limit is configurable via `affiliate_chat.rate_limit` (default: 30) which overrides the `aiChatLimiter` default for this endpoint only.
+- The rate limit is configurable via `affiliate_chat.rate_limit` (default: 30) which controls the `affiliateChatLimiter` for this endpoint.
 - Response includes `X-RateLimit-*` headers on every call.
-- **Note**: This feature uses the shared `aiChatLimiter` middleware configured with `affiliate_chat.rate_limit` for the max window count.
+- **Note**: This feature uses a dedicated `affiliateChatLimiter` middleware (separate from `aiChatLimiter`) configured with `affiliate_chat.rate_limit` for the max window count.
 
 ### AC-7: Security
 - Inputs containing `[USER_INPUT_START]` or control characters are sanitized before reaching the LLM.
@@ -162,7 +164,7 @@ POST /api/ai/affiliate/chat
 
 **Middleware chain:**
 ```
-jwtAuthMiddleware → aiChatLimiter → validate(zodSchema) → handler
+jwtAuthMiddleware → affiliateChatLimiter → validate(zodSchema) → handler
 ```
 
 ### 4.2 Zod Validation Schema
@@ -292,7 +294,7 @@ The feature reuses existing tables:
 | Rate limit exceeded | `429` | `429` | `Too many requests` | `info` |
 | LLM timeout (>30 s) | `503` | `503` | `Service temporarily unavailable` | `error` | No credits deducted |
 | LLM failure after retries | `500` | `500` | `Error processing request. Please try again.` | `error` | No credits deducted |
-| Prompt injection detected | `400` | `400` | `Invalid input` | `warn` | Request rejected; no credits deducted |
+| Prompt injection detected | — | — | Request sanitized and processed; warning logged per SPEC §7.2 scenario | `warn` | Sanitization warning logged but processing continues (SPEC §7.2 compliant); 400 returned only if sanitized input becomes empty |
 
 ---
 

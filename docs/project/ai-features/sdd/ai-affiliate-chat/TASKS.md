@@ -78,7 +78,8 @@ const DEFAULT_PROMO_COPY_PROMPT = `You are a marketing copywriter for affiliate 
 | `affiliate_chat.temperature` | number | 0.7 |
 | `affiliate_chat.max_tokens` | number | 1000 |
 | `affiliate_chat.model` | string | null |
-| `affiliate_chat.system_prompt` | string | `DEFAULT_PRODUCT_INFO_PROMPT` |
+| `affiliate_chat.system_prompt_product_info` | string | `DEFAULT_PRODUCT_INFO_PROMPT` |
+| `affiliate_chat.system_prompt_promo_copy` | string | `DEFAULT_PROMO_COPY_PROMPT` |
 | `affiliate_chat.rate_limit` | number | 30 |
 
 **Imports needed**:
@@ -92,12 +93,12 @@ import type { EmbeddingSearchResult } from '../../types/ai.types';
 ```
 
 ### Verification
-- [ ] File exists at `backend/src/services/ai/affiliate-chat.service.ts`
-- [ ] `export const affiliateChatService` is the main export
-- [ ] Helper functions `sanitizeInput`, `defensiveFramePrompt`, `classifyIntent` are **exported** for route-level credit decisions
-- [ ] `chat()` method accepts `AffiliateChatInput` and returns `Promise<AffiliateChatResponse>`
-- [ ] No `any` types in the file
-- [ ] `pnpm tsc --noEmit` passes
+- [x] File exists at `backend/src/services/ai/affiliate-chat.service.ts`
+- [x] `export const affiliateChatService` is the main export
+- [x] Helper functions `sanitizeInput`, `defensiveFramePrompt`, `classifyIntent` are **exported** for route-level credit decisions
+- [x] `chat()` method accepts `AffiliateChatInput` and returns `Promise<AffiliateChatResponse>`
+- [x] No `any` types in the file
+- [x] `pnpm tsc --noEmit` passes
 
 ---
 
@@ -124,11 +125,11 @@ export type AffiliateChatRequest = z.infer<typeof affiliateChatSchema>;
 ```
 
 ### Verification
-- [ ] `affiliateChatSchema` is exported from `ai.schema.ts`
-- [ ] `AffiliateChatRequest` type is exported
-- [ ] Schema validates: UUID for productId, 1-2000 chars for message, UUID for userId
-- [ ] `pnpm tsc --noEmit` passes
-- [ ] `pnpm lint` passes
+- [x] `affiliateChatSchema` is exported from `ai.schema.ts`
+- [x] `AffiliateChatRequest` type is exported
+- [x] Schema validates: UUID for productId, 1-2000 chars for message, UUID for userId
+- [x] `pnpm tsc --noEmit` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -142,8 +143,9 @@ Add the `POST /api/ai/affiliate/chat` route to `backend/src/routes/ai.routes.ts`
 
 **Import additions** (top of file):
 ```typescript
-import { affiliateChatService, classifyIntent } from '../services/ai/affiliate-chat.service';
+import { affiliateChatService, classifyIntent, sanitizeInput } from '../services/ai/affiliate-chat.service';
 import { affiliateChatSchema } from '../schemas/ai.schema';
+// Note: affiliateChatLimiter is already imported from rateLimit middleware (check existing imports)
 ```
 
 **Route placement**: After Phase 7 routes (Tutor + Insights section), before the end of the file. Add a new section comment:
@@ -163,7 +165,7 @@ import { affiliateChatSchema } from '../schemas/ai.schema';
  */
 router.post('/affiliate/chat',
   jwtAuthMiddleware,
-  aiChatLimiter,
+  affiliateChatLimiter,
   validate(affiliateChatSchema),
   async (req: Request, res: Response) => {
     const userId = uid(req);
@@ -188,10 +190,10 @@ router.post('/affiliate/chat',
       const result = await affiliateChatService.chat({ productId, userId, message });
 
       // Only deduct credits if NOT a buyer (i.e., affiliate) AND intent is not affiliate_metrics
-      // Note: classifyIntent is called on raw message here for credit decision only.
-      // The service re-classifies on sanitized input internally; if they differ, the service wins.
+      // Note: We sanitize the message before classifying to keep route and service intent aligned.
+      // If they ever differ, the service intent (sanitized) takes precedence over credit decisions.
       if (buyerCheck.rows.length === 0) {
-        const intent = classifyIntent(message); // exported from affiliate-chat.service.ts
+        const intent = classifyIntent(sanitizeInput(message)); // exported from affiliate-chat.service.ts
         if (intent !== 'affiliate_metrics') {
           // Wrap in own try/catch to prevent credit loss if useCredits fails after LLM success
           try {
@@ -218,14 +220,14 @@ router.post('/affiliate/chat',
 **Note**: The `verifyProductAccess` helper already checks for creator, buyer, or affiliate access. The buyer check is separate to determine credit charging.
 
 ### Verification
-- [ ] `affiliateChatService` imported in `ai.routes.ts`
-- [ ] `affiliateChatSchema` imported in `ai.routes.ts`
-- [ ] Route registered at `POST /affiliate/chat`
-- [ ] Middleware chain: `jwtAuthMiddleware` → `aiChatLimiter` → `validate(affiliateChatSchema)` → handler
-- [ ] `verifyProductAccess` called before processing
-- [ ] Credit deduction only for non-buyers
-- [ ] `pnpm tsc --noEmit` passes
-- [ ] `pnpm lint` passes
+- [x] `affiliateChatService` imported in `ai.routes.ts`
+- [x] `affiliateChatSchema` imported in `ai.routes.ts`
+- [x] Route registered at `POST /affiliate/chat`
+- [x] Middleware chain: `jwtAuthMiddleware` → `affiliateChatLimiter` → `validate(affiliateChatSchema)` → handler
+- [x] `verifyProductAccess` called before processing
+- [x] Credit deduction only for non-buyers
+- [x] `pnpm tsc --noEmit` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -305,13 +307,13 @@ import { affiliateChatService } from './affiliate-chat.service';
 ```
 
 ### Verification
-- [ ] `affiliateChatService` imported in `index.ts`
-- [ ] Skill object added to the `skills` array
-- [ ] Capability ID is `affiliate.chat`
-- [ ] Handler validates all 4 parameters with typeof checks
-- [ ] Authorization check: `requestingUserId === userId`
-- [ ] `pnpm tsc --noEmit` passes
-- [ ] `pnpm lint` passes
+- [x] `affiliateChatService` imported in `index.ts`
+- [x] Skill object added to the `skills` array
+- [x] Capability ID is `affiliate.chat`
+- [x] Handler validates all 4 parameters with typeof checks
+- [x] Authorization check: `requestingUserId === userId`
+- [x] `pnpm tsc --noEmit` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -327,13 +329,13 @@ Add `affiliateChatService` to the AI Services table in `docs/project/reusable-re
 
 **Entry to add** (after `conciergeService`):
 ```markdown
-| `affiliateChatService` | AI chat for affiliates/buyers about specific products (RAG-based) |
+| `affiliateChatService` | AI chat for affiliates/buyers about specific products (RAG-based, credit-gated) |
 ```
 
 ### Verification
-- [ ] `affiliateChatService` appears in the AI Services table
-- [ ] Description matches the service purpose
-- [ ] Table formatting is consistent with existing entries
+- [x] `affiliateChatService` appears in the AI Services table
+- [x] Description matches the service purpose
+- [x] Table formatting is consistent with existing entries
 
 ---
 
@@ -414,6 +416,7 @@ describe('affiliateChatService', () => {
 | 11 | `chat()` logs warning when input is significantly sanitized | Security warning logged when >10% length difference |
 | 12 | `chat()` handles empty RAG results | Response states no product context available; sources is empty array |
 | 13 | `chat()` re-throws LLM errors as AppError(500) | Generic error message, no stack trace exposed |
+| 14 | `chat()` throws AppError(400) for empty sanitized input | Empty input after sanitization is rejected |
 
 **Mock setup**:
 ```typescript
@@ -443,13 +446,13 @@ vi.mock('../../../services/config.service', () => ({
 ```
 
 ### Verification
-- [ ] File exists at `backend/src/__tests__/services/ai/affiliate-chat.service.test.ts`
-- [ ] All 13 tests pass with `pnpm vitest run affiliate-chat.service`
-- [ ] No `any` types in test file
-- [ ] Mocks are properly scoped with `vi.mock()`
-- [ ] `beforeEach` calls `vi.clearAllMocks()`, `afterEach` calls `vi.resetAllMocks()`
-- [ ] Test constants defined at top (`USER_ID`, `BUYER_ID`, `AFFILIATE_ID`, `PRODUCT_ID`)
-- [ ] `vi.mocked()` used for assertions on mock call arguments
+- [x] File exists at `backend/src/__tests__/services/ai/affiliate-chat.service.test.ts`
+- [x] All 14 tests pass with `pnpm vitest run affiliate-chat.service`
+- [x] No `any` types in test file
+- [x] Mocks are properly scoped with `vi.mock()`
+- [x] `beforeEach` calls `vi.clearAllMocks()`, `afterEach` calls `vi.resetAllMocks()`
+- [x] Test constants defined at top (`USER_ID`, `BUYER_ID`, `AFFILIATE_ID`, `PRODUCT_ID`)
+- [x] `vi.mocked()` used for assertions on mock call arguments
 
 ---
 
@@ -526,24 +529,26 @@ describe('Affiliate Chat Routes', () => {
 | 4 | Returns 400 with empty `message` | Zod validation catches empty string |
 | 5 | Returns 400 with `message` > 2000 chars | Zod validation catches too-long message |
 | 6 | Returns 403 when user has no product access | `verifyProductAccess` rejects unauthorized user |
-| 7 | Returns 200 for buyer with confirmed order | Buyer can chat; no credits deducted |
-| 8 | Returns 200 for affiliate with active link | Affiliate can chat; credits are deducted |
-| 9 | `aiCreditService.useCredits` NOT called for buyers | Buyer check prevents credit deduction |
-| 10 | `aiCreditService.useCredits` called for affiliates | Credit deduction happens for non-buyers |
-| 11 | Returns 429 when rate limit exceeded | `aiChatLimiter` blocks excessive requests |
-| 12 | Response includes `X-RateLimit-*` headers | Rate limit headers present on every response |
+| 7 | Returns 403 when body userId != JWT userId | Auth boundary check enforced |
+| 8 | Returns 200 for buyer with confirmed order | Buyer can chat; no credits deducted |
+| 9 | Returns 200 for affiliate with active link | Affiliate can chat; credits are deducted |
+| 10 | `aiCreditService.useCredits` NOT called for buyers | Buyer check prevents credit deduction |
+| 11 | `aiCreditService.useCredits` called for affiliates | Credit deduction happens for non-buyers |
+| 12 | Returns 429 when rate limit exceeded | `affiliateChatLimiter` blocks excessive requests |
+| 13 | Response includes `X-RateLimit-*` headers | Rate limit headers present on every response |
+| 14 | `affiliate_metrics` intent does NOT deduct credits | Stub response returns without credit deduction |
 
 ### Verification
-- [ ] File exists at `backend/src/__tests__/routes/affiliate-chat.routes.test.ts`
-- [ ] All 12 tests pass with `pnpm vitest run affiliate-chat.routes`
-- [ ] No `any` types in test file
-- [ ] `import '../setup'` present for database setup
-- [ ] `import { app } from '../../../app'` and `import request from 'supertest'` present
-- [ ] Auth uses real login pattern (buyer + affiliate via POST /api/auth/login)
-- [ ] Tests verify credit is NOT deducted for `affiliate_metrics` intent (stub response)
-- [ ] `uid(req) === userId` auth check is tested (403 when body userId != JWT user)
-- [ ] Tests cover happy paths (buyer, affiliate) and error paths (401, 400, 403, 429)
-- [ ] Credit deduction behavior verified per user role
+- [x] File exists at `backend/src/__tests__/routes/affiliate-chat.routes.test.ts`
+- [x] All 14 tests pass with `pnpm vitest run affiliate-chat.routes`
+- [x] No `any` types in test file
+- [x] `import '../setup'` present for database setup
+- [x] `import { app } from '../../../app'` and `import request from 'supertest'` present
+- [x] Auth uses real login pattern (buyer + affiliate via POST /api/auth/login)
+- [x] Tests verify credit is NOT deducted for `affiliate_metrics` intent (stub response)
+- [x] `uid(req) === userId` auth check is tested (403 when body userId != JWT user)
+- [x] Tests cover happy paths (buyer, affiliate) and error paths (401, 400, 403, 429)
+- [x] Credit deduction behavior verified per user role
 
 ---
 
@@ -565,17 +570,25 @@ pnpm test
 pnpm vitest run affiliate-chat
 ```
 
+### Test Results
+
+| Layer | Count | Status |
+|-------|-------|--------|
+| Unit tests (service) | 14 | ✅ All passing |
+| Integration tests (route) | 14 | ✅ All passing |
+| **Total** | **28** | ✅ All passing |
+
 ### File Checklist
 
 | File | Action | Status |
 |------|--------|--------|
-| `backend/src/services/ai/affiliate-chat.service.ts` | **Create** | ☐ |
-| `backend/src/schemas/ai.schema.ts` | **Modify** (add schema) | ☐ |
-| `backend/src/routes/ai.routes.ts` | **Modify** (add route) | ☐ |
-| `backend/src/services/ai/index.ts` | **Modify** (add skill) | ☐ |
-| `docs/project/reusable-resources.md` | **Modify** (add catalog entry) | ☐ |
-| `backend/src/__tests__/services/ai/affiliate-chat.service.test.ts` | **Create** | ☐ |
-| `backend/src/__tests__/routes/affiliate-chat.routes.test.ts` | **Create** | ☐ |
+| `backend/src/services/ai/affiliate-chat.service.ts` | **Create** | ✅ |
+| `backend/src/schemas/ai.schema.ts` | **Modify** (add schema) | ✅ |
+| `backend/src/routes/ai.routes.ts` | **Modify** (add route) | ✅ |
+| `backend/src/services/ai/index.ts` | **Modify** (add skill) | ✅ |
+| `docs/project/reusable-resources.md` | **Modify** (add catalog entry) | ✅ |
+| `backend/src/__tests__/services/ai/affiliate-chat.service.test.ts` | **Create** | ✅ |
+| `backend/src/__tests__/routes/affiliate-chat.routes.test.ts` | **Create** | ✅ |
 
 **Total**: 3 new files, 4 modified files.
 

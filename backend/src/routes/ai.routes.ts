@@ -14,7 +14,7 @@ import { reportService } from '../services/ai/denunciation.service';
 import { qaAgentService, analyticsService, tutorService, insightsService } from '../services/ai/agents.service';
 import { jwtAuthMiddleware } from '../middlewares/auth/jwt.middleware';
 import { restrictTo } from '../middlewares/auth/role.middleware';
-import { aiLimiter, aiChatLimiter, aiContentLimiter, transcribeUploadLimiter } from '../middlewares/rateLimit/rateLimit';
+import { aiLimiter, aiChatLimiter, aiContentLimiter, transcribeUploadLimiter, affiliateChatLimiter } from '../middlewares/rateLimit/rateLimit';
 import { validate } from '../middlewares/auth/validate.middleware';
 import { AppError } from '../errors/AppError';
 import type { AuthenticatedRequest } from '../types/express';
@@ -22,6 +22,7 @@ import type { EmbeddingSourceType } from '../types/ai.types';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
 import { configRepository } from '../repositories/config.repository'; // eslint-disable-line import/order
 
+import { affiliateChatService, classifyIntent, sanitizeInput } from '../services/ai/affiliate-chat.service';
 import { // eslint-disable-line import/order
   purchaseCreditsSchema,
   createQuestionSchema,
@@ -46,6 +47,7 @@ import { // eslint-disable-line import/order
   insightsQuerySchema,
   chatMessageSchema,
   qaChatSchema,
+  affiliateChatSchema,
 } from '../schemas/ai.schema';
 
 // Helper to cast middlewares to Express RequestHandler type
@@ -1805,6 +1807,68 @@ router.post('/insights/query/stream', jwtAuthMiddleware, aiChatLimiter, validate
     res.end();
   }
 });
+
+// ============================================
+// Affiliate Chat Routes
+// ============================================
+/**
+ * POST /api/ai/affiliate/chat
+ * Chat contextualizado sobre productos (afiliados y compradores)
+ * Afiliados: deduce 1 crédito por chat exitoso (excepto affiliate_metrics)
+ * Compradores: acceso incluido en la compra del producto
+ * Requiere: JWT válido, acceso al producto (creador/comprador/afiliado)
+ */
+router.post('/affiliate/chat',
+  jwtAuthMiddleware,
+  affiliateChatLimiter,
+  validate(affiliateChatSchema),
+  async (req: Request, res: Response) => {
+    const userId = uid(req);
+    const { productId, message, userId: bodyUserId } = req.body;
+
+    if (userId !== bodyUserId) {
+      throw new AppError('Unauthorized access', 403);
+    }
+
+    try {
+      await verifyProductAccess(pool, productId, userId);
+
+      const buyerCheck = await pool.query(
+        `SELECT id FROM "${getValidatedSchema()}"."orders" WHERE product_id = $1 AND buyer_id = $2 AND status = 'confirmed'`,
+        [productId, userId]
+      );
+
+      const result = await affiliateChatService.chat({ productId, userId, message });
+
+      if (buyerCheck.rows.length === 0) {
+        const intent = classifyIntent(sanitizeInput(message));
+        if (intent !== 'affiliate_metrics') {
+          // Credit deduction: try/catch separately so useCredits failure doesn't
+          // block the successful LLM response from reaching the user. Credits may
+          // be consumed silently if useCredits throws — logged for audit.
+          try {
+            await aiCreditService.useCredits(userId, 1, 'Affiliate Chat', productId);
+          } catch (creditError: unknown) {
+            logger.error({ error: creditError instanceof Error ? creditError.message : 'Unknown', userId, productId }, 'Credit deduction failed after LLM success — credits may be consumed but response delivered');
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        // Re-throw AppError preserving its status code (e.g., 403 from verifyProductAccess)
+        throw error;
+      }
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Affiliate chat endpoint error');
+      throw new AppError('Error processing request. Please try again.', 500);
+    }
+  }
+);
 
 // ============================================================================
 // AI Content Assistant Routes (Phase 6)

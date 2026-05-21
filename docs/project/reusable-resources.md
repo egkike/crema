@@ -92,6 +92,7 @@ throw new AppError('message', 400);
 | `memoryService` | Semantic search + embedding management (RAG) |
 | `aiCreditService` | AI credit balance management |
 | `conciergeService` | AI support chatbot |
+| `affiliateChatService` | AI chat for affiliates/buyers about specific products (RAG-based, credit-gated) |
 | `contentAssistantService` | Content analysis (summary, topics, questions) |
 | `contentReaderService` | File content extraction (PDF, Md, TXT) |
 | `transcriptionService` | Audio/video transcription |

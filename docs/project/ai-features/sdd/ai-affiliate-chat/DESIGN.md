@@ -16,7 +16,7 @@
 
 ```
 POST /api/ai/affiliate/chat
-   jwtAuthMiddleware -> aiChatLimiter -> validate(affiliateChatSchema)
+   jwtAuthMiddleware -> affiliateChatLimiter -> validate(affiliateChatSchema)
      |
      v
 Route handler (ai.routes.ts)
@@ -67,7 +67,7 @@ This ensures users only lose credits when they receive a valid response. Special
 
 ### Rate Limiting
 
-The endpoint uses the existing `aiChatLimiter` middleware. The max requests per window is controlled by `affiliate_chat.rate_limit` (default: 30). If the shared `aiChatLimiter` is configured with a different default, the route handler passes the configured value to override it for this endpoint.
+The endpoint uses a dedicated `affiliateChatLimiter` middleware (defined in `middlewares/rateLimit/rateLimit.ts`). The max requests per window is controlled by `affiliate_chat.rate_limit` (default: 30), read dynamically via `configService.getNumber()` on each request. This is separate from `aiChatLimiter` (10/min) to allow independent tuning for affiliate chat traffic.
 
 ### `affiliateChatService` — singleton object
 
@@ -116,7 +116,7 @@ Exported as `export const affiliateChatService = { ... }`. Single method: `chat(
 ```typescript
 router.post('/affiliate/chat',
   jwtAuthMiddleware,
-  aiChatLimiter,
+  affiliateChatLimiter,
   validate(affiliateChatSchema),
   async (req: Request, res: Response) => {
     const userId = uid(req);
@@ -172,8 +172,9 @@ All config via `configService` (tiered: Redis -> DB -> .env -> default). Keys:
 | `affiliate_chat.temperature` | number | 0.7 | LLM temperature |
 | `affiliate_chat.max_tokens` | number | 1000 | Max output tokens |
 | `affiliate_chat.model` | string | null | LLM model override |
-| `affiliate_chat.system_prompt` | string | (default below) | Product info system prompt |
-| `affiliate_chat.rate_limit` | number | 30 | Max requests per minute per user (passed to `aiChatLimiter`) |
+| `affiliate_chat.system_prompt_product_info` | string | `DEFAULT_PRODUCT_INFO_PROMPT` | System prompt for product_info intent |
+| `affiliate_chat.system_prompt_promo_copy` | string | `DEFAULT_PROMO_COPY_PROMPT` | System prompt for promo_copy intent |
+| `affiliate_chat.rate_limit` | number | 30 | Max requests per minute per user (read by `affiliateChatLimiter`) |
 
 **Note on `userId` field**: The `userId` field in the Zod schema serves as a validation that the caller knows their own identity. The route handler uses `uid(req)` from the JWT as the authoritative identity, then compares it with `userId` from the body as an auth boundary check (`uid(req) === userId`). If they don't match, the request is rejected with 403.
 
