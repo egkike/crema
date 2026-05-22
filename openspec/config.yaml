@@ -1,0 +1,74 @@
+strict_tdd: true
+context: |
+  crema-backend is a Node.js/TypeScript, Node.js/TypeScript ESM, React project.
+  Detected markers: package.json, pnpm package manager, backend/package.json, backend/tsconfig.json, backend/npm package manager, frontend-admin/package.json, frontend-admin/tsconfig.json, frontend-admin/npm package manager, GitHub Actions.
+  Package managers: pnpm, npm.
+  Additional evidence: Test-like files detected (121); examples: backend/docker-compose.test.yml, backend/src/__tests__/admin.test.ts, backend/src/__tests__/affiliates.test.ts, backend/src/__tests__/ai.routes.test.ts, backend/src/__tests__/auth.test.ts.
+  Primary test command: pnpm run vitest.
+  Unit tests: Vitest (pnpm run vitest); Vitest (cd backend && npm test); Vitest (cd frontend-admin && npm test).
+  Integration tests: Supertest (cd backend && npm test).
+  E2E tests: none.
+rules:
+  proposal:
+    require_problem_statement: true
+  spec:
+    require_acceptance_criteria: true
+  design:
+    require_tradeoffs: true
+  tasks:
+    protect_review_workload: true
+  apply:
+    test_command: "pnpm run vitest"
+  verify:
+    test_command: "pnpm run vitest"
+testing:
+  detected: "2026-05-22"
+  runner:
+    command: "pnpm run vitest"
+    framework: "Vitest"
+  layers:
+    unit: "Vitest, Vitest, Vitest"
+    integration: "Supertest"
+    e2e: ""
+  commands:
+    unit:
+      - scope: "."
+        command: "pnpm run vitest"
+        framework: "Vitest"
+      - scope: "backend"
+        command: "cd backend && npm test"
+        framework: "Vitest"
+      - scope: "frontend-admin"
+        command: "cd frontend-admin && npm test"
+        framework: "Vitest"
+    integration:
+      - scope: "backend"
+        command: "cd backend && npm test"
+        framework: "Supertest"
+    e2e:
+      []
+  coverage:
+    command: "cd backend && npm run test:coverage"
+    commands:
+      - scope: "backend"
+        command: "cd backend && npm run test:coverage"
+        framework: "coverage"
+quality:
+  lint: "cd backend && npm run lint"
+  lint_commands:
+    - scope: "backend"
+      command: "cd backend && npm run lint"
+      framework: "linter"
+    - scope: "frontend-admin"
+      command: "cd frontend-admin && npm run lint"
+      framework: "linter"
+  typecheck: "cd backend && npm run typecheck"
+  typecheck_commands:
+    - scope: "backend"
+      command: "cd backend && npm run typecheck"
+      framework: "type checker"
+  format: "cd backend && npm run format"
+  format_commands:
+    - scope: "backend"
+      command: "cd backend && npm run format"
+      framework: "formatter"

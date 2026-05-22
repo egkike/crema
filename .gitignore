@@ -55,4 +55,4 @@ uploads/*
 
 # --- AGENT SKILLS (local only) ---
 .agents/
-skills-lock.json
+skills-lock.json.pi/
