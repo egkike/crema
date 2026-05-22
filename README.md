@@ -78,8 +78,8 @@ Plataforma all-in-one para creadores y emprendedores.
 - ✅ Cloudflare Stream
 - ✅ Signed URLs (protección contra piratería)
 
-### AI Features (v1.2) ⭐
-- ✅ **Crema Memory Service** - Búsqueda semántica con pgvector (vector(1536))
+### AI Features (v1.3) ⭐
+- ✅ **Crema Memory Service** - Búsqueda semántica con pgvector (vector(1536)) + HNSW index
 - ✅ **Sistema de Créditos** - Créditos prepagos para features AI
 - ✅ **Q&A con IA** - Auto-respuesta de preguntas + FAQs
 - ✅ **Reviews/Ratings** - Sistema de calificación con votos útiles
@@ -88,6 +88,13 @@ Plataforma all-in-one para creadores y emprendedores.
 - ✅ **Analytics Dashboard** - Métricas diarias de creadores
 - ✅ **Tutor AI** - Asistente inteligente para estudiantes
 - ✅ **Insights AI** - Consultas en lenguaje natural a datos
+- ✅ **AI Content Assistant** - Análisis de contenido, quizzes, transcripción
+- ✅ **Interactive Agent** - Talleres dinámicos con análisis personalizado (3 créditos/análisis)
+- ✅ **Reports Agent** - Triage automático de denuncias con IA
+- ✅ **Orchestrator** - Router centralizado con 18 capabilities (streaming SSE)
+- ✅ **Memory Enhancement** - HNSW index, RBAC validation, cleanup jobs, per-user quota
+- ✅ **AI Affiliate Chat** - Chat contextual para afiliados y compradores (2 créditos/consulta)
+- ✅ **AI Support Chatbot (Concierge)** - Soporte técnico con escalación a email
 
 ---
 

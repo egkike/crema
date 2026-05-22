@@ -95,7 +95,7 @@ Vende diferentes tipos de productos digitales:
 
 | Feature | Descripción |
 |---------|-------------|
-| **Crema Memory Service** | Búsqueda semántica con pgvector (RAG) |
+| **Crema Memory Service** | Búsqueda semántica con pgvector (RAG) + HNSW index |
 | **Sistema de Créditos** | Créditos prepagos para features AI |
 | **Interactive Agent** | Talleres dinámicos con análisis personalizado (3 créditos/análisis) |
 | **Reports Agent** | Triage automático de denuncias con IA |
@@ -103,6 +103,10 @@ Vende diferentes tipos de productos digitales:
 | **Tutor AI** | Asistente inteligente para estudiantes |
 | **Insights AI** | Consultas en lenguaje natural a datos |
 | **AI Content Assistant** | Análisis de contenido, quizzes, transcripción |
+| **Orchestrator** | Router centralizado con 18 capabilities (streaming SSE) |
+| **Memory Enhancement** | HNSW index, RBAC validation, cleanup jobs, per-user quota |
+| **AI Affiliate Chat** | Chat contextual para afiliados y compradores (2 créditos/consulta) |
+| **AI Support Chatbot (Concierge)** | Soporte técnico con escalación a email |
 
 ---
 

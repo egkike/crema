@@ -155,7 +155,7 @@ Múltiples proveedores LLM configurables
 
 ### 2.4 Memory Enhancement (Mejoras Planificadas)
 
-> **Estado**: SDD Completo (implementación pendiente — Option C)
+> **Estado**: ✅ COMPLETO (SDD Tasks 1-7 implementados y testeados, Mayo 2026)
 > **Origen**: Doc "Como utilizar Pgvector" + análisis de gaps actuales + revisión del patrón RAG de Crema
 
 > **Nota importante**: El patrón de memoria de Crema es **RAG de contenido de productos** (lecciones, FAQs, reviews), NO conversaciones de chat. Por eso NO aplica: `session_id`, `memory.store/recall` capabilities, ni summarization de conversaciones.
