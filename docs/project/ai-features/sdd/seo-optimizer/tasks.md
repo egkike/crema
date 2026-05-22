@@ -53,9 +53,54 @@ Execute in order — do not skip or reorder.
 
 ---
 
-## Task 1: Create `seo-optimizer.repository.ts`
+## Task 0: DB Migration
 
 **Depends on**: None (first task)
+
+### What to do
+
+Create database migration script for `product_seo_configs` table.
+
+**File**: `backend/db/init/13-seo-optimizer-tables.sql`
+
+```sql
+-- product_seo_configs: Meta tags por producto
+CREATE TABLE IF NOT EXISTS product_seo_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+    meta_title VARCHAR(70),
+    meta_description VARCHAR(160),
+    og_title VARCHAR(70),
+    og_description VARCHAR(160),
+    og_image_url VARCHAR(500),
+    schema_markup JSONB,
+    keywords TEXT[],
+    canonical_url VARCHAR(500),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_seo_configs_product ON product_seo_configs(product_id);
+```
+
+### Execution
+
+After creating the script, apply to database:
+```bash
+docker exec -i crema-db psql -U postgres -d crema < backend/db/init/13-seo-optimizer-tables.sql
+```
+
+### Verification
+- [ ] Script exists at `backend/db/init/13-seo-optimizer-tables.sql`
+- [ ] Table `product_seo_configs` created in DB
+- [ ] Index `idx_seo_configs_product` created
+- [ ] FK constraint to `products(id)` working
+
+---
+
+## Task 1: Create `seo-optimizer.repository.ts`
+
+**Depends on**: Task 0 (DB migration)
 
 ### What to do
 
