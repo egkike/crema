@@ -21,10 +21,10 @@ Dar al **Creador** meta tags optimizados automáticamente para las páginas de p
 - Registro como capability `seo.optimizer` en Orchestrator (skillsRegistry)
 - Generación de 4 tipos de meta tags: meta title, meta description, OG tags, Schema markup
 - Almacenamiento en tabla `product_seo_configs` (ya definida en PRD §8.3.1)
-- API endpoint `POST /api/ai/product/seo/generate`
+- API endpoint `POST /api/ai/product/seo`
 - Input validation con Zod (nunca `any`)
 - Defensa contra prompt injection (reutiliza `sanitizeInput` + delimiters)
-- Rate limiting con `aiContentLimiter` (ya existe)
+- Rate limiting con `seoOptimizerLimiter` (dedicado, 10 req/min)
 - Consumo de créditos AI (creador paga)
 
 ### Out of Scope
@@ -58,7 +58,7 @@ None — es un capability nuevo, no modifica los existentes.
 | Service | `backend/src/services/ai/seo-optimizer.service.ts` | **Nuevo** |
 | Repository | `backend/src/repositories/seo-config.repository.ts` | **Nuevo** |
 | Orchestrator | `backend/src/services/ai/index.ts` | Agregar registro |
-| Routes | `backend/src/routes/ai.routes.ts` | Agregar endpoint `POST /api/ai/product/seo/generate` |
+| Routes | `backend/src/routes/ai.routes.ts` | Agregar endpoint `POST /api/ai/product/seo` |
 | Schema | `backend/src/schemas/ai.schema.ts` | Agregar Zod schema |
 | DB Init | `db/init/` (si se requiere) | Verificar que `product_seo_configs` ya existe en init scripts |
 
@@ -111,12 +111,12 @@ sanitizeInput(input: string): string
 
 | Output | Descripción | Límite |
 |--------|-------------|--------|
-| **Meta title** | Título SEO (max 60 chars) | 60 caracteres |
-| **Meta description** | Descripción para meta tag (max 160 chars) | 160 caracteres |
-| **OG title** | Título para Open Graph | 70 caracteres |
-| **OG description** | Descripción para Open Graph | 160 caracteres |
-| **OG image URL** | Imagen sugerida (opcional, usa thumbnail del producto) | URL |
-| **Schema markup** | JSON-LD para Rich Snippets | JSON válido |
+| **Meta Title** | Título SEO (30-60 chars) | 60 caracteres |
+| **Meta Description** | Descripción para meta tag (100-155 chars) | 100-155 caracteres |
+| **OG Title** | Título para Open Graph | 60 caracteres |
+| **OG Description** | Descripción para Open Graph | 100 caracteres |
+| **OG Image URL** | Imagen sugerida (usa thumbnail del producto) | URL |
+| **Schema Markup** | JSON-LD para Rich Snippets | JSON válido |
 | **Keywords** | Array de keywords relevantes | 10 keywords |
 | **Canonical URL** | URL canónica del producto | URL |
 
@@ -126,18 +126,17 @@ sanitizeInput(input: string): string
 Creador solicita generación de SEO para productId
     │
     ▼
-POST /api/ai/product/seo/generate  ← aiContentLimiter (reutilizado)
+POST /api/ai/product/seo  ← seoOptimizerLimiter (dedicado, 10 req/min)
     │
     ▼
 seo.optimizer handler
     ├── Validación Zod del input
     ├── Verificar propiedad del producto (productRepository)
-    ├── Verificar créditos suficientes (aiCreditService)
     ├── Obtener contenido del producto (productRepository + memoryService)
     ├── Generar prompts SEO con system prompt especializado
     ├── llmService.chat() → generar todos los meta tags
     ├── Parsear respuesta JSON
-    ├── Guardar en product_seo_configs (upsert)
+    ├── Descontar créditos (aiCreditService) — SOLO si LLM succeed
     └── Retornar { metaTitle, metaDescription, ogTags, schemaMarkup, keywords }
 ```
 
@@ -169,7 +168,7 @@ seo.optimizer handler
 - **Prompt injection**: `sanitizeInput()` remueve caracteres de control; delimiters `[USER_INPUT_START]/[USER_INPUT_END]` en buildPrompt
 - **Auth**: JWT via `jwtAuthMiddleware` en la ruta
 - **Producto ownership**: Validar que `requestingUserId === userId` y el usuario es dueño del producto
-- **Rate limiting**: `aiContentLimiter` (ya existe)
+- **Rate limiting**: `seoOptimizerLimiter` (dedicado, 10 req/min)
 - **Errores**: `AppError` con mensajes genéricos, sin stack traces
 - **Zod**: schema de input validation, nunca `any`
 
@@ -180,7 +179,7 @@ seo.optimizer handler
 | `backend/src/services/ai/seo-optimizer.service.ts` | New | Servicio principal de generación SEO |
 | `backend/src/repositories/seo-config.repository.ts` | New | Repository para `product_seo_configs` |
 | `backend/src/services/ai/index.ts` | Modified | Registrar `seo.optimizer` capability |
-| `backend/src/routes/ai.routes.ts` | Modified | Agregar endpoint `POST /api/ai/product/seo/generate` |
+| `backend/src/routes/ai.routes.ts` | Modified | Agregar endpoint `POST /api/ai/product/seo` |
 | `backend/src/schemas/ai.schema.ts` | Modified | Agregar Zod schema para SEO request/response |
 | `db/init/` | Verified | Verificar que `product_seo_configs` ya existe |
 | `docs/project/reusable-resources.md` | Modified | Agregar `seoOptimizerService` al catálogo |
@@ -192,8 +191,8 @@ seo.optimizer handler
 | Meta tags genéricos sin contexto real del producto | Alto | Usar `memoryService.searchSimilar` para recuperar contenido relevante; system prompt instruye "basado únicamente en el contenido proporcionado" |
 | JSON-LD mal formado | Medio | Parsear respuesta y validar con schema Zod antes de guardar; si falla, retornar error al usuario |
 | LLM timeout o no disponible | Bajo | Timeout 30s, retry 2, si falla → `AppError` genérico |
-| Abuso de créditos (generación múltiple) | Medio | Rate limiting (`aiContentLimiter`) + creditService descuenta por operación |
-| Título/descripción demasiado largos para SEO | Alto | Validación post-generación con límites estrictos (60/160 chars) + truncate si necesario |
+| Abuso de créditos (generación múltiple) | Medio | Rate limiting (`seoOptimizerLimiter`) + creditService descuenta por operación |
+| Título/descripción demasiado largos para SEO | Alto | Validación post-generación con límites estrictos (30-60 chars título, 155 chars descripción, 100 chars OG) + truncate si necesario |
 
 ## Rollback Plan
 
@@ -215,7 +214,7 @@ seo.optimizer handler
 - [ ] `seo.optimizer` registrado en Orchestrator y verificable vía `skillsRegistry.listCapabilities()`
 - [ ] Creador puede generar meta tags para un producto que posee y recibe respuesta válida
 - [ ] Meta title generado tiene máximo 60 caracteres
-- [ ] Meta description generada tiene máximo 160 caracteres
+- [ ] Meta description generada tiene entre 100-155 caracteres
 - [ ] OG tags incluyen title, description, e image
 - [ ] Schema markup es JSON válido y cumple con schema.org/Product
 - [ ] Keywords contiene máximo 10 keywords relevantes

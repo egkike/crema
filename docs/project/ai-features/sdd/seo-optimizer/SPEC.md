@@ -232,9 +232,17 @@ interface SeoOptimizerResponse {
   ogTitle: string;         // max 60 chars
   ogDescription: string;   // max 100 chars
   ogImageUrl: string;      // URL
+  ogType: string;          // "product" for product pages
+  ogSiteName: string;      // "Crema" platform name
   canonicalUrl: string;    // canonical URL
   schemaMarkup: Record<string, unknown>; // JSON-LD object
   keywords: string[];      // 5-10 keywords
+  sources?: Array<{        // optional RAG context
+    source_type: 'lesson' | 'faq' | 'review';
+    source_id: string;
+    content: string;
+    similarity: number;
+  }>;
 }
 ```
 
@@ -283,7 +291,7 @@ interface SeoOptimizerResponse {
 ```json
 {
   "status": "error",
-  "message": "Insufficient AI credits"
+  "message": "Créditos insuficientes"
 }
 ```
 
@@ -300,16 +308,15 @@ Response headers: `Retry-After: 45`, `X-RateLimit-Limit: 10`, `X-RateLimit-Remai
 
 ## 5. Data Model
 
-**No new database tables are required for v1.**
+**No new database tables are required for v1 if the table already exists** (per PRD §8.3.1, `product_seo_configs` was defined there). However, if the table does not yet exist, run the migration:
 
-The feature reuses existing tables:
-
-| Table | Usage |
-|-------|-------|
-| `products` | Product ownership validation, name, description, price, currency, image_url |
-| `ai_embeddings` | RAG source for `memoryService.searchSimilar` (source_types: `lesson`, `faq`, `review`) |
-| `ai_credits` | Credit balance for creators |
-| `ai_credit_transactions` | Credit usage logging |
+| Table | Status | Notes |
+|-------|--------|-------|
+| `products` | Reused | Product ownership validation |
+| `ai_embeddings` | Reused | RAG source for `memoryService.searchSimilar` |
+| `ai_credits` | Reused | Credit balance for creators |
+| `ai_credit_transactions` | Reused | Credit usage logging |
+| `product_seo_configs` | **Conditional** | **Create migration only if table doesn't exist** (see Task 0) |
 
 ---
 
@@ -320,7 +327,7 @@ The feature reuses existing tables:
 | Missing/invalid body fields | `400` | `400` | Generic validation message | `warn` |
 | `productId` not a UUID | `400` | `400` | `productId must be a valid UUID` | `warn` |
 | User does not own product | `403` | `403` | `You do not have ownership of this product` | `info` |
-| Creator with insufficient credits | `402` | `402` | `Insufficient AI credits` | `info` |
+| Creator with insufficient credits | `402` | `402` | `Créditos insuficientes` | `info` |
 | Rate limit exceeded | `429` | `429` | `Too many requests` | `info` |
 | LLM timeout (>30 s) | `503` | `503` | `Service temporarily unavailable` | `error` | No credits deducted |
 | LLM failure after retries | `500` | `500` | `Error processing request. Please try again.` | `error` | No credits deducted |
@@ -334,22 +341,22 @@ The feature reuses existing tables:
 
 #### Scenario: Creator generates SEO metadata for product
 
-- **GIVEN** an authenticated creator with ownership of `productId = "prod-abc"`
+- **GIVEN** an authenticated creator with ownership of `productId = "00000000-0000-0000-0000-000000000001"`
 - **AND** the creator has sufficient AI credits
 - **AND** the product has `name = "Marketing Digital"`, `description = "Curso completo de marketing"`
-- **WHEN** they POST `{"productId": "prod-abc"}`
+- **WHEN** they POST `{"productId": "00000000-0000-0000-0000-000000000001"}`
 - **THEN** the system returns `200` with complete SEO metadata
 - **AND** 1 credit is deducted from the creator's balance
 - **AND** `metaTitle` is 30-60 characters
 - **AND** `metaDescription` is 100-155 characters
-- **AND** `ogTitle`, `ogDescription`, `ogImageUrl` are present
+- **AND** `ogTitle`, `ogDescription`, `ogImageUrl`, `ogType`, `ogSiteName` are present
 - **AND** `schemaMarkup` is valid JSON-LD
 
 #### Scenario: Creator regenerates SEO metadata
 
-- **GIVEN** an authenticated creator with ownership of `productId = "prod-abc"`
+- **GIVEN** an authenticated creator with ownership of `productId = "00000000-0000-0000-0000-000000000001"`
 - **AND** the creator has sufficient AI credits
-- **WHEN** they POST `{"productId": "prod-abc"}` again
+- **WHEN** they POST `{"productId": "00000000-0000-0000-0000-000000000001"}` again
 - **THEN** the system returns `200` with new SEO metadata (may differ slightly)
 - **AND** 1 credit is deducted from the creator's balance
 
@@ -363,14 +370,14 @@ The feature reuses existing tables:
 
 #### Scenario: Non-owner user
 
-- **GIVEN** an authenticated user who does not own `productId = "prod-abc"`
+- **GIVEN** an authenticated user who does not own `productId = "00000000-0000-0000-0000-000000000001"`
 - **WHEN** they send a SEO request for that product
 - **THEN** the system returns `403` with `You do not have ownership of this product`
 - **AND** the LLM is NOT called
 
 #### Scenario: Buyer (not owner) attempts SEO optimization
 
-- **GIVEN** an authenticated buyer who purchased `productId = "prod-abc"` but does not own it
+- **GIVEN** an authenticated buyer who purchased `productId = "00000000-0000-0000-0000-000000000001"` but does not own it
 - **WHEN** they send a SEO request for that product
 - **THEN** the system returns `403`
 - **AND** the LLM is NOT called
@@ -380,8 +387,11 @@ The feature reuses existing tables:
 - **GIVEN** an authenticated creator with ownership of the product
 - **AND** their AI credit balance is `0`
 - **WHEN** they send a SEO request
-- **THEN** the system returns `402` with `Insufficient AI credits`
-- **AND** the LLM is NOT called
+- **THEN** the system calls the LLM first and generates the metadata
+- **AND** when attempting to deduct credits, the system returns `402` with `Insufficient AI credits`
+- **AND** the generated metadata is not persisted (credits must succeed for persistence)
+
+> **Note**: The LLM is called BEFORE credit deduction. If credits cannot be deducted after successful LLM response, the user sees the generated content conceptually but is charged 402. This prevents charging for work that wasn't fully processed.
 
 #### Scenario: Rate limit exceeded
 

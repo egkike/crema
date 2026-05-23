@@ -3,3 +3,9 @@ packages:
   - 'frontend-main'
   - 'frontend-admin'
   - 'shared'
+allowBuilds:
+  '@scarf/scarf': true
+  esbuild: true
+  msgpackr-extract: true
+  sharp: true
+  unrs-resolver: true

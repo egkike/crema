@@ -21,13 +21,14 @@ POST /api/ai/product/seo
      v
 Route handler (ai.routes.ts)
    -- uid(req) -> userId from JWT
-   -- verifyProductOwnership(pool, productId, userId) -> 403 | pass
+   -- Inline SQL: SELECT id, creator_id FROM "products" WHERE id = $1 AND creator_id = userId -> 403 | pass
      |
      v
-seoOptimizerService.generate({ userId, productId, productName, productDescription, productType, creatorName })  <- LLM called FIRST
+seoOptimizerService.generate({ userId, productId, productName, productDescription, productType, creatorName })
    -- Fetch product from DB (title, description, content summary)
-   -- Merge user-provided content with DB content
-   -- Build SEO-optimized prompt with product context
+   -- **RAG Context**: memoryService.searchSimilar(userId, query, 10, ['lesson', 'faq', 'review'])
+   -- Merge user-provided content with DB content + RAG fragments
+   -- Build SEO-optimized prompt with product context + RAG context
    -- llmService.buildPrompt(systemPrompt, userMessage) -> LLMMessage[]
    -- llmService.chat({ messages, ...config })
      |
@@ -53,7 +54,7 @@ seoOptimizerRepository.upsert(productId, seoConfig) -> saved config
 | `backend/src/routes/ai.routes.ts` | Modify | Add `POST /api/ai/product/seo` route after affiliate-chat routes |
 | `backend/src/repositories/seo-optimizer.repository.ts` | Create | CRUD operations for `product_seo_configs` table |
 | `backend/src/schemas/ai.schema.ts` | Modify | Add `seoOptimizerSchema` Zod schema |
-| `db/init/seo-optimizer.sql` | Create | `product_seo_configs` table + indexes |
+| `db/init/13-seo-optimizer-tables.sql` | Create | `product_seo_configs` table + indexes |
 | `docs/project/reusable-resources.md` | Modify | Add `seoOptimizerService`, `seoOptimizerRepository` to catalogs |
 
 ## Service Design
@@ -76,9 +77,9 @@ Exported as `export const seoOptimizerService = { ... }`. Single method: `genera
    - `audiobook` → `Audiobook`
 6. **LLM prompt building**: Generate structured JSON with:
    - `metaTitle`: max 60 chars, keyword-rich
-   - `metaDescription`: max 160 chars, compelling
-   - `ogTitle`: max 70 chars, social-optimized
-   - `ogDescription`: max 160 chars
+   - `metaDescription`: max 155 chars, compelling
+   - `ogTitle`: max 60 chars, social-optimized
+   - `ogDescription`: max 100 chars
    - `ogImageUrl`: placeholder (creator can customize)
    - `keywords`: array of 5-10 SEO keywords
    - `schemaMarkup`: full JSON-LD object
@@ -122,7 +123,7 @@ The endpoint uses a dedicated `seoOptimizerLimiter` middleware (defined in `midd
 
 | Error | HTTP | Handling |
 |-------|------|----------|
-| No product access | 403 | `verifyProductOwnership` throws |
+| No product access | 403 | Inline SQL ownership check throws |
 | Credits insufficient | 402 | `aiCreditService.useCredits` throws |
 | Invalid productId | 400 | Schema validation |
 | LLM parse error | 500 | Log + return generic error |
@@ -143,7 +144,7 @@ The endpoint uses a dedicated `seoOptimizerLimiter` middleware (defined in `midd
     { name: 'productDescription', type: 'string', required: false },
     { name: 'productType', type: 'string', required: false },
   ],
-  options: { timeout: 30000, retries: 2, cacheable: true },
+  options: { timeout: 30000, retries: 2, cacheable: false },
   handler: async (input: unknown) => {
     if (!input || typeof input !== 'object') {
       throw new AppError('Invalid input: must be an object', 400);
@@ -163,11 +164,8 @@ The endpoint uses a dedicated `seoOptimizerLimiter` middleware (defined in `midd
       throw new AppError('productId is required', 400);
     }
 
-    // Authorization: verify caller owns this resource
-    if (requestingUserId !== productId.split('-')[0]) {
-      // Note: This is a simplified check. Full ownership check happens in route layer.
-      throw new AppError('Unauthorized access to SEO generation', 403);
-    }
+    // Authorization: Full ownership check happens at route layer (see SPEC.md Route Registration)
+    // This handler is called only after authentication and authorization are verified
 
     return seoOptimizerService.generate({
       userId: requestingUserId,
@@ -197,8 +195,19 @@ router.post('/product/seo',
     }
 
     try {
-      // Verify ownership - only product owner can generate SEO
-      await verifyProductOwnership(pool, productId, userId);
+      // Verify ownership - inline SQL pattern (see SPEC.md ownership requirement)
+      const productCheck = await pool.query(
+        `SELECT id, creator_id FROM "products" WHERE id = $1`,
+        [productId]
+      );
+
+      if (productCheck.rows.length === 0) {
+        throw new AppError('Product not found', 404);
+      }
+
+      if (productCheck.rows[0].creator_id !== userId) {
+        throw new AppError('You do not have ownership of this product', 403);
+      }
 
       // STEP 1: Call LLM FIRST (fail-fast before credit deduction)
       const result = await seoOptimizerService.generate({
@@ -273,9 +282,9 @@ You are an SEO expert for online courses and digital products. Based on the prov
 OUTPUT FORMAT (JSON only):
 {
   "metaTitle": "string (max 60 chars, include primary keyword)",
-  "metaDescription": "string (max 160 chars, compelling and keyword-rich)",
-  "ogTitle": "string (max 70 chars, social-optimized)",
-  "ogDescription": "string (max 160 chars)",
+  "metaDescription": "string (max 155 chars, compelling and keyword-rich)",
+  "ogTitle": "string (max 60 chars, social-optimized)",
+  "ogDescription": "string (max 100 chars)",
   "ogImageUrl": "string (placeholder URL, creator can customize)",
   "keywords": ["string"] (5-10 relevant keywords),
   "schemaMarkup": { ... }
@@ -336,15 +345,24 @@ CREATE INDEX IF NOT EXISTS idx_seo_configs_product ON product_seo_configs(produc
 {
   success: true;
   data: {
-    metaTitle: string;
-    metaDescription: string;
-    ogTitle: string;
-    ogDescription: string;
-    ogImageUrl: string;
-    keywords: string[];
-    schemaMarkup: Record<string, unknown>;
-    saved: boolean;        // Whether persisted to DB
+    metaTitle: string;           // 30-60 chars
+    metaDescription: string;    // 100-155 chars
+    ogTitle: string;             // max 60 chars
+    ogDescription: string;       // max 100 chars
+    ogImageUrl: string;           // URL
+    ogType: string;               // "product"
+    ogSiteName: string;          // "Crema"
+    canonicalUrl: string;         // canonical URL
+    schemaMarkup: Record<string, unknown>; // JSON-LD object
+    keywords: string[];           // 5-10 keywords
+    sources?: Array<{             // optional RAG context
+      source_type: 'lesson' | 'faq' | 'review';
+      source_id: string;
+      content: string;
+      similarity: number;
+    }>;
   };
+  creditsUsed: number;            // 1 credit deducted
 }
 ```
 
@@ -372,7 +390,7 @@ CREATE INDEX IF NOT EXISTS idx_seo_configs_product ON product_seo_configs(produc
 
 ## Migration / Rollout
 
-1. **DB Migration**: Run `db/init/seo-optimizer.sql` to create `product_seo_configs` table
+1. **DB Migration**: Run `db/init/13-seo-optimizer-tables.sql` to create `product_seo_configs` table
 2. **Service Registration**: Add `seoOptimizerService` and `seoOptimizerRepository` to their respective catalogs
 3. **Route Registration**: Add route in `ai.routes.ts` + skill in `index.ts`
 4. **Rate Limiter**: Ensure `seoOptimizerLimiter` is defined in `middlewares/rateLimit/rateLimit.ts`
@@ -387,7 +405,7 @@ CREATE INDEX IF NOT EXISTS idx_seo_configs_product ON product_seo_configs(produc
 | `configService` | Config access | For temperature, maxTokens, rate limit |
 | `aiCreditService` | Credit deduction | 1 credit per generation |
 | `productRepository` | Fetch product data | For title, description, type |
-| `verifyProductOwnership` | Ownership check | Route-level auth |
+| `inline SQL ownership check` | Ownership check | Inline SQL pattern per SPEC.md |
 | `AppError` | Error handling | Standard error class |
 
 ## Rollout Plan

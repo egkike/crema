@@ -206,10 +206,18 @@ export interface SEOOptimizerOutput {
   metaDescription: string;
   ogTitle: string;
   ogDescription: string;
-  ogImageUrl?: string;
+  ogImageUrl: string;
+  ogType: string;           // "product" for product pages
+  ogSiteName: string;      // "Crema" platform name
+  canonicalUrl: string;
   schemaMarkup: Record<string, unknown>;
   keywords: string[];
-  canonicalUrl?: string;
+  sources?: Array<{
+    source_type: 'lesson' | 'faq' | 'review';
+    source_id: string;
+    content: string;
+    similarity: number;
+  }>;
 }
 
 export interface SEOOptimizerResponse {
@@ -256,21 +264,22 @@ const SEO_SYSTEM_PROMPT = `Eres un experto en SEO para productos digitales en es
 Tu tarea es generar meta tags optimizados para SEO y redes sociales.
 
 REGLAS ESTRICTAS:
-- meta_title: Máximo 60 caracteres, debe ser atractivo y descriptivo
-- meta_description: Máximo 155 caracteres, debe incluir call-to-action implícito
-- og_title: Máximo 60 caracteres, puede ser igual al meta_title
-- og_description: Máximo 40 caracteres, debe ser impactante para redes
+- metaTitle: Máximo 60 caracteres, mínimo 30 caracteres, debe ser atractivo y descriptivo
+- metaDescription: Máximo 100-155 caracteres, debe incluir call-to-action implícito
+- ogTitle: Máximo 60 caracteres, puede ser igual al metaTitle
+- ogDescription: Máximo 100 caracteres, debe ser impactante para redes
 - keywords: Array de 5-10 keywords relevantes
-- schema_type: Uno de "Course", "Book", "PodcastSeries", "SoftwareApplication", "Audiobook", "Product"
+- schemaMarkup: Objeto JSON-LD completo según tipo de producto
 
 Responde SOLO con JSON válido, sin texto adicional:
 {
-  "meta_title": "...",
-  "meta_description": "...",
-  "og_title": "...",
-  "og_description": "...",
+  "metaTitle": "...",
+  "metaDescription": "...",
+  "ogTitle": "...",
+  "ogDescription": "...",
+  "ogImageUrl": "...",
   "keywords": ["...", "...", "..."],
-  "schema_type": "..."
+  "schemaMarkup": { "@context": "https://schema.org", "@type": "Course", ... }
 }`;
 ```
 
@@ -283,9 +292,9 @@ Responde SOLO con JSON válido, sin texto adicional:
   4. Build user prompt with product details + RAG context
   5. Call `llmService.chat()` with system prompt and user prompt
   6. Parse JSON response from LLM
-  7. Apply truncation rules: meta_title ≤60, meta_description ≤155, og_title ≤60, og_description ≤40
+  7. Apply truncation rules: metaTitle 30-60 chars, metaDescription 100-155, ogTitle ≤60, ogDescription ≤100
   8. Build schemaMarkup based on productType using `getSchemaType()`
-  9. Extract canonical URL pattern: `https://crema.io/products/{productId}`
+  9. Extract canonical URL pattern: `https://crema.com/product/{productId}`
   10. Return SEOOptimizerResponse with success:true and data
 
 **Config keys** (read via `configService`):
@@ -395,7 +404,7 @@ router.post(
     }
 
     if (productCheck.rows[0].creator_id !== userId) {
-      throw new AppError('You do not have permission to generate SEO for this product', 403);
+      throw new AppError('You do not have ownership of this product', 403);
     }
 
     // STEP 1: Call LLM FIRST (fail-fast before credit deduction)
@@ -639,7 +648,7 @@ vi.mock('../../../services/ai/seo-optimizer.service', () => ({
         ogDescription: 'Domina TypeScript hoy',
         schemaMarkup: { '@type': 'Course', name: 'Curso de TypeScript' },
         keywords: ['typescript', 'programación', 'web'],
-        canonicalUrl: 'https://crema.io/products/test-id',
+        canonicalUrl: 'https://crema.com/product/test-id',
       },
     }),
   },
