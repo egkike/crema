@@ -9,11 +9,17 @@ export const purchaseCreditsSchema = z.object({
 
 // Questions
 export const createQuestionSchema = z.object({
-  question: z.string().min(1, 'Question is required').max(2000, 'Question too long (max 2000 characters)'),
+  question: z
+    .string()
+    .min(1, 'Question is required')
+    .max(2000, 'Question too long (max 2000 characters)'),
 });
 
 export const answerQuestionSchema = z.object({
-  answer: z.string().min(1, 'Answer is required').max(5000, 'Answer too long (max 5000 characters)'),
+  answer: z
+    .string()
+    .min(1, 'Answer is required')
+    .max(5000, 'Answer too long (max 5000 characters)'),
 });
 
 export const voteQuestionSchema = z.object({
@@ -150,13 +156,34 @@ export const qaChatSchema = z.object({
 // Affiliate Chat
 export const affiliateChatSchema = z.object({
   productId: z.string().uuid({ message: 'productId must be a valid UUID' }),
-  message: z.string()
+  message: z
+    .string()
     .min(1, { message: 'message is required' })
     .max(2000, { message: 'message must be less than 2000 characters' }),
   userId: z.string().uuid({ message: 'userId must be a valid UUID' }),
 });
 
 export type AffiliateChatRequest = z.infer<typeof affiliateChatSchema>;
+
+// SEO Optimizer
+export const seoOptimizerSchema = z.object({
+  productId: z.string().uuid({ message: 'productId must be a valid UUID' }),
+  productName: z
+    .string()
+    .min(1, { message: 'productName is required' })
+    .max(200, { message: 'productName must be less than 200 characters' }),
+  productDescription: z
+    .string()
+    .min(10, { message: 'productDescription must be at least 10 characters' })
+    .max(5000, { message: 'productDescription must be less than 5000 characters' }),
+  productType: z.enum(['course', 'ebook', 'podcast', 'membership', 'software', 'audiobook'], {
+    message: 'productType must be one of: course, ebook, podcast, membership, software, audiobook',
+  }),
+  creatorName: z.string().max(100).optional(),
+  userId: z.string().uuid({ message: 'userId must be a valid UUID' }),
+});
+
+export type SEOOptimizerRequest = z.infer<typeof seoOptimizerSchema>;
 
 // =============================================================================
 // Query Parameter Validation Schemas

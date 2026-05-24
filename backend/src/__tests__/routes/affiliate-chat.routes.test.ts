@@ -32,12 +32,14 @@ vi.mock('../../utils/routeHelpers.util', () => ({
 // Mock rate limit module — passthrough with rate limit headers
 vi.mock('../../middlewares/rateLimit/rateLimit', () => {
   const passthrough = vi.fn((_req: unknown, _res: unknown, next: () => void) => next());
-  const withHeaders = vi.fn((_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
-    res.setHeader('X-RateLimit-Limit', '10');
-    res.setHeader('X-RateLimit-Remaining', '9');
-    res.setHeader('X-RateLimit-Reset', String(Math.floor(Date.now() / 1000) + 60));
-    next();
-  });
+  const withHeaders = vi.fn(
+    (_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+      res.setHeader('X-RateLimit-Limit', '10');
+      res.setHeader('X-RateLimit-Remaining', '9');
+      res.setHeader('X-RateLimit-Reset', String(Math.floor(Date.now() / 1000) + 60));
+      next();
+    }
+  );
 
   return {
     apiLimiter: passthrough,
@@ -53,6 +55,7 @@ vi.mock('../../middlewares/rateLimit/rateLimit', () => {
     adminWriteLimiter: passthrough,
     productUploadLimiter: passthrough,
     webhookLimiter: passthrough,
+    seoOptimizerLimiter: passthrough,
   };
 });
 
@@ -85,12 +88,14 @@ describe('Affiliate Chat Routes', () => {
     vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as never);
 
     // Reset affiliateChatLimiter to passthrough with headers
-    vi.mocked(affiliateChatLimiter).mockImplementation((_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
-      res.setHeader('X-RateLimit-Limit', '10');
-      res.setHeader('X-RateLimit-Remaining', '9');
-      res.setHeader('X-RateLimit-Reset', String(Math.floor(Date.now() / 1000) + 60));
-      next();
-    });
+    vi.mocked(affiliateChatLimiter).mockImplementation(
+      (_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+        res.setHeader('X-RateLimit-Limit', '10');
+        res.setHeader('X-RateLimit-Remaining', '9');
+        res.setHeader('X-RateLimit-Reset', String(Math.floor(Date.now() / 1000) + 60));
+        next();
+      }
+    );
 
     // Create request cookies
     const buyerAccess = generateTestAccessToken({
@@ -249,7 +254,11 @@ describe('Affiliate Chat Routes', () => {
       await supertestApp
         .post('/api/ai/affiliate/chat')
         .set('Cookie', affiliateCookies)
-        .send({ productId: PRODUCT_ID, message: 'cuanto son mis comisiones', userId: AFFILIATE_USER_ID });
+        .send({
+          productId: PRODUCT_ID,
+          message: 'cuanto son mis comisiones',
+          userId: AFFILIATE_USER_ID,
+        });
 
       expect(aiCreditService.useCredits).not.toHaveBeenCalled();
     });

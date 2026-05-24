@@ -16,12 +16,15 @@ export const loginLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de inicio de sesión alcanzado');
+    logger.warn(
+      { key: req.rateLimit?.key, path: req.path },
+      'Límite de inicio de sesión alcanzado'
+    );
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -40,7 +43,7 @@ export const aiContentLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '');
   },
@@ -61,7 +64,7 @@ export const refreshLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '');
   },
@@ -94,13 +97,16 @@ export const aiLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     if (!userId) {
       // Use debug level — public endpoints (no jwtAuthMiddleware) legitimately
       // have no userId. Warn would spam logs for normal public traffic.
       // Upgrade to warn if you need to detect authenticated routes with missing userId.
-      logger.debug({ path: req.path, ip: req.ip }, 'aiLimiter falling back to IP-based key (no userId)');
+      logger.debug(
+        { path: req.path, ip: req.ip },
+        'aiLimiter falling back to IP-based key (no userId)'
+      );
     }
     return userId || ipKeyGenerator(req.ip || '');
   },
@@ -121,7 +127,7 @@ export const aiChatLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '');
   },
@@ -155,7 +161,7 @@ export const adminReadLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '');
   },
@@ -175,7 +181,7 @@ export const adminWriteLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '');
   },
@@ -199,12 +205,13 @@ export const productUploadLimiter = rateLimit({
   max: 10, // máximo 10 solicitudes de upload por minuto por usuario
   message: {
     success: false,
-    error: 'Límite de uploads alcanzado. Máximo 10 solicitudes por minuto. Intenta de nuevo en 1 minuto.',
+    error:
+      'Límite de uploads alcanzado. Máximo 10 solicitudes por minuto. Intenta de nuevo en 1 minuto.',
   },
   standardHeaders: true,
   legacyHeaders: false,
   skipFailedRequests: true, // No contar requests que fallan (error status >= 400)
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     if (userId && typeof userId === 'string' && userId.length > 0) {
       return userId;
@@ -217,7 +224,7 @@ export const productUploadLimiter = rateLimit({
   },
   handler: (req, res, _next, options) => {
     const userId = req.user?.id;
-    const key = (userId && typeof userId === 'string') ? userId : ipKeyGenerator(req.ip || '');
+    const key = userId && typeof userId === 'string' ? userId : ipKeyGenerator(req.ip || '');
     logger.warn({ key, path: req.path }, 'Límite de uploads de producto alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
@@ -234,12 +241,15 @@ export const interactiveAgentLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de análisis interactivo alcanzado');
+    logger.warn(
+      { key: req.rateLimit?.key, path: req.path },
+      'Límite de análisis interactivo alcanzado'
+    );
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -255,12 +265,36 @@ export const affiliateChatLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     return userId || ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
-    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de chat de afiliado alcanzado');
+    logger.warn(
+      { key: req.rateLimit?.key, path: req.path },
+      'Límite de chat de afiliado alcanzado'
+    );
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
+// Rate limiter para SEO Optimizer — 10 requests/min
+// SPEC §4.12: dedicated limiter for SEO generation endpoint
+export const seoOptimizerLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 10, // máximo 10 generaciones SEO por minuto por usuario
+  message: {
+    success: false,
+    error: 'Límite de generación SEO alcanzado. Intenta de nuevo en 1 minuto.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => {
+    const userId = req.user?.id;
+    return userId || ipKeyGenerator(req.ip || '');
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de generación SEO alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
@@ -275,12 +309,13 @@ export const transcribeUploadLimiter = rateLimit({
   max: 3, // máximo 3 solicitudes de transcripción por minuto por usuario
   message: {
     success: false,
-    error: 'Límite de transcripciones alcanzado. Máximo 3 por minuto. Intenta de nuevo en 1 minuto.',
+    error:
+      'Límite de transcripciones alcanzado. Máximo 3 por minuto. Intenta de nuevo en 1 minuto.',
   },
   standardHeaders: true,
   legacyHeaders: false,
   skipFailedRequests: true, // No contar requests que fallan
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const userId = req.user?.id;
     if (userId && typeof userId === 'string' && userId.length > 0) {
       return userId;
@@ -293,7 +328,7 @@ export const transcribeUploadLimiter = rateLimit({
   },
   handler: (req, res, _next, options) => {
     const userId = req.user?.id;
-    const key = (userId && typeof userId === 'string') ? userId : ipKeyGenerator(req.ip || '');
+    const key = userId && typeof userId === 'string' ? userId : ipKeyGenerator(req.ip || '');
     logger.warn({ key, path: req.path }, 'Límite de transcripciones alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
