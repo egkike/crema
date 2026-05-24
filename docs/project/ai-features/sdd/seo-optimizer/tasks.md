@@ -345,11 +345,11 @@ export type SEOOptimizerRequest = z.infer<typeof seoOptimizerSchema>;
 ```
 
 ### Verification
-- [ ] `seoOptimizerSchema` is exported from `ai.schema.ts`
-- [ ] `SEOOptimizerRequest` type is exported
-- [ ] Schema validates: UUID for productId, productName 1-200 chars, productDescription 10-5000 chars, valid productType
-- [ ] `pnpm tsc --noEmit` passes
-- [ ] `pnpm lint` passes
+- [x] `seoOptimizerSchema` is exported from `ai.schema.ts`
+- [x] `SEOOptimizerRequest` type is exported
+- [x] Schema validates: UUID for productId, productName 1-200 chars, productDescription 10-5000 chars, valid productType
+- [x] `pnpm tsc --noEmit` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -439,14 +439,14 @@ router.post(
 ```
 
 ### Verification
-- [ ] `seoOptimizerService` imported in `ai.routes.ts`
-- [ ] `seoOptimizerSchema` imported in `ai.routes.ts`
-- [ ] Route registered at `POST /product/seo`
-- [ ] Middleware chain: `jwtAuthMiddleware` → `seoOptimizerLimiter` → `validate(seoOptimizerSchema)` → handler
-- [ ] Product ownership verified (creator_id check)
-- [ ] **Credit deducted AFTER LLM success** (not before) — follows affiliate-chat pattern
-- [ ] `pnpm tsc --noEmit` passes
-- [ ] `pnpm lint` passes
+- [x] `seoOptimizerService` imported in `ai.routes.ts`
+- [x] `seoOptimizerSchema` imported in `ai.routes.ts`
+- [x] Route registered at `POST /product/seo`
+- [x] Middleware chain: `jwtAuthMiddleware` → `seoOptimizerLimiter` → `validate(seoOptimizerSchema)` → handler
+- [x] Product ownership verified (creator_id check)
+- [x] **Credit deducted AFTER LLM success** (not before) — follows affiliate-chat pattern
+- [x] `pnpm tsc --noEmit` passes
+- [x] `pnpm lint` passes
 
 ---
 
