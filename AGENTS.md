@@ -317,6 +317,100 @@ Para TODO feature que involucre código + tests + docs, SIEMPRE split en 3 parte
 - Si solo hay código (≤ 8 archivos, sin tests ni docs): commit normal
 - DOCS va directo a master porque son solo archivos markdown
 
+### Chained PRs Workflow (RECOMENDADO)
+
+**⚠️ IMPORTANTE:** PRs sobre **400 líneas cambiadas** causarán que GGA falle con error `"argument list too long"`.
+
+**Regla:** Dividir en PRs pequeños (≤400 líneas) usando Chained PRs.
+
+#### Estructura
+
+```
+master
+  └── feat/<feature-name>
+        ├── PR #1: Task 0 (DB Migration)     → merge
+        ├── PR #2: Task 1 (Repository)        → merge
+        ├── PR #3: Task 2 (Service)           → merge
+        ├── PR #4: Task 3 (Schema)            → merge
+        ├── PR #5: Task 4 (Route)             → merge
+        ├── PR #6: Task 5 (Skill Registration) → merge
+        ├── PR #7: Task 6 (Unit Tests)        → merge
+        ├── PR #8: Task 7 (Integration Tests)  → merge
+        └── PR #9: Task 8 (Project Docs)      → direct push to master
+```
+
+#### Proceso
+
+1. **Crear branch desde master:** `git checkout -b feat/<feature-name>`
+2. **Por cada task:**
+   ```
+   □ Delegar implementación (sdd-apply async)
+   □ Revisar resultado
+   □ Lanzar juicio (2 jueces)
+   □ Si hay issues → Fix → Juicio again
+   □ Si pasa → Commit + Push
+   □ Si PR > 400 líneas → hacer chained PR (ver abajo)
+   ```
+3. **Crear PR** (si hay código): `gh pr create`
+4. **Esperar merge**
+5. **Continuar con siguiente task**
+
+#### Chained PR Commands
+
+```bash
+# Crear branch feature
+git checkout -b feat/<feature-name>
+
+# Crear sub-branches para chained PRs
+git checkout -b feat/<feature-name>-t1
+# ... work on Task 1 ...
+git push -u origin feat/<feature-name>-t1
+gh pr create --title "feat: Task 1" --body "..."
+
+# Para Task 2, crear desde master (no desde t1)
+git checkout master
+git checkout -b feat/<feature-name>-t2
+# ... work on Task 2 ...
+git push -u origin feat/<feature-name>-t2
+gh pr create --title "feat: Task 2" --body "..."
+```
+
+**Alternativa Stacked PRs:**
+```bash
+# Crear PRs que apuntan a master, no entre sí
+gh pr create --base master --head feat/<feature-name>-t1  # PR #1 → master
+gh pr create --base master --head feat/<feature-name>-t2  # PR #2 → master
+# Cada PR se mergea directamente a master
+```
+
+#### GGA Error Handling
+
+Si GGA falla con `"argument list too long"`:
+```
+1. NO usar --no-verify sin avisar al usuario
+2. Reportar el error y preguntar: "¿Querés continuar sin GGA?"
+3. Solo proceder con --no-verify si el usuario aprueba
+```
+
+#### Verificación Global (Post-Merge)
+
+Después de merge de todos los PRs:
+```
+git checkout master
+git pull
+□ pnpm tsc --noEmit
+□ pnpm lint
+□ pnpm test  # Suite completa
+□ Verificar 0 regressions
+```
+
+**Reglas:**
+- Máximo **400 líneas por PR** (budget de review)
+- **1 work unit por PR** (tests van con código, docs separados)
+- **2 jueces** para código, 1 juez opcional para docs
+- **Verificación antes de commit** (tsc, lint, tests)
+- **Docs van directo a master** (no requieren PR)
+
 ### Pull Request Requirements
 
 1. Create feature branch from `master`
