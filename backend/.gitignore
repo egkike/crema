@@ -67,3 +67,4 @@ docker-compose.override.yml
 # Archivos generados por herramientas
 tsconfig.tsbuildinfo
 .eslintrc.js.cache
+.pi-lens/

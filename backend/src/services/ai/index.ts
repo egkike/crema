@@ -1,7 +1,7 @@
 /**
  * AI Services Boot Registration
  * Phase 2: Orchestrator SDD
- * 
+ *
  * Registers all AI services as skills in the Orchestrator at boot time
  * All handlers include input validation and parameter range checks
  */
@@ -13,7 +13,12 @@ import type { EmbeddingSourceType } from '../../types/ai.types';
 import type { ContentProcessingOptions } from '../../types/ai-content.types';
 
 // Import AI services
-import { llmService, type LLMMessage, type LLMRequest, type ChatStreamOptions } from './llm.service';
+import {
+  llmService,
+  type LLMMessage,
+  type LLMRequest,
+  type ChatStreamOptions,
+} from './llm.service';
 import { embeddingService } from './embedding.service';
 import { conciergeService } from './concierge.service';
 import { memoryService } from './memory.service';
@@ -27,6 +32,7 @@ import { transcriptionService } from './content/transcription.service';
 import { qaService } from './qa.service';
 import { reviewService } from './review.service';
 import { reportService } from './denunciation.service';
+import { seoOptimizerService } from './seo-optimizer.service';
 
 // ============================================================================
 // Validation helpers
@@ -183,27 +189,30 @@ const skills: Skill[] = [
     name: 'LLM Stream',
     capability: 'llm.stream',
     description: 'Streaming chat completion with LLM',
-parameters: [
-    { name: 'messages', type: 'array', required: true },
-    { name: 'model', type: 'string', required: false },
-    { name: 'temperature', type: 'number', required: false },
-    { name: 'maxTokens', type: 'number', required: false },
-  ],
+    parameters: [
+      { name: 'messages', type: 'array', required: true },
+      { name: 'model', type: 'string', required: false },
+      { name: 'temperature', type: 'number', required: false },
+      { name: 'maxTokens', type: 'number', required: false },
+    ],
     options: { timeout: 60000, retries: 2, cacheable: false, streaming: true },
-    handler: async (input: unknown, context?: { onChunk?: (chunk: string) => void; signal?: AbortSignal }) => {
+    handler: async (
+      input: unknown,
+      context?: { onChunk?: (chunk: string) => void; signal?: AbortSignal }
+    ) => {
       validateLLMInput(input);
       validateTemperature(input.temperature);
       validateMaxTokens(input.maxTokens);
       validateModel(input.model);
 
-const options: ChatStreamOptions = {
-    messages: input.messages,
-    model: input.model,
-    temperature: input.temperature,
-    maxTokens: input.maxTokens,
-    onChunk: context?.onChunk,
-    signal: context?.signal,
-  };
+      const options: ChatStreamOptions = {
+        messages: input.messages,
+        model: input.model,
+        temperature: input.temperature,
+        maxTokens: input.maxTokens,
+        onChunk: context?.onChunk,
+        signal: context?.signal,
+      };
       return llmService.chatStream(options);
     },
   },
@@ -216,9 +225,7 @@ const options: ChatStreamOptions = {
     name: 'Embedding Generate',
     capability: 'embedding.generate',
     description: 'Generate vector embedding for text',
-    parameters: [
-      { name: 'text', type: 'string', required: true },
-    ],
+    parameters: [{ name: 'text', type: 'string', required: true }],
     options: { timeout: 30000, retries: 1, cacheable: true },
     handler: async (input: unknown) => {
       validateTextInput(input);
@@ -230,9 +237,7 @@ const options: ChatStreamOptions = {
     name: 'Embedding Batch',
     capability: 'embedding.batch',
     description: 'Generate vector embeddings for multiple texts',
-    parameters: [
-      { name: 'texts', type: 'array', required: true },
-    ],
+    parameters: [{ name: 'texts', type: 'array', required: true }],
     options: { timeout: 60000, retries: 1, cacheable: true },
     handler: async (input: unknown) => {
       validateTextsInput(input);
@@ -353,6 +358,77 @@ const options: ChatStreamOptions = {
   },
 
   // ========================================================================
+  // SEO Optimizer Service
+  // ========================================================================
+  {
+    id: 'seo-optimizer',
+    name: 'SEO Optimizer',
+    capability: 'seo.optimizer',
+    description: 'Genera meta tags optimizados para productos digitales',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'productId', type: 'string', required: true },
+      { name: 'productName', type: 'string', required: true },
+      { name: 'productDescription', type: 'string', required: true },
+      { name: 'productType', type: 'string', required: true },
+      { name: 'creatorName', type: 'string', required: false },
+    ],
+    options: { timeout: 30000, retries: 2, cacheable: false },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const {
+        requestingUserId,
+        productId,
+        productName,
+        productDescription,
+        productType,
+        creatorName,
+      } = input as {
+        requestingUserId: unknown;
+        productId: unknown;
+        productName: unknown;
+        productDescription: unknown;
+        productType: unknown;
+        creatorName?: unknown;
+      };
+
+      // Validate required parameters
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required', 400);
+      }
+      if (typeof productId !== 'string' || productId.length === 0) {
+        throw new AppError('productId is required', 400);
+      }
+      if (typeof productName !== 'string' || productName.length === 0) {
+        throw new AppError('productName is required', 400);
+      }
+      if (typeof productDescription !== 'string' || productDescription.length < 10) {
+        throw new AppError('productDescription must be at least 10 characters', 400);
+      }
+      if (typeof productType !== 'string') {
+        throw new AppError('productType is required', 400);
+      }
+
+      return seoOptimizerService.generate({
+        userId: requestingUserId,
+        productId,
+        productName,
+        productDescription,
+        productType: productType as
+          | 'course'
+          | 'ebook'
+          | 'podcast'
+          | 'membership'
+          | 'software'
+          | 'audiobook',
+        creatorName: creatorName as string | undefined,
+      });
+    },
+  },
+
+  // ========================================================================
   // Memory Service Skills
   // ========================================================================
   {
@@ -399,7 +475,15 @@ const options: ChatStreamOptions = {
         if (sourceTypes.length > 20) {
           throw new AppError('sourceTypes array exceeds maximum size of 20', 400);
         }
-        const validSourceTypes = ['lesson', 'faq', 'policy', 'qa', 'review', 'insight', 'saved_dashboard'];
+        const validSourceTypes = [
+          'lesson',
+          'faq',
+          'policy',
+          'qa',
+          'review',
+          'insight',
+          'saved_dashboard',
+        ];
         for (const type of sourceTypes) {
           if (typeof type !== 'string' || !validSourceTypes.includes(type)) {
             throw new AppError(`sourceTypes must be one of: ${validSourceTypes.join(', ')}`, 400);
@@ -687,75 +771,83 @@ const options: ChatStreamOptions = {
   // ========================================================================
   // Content Service Skills
   // ========================================================================
-{
-  id: 'content-analyze',
-  name: 'Content Analyze',
-  capability: 'content.analyze',
-  description: 'Analyze content (summary, topics, questions)',
-  parameters: [
-    { name: 'requestingUserId', type: 'string', required: true },
-    { name: 'userId', type: 'string', required: false },
-    { name: 'content', type: 'string', required: false },
-    { name: 'filePath', type: 'string', required: false },
-    { name: 'productType', type: 'string', required: false },
-    { name: 'analysisType', type: 'string', required: true },
-    { name: 'maxSummaryLength', type: 'number', required: false },
-  ],
-  options: { timeout: 60000, retries: 1, cacheable: true },
-  handler: async (input: unknown) => {
-    if (!input || typeof input !== 'object') {
-      throw new AppError('Invalid input: must be an object', 400);
-    }
-    const { requestingUserId, userId, content, filePath, productType, analysisType, maxSummaryLength } = input as {
-      requestingUserId: unknown;
-      userId: unknown;
-      content: unknown;
-      filePath: unknown;
-      productType: unknown;
-      analysisType: unknown;
-      maxSummaryLength: unknown;
-    };
+  {
+    id: 'content-analyze',
+    name: 'Content Analyze',
+    capability: 'content.analyze',
+    description: 'Analyze content (summary, topics, questions)',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'userId', type: 'string', required: false },
+      { name: 'content', type: 'string', required: false },
+      { name: 'filePath', type: 'string', required: false },
+      { name: 'productType', type: 'string', required: false },
+      { name: 'analysisType', type: 'string', required: true },
+      { name: 'maxSummaryLength', type: 'number', required: false },
+    ],
+    options: { timeout: 60000, retries: 1, cacheable: true },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const {
+        requestingUserId,
+        userId,
+        content,
+        filePath,
+        productType,
+        analysisType,
+        maxSummaryLength,
+      } = input as {
+        requestingUserId: unknown;
+        userId: unknown;
+        content: unknown;
+        filePath: unknown;
+        productType: unknown;
+        analysisType: unknown;
+        maxSummaryLength: unknown;
+      };
 
-    // Authorization: verify caller owns this resource
-    if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
-      throw new AppError('requestingUserId is required', 400);
-    }
-    if (userId !== undefined && typeof userId !== 'string') {
-      throw new AppError('userId must be a string if provided', 400);
-    }
-    // Authorization: if userId is provided and non-empty, verify ownership
-    if (typeof userId === 'string' && userId.length > 0 && requestingUserId !== userId) {
-      throw new AppError('Unauthorized access to user content resource', 403);
-    }
+      // Authorization: verify caller owns this resource
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required', 400);
+      }
+      if (userId !== undefined && typeof userId !== 'string') {
+        throw new AppError('userId must be a string if provided', 400);
+      }
+      // Authorization: if userId is provided and non-empty, verify ownership
+      if (typeof userId === 'string' && userId.length > 0 && requestingUserId !== userId) {
+        throw new AppError('Unauthorized access to user content resource', 403);
+      }
 
-    // Validate analysisType (required)
-    if (typeof analysisType !== 'string' || analysisType.length === 0) {
-      throw new AppError('analysisType is required and must be a non-empty string', 400);
-    }
-    const validAnalysisTypes = ['summary', 'topics', 'questions', 'full'];
-    if (!validAnalysisTypes.includes(analysisType)) {
-      throw new AppError(`analysisType must be one of: ${validAnalysisTypes.join(', ')}`, 400);
-    }
+      // Validate analysisType (required)
+      if (typeof analysisType !== 'string' || analysisType.length === 0) {
+        throw new AppError('analysisType is required and must be a non-empty string', 400);
+      }
+      const validAnalysisTypes = ['summary', 'topics', 'questions', 'full'];
+      if (!validAnalysisTypes.includes(analysisType)) {
+        throw new AppError(`analysisType must be one of: ${validAnalysisTypes.join(', ')}`, 400);
+      }
 
-    // Validate content or filePath (at least one required)
-    if (typeof content !== 'string' && typeof filePath !== 'string') {
-      throw new AppError('Either content or filePath is required', 400);
-    }
-    if (typeof content === 'string' && content.length === 0) {
-      throw new AppError('content must be a non-empty string if provided', 400);
-    }
-    // WARNING: Add content length limit to prevent DoS
-    if (typeof content === 'string' && content.length > 50000) {
-      throw new AppError('content exceeds maximum length of 50000 characters', 400);
-    }
-    if (typeof filePath === 'string' && filePath.length === 0) {
-      throw new AppError('filePath must be a non-empty string if provided', 400);
-    }
+      // Validate content or filePath (at least one required)
+      if (typeof content !== 'string' && typeof filePath !== 'string') {
+        throw new AppError('Either content or filePath is required', 400);
+      }
+      if (typeof content === 'string' && content.length === 0) {
+        throw new AppError('content must be a non-empty string if provided', 400);
+      }
+      // WARNING: Add content length limit to prevent DoS
+      if (typeof content === 'string' && content.length > 50000) {
+        throw new AppError('content exceeds maximum length of 50000 characters', 400);
+      }
+      if (typeof filePath === 'string' && filePath.length === 0) {
+        throw new AppError('filePath must be a non-empty string if provided', 400);
+      }
 
-    // Optional userId validation (only validate if provided)
-    if (userId !== undefined && (typeof userId !== 'string' || userId.length === 0)) {
-      throw new AppError('userId must be a non-empty string if provided', 400);
-    }
+      // Optional userId validation (only validate if provided)
+      if (userId !== undefined && (typeof userId !== 'string' || userId.length === 0)) {
+        throw new AppError('userId must be a non-empty string if provided', 400);
+      }
 
       // Optional productType validation
       let parsedProductType: ProductType | undefined;
@@ -763,7 +855,14 @@ const options: ChatStreamOptions = {
         if (typeof productType !== 'string') {
           throw new AppError('productType must be a string', 400);
         }
-        const validProductTypes: ProductType[] = ['course', 'book', 'article', 'document', 'podcast', 'video'];
+        const validProductTypes: ProductType[] = [
+          'course',
+          'book',
+          'article',
+          'document',
+          'podcast',
+          'video',
+        ];
         if (!validProductTypes.includes(productType as ProductType)) {
           throw new AppError(`productType must be one of: ${validProductTypes.join(', ')}`, 400);
         }
@@ -772,7 +871,11 @@ const options: ChatStreamOptions = {
 
       // Optional maxSummaryLength validation
       if (maxSummaryLength !== undefined) {
-        if (typeof maxSummaryLength !== 'number' || !Number.isInteger(maxSummaryLength) || maxSummaryLength <= 0) {
+        if (
+          typeof maxSummaryLength !== 'number' ||
+          !Number.isInteger(maxSummaryLength) ||
+          maxSummaryLength <= 0
+        ) {
           throw new AppError('maxSummaryLength must be a positive integer', 400);
         }
       }
@@ -788,37 +891,37 @@ const options: ChatStreamOptions = {
       });
     },
   },
-{
-  id: 'content-read',
-  name: 'Content Read',
-  capability: 'content.read',
-  description: 'Read and extract content from files',
-  parameters: [
-    { name: 'requestingUserId', type: 'string', required: true },
-    { name: 'filePath', type: 'string', required: true },
-    { name: 'options', type: 'object', required: false },
-  ],
-  options: { timeout: 30000, retries: 1, cacheable: false },
-  handler: async (input: unknown) => {
-    if (!input || typeof input !== 'object') {
-      throw new AppError('Invalid input: must be an object', 400);
-    }
-    const { requestingUserId, filePath, options } = input as {
-      requestingUserId: unknown;
-      filePath: unknown;
-      options: unknown;
-    };
+  {
+    id: 'content-read',
+    name: 'Content Read',
+    capability: 'content.read',
+    description: 'Read and extract content from files',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'filePath', type: 'string', required: true },
+      { name: 'options', type: 'object', required: false },
+    ],
+    options: { timeout: 30000, retries: 1, cacheable: false },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const { requestingUserId, filePath, options } = input as {
+        requestingUserId: unknown;
+        filePath: unknown;
+        options: unknown;
+      };
 
-    // Authorization: verify caller is authenticated
-    if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
-      throw new AppError('requestingUserId is required', 400);
-    }
+      // Authorization: verify caller is authenticated
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required', 400);
+      }
 
-    // Validate filePath (required)
-    if (typeof filePath !== 'string' || filePath.length === 0) {
-      throw new AppError('filePath is required and must be a non-empty string', 400);
-    }
-    // Path traversal validation is handled internally by contentReaderService.readContent
+      // Validate filePath (required)
+      if (typeof filePath !== 'string' || filePath.length === 0) {
+        throw new AppError('filePath is required and must be a non-empty string', 400);
+      }
+      // Path traversal validation is handled internally by contentReaderService.readContent
 
       // Optional options validation
       let parsedOptions: Partial<ContentProcessingOptions> | undefined;
@@ -887,19 +990,28 @@ const options: ChatStreamOptions = {
       }
       // Add productType enum validation similar to content-analyze
       if (productType !== undefined) {
-        const validProductTypes: string[] = ['course', 'book', 'article', 'document', 'podcast', 'video'];
+        const validProductTypes: string[] = [
+          'course',
+          'book',
+          'article',
+          'document',
+          'podcast',
+          'video',
+        ];
         if (!validProductTypes.includes(productType as string)) {
           throw new AppError(`productType must be one of: ${validProductTypes.join(', ')}`, 400);
         }
       }
 
       // Optional options validation
-      let parsedOptions: {
-        questionCount?: number;
-        questionTypes?: QuizQuestionType[];
-        difficulty?: 'easy' | 'medium' | 'hard';
-        language?: 'es' | 'en';
-      } | undefined;
+      let parsedOptions:
+        | {
+            questionCount?: number;
+            questionTypes?: QuizQuestionType[];
+            difficulty?: 'easy' | 'medium' | 'hard';
+            language?: 'es' | 'en';
+          }
+        | undefined;
       if (options !== undefined) {
         if (typeof options !== 'object') {
           throw new AppError('options must be an object', 400);
@@ -912,16 +1024,27 @@ const options: ChatStreamOptions = {
             opts.questionCount <= 0 ||
             opts.questionCount > 50)
         ) {
-          throw new AppError('options.questionCount must be a positive integer between 1 and 50', 400);
+          throw new AppError(
+            'options.questionCount must be a positive integer between 1 and 50',
+            400
+          );
         }
         if (opts.questionTypes !== undefined) {
           if (!Array.isArray(opts.questionTypes)) {
             throw new AppError('options.questionTypes must be an array', 400);
           }
-          const validQuestionTypes: QuizQuestionType[] = ['multiple-choice', 'true-false', 'fill-blank', 'matching'];
+          const validQuestionTypes: QuizQuestionType[] = [
+            'multiple-choice',
+            'true-false',
+            'fill-blank',
+            'matching',
+          ];
           for (const qt of opts.questionTypes) {
             if (typeof qt !== 'string' || !validQuestionTypes.includes(qt as QuizQuestionType)) {
-              throw new AppError(`options.questionTypes must be one of: ${validQuestionTypes.join(', ')}`, 400);
+              throw new AppError(
+                `options.questionTypes must be one of: ${validQuestionTypes.join(', ')}`,
+                400
+              );
             }
           }
         }
@@ -931,7 +1054,10 @@ const options: ChatStreamOptions = {
           }
           const validDifficulties = ['easy', 'medium', 'hard'];
           if (!validDifficulties.includes(opts.difficulty)) {
-            throw new AppError(`options.difficulty must be one of: ${validDifficulties.join(', ')}`, 400);
+            throw new AppError(
+              `options.difficulty must be one of: ${validDifficulties.join(', ')}`,
+              400
+            );
           }
         }
         if (opts.language !== undefined) {
@@ -940,7 +1066,10 @@ const options: ChatStreamOptions = {
           }
           const validLanguages = ['es', 'en'];
           if (!validLanguages.includes(opts.language)) {
-            throw new AppError(`options.language must be one of: ${validLanguages.join(', ')}`, 400);
+            throw new AppError(
+              `options.language must be one of: ${validLanguages.join(', ')}`,
+              400
+            );
           }
         }
         parsedOptions = {
@@ -966,42 +1095,42 @@ const options: ChatStreamOptions = {
       });
     },
   },
-{
-  id: 'content-transcribe',
-  name: 'Content Transcribe',
-  capability: 'content.transcribe',
-  description: 'Transcribe audio/video to text',
-  parameters: [
-    { name: 'requestingUserId', type: 'string', required: true },
-    { name: 'userId', type: 'string', required: true },
-    { name: 'file', type: 'object', required: true },
-    { name: 'fileName', type: 'string', required: false },
-    { name: 'mimeType', type: 'string', required: false },
-  ],
-  options: { timeout: 120000, retries: 1, cacheable: false },
-  // Note: Usage tracking for transcription is in-memory; use Redis/DB for production
-  handler: async (input: unknown) => {
-    if (!input || typeof input !== 'object') {
-      throw new AppError('Invalid input: must be an object', 400);
-    }
-    const { requestingUserId, userId, file, fileName, mimeType } = input as {
-      requestingUserId: unknown;
-      userId: unknown;
-      file: unknown;
-      fileName: unknown;
-      mimeType: unknown;
-    };
+  {
+    id: 'content-transcribe',
+    name: 'Content Transcribe',
+    capability: 'content.transcribe',
+    description: 'Transcribe audio/video to text',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'userId', type: 'string', required: true },
+      { name: 'file', type: 'object', required: true },
+      { name: 'fileName', type: 'string', required: false },
+      { name: 'mimeType', type: 'string', required: false },
+    ],
+    options: { timeout: 120000, retries: 1, cacheable: false },
+    // Note: Usage tracking for transcription is in-memory; use Redis/DB for production
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const { requestingUserId, userId, file, fileName, mimeType } = input as {
+        requestingUserId: unknown;
+        userId: unknown;
+        file: unknown;
+        fileName: unknown;
+        mimeType: unknown;
+      };
 
-    // Authorization: verify caller owns this resource
-    if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
-      throw new AppError('requestingUserId is required', 400);
-    }
-    if (typeof userId !== 'string' || userId.length === 0) {
-      throw new AppError('userId is required and must be a non-empty string', 400);
-    }
-    if (requestingUserId !== userId) {
-      throw new AppError('Unauthorized access to user transcription resource', 403);
-    }
+      // Authorization: verify caller owns this resource
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required', 400);
+      }
+      if (typeof userId !== 'string' || userId.length === 0) {
+        throw new AppError('userId is required and must be a non-empty string', 400);
+      }
+      if (requestingUserId !== userId) {
+        throw new AppError('Unauthorized access to user transcription resource', 403);
+      }
 
       // Validate file (Buffer)
       if (!file) {
@@ -1016,11 +1145,11 @@ const options: ChatStreamOptions = {
             if (!file || typeof file !== 'object') {
               throw new AppError('file must be a Buffer object', 400);
             }
-const fileObj = file as { type?: string; data?: number[] };
-  // Use || to ensure EITHER type is Buffer OR data is array triggers error
-  if (fileObj.type !== 'Buffer' || !Array.isArray(fileObj.data)) {
-    throw new AppError('file must be a Buffer object', 400);
-  }
+            const fileObj = file as { type?: string; data?: number[] };
+            // Use || to ensure EITHER type is Buffer OR data is array triggers error
+            if (fileObj.type !== 'Buffer' || !Array.isArray(fileObj.data)) {
+              throw new AppError('file must be a Buffer object', 400);
+            }
             return Buffer.from(fileObj.data || []);
           })();
 
@@ -1041,7 +1170,8 @@ const fileObj = file as { type?: string; data?: number[] };
       }
       // Validate MIME type format - must be audio/* or video/*
       if (mimeType !== undefined) {
-        const isValidMimeType = /^audio\//.test(mimeType as string) || /^video\//.test(mimeType as string);
+        const isValidMimeType =
+          /^audio\//.test(mimeType as string) || /^video\//.test(mimeType as string);
         if (!isValidMimeType) {
           throw new AppError('mimeType must be audio/* or video/*', 400);
         }
@@ -1251,7 +1381,7 @@ const fileObj = file as { type?: string; data?: number[] };
 /**
  * Register all AI services as Orchestrator skills
  * Called at application boot time
- * 
+ *
  * @throws Error if any skill fails to register (consistent with Scheduler pattern)
  */
 export async function registerAISkills(): Promise<void> {
@@ -1259,7 +1389,7 @@ export async function registerAISkills(): Promise<void> {
 
   // Register all skills
   const results = await Promise.allSettled(
-    skills.map(async (skill) => {
+    skills.map(async skill => {
       await skillsRegistry.register(skill);
       return skill.capability;
     })
@@ -1278,10 +1408,7 @@ export async function registerAISkills(): Promise<void> {
       failCount++;
       const capability = skills[index].capability;
       failedSkills.push(capability);
-      logger.error(
-        { capability, error: result.reason },
-        'AI Services: Failed to register skill'
-      );
+      logger.error({ capability, error: result.reason }, 'AI Services: Failed to register skill');
     }
   });
 
@@ -1296,6 +1423,8 @@ export async function registerAISkills(): Promise<void> {
       { failedSkills, total: skills.length, failed: failCount },
       'AI Services: CRITICAL — Some skills failed to register'
     );
-    throw new Error(`AI Services: Failed to register ${failCount}/${skills.length} skills: ${failedSkills.join(', ')}`);
+    throw new Error(
+      `AI Services: Failed to register ${failCount}/${skills.length} skills: ${failedSkills.join(', ')}`
+    );
   }
 }
