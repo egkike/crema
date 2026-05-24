@@ -98,6 +98,7 @@ throw new AppError('message', 400);
 | `transcriptionService` | Audio/video transcription |
 | `qaAgentService`, `tutorService`, `insightsService`, `analyticsService` | Q&A agent, tutor, insights, analytics |
 | `interactiveAgentService` | Talleres dinámicos AI — user data + personalized analysis |
+| `seoOptimizerService` | SEO metadata generation (meta title, description, OG tags, schema markup) |
 
 ### Orchestrator
 
@@ -122,6 +123,7 @@ import { skillsRegistry } from '../services/skills-registry.service';
 | `appConfigRepository` | App config DB storage (for ConfigService) |
 | `memoryRepository` | Vector embedding persistence (pgvector) |
 | `creditsRepository` | AI credit balance persistence |
+| `seoOptimizerRepository` | SEO metadata persistence per product (meta tags, OG tags, schema markup) |
 
 **Pattern:** All repositories are singleton objects.
 
@@ -287,7 +289,7 @@ These SDDs have been completed and reference this catalog:
 - `docs/project/ai-features/sdd/ai-affiliate-chat/` — AI chat contextual para afiliados, usa memoryService (RAG)
 - `docs/project/ai-features/sdd/memory-enhancement/` — Memory RAG con HNSW, RBAC, cleanup, quota
 - `docs/project/ai-features/sdd/interactive-agent/` — Talleres dinámicos con análisis personalizado, usa aiCreditService, llmService
-- `docs/project/ai-features/sdd/seo-optimizer/` — SEO meta tags con RAG context (pending implementation)
+- `docs/project/ai-features/sdd/seo-optimizer/` — SEO meta tags con RAG context, capability `seo.optimizer` (✅ Implementado)
 
 ### Architecture Improvements
 - `docs/project/architecture-improvements/sdd/config-service/` — Tiered config with Redis caching, crea `app_configs`

@@ -13,7 +13,8 @@
 - ✅ AI Support Chatbot (Concierge core): COMPLETO
 - ✅ Credit Management Dashboard: COMPLETO
 - ✅ AI Affiliate Chat: COMPLETO (Tasks 1-7)
-- 🆕 Features pendientes: §4.3-§4.7, §4.11-§4.15, §4.17-§4.18, §4.20 (13 features) + ⚠️ Parciales: §4.8, §4.19 - Roadmap priorizado
+- ✅ SEO Optimizer: COMPLETO (Tasks 0-7)
+- 🆕 Features pendientes: §4.3-§4.7, §4.11, §4.13-§4.15, §4.17-§4.18, §4.20 (12 features) + ⚠️ Parciales: §4.8, §4.19 - Roadmap priorizado
 **Owner**: Kike García
 
 > **Dependencias**:
@@ -916,9 +917,20 @@ Genera meta tags automáticos para las páginas de productos.
 | **Meta description** | Descripción para SEO |
 | **OG Tags** | Open Graph para redes sociales |
 | **Schema markup** | Datos estructurados para Rich Snippets |
+| **Keywords** | Keywords relevantes para el producto (5-10) |
 
 #### Estado
-🆕 **NUEVO** - Requiere desarrollo
+✅ **IMPLEMENTADO** (Tasks 0-7 completados, Mayo 2026)
+
+> **Implementación técnica:** Ver SDD `docs/project/ai-features/sdd/seo-optimizer/`
+> - Servicio: `seoOptimizerService` en `services/ai/seo-optimizer.service.ts`
+> - Repositorio: `seoOptimizerRepository` en `repositories/seo-optimizer.repository.ts`
+> - Endpoint: `POST /api/ai/product/seo`
+> - Rate limiter: `seoOptimizerLimiter` (10 req/min)
+> - Capability: `seo.optimizer` registrada en Orchestrator
+> - Costo: 1 crédito AI por generación
+> - RAG Context: Reutiliza `memoryService.searchSimilar` con sourceTypes ['lesson', 'faq', 'review']
+> - Tests: 18 unit + 16 integration = 34 total, all passing
 
 ---
 
@@ -2003,8 +2015,8 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 > Dado que la mayoria de dependencias ya están resueltas, el orden se basa en score de viabilidad y复用 de código.
 
 **Fase A (Meses 1-2):复用 existente**
-1. §4.10 AI Afiliate Chat —复用 ConciergeService
-2. §4.12 SEO Optimizer —复用 ContentAssistant
+1. §4.10 AI Afiliate Chat —复用 ConciergeService ✅ COMPLETO
+2. §4.12 SEO Optimizer —复用 ContentAssistant ✅ COMPLETO
 3. §4.8 AI Insights expand —复用 InsightsService
 
 **Fase B (Meses 3-4): Contenido y monetización**

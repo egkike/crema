@@ -95,6 +95,7 @@ Plataforma all-in-one para creadores y emprendedores.
 - ✅ **Memory Enhancement** - HNSW index, RBAC validation, cleanup jobs, per-user quota
 - ✅ **AI Affiliate Chat** - Chat contextual para afiliados y compradores (2 créditos/consulta)
 - ✅ **AI Support Chatbot (Concierge)** - Soporte técnico con escalación a email
+- ✅ **SEO Optimizer** - Meta tags automáticos con RAG context (1 crédito/generación)
 
 ---
 
