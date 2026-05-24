@@ -275,6 +275,47 @@
 
 ---
 
-**Tasks Creado**: Abril 2026  
-**Estado**: ✅ Implementado (Abril 2026)  
+**Tasks Creado**: Abril 2026
+**Estado**: ✅ Implementado (Abril 2026)
 **Author**: SDD Workflow
+
+---
+
+## Task: Update Project Documentation
+
+**Depends on**: All tasks complete and verified
+
+### What to do
+
+Update these project documents to reflect that Orchestrator is implemented:
+
+#### 1. Update PRD.md (if mentioned)
+
+Check if Orchestrator is mentioned in PRD.md and update status.
+
+#### 2. Update reusable-resources.md
+
+Add to Active SDDs Reference section in `docs/project/reusable-resources.md`:
+```markdown
+- `docs/project/architecture-improvements/sdd/orchestrator/` — Central routing with 18 capabilities (SSE streaming)
+```
+
+#### 3. Update CremaOverview.md
+
+Update AI Features table in `docs/CremaOverview.md`:
+```markdown
+| **Orchestrator** | Router centralizado con 18 capabilities (streaming SSE) |
+```
+
+#### 4. Update Project README.md (root)
+
+Update AI Features list in root `README.md`:
+```markdown
+- ✅ **Orchestrator** - Router centralizado con 18 capabilities (streaming SSE)
+```
+
+### Verification
+- [ ] PRD.md updated (if applicable)
+- [ ] reusable-resources.md includes SDD reference
+- [ ] CremaOverview.md updated
+- [ ] README.md (root) updated

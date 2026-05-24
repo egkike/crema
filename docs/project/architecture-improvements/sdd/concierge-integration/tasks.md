@@ -132,3 +132,62 @@ Tareas completadas:
 | 14 | Espacio faltante | SUGGESTION | información ONLY |
 
 **Resultado**: TypeScript ✅, Lint ✅ 0 errors, Tests ✅ 1025 passed
+
+---
+
+## Task: Update Project Documentation
+
+**Depends on**: All tasks complete and verified
+
+### What to do
+
+Update these project documents to reflect that Concierge is implemented:
+
+#### 1. Update PRD.md (§4.9)
+
+Change status from `🆕 NUEVO - Requiere desarrollo` to `✅ IMPLEMENTADO`:
+
+```markdown
+#### Estado
+✅ **IMPLEMENTADO** (Tasks 1-6 completados, Abril 2026)
+
+> **Implementation technical reference:**
+> - Servicio: `conciergeService` en `services/ai/concierge.service.ts`
+> - Capability: `concierge.chat` registrada en Orchestrator
+> - Config keys: `support.timeout_ms`, `support.max_retries`, `support.enabled`, `support.system_prompt`, `support.model`
+```
+
+Also update the header status line at the top of PRD.md.
+
+#### 2. Update reusable-resources.md
+
+Add to AI Services table in `docs/project/reusable-resources.md`:
+```markdown
+| `conciergeService` | AI support chatbot | Singleton |
+```
+
+Add to Active SDDs Reference section:
+```markdown
+- `docs/project/architecture-improvements/sdd/concierge-integration/` — AI support chatbot con escalación
+```
+
+#### 3. Update CremaOverview.md
+
+Update AI Features table in `docs/CremaOverview.md`:
+```markdown
+| **AI Support Chatbot (Concierge)** | Soporte técnico con escalación a email |
+```
+
+#### 4. Update Project README.md (root)
+
+Update AI Features list in root `README.md`:
+```markdown
+- ✅ **AI Support Chatbot (Concierge)** - Soporte técnico con escalación a email
+```
+
+### Verification
+- [ ] PRD.md §4.9 shows "✅ IMPLEMENTADO" status
+- [ ] PRD.md includes implementation reference
+- [ ] reusable-resources.md updated (AI Services + Active SDDs)
+- [ ] CremaOverview.md updated
+- [ ] README.md (root) updated

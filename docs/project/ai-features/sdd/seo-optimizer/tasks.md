@@ -709,6 +709,112 @@ describe('SEO Optimizer Routes', () => {
 
 ---
 
+## Task 8: Update Project Documentation
+
+**Depends on**: All previous tasks (1-7) complete and verified
+
+### What to do
+
+Update these project documents to reflect that SEO Optimizer SDD is complete:
+
+#### 1. Update PRD.md (§4.12)
+
+Change the status section for §4.12 SEO Optimizer:
+
+**Before:**
+```markdown
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo
+```
+
+**After:**
+```markdown
+#### Estado
+✅ **SDD COMPLETO** - Implementation pending (Tasks 1-7 in `docs/project/ai-features/sdd/seo-optimizer/tasks.md`)
+
+> **Implementation technical reference:**
+> - Servicio: `seoOptimizerService` en `services/ai/seo-optimizer.service.ts`
+> - Endpoint: `POST /api/ai/product/seo`
+> - Rate limiter: `seoOptimizerLimiter` (10/min)
+> - Capability: `seo.optimizer` registrada en Orchestrator
+> - Config keys: `seo_optimizer.temperature`, `seo_optimizer.max_tokens`, `seo_optimizer.model`
+> - Repository: `seoOptimizerRepository` en `repositories/seo-optimizer.repository.ts`
+> - Schema: `seoOptimizerSchema` en `schemas/ai.schema.ts`
+```
+
+Also update the header status line at the top of PRD.md.
+
+#### 2. Update reusable-resources.md
+
+Add to AI Services table in `docs/project/reusable-resources.md`:
+```markdown
+| `seoOptimizerService` | SEO meta tags with RAG context | Singleton |
+```
+
+Add to Repositories table:
+```markdown
+| `seoOptimizerRepository` | SEO config persistence | Singleton |
+```
+
+Add to Active SDDs Reference section:
+```markdown
+- `docs/project/ai-features/sdd/seo-optimizer/` — SEO meta tags auto-generation
+```
+
+#### 3. Update reusable-resources.md §10 (Database Schema)
+
+If `backend/db/init/13-seo-optimizer-tables.sql` was created, add to Init Script Inventory table in `docs/project/reusable-resources.md` §10:
+```markdown
+| `13-seo-optimizer-tables.sql` | `product_seo_configs` table for SEO meta tags per product | `seo-optimizer` |
+```
+
+#### 4. Update CremaOverview.md
+
+Add to AI Features table in `docs/CremaOverview.md`:
+```markdown
+| **SEO Optimizer** | Meta tags automáticos para productos (meta title, description, OG, Schema) |
+```
+
+#### 5. Update Project README.md (root)
+
+Add to AI Features section in root `README.md`:
+```markdown
+- ✅ **SEO Optimizer** - Meta tags automáticos con RAG context
+```
+
+#### 6. Update TECHNICAL-SPEC.md (if exists)
+
+Check `docs/project/ai-features/TECHNICAL-SPEC.md` and add to AI Services table:
+```markdown
+| seo-optimizer | SEO Optimizer | ✅ | `seo.optimizer` | `POST /api/ai/product/seo` |
+```
+
+#### 7. Update backend/README.md (if exists)
+
+If `backend/README.md` exists, add new endpoint to API reference.
+
+### Execution Order
+
+1. Edit PRD.md (primary source of truth)
+2. Edit reusable-resources.md (services, repos, active SDDs)
+3. Edit reusable-resources.md §10 (if db scripts created)
+4. Edit CremaOverview.md
+5. Edit root README.md
+6. Edit TECHNICAL-SPEC.md if exists
+7. Edit backend/README.md if exists
+
+### Verification
+- [ ] PRD.md §4.12 shows "SDD COMPLETO" status
+- [ ] PRD.md includes implementation reference with file paths
+- [ ] reusable-resources.md updated (AI Services + Repositories + Active SDDs)
+- [ ] reusable-resources.md §10 updated (if db/init scripts created)
+- [ ] CremaOverview.md updated
+- [ ] README.md (root) updated
+- [ ] TECHNICAL-SPEC.md (if exists) includes seo-optimizer
+- [ ] No broken internal links
+
+---
+
 ## Final Verification Checklist
 
 After all tasks are complete, run:

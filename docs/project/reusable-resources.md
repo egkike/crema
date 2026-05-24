@@ -281,11 +281,23 @@ Uses `AppError` class + `globalErrorHandler` middleware
 
 ## Active SDDs Reference
 
-These SDDs reference this catalog:
-- `docs/project/content-security/sdd/content-security/` — uses upload middleware, config patterns
-- `docs/project/ai-features/sdd/memory-enhancement/` — uses memoryService, memoryRepository, hooks
-- `docs/project/ai-features/sdd/interactive-agent/` — uses aiCreditService, llmService, singleton pattern, interactiveAgentLimiter
-- `docs/project/architecture-improvements/sdd/config-service/` — defines ConfigService patterns
+These SDDs have been completed and reference this catalog:
+
+### AI Features
+- `docs/project/ai-features/sdd/ai-affiliate-chat/` — AI chat contextual para afiliados, usa memoryService (RAG)
+- `docs/project/ai-features/sdd/memory-enhancement/` — Memory RAG con HNSW, RBAC, cleanup, quota
+- `docs/project/ai-features/sdd/interactive-agent/` — Talleres dinámicos con análisis personalizado, usa aiCreditService, llmService
+- `docs/project/ai-features/sdd/seo-optimizer/` — SEO meta tags con RAG context (pending implementation)
+
+### Architecture Improvements
+- `docs/project/architecture-improvements/sdd/config-service/` — Tiered config with Redis caching, crea `app_configs`
+- `docs/project/architecture-improvements/sdd/concierge-integration/` — AI support chatbot con escalación, usa conciergeService
+- `docs/project/architecture-improvements/sdd/error-handling/` — Error notifications con Slack/Datadog
+- `docs/project/architecture-improvements/sdd/orchestrator/` — Central routing con 18 capabilities (SSE streaming)
+- `docs/project/architecture-improvements/sdd/user-context/` — User context y notas, crea `user_context`, `user_notes`
+
+### Content Security
+- `docs/project/content-security/sdd/content-security/` — uses upload middleware, url-validator, config patterns
 
 ---
 
@@ -297,20 +309,27 @@ Database initialization scripts run **once on first container start** via docker
 
 ### Init Script Inventory
 
-| File | What it sets up |
-|------|----------------|
-| `01-create-tables.sql` | Core tables: users, products, orders, balances, payouts, commissions, subscriptions |
-| `02-create-indexes.sql` | Core indexes on user, product, order, balance tables |
-| `03-create-seeds.sql` | Seed data (admin user, default plans) |
-| `04-refactor-types.sql` | Schema migrations (add columns, constraints) |
-| `05-ai-tables.sql` | `ai_embeddings`, `ai_credits`, `ai_credit_transactions`, `ai_credit_packages` |
-| `06-ai-indexes.sql` | AI indexes: source, user, created_at DESC/ASC, HNSW/IVFFlat vector, cleanup, LRU eviction |
-| `07-config-service-tables.sql` | `app_configs` table + config service setup |
-| `08-orchestrator-tables.sql` | Orchestrator tables, skills registry |
-| `09-error-handling-config.sql` | Error policies, content policies, report reasons |
-| `10-user-context-tables.sql` | Q&A (questions, FAQs), reviews/ratings, reports, analytics, AI agents |
-| `11-hnsw-index.sql` | HNSW vector index (alternative to IVFFlat, requires pgvector) |
-| `12-interactive-agent.sql` | `user_course_data`, `product_module_fields` tables for interactive agent (talleres dinámicos AI) |
+| File | What it sets up | SDD Source |
+|------|-----------------|------------|
+| `01-create-tables.sql` | Core tables: users, products, orders, balances, payouts, commissions, subscriptions | — |
+| `02-create-indexes.sql` | Core indexes on user, product, order, balance tables | — |
+| `03-create-seeds.sql` | Seed data (admin user, default plans) | — |
+| `04-refactor-types.sql` | Schema migrations (add columns, constraints) | — |
+| `05-ai-tables.sql` | `ai_embeddings`, `ai_credits`, `ai_credit_transactions`, `ai_credit_packages` | — |
+| `06-ai-indexes.sql` | AI indexes: source, user, created_at DESC/ASC, HNSW/IVFFlat vector, cleanup, LRU eviction | — |
+| `07-config-service-tables.sql` | `app_configs` table + config service setup | `config-service` |
+| `08-orchestrator-tables.sql` | Orchestrator tables, skills registry | `orchestrator` |
+| `09-error-handling-config.sql` | Error policies, content policies, report reasons | `error-handling` |
+| `10-user-context-tables.sql` | Q&A (questions, FAQs), reviews/ratings, reports, analytics, AI agents | `user-context` |
+| `11-hnsw-index.sql` | HNSW vector index (alternative to IVFFlat, requires pgvector) | `memory-enhancement` |
+| `12-interactive-agent.sql` | `user_course_data`, `product_module_fields` tables for interactive agent (talleres dinámicos AI) | `interactive-agent` |
+| `13-*-*.sql` | **Pending** — New scripts added during implementation | See SDD |
+
+> **📝 For SDD authors:** When creating a new `db/init/XX-*.sql` script:
+> 1. Document the script in your SDD tasks.md (e.g., Task 0 or first task)
+> 2. Add it to this inventory table with the SDD source
+> 3. Update the "Active SDDs Reference" section above
+> 4. Use `CREATE INDEX IF NOT EXISTS` and `CREATE TABLE IF NOT EXISTS` for idempotency
 
 ### Key Indexes for AI Features
 

@@ -103,3 +103,40 @@ Tareas T-1 a T-8 completadas:
 - Services: user-context.service.ts, user-notes.service.ts
 - Routes en user.routes.ts
 - Tests: user-context.service.test.ts (15 test cases)
+
+---
+
+## Task: Update Project Documentation
+
+**Depends on**: All tasks complete and verified
+
+### What to do
+
+Update these project documents to reflect that User Context is implemented:
+
+#### 1. Update reusable-resources.md
+
+Add to Repositories table in `docs/project/reusable-resources.md`:
+```markdown
+| `userContextRepository` | User context persistence | Singleton |
+| `userNotesRepository` | User notes persistence | Singleton |
+```
+
+Add to Services section:
+```markdown
+| `userContextService` | User context management | Singleton |
+| `userNotesService` | User notes management | Singleton |
+```
+
+Add to Active SDDs Reference section:
+```markdown
+- `docs/project/architecture-improvements/sdd/user-context/` — User context y notas
+```
+
+#### 2. Update backend/README.md (if exists)
+
+If `backend/README.md` exists, add User Context API reference.
+
+### Verification
+- [ ] reusable-resources.md updated (Repositories + Services + Active SDDs)
+- [ ] backend/README.md updated (if exists)

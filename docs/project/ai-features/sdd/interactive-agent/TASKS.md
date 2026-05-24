@@ -367,4 +367,83 @@ pnpm test -- --grep "interactive"
 - [x] Tests passing (1231 passing, coverage >= 80% service, >= 70% routes)
 - [x] Tablas creadas en DB (12-interactive-agent.sql)
 - [x] Routes respondiendo correctamente
+
+---
+
+## Task 12: Update Project Documentation
+
+**Depends on**: Tasks 1-11 complete and verified
+
+### What to do
+
+Update these project documents to reflect that Interactive Agent is implemented:
+
+#### 1. Update PRD.md (§4.21)
+
+Change status from `🆕 NUEVO - Requiere desarrollo` to `✅ IMPLEMENTADO`:
+
+```markdown
+#### Estado
+✅ **IMPLEMENTADO** (Tasks 1-11 completados, Mayo 2026)
+
+> **Implementation technical reference:**
+> - Servicio: `interactiveAgentService` en `services/ai/interactive-agent.service.ts`
+> - Endpoint: `POST /api/interactive/start`, `POST /api/interactive/submit`, `GET /api/interactive/progress`
+> - Rate limiter: `interactiveAgentLimiter`
+> - Capability: `interactive-agent` registrada en Orchestrator
+> - Tables: `user_course_data`, `product_module_fields`
+```
+
+Also update the header status line at the top of PRD.md.
+
+#### 2. Update reusable-resources.md
+
+Add to AI Services table in `docs/project/reusable-resources.md`:
+```markdown
+| `interactiveAgentService` | Talleres dinámicos AI — user data + personalized analysis | Singleton |
+```
+
+Add to Repositories table:
+```markdown
+| `interactiveAgentRepository` | Interactive agent data persistence | Singleton |
+```
+
+Add to Active SDDs Reference section:
+```markdown
+- `docs/project/ai-features/sdd/interactive-agent/` — Talleres dinámicos con análisis personalizado
+```
+
+#### 3. Update CremaOverview.md
+
+Update AI Features table in `docs/CremaOverview.md`:
+```markdown
+| **Interactive Agent** | Talleres dinámicos con análisis personalizado (3 créditos/análisis) |
+```
+
+#### 4. Update Project README.md (root)
+
+Update AI Features list in root `README.md`:
+```markdown
+- ✅ **Interactive Agent** - Talleres dinámicos con análisis personalizado (3 créditos/análisis)
+```
+
+#### 5. Update TECHNICAL-SPEC.md (if exists)
+
+Check `docs/project/ai-features/TECHNICAL-SPEC.md` and update AI Services table.
+
+### Execution Order
+
+1. Edit PRD.md (primary source of truth)
+2. Edit reusable-resources.md
+3. Edit CremaOverview.md
+4. Edit root README.md
+5. Edit TECHNICAL-SPEC.md if exists
+
+### Verification
+- [ ] PRD.md §4.21 shows "✅ IMPLEMENTADO" status
+- [ ] PRD.md includes implementation reference with file paths
+- [ ] reusable-resources.md updated (AI Services + Repositories + Active SDDs)
+- [ ] CremaOverview.md updated
+- [ ] README.md (root) updated
+- [ ] TECHNICAL-SPEC.md updated (if exists)
 - [x] PR mergeado a master (commit eb30679)

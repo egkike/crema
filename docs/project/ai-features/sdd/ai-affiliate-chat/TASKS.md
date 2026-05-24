@@ -612,4 +612,78 @@ Tasks 1, 2 can be done in parallel.
 Task 3 depends on both 1 and 2.
 Tasks 4, 5 depend only on 1.
 Task 6 depends on 1 (and 2 for types).
+
+---
+
+## Task 8: Update Project Documentation
+
+**Depends on**: Tasks 1-7 complete and verified
+
+### What to do
+
+Update these project documents to reflect that AI Affiliate Chat is implemented:
+
+#### 1. Update PRD.md (§4.10)
+
+Change status from `🆕 NUEVO - Requiere desarrollo` to `✅ IMPLEMENTADO`:
+
+```markdown
+#### Estado
+✅ **IMPLEMENTADO** (Tasks 1-7 completados, Mayo 2026)
+
+> **Implementation technical reference:**
+> - Servicio: `affiliateChatService` en `services/ai/affiliate-chat.service.ts`
+> - Endpoint: `POST /api/ai/affiliate/chat`
+> - Rate limiter: `affiliateChatLimiter` (configurable via `affiliate_chat.rate_limit`, default 30/min)
+> - Capability: `affiliate.chat` registrada en Orchestrator
+> - Config keys: `affiliate_chat.temperature`, `affiliate_chat.max_tokens`, `affiliate_chat.model`
+```
+
+Also update the header status line at the top of PRD.md.
+
+#### 2. Update reusable-resources.md
+
+Add to AI Services table in `docs/project/reusable-resources.md`:
+```markdown
+| `affiliateChatService` | AI chat for affiliates/buyers about specific products (RAG-based, credit-gated) | Singleton |
+```
+
+Add to Active SDDs Reference section:
+```markdown
+- `docs/project/ai-features/sdd/ai-affiliate-chat/` — AI chat contextual para afiliados
+```
+
+#### 3. Update CremaOverview.md
+
+Update AI Features table in `docs/CremaOverview.md`:
+```markdown
+| **AI Affiliate Chat** | Chat contextual para afiliados y compradores (2 créditos/consulta) |
+```
+
+#### 4. Update Project README.md (root)
+
+Update AI Features list in root `README.md`:
+```markdown
+- ✅ **AI Affiliate Chat** - Chat contextual para afiliados y compradores (2 créditos/consulta)
+```
+
+#### 5. Update TECHNICAL-SPEC.md (if exists)
+
+Check `docs/project/ai-features/TECHNICAL-SPEC.md` and update AI Services table.
+
+### Execution Order
+
+1. Edit PRD.md (primary source of truth)
+2. Edit reusable-resources.md
+3. Edit CremaOverview.md
+4. Edit root README.md
+5. Edit TECHNICAL-SPEC.md if exists
+
+### Verification
+- [ ] PRD.md §4.10 shows "✅ IMPLEMENTADO" status
+- [ ] PRD.md includes implementation reference with file paths
+- [ ] reusable-resources.md updated (AI Services + Active SDDs)
+- [ ] CremaOverview.md updated
+- [ ] README.md (root) updated
+- [ ] TECHNICAL-SPEC.md updated (if exists)
 Task 7 depends on 3 and 4.

@@ -43,6 +43,7 @@ Your tone is professional, direct, and highly technical.
 - **Inventory:** See `docs/project/reusable-resources.md` for a complete catalog of reusable modules (services, repositories, utilities, middlewares, types).
 - **Always check this inventory before creating new modules** — the project likely already has what you need.
 - **Documentation:** When writing SDD specs and designs, reference existing patterns from the reusable resources catalog.
+- **SDD Workflow:** See `docs/project/SDD-WORKFLOW.md` for the complete SDD lifecycle and documentation update requirements.
 
 ---
 
@@ -231,63 +232,15 @@ Ask user: "¿Quieres hacer juicio sobre lo realizado?"
 
 ---
 
-## Spec Driven Development (SDD) Workflow
+## SDD Workflow Reference
 
-### Overview
+The complete SDD workflow is documented in `docs/project/SDD-WORKFLOW.md`.
 
-SDD is the planning layer for substantial changes. Code starts ONLY after SDD is approved.
-
-### Prerequisites
-
-**PRD must exist FIRST** → `docs/project/<feature>/PRD.md`
-
-SDD starts from existing PRD requirements. If PRD doesn't exist, create it first before starting SDD.
-
-### SDD Phases
-
-| Phase | Document | Purpose |
-|-------|----------|---------|
-| **Proposal** | `proposal.md` | Scope, objectives, approach |
-| **Spec** | `spec.md` | Functional requirements, acceptance criteria |
-| **Design** | `design.md` | Architecture, technical decisions |
-| **Tasks** | `tasks.md` | Implementation checklist |
-
-### Phase Flow
-
-```
-PRD (existing) → Proposal → Spec → Design → Tasks → Apply → Verify → Archive
-```
-
-### When to Use SDD
-
-Use SDD for substantial changes:
-- New features with complex requirements
-- Architecture changes
-- Database schema changes
-- New services or integrations
-
-### SDD Location
-
-All SDD artifacts stored in: `docs/project/<feature>/sdd/<change>/`
-
-Document structure:
-```
-docs/project/<feature>/
-├── PRD.md                    ← Product requirements (PRE-SDD)
-└── sdd/
-    └── <change>/
-        ├── proposal.md      ← SDD: scope y objetivos
-        ├── spec.md          ← SDD: requisitos técnicos
-        ├── design.md        ← SDD: arquitectura
-        └── tasks.md         ← SDD: checklist
-```
-
-### Code Implementation Rules
-
-- Code ONLY starts after Design phase is approved
-- Follow the task list in `tasks.md` in order
-- Run verification after each task
-- Never skip tasks or change scope without updating SDD
+Key points:
+- **Phases**: init → explore → proposal → spec → design → tasks → apply → verify → sync → archive
+- **Mandatory**: Every tasks.md must end with Task N+1: Update Project Documentation
+- **Database scripts**: Document in reusable-resources.md §10 (Init Script Inventory)
+- **Templates**: See `openspec/templates/` for reusable task and report templates
 
 ---
 

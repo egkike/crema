@@ -125,3 +125,30 @@ pnpm test           # ✅ 1000 passed
 ## Estado
 
 **Estado**: ✅ COMPLETO (2026-03-20)
+
+---
+
+## Task: Update Project Documentation
+
+**Depends on**: All tasks complete and verified
+
+### What to do
+
+Update these project documents to reflect that Error Handling is implemented:
+
+#### 1. Update reusable-resources.md
+
+Add to Active SDDs Reference section in `docs/project/reusable-resources.md`:
+```markdown
+- `docs/project/architecture-improvements/sdd/error-handling/` — Error notifications with Slack/Datadog
+```
+
+Update Error Handling section if exists.
+
+#### 2. Update backend/README.md (if exists)
+
+If `backend/README.md` exists, add Error Handling/NotificationService reference.
+
+### Verification
+- [ ] reusable-resources.md includes SDD reference
+- [ ] backend/README.md updated (if exists)

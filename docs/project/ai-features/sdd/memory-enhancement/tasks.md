@@ -302,6 +302,46 @@ describe('Cleanup Job', () => {
 
 ---
 
+## Documentación del Proyecto
+
+**Depends on**: Tasks 1-7 complete and verified
+
+After completing implementation, update these project documents:
+
+### 1. Update PRD.md (Memory Enhancement)
+
+In `docs/project/ai-features/PRD.md` §2.4 (Memory Enhancement):
+
+Change status from "Mejoras Planificadas" to "COMPLETO":
+```markdown
+#### 2.4 Memory Enhancement (Mejoras Planificadas)
+
+> **Estado**: ✅ COMPLETO (SDD Tasks 1-7 implementados y testeados, Mayo 2026)
+```
+
+### 2. Update reusable-resources.md
+
+Add to Active SDDs Reference section in `docs/project/reusable-resources.md`:
+```markdown
+- `docs/project/ai-features/sdd/memory-enhancement/` — Memory RAG with HNSW, RBAC, cleanup, quota
+```
+
+### 3. Update CremaOverview.md
+
+Update AI Features table in `docs/CremaOverview.md` if Memory Enhancement status is listed.
+
+### 4. Update README.md (root)
+
+Update AI Features list in root `README.md` if Memory Enhancement is listed.
+
+### Verification
+- [ ] PRD.md §2.4 shows "COMPLETO" status
+- [ ] reusable-resources.md includes SDD reference
+- [ ] CremaOverview.md updated (if applicable)
+- [ ] README.md updated (if applicable)
+
+---
+
 ## Estado
 
 **Estado**: ✅ COMPLETADO

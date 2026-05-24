@@ -182,3 +182,30 @@ Una task se considera completada cuando:
 **Último commit:** `test(config-service): add integration tests + exclude from CI`
 
 **Siguiente SDD:** user-context o concierge-integration
+
+---
+
+## Task: Update Project Documentation
+
+**Depends on**: All tasks complete and verified
+
+### What to do
+
+Update these project documents to reflect that Config Service is implemented:
+
+#### 1. Update reusable-resources.md
+
+Add to Active SDDs Reference section in `docs/project/reusable-resources.md`:
+```markdown
+- `docs/project/architecture-improvements/sdd/config-service/` — Tiered config with Redis caching
+```
+
+Also update Config section to document the Redis caching layer.
+
+#### 2. Update backend/README.md (if exists)
+
+If `backend/README.md` exists, add Config Service API reference section.
+
+### Verification
+- [ ] reusable-resources.md includes SDD reference
+- [ ] backend/README.md updated (if exists)
