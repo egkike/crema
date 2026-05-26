@@ -1,11 +1,13 @@
 packages:
-  - 'backend'
-  - 'frontend-main'
-  - 'frontend-admin'
-  - 'shared'
+  - "backend"
+  - "frontend-main"
+  - "frontend-admin"
+  - "shared"
 allowBuilds:
-  '@scarf/scarf': true
+  "@scarf/scarf": true
   esbuild: true
   msgpackr-extract: true
   sharp: true
   unrs-resolver: true
+minimumReleaseAge: 4320
+strictDepBuilds: true

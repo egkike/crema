@@ -236,13 +236,12 @@ describe('Affiliate Chat Routes', () => {
       expect(aiCreditService.useCredits).toHaveBeenCalled();
     });
 
-    it('Returns 403 when body userId does not match JWT user', async () => {
+    it('Ignores body userId — JWT identity is the only source of truth', async () => {
       const res = await supertestApp
         .post('/api/ai/affiliate/chat')
         .set('Cookie', buyerCookies)
         .send({ productId: PRODUCT_ID, message: 'Test', userId: AFFILIATE_USER_ID });
-
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
     });
 
     it('aiCreditService.useCredits NOT called for affiliate_metrics intent', async () => {
@@ -251,14 +250,11 @@ describe('Affiliate Chat Routes', () => {
       // Force classifyIntent to return affiliate_metrics
       vi.mocked(classifyIntent).mockReturnValue('affiliate_metrics');
 
-      await supertestApp
-        .post('/api/ai/affiliate/chat')
-        .set('Cookie', affiliateCookies)
-        .send({
-          productId: PRODUCT_ID,
-          message: 'cuanto son mis comisiones',
-          userId: AFFILIATE_USER_ID,
-        });
+      await supertestApp.post('/api/ai/affiliate/chat').set('Cookie', affiliateCookies).send({
+        productId: PRODUCT_ID,
+        message: 'cuanto son mis comisiones',
+        userId: AFFILIATE_USER_ID,
+      });
 
       expect(aiCreditService.useCredits).not.toHaveBeenCalled();
     });

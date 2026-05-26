@@ -32,16 +32,9 @@ import { AppError } from '../errors/AppError';
 import type { AuthenticatedRequest } from '../types/express';
 import type { EmbeddingSourceType } from '../types/ai.types';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
-import { configRepository } from '../repositories/config.repository'; // eslint-disable-line import/order
-
+import { configRepository } from '../repositories/config.repository';
 import { seoOptimizerService } from '../services/ai/seo-optimizer.service';
 import {
-  affiliateChatService,
-  classifyIntent,
-  sanitizeInput,
-} from '../services/ai/affiliate-chat.service';
-import {
-  // eslint-disable-line import/order
   purchaseCreditsSchema,
   createQuestionSchema,
   answerQuestionSchema,
@@ -68,8 +61,17 @@ import {
   affiliateChatSchema,
   seoOptimizerSchema,
 } from '../schemas/ai.schema';
+// eslint-disable-next-line import/order
+import {
+  affiliateChatService,
+  classifyIntent,
+  sanitizeInput,
+} from '../services/ai/affiliate-chat.service';
 
 // Helper to cast middlewares to Express RequestHandler type
+// NOTE: Using 'as RequestHandler' here is safe because all auth middlewares
+// in this project return RequestHandler-compatible functions. This is a
+// pragmatic choice to avoid casting every middleware individually.
 const asMw = (fn: unknown): RequestHandler => fn as RequestHandler;
 
 // Helper to get user ID with proper null check - throws if user not authenticated
@@ -199,7 +201,7 @@ router.post(
         amount: price,
         currency,
         userId,
-        email: req.user!.email,
+        email: req.user?.email ?? 'unknown',
       };
 
       // Check if provider supports credit preferences
@@ -382,6 +384,12 @@ router.delete(
       ];
       if (!validTypes.includes(sourceTypeStr as EmbeddingSourceType)) {
         throw new AppError(`Invalid sourceType. Must be one of: ${validTypes.join(', ')}`, 400);
+      }
+
+      // Validate sourceId format to prevent SQL injection
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(sourceIdStr)) {
+        throw new AppError('Invalid sourceId format', 400);
       }
 
       const userId = uid(req);
@@ -1507,15 +1515,16 @@ router.post(
       sendSSE(res, 'done', { done: true });
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error('Unknown error');
-      logger.error({ error: err.message }, 'SSE stream error');
+      // Log internal details for debugging (server-side only, never sent to client)
+      logger.error({ err: err.name }, 'SSE stream error');
 
       // Handle specific errors
-      if (err.message.includes('Créditos insuficientes')) {
+      if (err.message.includes('Insufficient credits')) {
         sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: err.message });
       } else if (err.name === 'AbortError') {
         sendSSE(res, 'done', { done: true, cancelled: true });
       } else {
-        sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error al generar respuesta' });
+        sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error generating response' });
       }
     } finally {
       res.end();
@@ -2088,11 +2097,7 @@ router.post(
   validate(affiliateChatSchema),
   async (req: Request, res: Response) => {
     const userId = uid(req);
-    const { productId, message, userId: bodyUserId } = req.body;
-
-    if (userId !== bodyUserId) {
-      throw new AppError('Unauthorized access', 403);
-    }
+    const { productId, message } = req.body;
 
     try {
       await verifyProductAccess(pool, productId, userId);
@@ -2235,19 +2240,7 @@ router.post(
   validate(seoOptimizerSchema),
   async (req: Request, res: Response) => {
     const userId = uid(req);
-    const {
-      productId,
-      productName,
-      productDescription,
-      productType,
-      creatorName,
-      userId: bodyUserId,
-    } = req.body;
-
-    // Auth boundary: verify body userId matches JWT identity
-    if (userId !== bodyUserId) {
-      throw new AppError('Unauthorized access', 403);
-    }
+    const { productId, productName, productDescription, productType, creatorName } = req.body;
 
     // Verify user owns this product
     const productCheck = await pool.query(

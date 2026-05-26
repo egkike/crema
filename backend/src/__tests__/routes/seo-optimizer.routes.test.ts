@@ -381,6 +381,6 @@ describe('SEO Optimizer Routes — POST /api/ai/product/seo', () => {
       .set('Cookie', creatorCookies)
       .send({ ...VALID_BODY, userId: OTHER_USER_ID });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
