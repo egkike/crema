@@ -485,3 +485,127 @@ Task 0 (DB + Types)
 | Churn heuristics produce false positives with low data | Add confidence level in response when < 30 days of data available |
 | HTML sanitization misses edge cases | Strip on `*` event handlers, `<script>`, `javascript:` URIs, `on*` attributes; test with injection payloads |
 | Credit deduction fails after successful operation | Wrap in separate try/catch; log for audit; do not block response |
+
+---
+
+## Task N+1: Update Project Documentation
+
+**Depends on**: All previous tasks complete and verified (Tasks 0–5)
+
+### What to do
+
+After successful verification, update project documents to reflect that this SDD is complete.
+
+#### 1. Update PRD.md (primary source of truth)
+
+Change §4.8 status:
+- **Before**: `⚠️ **PARCIAL** - InsightsService existe con dashboards CRUD + NL→SQL query + streaming. Requiere expandir: predicción de churn, generación de email de recuperación, comparativas A/B.`
+- **After**: `✅ **COMPLETO** - Predicción de churn, generación de email de recuperación, y comparativas A/B implementadas.`
+
+Update header status line at top of PRD.md:
+- **Before**: `⚠️ Parciales: §4.8, §4.19 - Roadmap priorizado`
+- **After**: Remove `§4.8` from "Parciales" list
+
+Add implementation reference block at end of §4.8:
+```markdown
+> **Implementation technical reference:**
+> - Servicio: `insightsService` en `backend/src/services/ai/agents.service.ts`
+> - Métodos nuevos: `predictChurn`, `generateRecoveryEmail`, `compareEntities`
+> - Endpoints: `POST /api/ai/insights/predict/churn`, `POST /api/ai/insights/compare`, `POST /api/ai/insights/recover/email`
+> - Rate limiters: `churnPredictionLimiter` (5/min), `compareLimiter` (10/min), `recoveryEmailLimiter` (10/min)
+> - Capabilities: `insights-predict`, `insights-compare`, `insights-recover` registradas en Orchestrator
+> - Créditos: `insights.predict` → 5, `insights.compare` → 3, `insights.recover` → 3
+> - DB tables: `churn_predictions`, `recovery_emails`, `ab_comparatives` (en `14-ai-insights-expansion.sql`)
+```
+
+Update §9 Roadmap to mark §4.8 as complete.
+
+#### 2. Update TECHNICAL-SPEC.md
+
+Check `docs/project/ai-features/TECHNICAL-SPEC.md` and add to AI Services table:
+```markdown
+| `insights.predict` | Churn prediction | POST | `/api/ai/insights/predict/churn` | `churnPredictionLimiter` | 5 |
+| `insights.compare` | A/B Comparatives | POST | `/api/ai/insights/compare` | `compareLimiter` | 3 |
+| `insights.recover` | Recovery Email | POST | `/api/ai/insights/recover/email` | `recoveryEmailLimiter` | 3 |
+```
+
+#### 3. Update reusable-resources.md
+
+**AI Services table (§3)** — Add new methods to `insightsService` entry:
+```markdown
+| `insightsService` | AI analytics con NL→SQL + streaming + dashboards + **churn prediction, recovery email, A/B comparatives** |
+```
+
+**Active SDDs Reference (§Active SDDs Reference)** — Add:
+```markdown
+- `docs/project/ai-features/sdd/ai-insights-expansion/` — AI Insights Expansion: churn prediction, recovery email generation, A/B comparatives (§4.8)
+```
+
+#### 4. Update reusable-resources.md §10 (Init Script Inventory)
+
+Add to Init Script Inventory table:
+```markdown
+| `14-ai-insights-expansion.sql` | Churn predictions, recovery emails, A/B comparatives tables + insights_history fixes | `ai-insights-expansion` |
+```
+
+#### 5. Update CremaOverview.md
+
+Add to AI Features table:
+```markdown
+| **AI Insights Expansion** | Churn prediction, recovery email generation, A/B comparatives | ✅ §4.8 |
+```
+
+#### 6. Update root README.md
+
+Add to AI Features list:
+```markdown
+- ✅ **AI Insights Expansion** - Predicción de churn, generación de email de recuperación, comparativas A/B (§4.8)
+```
+
+#### 7. Update backend/README.md
+
+Add new endpoints to API reference section:
+```markdown
+### AI Insights Expansion
+| Method | Endpoint | Description | Rate Limit |
+|--------|----------|-------------|------------|
+| POST | `/api/ai/insights/predict/churn` | Predict student churn risk | 5/min |
+| POST | `/api/ai/insights/compare` | A/B comparative analysis | 10/min |
+| POST | `/api/ai/insights/recover/email` | Generate recovery email | 10/min |
+```
+
+### Verification
+- [ ] PRD.md §4.8 shows status `✅ **COMPLETO**`
+- [ ] PRD.md header removes §4.8 from "Parciales"
+- [ ] PRD.md §4.8 includes implementation reference block
+- [ ] TECHNICAL-SPEC.md AI Services table updated
+- [ ] reusable-resources.md §3 AI Services updated
+- [ ] reusable-resources.md Active SDDs Reference updated
+- [ ] reusable-resources.md §10 Init Script Inventory updated
+- [ ] CremaOverview.md AI Features table updated
+- [ ] root README.md AI Features list updated
+- [ ] backend/README.md API reference updated
+- [ ] No broken internal links
+
+### Documents Summary
+
+| Document | What to Update | When |
+|----------|----------------|------|
+| `PRD.md` | §4.8 status + header + implementation reference | Always |
+| `TECHNICAL-SPEC.md` | AI Services table | If exists |
+| `docs/project/reusable-resources.md` §3 | AI Services table | New methods |
+| `docs/project/reusable-resources.md` | Active SDDs Reference | New SDD |
+| `docs/project/reusable-resources.md` §10 | Init Script Inventory | New db scripts |
+| `CremaOverview.md` | AI Features table | New AI feature |
+| `README.md` (root) | AI Features list | New AI feature |
+| `backend/README.md` | API reference | New endpoints |
+
+### Execution Order
+1. Edit PRD.md first (primary source of truth)
+2. Update TECHNICAL-SPEC.md if applicable
+3. Update reusable-resources.md (services, active SDDs)
+4. Update reusable-resources.md §10 (init scripts)
+5. Update CremaOverview.md
+6. Update root README.md
+7. Update backend/README.md if exists
+8. Verify links are correct
