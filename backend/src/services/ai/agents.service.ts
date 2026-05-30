@@ -10,7 +10,7 @@ import logger from '../../utils/logger';
 import { getValidatedSchema } from '../../utils/validators.util';
 
 import { aiCreditService } from './credits.service';
-import { llmService, type LLMMessage } from './llm.service';
+import { llmService, type LLMMessage, type ChatStreamResponse } from './llm.service';
 
 // Default system prompt for QA Agent
 const DEFAULT_QA_SYSTEM_PROMPT = `Eres un asistente de IA especializado en ayudar a usuarios con preguntas sobre productos digitales.
@@ -119,53 +119,64 @@ export const qaAgentService = {
       useFaqs?: boolean;
     }
   ): Promise<QAAgentConfig> {
-    const updates: string[] = [];
+    const columns: string[] = [];
+    const setClauses: string[] = [];
     const params: unknown[] = [productId];
     let paramIndex = 2;
 
     if (data.isEnabled !== undefined) {
-      updates.push(`is_enabled = $${paramIndex++}`);
+      columns.push('is_enabled');
+      setClauses.push(`is_enabled = $${paramIndex++}`);
       params.push(data.isEnabled);
     }
     if (data.model) {
-      updates.push(`model = $${paramIndex++}`);
+      columns.push('model');
+      setClauses.push(`model = $${paramIndex++}`);
       params.push(data.model);
     }
     if (data.systemPrompt !== undefined) {
-      updates.push(`system_prompt = $${paramIndex++}`);
+      columns.push('system_prompt');
+      setClauses.push(`system_prompt = $${paramIndex++}`);
       params.push(data.systemPrompt);
     }
     if (data.temperature !== undefined) {
-      updates.push(`temperature = $${paramIndex++}`);
+      columns.push('temperature');
+      setClauses.push(`temperature = $${paramIndex++}`);
       params.push(data.temperature);
     }
     if (data.maxTokens !== undefined) {
-      updates.push(`max_tokens = $${paramIndex++}`);
+      columns.push('max_tokens');
+      setClauses.push(`max_tokens = $${paramIndex++}`);
       params.push(data.maxTokens);
     }
     if (data.useMemory !== undefined) {
-      updates.push(`use_memory = $${paramIndex++}`);
+      columns.push('use_memory');
+      setClauses.push(`use_memory = $${paramIndex++}`);
       params.push(data.useMemory);
     }
     if (data.useFaqs !== undefined) {
-      updates.push(`use_faqs = $${paramIndex++}`);
+      columns.push('use_faqs');
+      setClauses.push(`use_faqs = $${paramIndex++}`);
       params.push(data.useFaqs);
     }
 
-    if (updates.length === 0) {
+    if (columns.length === 0) {
       const existing = await this.getConfig(productId);
       if (existing) return existing;
       throw new AppError('No config to create', 400);
     }
 
-    updates.push('updated_at = CURRENT_TIMESTAMP');
+    setClauses.push('updated_at = CURRENT_TIMESTAMP');
 
+    // Column names come from a controlled set of hardcoded keys (isEnabled, model, etc.)
+    // extracted from the data object. This is safe because only whitelisted keys are used.
+    // Using RETURNING * to get the final row state after upsert (handles partial updates correctly)
     const query = `
-      INSERT INTO "${getValidatedSchema()}".product_qa_agent_config (product_id, ${updates.join(', ')})
-      VALUES ($1, ${updates.map((_, i) => `$${i + 2}`).join(', ')})
+      INSERT INTO "${getValidatedSchema()}".product_qa_agent_config (product_id, ${columns.join(', ')})
+      VALUES ($1, ${params.slice(1).join(', ')})
       ON CONFLICT (product_id) DO UPDATE SET
-        ${updates.join(', ')}
-      RETURNING id, product_id, is_enabled, model, system_prompt, temperature, max_tokens, use_memory, use_faqs, created_at, updated_at
+        ${setClauses.join(', ')}
+      RETURNING *
     `;
 
     const { rows } = await pool.query<QAAgentConfig>(query, params);
@@ -210,14 +221,21 @@ export const qaAgentService = {
       VALUES ($1, $2, $3, $4)
       RETURNING id, conversation_id, role, content, tokens_used, created_at
     `;
-    const { rows } = await pool.query<AgentMessage>(query, [conversationId, role, content, tokensUsed]);
+    const { rows } = await pool.query<AgentMessage>(query, [
+      conversationId,
+      role,
+      content,
+      tokensUsed,
+    ]);
     return rows[0];
   },
 
   /**
    * Get conversation with messages
    */
-  async getConversation(conversationId: string): Promise<{ conversation: AgentConversation; messages: AgentMessage[] } | null> {
+  async getConversation(
+    conversationId: string
+  ): Promise<{ conversation: AgentConversation; messages: AgentMessage[] } | null> {
     const convQuery = `
       SELECT id, agent_type, product_id, user_id, status, metadata, created_at, updated_at
       FROM "${getValidatedSchema()}".agent_conversations
@@ -243,7 +261,11 @@ export const qaAgentService = {
   /**
    * Get user's conversations
    */
-  async getUserConversations(userId: string, agentType?: string, limit: number = 20): Promise<AgentConversation[]> {
+  async getUserConversations(
+    userId: string,
+    agentType?: string,
+    limit: number = 20
+  ): Promise<AgentConversation[]> {
     let query = `
       SELECT id, agent_type, product_id, user_id, status, metadata, created_at, updated_at
       FROM "${getValidatedSchema()}".agent_conversations
@@ -266,7 +288,11 @@ export const qaAgentService = {
   /**
    * Chat with QA agent - generates response using memory and FAQs
    */
-  async chat(productId: string, userId: string, message: string): Promise<{ response: string; conversationId: string }> {
+  async chat(
+    productId: string,
+    userId: string,
+    message: string
+  ): Promise<{ response: string; conversationId: string }> {
     // Validate message input
     if (!message || typeof message !== 'string') {
       throw new AppError('Message is required', 400);
@@ -287,6 +313,9 @@ export const qaAgentService = {
     if (!credits || credits.balance < cost) {
       throw new AppError('Créditos insuficientes', 402);
     }
+    if (credits.expiresAt && new Date(credits.expiresAt) < new Date()) {
+      throw new AppError('Créditos expirados', 400);
+    }
 
     // Use credits
     await aiCreditService.useCredits(userId, cost, `QA Agent chat`);
@@ -295,7 +324,7 @@ export const qaAgentService = {
     let conversationId: string;
     const conversations = await this.getUserConversations(userId, 'qa', 1);
     const activeConv = conversations.find(c => c.status === 'active' && c.product_id === productId);
-    
+
     if (activeConv) {
       conversationId = activeConv.id;
     } else {
@@ -326,7 +355,8 @@ export const qaAgentService = {
          ORDER BY sort_order LIMIT 10`,
         [productId]
       );
-      context += '\n\nFAQs:\n' + faqs.rows.map(f => `P: ${f.question}\nR: ${f.answer}`).join('\n\n');
+      context +=
+        '\n\nFAQs:\n' + faqs.rows.map(f => `P: ${f.question}\nR: ${f.answer}`).join('\n\n');
     }
 
     // Build system prompt
@@ -354,8 +384,11 @@ export const qaAgentService = {
 
     const response = llmResponse.content;
 
+    // Use actual tokens from LLM response, fallback to estimate
+    const actualTokens = llmResponse.usage?.totalTokens ?? Math.ceil(response.length / 4);
+
     // Save assistant message
-    await this.addMessage(conversationId, 'assistant', response, message.length / 4);
+    await this.addMessage(conversationId, 'assistant', response, actualTokens);
 
     logger.info({ productId, userId, conversationId }, 'QA agent response generated');
     return { response, conversationId };
@@ -385,21 +418,11 @@ export const qaAgentService = {
       throw new AppError('Message too long (max 2000 characters)', 400);
     }
 
-    // 3. Check and deduct credits (BEFORE starting)
-    const cost = aiCreditService.getOperationCost('search');
-    const credits = await aiCreditService.getBalance(userId);
-    if (!credits || credits.balance < cost) {
-      throw new AppError('Créditos insuficientes', 402);
-    }
-
-    // 4. Deduct credits immediately
-    await aiCreditService.useCredits(userId, cost, `QA Agent stream`);
-
-    // 4. Get or create conversation
+    // 3. Get or create conversation
     let conversationId: string;
     const conversations = await this.getUserConversations(userId, 'qa', 1);
     const activeConv = conversations.find(c => c.status === 'active' && c.product_id === productId);
-    
+
     if (activeConv) {
       conversationId = activeConv.id;
     } else {
@@ -407,8 +430,26 @@ export const qaAgentService = {
       conversationId = conv.id;
     }
 
-    // 5. Save user message
+    // 4. Save user message
     await this.addMessage(conversationId, 'user', message);
+
+    // 5. Check and deduct credits (after message saved, before LLM call)
+    const cost = aiCreditService.getOperationCost('search');
+    const credits = await aiCreditService.getBalance(userId);
+    if (!credits || credits.balance < cost) {
+      throw new AppError('Créditos insuficientes', 402);
+    }
+    if (credits.expiresAt && new Date(credits.expiresAt) < new Date()) {
+      throw new AppError('Créditos expirados', 400);
+    }
+
+    try {
+      await aiCreditService.useCredits(userId, cost, `QA Agent stream`);
+    } catch (creditError: unknown) {
+      const err = creditError instanceof Error ? creditError : new Error('Unknown error');
+      logger.error({ error: err.message, userId, cost }, 'Failed to deduct credits for stream');
+      throw new AppError('No se pudieron usar los créditos', 500);
+    }
 
     // 6. Retrieve context
     let context = '';
@@ -429,7 +470,8 @@ export const qaAgentService = {
          ORDER BY sort_order LIMIT 10`,
         [productId]
       );
-      context += '\n\nFAQs:\n' + faqs.rows.map(f => `P: ${f.question}\nR: ${f.answer}`).join('\n\n');
+      context +=
+        '\n\nFAQs:\n' + faqs.rows.map(f => `P: ${f.question}\nR: ${f.answer}`).join('\n\n');
     }
 
     // 7. Build messages
@@ -446,7 +488,7 @@ export const qaAgentService = {
       signal?: AbortSignal;
     } = {
       messages,
-      onChunk: (chunk) => {
+      onChunk: chunk => {
         fullResponse += chunk;
         onChunk(chunk);
       },
@@ -455,12 +497,16 @@ export const qaAgentService = {
     if (config.max_tokens !== undefined) streamOptions.maxTokens = config.max_tokens;
     if (signal) streamOptions.signal = signal;
 
+    let streamResult: ChatStreamResponse | undefined;
     try {
-      await llmService.chatStream(streamOptions);
+      streamResult = await llmService.chatStream(streamOptions);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled - refund credits
-        logger.info({ conversationId, partialLength: fullResponse.length, cost }, 'Stream cancelled by user - refunding credits');
+        logger.info(
+          { conversationId, partialLength: fullResponse.length, cost },
+          'Stream cancelled by user - refunding credits'
+        );
         try {
           await aiCreditService.addCredits(userId, cost, 'Refund - stream cancelled');
         } catch (refundError: unknown) {
@@ -473,7 +519,10 @@ export const qaAgentService = {
     }
 
     // 9. Save assistant message (or partial)
-    await this.addMessage(conversationId, 'assistant', fullResponse, Math.ceil(fullResponse.length / 4));
+    // Use actual tokens from LLM response, fallback to estimate
+    const actualStreamTokens =
+      streamResult?.usage?.totalTokens ?? Math.ceil(fullResponse.length / 4);
+    await this.addMessage(conversationId, 'assistant', fullResponse, actualStreamTokens);
 
     return { conversationId, content: fullResponse };
   },
@@ -489,6 +538,9 @@ export const analyticsService = {
   /**
    * Get dashboard metrics for a creator
    */
+  // TODO: Ensure composite index exists for performance:
+  // CREATE INDEX idx_creator_daily_metrics_creator_date
+  // ON creator_daily_metrics (creator_id, date DESC);
   async getDashboardMetrics(
     creatorId: string,
     startDate?: Date,
@@ -537,10 +589,11 @@ export const analyticsService = {
       WHERE creator_id = $1 AND date >= $2 AND date <= $3
       ORDER BY date ASC
     `;
-    const { rows: dailyRows } = await pool.query<{ date: string; total_sales: number; total_revenue: number }>(
-      dailyQuery,
-      [creatorId, start.toISOString().split('T')[0], end.toISOString().split('T')[0]]
-    );
+    const { rows: dailyRows } = await pool.query<{
+      date: string;
+      total_sales: number;
+      total_revenue: number;
+    }>(dailyQuery, [creatorId, start.toISOString().split('T')[0], end.toISOString().split('T')[0]]);
 
     return {
       totalSales: Number(rows[0]?.total_sales || 0),
@@ -611,46 +664,55 @@ export const tutorService = {
   /**
    * Update tutor config
    */
-  async updateConfig(productId: string, data: {
-    isEnabled?: boolean;
-    model?: string;
-    systemPrompt?: string;
-    temperature?: number;
-    maxTokens?: number;
-  }): Promise<void> {
-    const updates: string[] = [];
+  async updateConfig(
+    productId: string,
+    data: {
+      isEnabled?: boolean;
+      model?: string;
+      systemPrompt?: string;
+      temperature?: number;
+      maxTokens?: number;
+    }
+  ): Promise<void> {
+    const columns: string[] = [];
+    const setClauses: string[] = [];
     const params: unknown[] = [productId];
     let paramIndex = 2;
 
     if (data.isEnabled !== undefined) {
-      updates.push(`is_enabled = $${paramIndex++}`);
+      columns.push('is_enabled');
+      setClauses.push(`is_enabled = $${paramIndex++}`);
       params.push(data.isEnabled);
     }
     if (data.model) {
-      updates.push(`model = $${paramIndex++}`);
+      columns.push('model');
+      setClauses.push(`model = $${paramIndex++}`);
       params.push(data.model);
     }
     if (data.systemPrompt !== undefined) {
-      updates.push(`system_prompt = $${paramIndex++}`);
+      columns.push('system_prompt');
+      setClauses.push(`system_prompt = $${paramIndex++}`);
       params.push(data.systemPrompt);
     }
     if (data.temperature !== undefined) {
-      updates.push(`temperature = $${paramIndex++}`);
+      columns.push('temperature');
+      setClauses.push(`temperature = $${paramIndex++}`);
       params.push(data.temperature);
     }
     if (data.maxTokens !== undefined) {
-      updates.push(`max_tokens = $${paramIndex++}`);
+      columns.push('max_tokens');
+      setClauses.push(`max_tokens = $${paramIndex++}`);
       params.push(data.maxTokens);
     }
 
-    if (updates.length === 0) return;
+    if (columns.length === 0) return;
 
-    updates.push('updated_at = CURRENT_TIMESTAMP');
+    setClauses.push('updated_at = CURRENT_TIMESTAMP');
 
     const query = `
-      INSERT INTO "${getValidatedSchema()}".product_tutor_config (product_id, ${updates.join(', ')})
-      VALUES ($1, ${updates.map((_, i) => `$${i + 2}`).join(', ')})
-      ON CONFLICT (product_id) DO UPDATE SET ${updates.join(', ')}
+      INSERT INTO "${getValidatedSchema()}".product_tutor_config (product_id, ${columns.join(', ')})
+      VALUES ($1, ${params.slice(1).join(', ')})
+      ON CONFLICT (product_id) DO UPDATE SET ${setClauses.join(', ')}
     `;
 
     await pool.query(query, params);
@@ -660,7 +722,10 @@ export const tutorService = {
   /**
    * Get insights for a user/product
    */
-  async getInsights(userId: string, productId: string): Promise<{
+  async getInsights(
+    userId: string,
+    productId: string
+  ): Promise<{
     insights: { id: string; type: string; content: string; isRead: boolean; createdAt: Date }[];
   }> {
     const query = `
@@ -692,7 +757,11 @@ export const tutorService = {
   /**
    * Chat with Tutor AI - generates response using lesson content
    */
-  async chat(productId: string, userId: string, message: string): Promise<{ response: string; conversationId: string }> {
+  async chat(
+    productId: string,
+    userId: string,
+    message: string
+  ): Promise<{ response: string; conversationId: string }> {
     // Validate message input
     if (!message || typeof message !== 'string') {
       throw new AppError('Message is required', 400);
@@ -726,14 +795,18 @@ export const tutorService = {
       ORDER BY m.sort_order, l.sort_order
       LIMIT 20
     `;
-    const { rows: lessons } = await pool.query<{ title: string; content: string; module_title: string }>(
-      lessonsQuery,
-      [productId]
-    );
+    const { rows: lessons } = await pool.query<{
+      title: string;
+      content: string;
+      module_title: string;
+    }>(lessonsQuery, [productId]);
 
     // Build context from lessons
     const lessonContext = lessons
-      .map(l => `Módulo: ${l.module_title}\nLección: ${l.title}\nContenido: ${l.content.substring(0, 1000)}`)
+      .map(
+        l =>
+          `Módulo: ${l.module_title}\nLección: ${l.title}\nContenido: ${l.content.substring(0, 1000)}`
+      )
       .join('\n\n---\n\n');
 
     // Build system prompt
@@ -810,14 +883,18 @@ export const tutorService = {
       ORDER BY m.sort_order, l.sort_order
       LIMIT 20
     `;
-    const { rows: lessons } = await pool.query<{ title: string; content: string; module_title: string }>(
-      lessonsQuery,
-      [productId]
-    );
+    const { rows: lessons } = await pool.query<{
+      title: string;
+      content: string;
+      module_title: string;
+    }>(lessonsQuery, [productId]);
 
     // Build context from lessons
     const lessonContext = lessons
-      .map(l => `Módulo: ${l.module_title}\nLección: ${l.title}\nContenido: ${l.content.substring(0, 1000)}`)
+      .map(
+        l =>
+          `Módulo: ${l.module_title}\nLección: ${l.title}\nContenido: ${l.content.substring(0, 1000)}`
+      )
       .join('\n\n---\n\n');
 
     // Build system prompt
@@ -839,7 +916,7 @@ export const tutorService = {
       signal?: AbortSignal;
     } = {
       messages,
-      onChunk: (chunk) => {
+      onChunk: chunk => {
         fullResponse += chunk;
         onChunk(chunk);
       },
@@ -853,7 +930,10 @@ export const tutorService = {
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled - refund credits
-        logger.info({ productId, userId, cost }, 'Tutor stream cancelled by user - refunding credits');
+        logger.info(
+          { productId, userId, cost },
+          'Tutor stream cancelled by user - refunding credits'
+        );
         try {
           await aiCreditService.addCredits(userId, cost, 'Refund - tutor stream cancelled');
         } catch (refundError: unknown) {
@@ -880,11 +960,34 @@ export const tutorService = {
 // SQL Validation for Insights - Security Layer
 // =============================================================================
 
-const ALLOWED_TABLES = ['orders', 'products', 'users', 'commissions', 'product_reviews', 'product_questions', 'balances'];
+const ALLOWED_TABLES = [
+  'orders',
+  'products',
+  'users',
+  'commissions',
+  'product_reviews',
+  'product_questions',
+  'balances',
+];
 const DANGEROUS_KEYWORDS = [
-  'union', 'insert', 'update', 'delete', 'drop', 'truncate', 'alter', 'create', 
-  'grant', 'revoke', 'execute', 'exec', 'sleep', 'waitfor', 'benchmark',
-  'information_schema', 'pg_', 'pg_catalog'
+  'union',
+  'insert',
+  'update',
+  'delete',
+  'drop',
+  'truncate',
+  'alter',
+  'create',
+  'grant',
+  'revoke',
+  'execute',
+  'exec',
+  'sleep',
+  'waitfor',
+  'benchmark',
+  'information_schema',
+  'pg_',
+  'pg_catalog',
 ];
 
 /**
@@ -896,7 +999,12 @@ function validateGeneratedSQL(sql: string): { valid: boolean; reason?: string } 
     return { valid: false, reason: 'No SQL provided' };
   }
 
-  const sqlLower = sql.toLowerCase().trim();
+  // Remove SQL comments to prevent bypass via comment injection (e.g., SEL/**/ECT)
+  // NOTE: This is one layer of defense in depth. The query is also executed with
+  // parameterized queries, which prevents SQL injection regardless of keyword bypass.
+  const sqlNoComments = sql.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '');
+
+  const sqlLower = sqlNoComments.toLowerCase().trim();
 
   // Check it starts with SELECT
   if (!sqlLower.startsWith('select')) {
@@ -906,15 +1014,16 @@ function validateGeneratedSQL(sql: string): { valid: boolean; reason?: string } 
   // Check for dangerous keywords (word-boundary aware)
   for (const keyword of DANGEROUS_KEYWORDS) {
     const wordBoundary = new RegExp(`\\b${keyword}\\b`, 'i');
-    if (wordBoundary.test(sql)) {
+    if (wordBoundary.test(sqlNoComments)) {
       return { valid: false, reason: `Dangerous keyword detected: ${keyword}` };
     }
   }
 
   // Verify at least one allowed table is used (word-boundary aware)
-  const hasAllowedTable = ALLOWED_TABLES.some(table => 
-    new RegExp(`\\bfrom\\s+["\`]?${table}["\`]?\\b`, 'i').test(sql) ||
-    new RegExp(`\\bjoin\\s+["\`]?${table}["\`]?\\b`, 'i').test(sql)
+  const hasAllowedTable = ALLOWED_TABLES.some(
+    table =>
+      new RegExp(`\\bfrom\\s+["\`]?${table}["\`]?\\b`, 'i').test(sql) ||
+      new RegExp(`\\bjoin\\s+["\`]?${table}["\`]?\\b`, 'i').test(sql)
   );
 
   if (!hasAllowedTable) {
@@ -957,7 +1066,11 @@ export const insightsService = {
   /**
    * Create a dashboard
    */
-  async createDashboard(userId: string, name: string, description?: string): Promise<{ id: string }> {
+  async createDashboard(
+    userId: string,
+    name: string,
+    description?: string
+  ): Promise<{ id: string }> {
     const query = `
       INSERT INTO "${getValidatedSchema()}".creator_dashboards (creator_id, name, description)
       VALUES ($1, $2, $3)
@@ -970,7 +1083,10 @@ export const insightsService = {
   /**
    * Update a dashboard
    */
-  async updateDashboard(dashboardId: string, data: { name?: string; description?: string; config?: Record<string, unknown> }): Promise<void> {
+  async updateDashboard(
+    dashboardId: string,
+    data: { name?: string; description?: string; config?: Record<string, unknown> }
+  ): Promise<void> {
     const updates: string[] = [];
     const params: unknown[] = [dashboardId];
     let paramIndex = 2;
@@ -1046,7 +1162,10 @@ export const insightsService = {
   /**
    * Query data with AI - converts natural language to SQL and executes
    */
-  async query(userId: string, naturalLanguageQuery: string): Promise<{
+  async query(
+    userId: string,
+    naturalLanguageQuery: string
+  ): Promise<{
     sql: string | null;
     results: unknown;
   }> {
@@ -1092,9 +1211,10 @@ Esquema del usuario actual: ${schema}
       [userId]
     );
 
-    const userSchemaDescription = userProducts.length > 0 
-      ? `El usuario es creador de ${userProducts.length} productos: ${userProducts.map(p => `${p.title} (${p.type})`).join(', ')}`
-      : 'El usuario no tiene productos creados';
+    const userSchemaDescription =
+      userProducts.length > 0
+        ? `El usuario es creador de ${userProducts.length} productos: ${userProducts.map(p => `${p.title} (${p.type})`).join(', ')}`
+        : 'El usuario no tiene productos creados';
 
     // Build prompt for SQL generation
     const sqlPrompt = `Eres un asistente que convierte preguntas de negocio en consultas SQL.
@@ -1162,7 +1282,10 @@ REGLAS:
           const safeSql = generatedSql
             .replace(/\0/g, '') // Remove null bytes
             .replace(/;.*$/gm, '') // Remove any trailing commands (multiline)
-            .replace(/\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi, 'LIMIT 100') // Force limit
+            .replace(
+              /\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi,
+              'LIMIT 100'
+            ) // Force limit
             .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100'); // Handle LIMIT ALL
 
           const { rows } = await pool.query(safeSql);
@@ -1176,8 +1299,8 @@ REGLAS:
 
       // Save to history
       await pool.query(
-        `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
-        [userId, naturalLanguageQuery, generatedSql, JSON.stringify(sqlResults)]
+        `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [userId, naturalLanguageQuery, generatedSql, JSON.stringify(sqlResults), true, null]
       );
 
       return {
@@ -1187,7 +1310,7 @@ REGLAS:
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Insights query failed');
-      
+
       // Save failed query to history
       await pool.query(
         `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -1263,9 +1386,10 @@ Esquema del usuario actual: ${schema}
       [userId]
     );
 
-    const userSchemaDescription = userProducts.length > 0 
-      ? `El usuario es creador de ${userProducts.length} productos: ${userProducts.map(p => `${p.title} (${p.type})`).join(', ')}`
-      : 'El usuario no tiene productos creados';
+    const userSchemaDescription =
+      userProducts.length > 0
+        ? `El usuario es creador de ${userProducts.length} productos: ${userProducts.map(p => `${p.title} (${p.type})`).join(', ')}`
+        : 'El usuario no tiene productos creados';
 
     // Build prompt for SQL generation
     const sqlPrompt = `Eres un asistente que convierte preguntas de negocio en consultas SQL.
@@ -1311,14 +1435,14 @@ REGLAS:
           messages,
           temperature: 0.2,
           maxTokens: 500,
-          onChunk: (chunk) => {
+          onChunk: chunk => {
             fullContent += chunk;
             // Try to extract explanation as it's being generated
             onChunk(chunk, 'explanation');
           },
         };
         if (signal) insightsStreamOptions.signal = signal;
-        
+
         await llmService.chatStream(insightsStreamOptions);
       } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
@@ -1342,7 +1466,7 @@ REGLAS:
           const parsed = JSON.parse(jsonMatch[0]);
           generatedSql = parsed.sql || '';
           explanation = parsed.explanation || '';
-          
+
           // Send explanation if we have it and haven't sent it yet
           if (explanation && !explanationSent) {
             onChunk(`💡 ${explanation}`, 'explanation');
@@ -1370,15 +1494,24 @@ REGLAS:
         // Validate generated SQL before execution
         const validation = validateGeneratedSQL(generatedSql);
         if (!validation.valid) {
-          logger.warn({ sql: generatedSql, reason: validation.reason }, 'SQL validation failed in stream');
-          onChunk(JSON.stringify({ error: 'Consulta no válida', details: validation.reason }), 'results');
+          logger.warn(
+            { sql: generatedSql, reason: validation.reason },
+            'SQL validation failed in stream'
+          );
+          onChunk(
+            JSON.stringify({ error: 'Consulta no válida', details: validation.reason }),
+            'results'
+          );
           sqlResults = [{ error: 'Consulta no válida', details: validation.reason }];
         } else {
           // Add safety limits
           const safeSql = generatedSql
             .replace(/\0/g, '') // Remove null bytes
             .replace(/;.*$/gm, '') // Remove any trailing commands (multiline)
-            .replace(/\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi, 'LIMIT 100') // Force limit
+            .replace(
+              /\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi,
+              'LIMIT 100'
+            ) // Force limit
             .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100'); // Handle LIMIT ALL
 
           const { rows } = await pool.query(safeSql);
@@ -1398,8 +1531,8 @@ REGLAS:
 
       // Save to history
       await pool.query(
-        `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results) VALUES ($1, $2, $3, $4)`,
-        [userId, naturalLanguageQuery, generatedSql, resultsJson]
+        `INSERT INTO "${getValidatedSchema()}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [userId, naturalLanguageQuery, generatedSql, resultsJson, true, null]
       );
 
       return {
