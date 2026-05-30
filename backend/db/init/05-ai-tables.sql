@@ -342,3 +342,12 @@ CREATE TABLE IF NOT EXISTS insights_history (
     results JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- =============================================================================
+-- Phase 7.4b: insights_history schema fix
+-- ADD missing columns referenced by existing code in agents.service.ts
+-- These columns were already used in INSERT statements but never added to the table
+-- =============================================================================
+
+ALTER TABLE insights_history ADD COLUMN IF NOT EXISTS is_successful BOOLEAN DEFAULT TRUE;
+ALTER TABLE insights_history ADD COLUMN IF NOT EXISTS error_message TEXT;

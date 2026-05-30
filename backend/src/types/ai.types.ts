@@ -40,7 +40,14 @@ export interface AICreditTransaction {
 // AI Embedding Types
 // ============================================
 
-export type EmbeddingSourceType = 'lesson' | 'faq' | 'policy' | 'qa' | 'review' | 'insight' | 'saved_dashboard';
+export type EmbeddingSourceType =
+  | 'lesson'
+  | 'faq'
+  | 'policy'
+  | 'qa'
+  | 'review'
+  | 'insight'
+  | 'saved_dashboard';
 
 export interface AIEmbedding {
   id: string;
@@ -106,4 +113,47 @@ export interface SemanticSearchRequest {
 
 export interface SemanticSearchResponse {
   results: EmbeddingSearchResult[];
+}
+
+// ============================================
+// AI Insights Expansion Types (§4.8)
+// ============================================
+
+export interface ChurnPrediction {
+  id: string;
+  creatorId: string;
+  productId: string;
+  targetUserId: string;
+  churnScore: number;
+  riskFactors: Array<{ factor: string; weight: number }>;
+  narrative: string | null;
+  recommendedAction: string | null;
+  dataSnapshot: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
+export interface RecoveryEmail {
+  id: string;
+  creatorId: string;
+  productId: string;
+  targetUserId: string;
+  subject: string;
+  bodyHtml: string;
+  previewText: string | null;
+  tone: 'empathic' | 'direct' | 'motivational';
+  churnPredictionId: string | null;
+  createdAt: Date;
+}
+
+export type CompareEntityType = 'period' | 'product';
+export type CompareMetric = 'revenue' | 'sales' | 'conversion' | 'engagement' | 'reviews';
+
+// Note: entity identity beyond label is intentionally omitted.
+// Add entity_a_id/entity_b_id UUID columns if needed in future.
+export interface CompareResult {
+  entityA: { label: string; data: Record<string, unknown> };
+  entityB: { label: string; data: Record<string, unknown> };
+  narrative: string;
+  deltas: Record<string, { a: number; b: number; delta: number; deltaPercent: number }>;
+  recommendation: string;
 }
