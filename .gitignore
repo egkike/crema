@@ -57,3 +57,4 @@ uploads/*
 .agents/
 skills-lock.json
 .pi/
+.antigravitycli/
