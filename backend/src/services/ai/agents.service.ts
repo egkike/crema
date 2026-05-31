@@ -4,6 +4,8 @@
  * Handles Q&A agent for products
  */
 
+import { z } from 'zod';
+
 import pool from '../../db/postgres';
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
@@ -1555,5 +1557,354 @@ REGLAS:
 
       throw new AppError('No se pudo procesar la consulta', 500);
     }
+  },
+
+  /**
+   * Predict churn probability for all students of a product.
+   * Uses heuristic scoring + LLM for narrative generation.
+   */
+  async predictChurn(
+    productId: string,
+    userId: string,
+    threshold?: number
+  ): Promise<{
+    predictions: Array<{
+      id: string | null;
+      userId: string;
+      userName: string;
+      churnScore: number;
+      riskFactors: string[];
+      narrative: string | null;
+      recommendedAction: string | null;
+      confidence: 'high' | 'medium' | 'low';
+    }>;
+    totalStudents: number;
+    creditsUsed: number;
+  }> {
+    const CREDIT_COST = aiCreditService.getOperationCost('churn_prediction');
+    const effectiveThreshold = threshold ?? 50;
+
+    logger.info({ userId, productId, threshold: effectiveThreshold }, 'Churn prediction requested');
+
+    // 1. Validate productId is non-empty UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!productId || !uuidRegex.test(productId)) {
+      throw new AppError('El ID del producto debe ser un UUID válido', 400);
+    }
+
+    // 2. Verify product ownership
+    const schema = getValidatedSchema();
+    const ownershipQuery = `
+      SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2
+    `;
+    const { rows: ownershipRows } = await pool.query(ownershipQuery, [productId, userId]);
+    if (ownershipRows.length === 0) {
+      logger.warn({ userId, productId, reason: 'not_owner' }, 'Churn prediction denied');
+      throw new AppError('No tienes permiso para acceder a este producto', 403);
+    }
+
+    // 3. Check credits
+    const credits = await aiCreditService.getBalance(userId);
+    if (!credits || credits.balance < CREDIT_COST) {
+      throw new AppError('Créditos insuficientes', 402);
+    }
+
+    // 4. Fetch student data — JOIN on orders to filter only confirmed buyers
+    // NOTE: "last_purchase_date" is used as a proxy for engagement since there is
+    // no dedicated access-tracking table. days_since_last_access actually measures
+    // days since last purchase, not last login. Churn heuristics reflect this.
+    const studentDataQuery = `
+      SELECT
+        o.buyer_id,
+        u.username as user_name,
+        COALESCE(
+          (SELECT AVG(lp.completion_percentage)
+           FROM "${schema}".lesson_progress lp
+           JOIN "${schema}".lessons l ON l.id = lp.lesson_id
+           JOIN "${schema}".modules m ON m.id = l.module_id
+           WHERE m.product_id = $1 AND lp.user_id = o.buyer_id),
+          0
+        ) as progress,
+        COALESCE(
+          (SELECT COUNT(*)
+           FROM "${schema}".product_questions pq
+           WHERE pq.product_id = $1 AND pq.user_id = o.buyer_id AND pq.created_at > NOW() - INTERVAL '60 days'),
+          0
+        ) + COALESCE(
+          (SELECT COUNT(*)
+           FROM "${schema}".product_reviews pr
+           WHERE pr.product_id = $1 AND pr.user_id = o.buyer_id AND pr.created_at > NOW() - INTERVAL '60 days'),
+          0
+        ) as interactions_60d,
+        EXTRACT(EPOCH FROM NOW() - MAX(o.created_at)) / 86400 as days_since_last_access
+      FROM "${schema}".orders o
+      JOIN "${schema}".users u ON u.id = o.buyer_id
+      WHERE o.product_id = $1 AND o.status = 'completed'
+      GROUP BY o.buyer_id, u.username
+      LIMIT 500
+    `;
+    const { rows: studentRows } = await pool.query<{
+      buyer_id: string;
+      user_name: string;
+      progress: number;
+      interactions_60d: number;
+      days_since_last_access: number;
+    }>(studentDataQuery, [productId]);
+
+    const totalStudents = studentRows.length;
+    logger.info({ studentCount: totalStudents }, 'Student data collected for churn prediction');
+
+    if (totalStudents === 0) {
+      return { predictions: [], totalStudents: 0, creditsUsed: 0 };
+    }
+
+    // 5. Compute churn score using heuristics
+    interface StudentScore {
+      userId: string;
+      userName: string;
+      churnScore: number;
+      riskFactors: string[];
+      daysSinceLastAccess: number;
+      progress: number;
+      interactions60d: number;
+      confidence: 'high' | 'medium' | 'low';
+    }
+
+    const scoredStudents: StudentScore[] = studentRows.map((row) => {
+      const daysSinceLastAccess = Math.round(Number(row.days_since_last_access));
+      const progress = Number(row.progress) || 0;
+      const interactions60d = Number(row.interactions_60d) || 0;
+
+      let score = 0;
+      const riskFactors: string[] = [];
+
+      // Factor 1: Inactividad prolongada
+      if (daysSinceLastAccess > 30) {
+        score += 40;
+        riskFactors.push(`Inactivo ${daysSinceLastAccess} días`);
+      }
+
+      // Factor 2: Bajo progreso + inactividad
+      if (progress < 20 && daysSinceLastAccess > 14) {
+        score += 30;
+        riskFactors.push(`Progreso bajo (${progress}%) e inactivo ${daysSinceLastAccess} días`);
+      }
+
+      // Factor 3: Sin interacciones recientes
+      if (interactions60d === 0) {
+        score += 20;
+        riskFactors.push('Sin interacciones en 60 días');
+      }
+
+      // Cap at 90 (max possible: 40 + 30 + 20 = 90)
+      score = Math.min(90, score);
+
+      // Confidence based on data volume (not recency)
+      const confidence: 'high' | 'medium' | 'low' =
+        interactions60d >= 3 ? 'high' : interactions60d >= 1 ? 'medium' : 'low';
+
+      if (confidence === 'low') {
+        logger.warn(
+          { studentId: row.buyer_id, daysSinceLastAccess },
+          'Low confidence churn prediction — insufficient data'
+        );
+      }
+
+      return {
+        userId: row.buyer_id,
+        userName: row.user_name || 'Unknown',
+        churnScore: score,
+        riskFactors,
+        daysSinceLastAccess,
+        progress,
+        interactions60d,
+        confidence,
+      };
+    });
+
+    // 6. Filter students where score >= threshold
+    const atRiskStudents = scoredStudents.filter((s) => s.churnScore >= effectiveThreshold);
+
+    if (atRiskStudents.length === 0) {
+      return { predictions: [], totalStudents, creditsUsed: 0 };
+    }
+
+    // 7. Deduct credits BEFORE doing work (same pattern as chat() at line 321)
+    await aiCreditService.useCredits(userId, CREDIT_COST, 'Churn Prediction');
+
+    // 8. Build LLM prompt for narrative generation
+    const studentDataForLLM = atRiskStudents.map((s) => ({
+      userId: s.userId,
+      userName: s.userName,
+      churnScore: s.churnScore,
+      riskFactors: s.riskFactors,
+      daysSinceLastAccess: s.daysSinceLastAccess,
+      progress: s.progress,
+      interactions60d: s.interactions60d,
+    }));
+
+    const llmPromptData = JSON.stringify(studentDataForLLM, null, 2);
+    // Estimate tokens conservatively: fixed prompt template (~600 chars) + data, at 2:1 ratio
+    const estimatedTokens = (600 + llmPromptData.length) / 2;
+    let finalStudentData = studentDataForLLM;
+    if (estimatedTokens > 8000) {
+      // Truncate to top 100 students by churn score to stay within token limits
+      finalStudentData = [...studentDataForLLM].sort((a, b) => b.churnScore - a.churnScore).slice(0, 100);
+      logger.warn({ originalCount: studentDataForLLM.length, truncatedCount: finalStudentData.length }, 'LLM prompt truncated for churn prediction');
+    }
+
+    const llmPrompt = `Eres un analista de datos especializado en predicción de abandono (churn) de estudiantes en cursos online.
+
+Para cada estudiante, se te proporcionan datos objetivos y un score de riesgo calculado por heurísticas.
+
+TAREA: Para cada estudiante, genera:
+1. Una narrativa breve (2-3 frases) explicando POR QUÉ está en riesgo
+2. Una recomendación accionable específica para recuperarlo
+
+Formato de respuesta: JSON array con objetos:
+{
+  "userId": "...",
+  "narrative": "...",
+  "recommendedAction": "..."
+}
+
+REGLAS:
+- Sé específico: menciona días de inactividad, progreso, interacciones
+- Recomendaciones accionables: "Enviar email con descuento del 20%", "Mensaje personalizado destacando módulos no completados"
+- Si los datos son insuficientes, indícalo en la narrativa
+
+Datos de estudiantes:
+${JSON.stringify(finalStudentData, null, 2)}`;
+
+    // 8. Call LLM for narrative generation
+    let creditsRefunded = false;
+    let llmResults: Array<{
+      userId: string;
+      narrative: string;
+      recommendedAction: string;
+    }> = [];
+
+    try {
+      logger.info({ promptLength: llmPrompt.length, studentCount: atRiskStudents.length }, 'LLM churn narrative requested');
+
+      const messages = llmService.buildPrompt(llmPrompt, '', '');
+      const llmResponse = await llmService.chat({
+        messages,
+        temperature: 0.3,
+        maxTokens: 1000,
+      });
+
+      // Parse LLM response
+      const jsonMatch = llmResponse.content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        // Validate shape with zod before using
+        const validateResult = z.array(z.object({
+          userId: z.string(),
+          narrative: z.string(),
+          recommendedAction: z.string(),
+        })).safeParse(parsed);
+        if (!validateResult.success) throw new Error('Invalid LLM response shape');
+        llmResults = validateResult.data;
+      }
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'LLM call failed for churn prediction — returning partial results');
+
+      // Refund credits since LLM narrative generation failed
+      try {
+        await aiCreditService.addCredits(userId, CREDIT_COST, 'Refund - churn prediction LLM failed');
+        creditsRefunded = true;
+      } catch (refundError: unknown) {
+        const refundErr = refundError instanceof Error ? refundError : new Error('Unknown error');
+        logger.error({ err: refundErr }, 'predictChurn: failed to refund credits after LLM failure');
+      }
+
+      // Return partial results without narrative
+    }
+
+    // 9. Build final predictions — use Map for O(1) LLM result lookup
+    const llmResultMap = new Map(llmResults.map((r) => [r.userId, r]));
+    const predictions = atRiskStudents.map((student) => {
+      const llmResult = llmResultMap.get(student.userId);
+      return {
+        id: null,
+        userId: student.userId,
+        userName: student.userName,
+        churnScore: student.churnScore,
+        riskFactors: student.riskFactors,
+        narrative: llmResult?.narrative ?? null,
+        recommendedAction: llmResult?.recommendedAction ?? null,
+        confidence: student.confidence,
+      };
+    });
+
+    // 10. Persist predictions to churn_predictions table (multi-row INSERT + RETURNING id)
+    try {
+      if (predictions.length > 0) {
+        // Build a Map for O(1) student lookups (avoids O(N²) find() calls)
+        const studentMap = new Map(atRiskStudents.map((s) => [s.userId, s]));
+
+        const valuesList: string[] = [];
+        const allParams: unknown[] = [];
+        let paramOffset = 1;
+
+        for (const pred of predictions) {
+          const student = studentMap.get(pred.userId);
+          const riskFactorsJson = JSON.stringify(pred.riskFactors.map((rf) => ({ factor: rf, weight: 1 })));
+          const dataSnapshotJson = JSON.stringify({
+            daysSinceLastAccess: student?.daysSinceLastAccess,
+            progress: student?.progress,
+            interactions60d: student?.interactions60d,
+          });
+
+          valuesList.push(
+            `($${paramOffset}, $${paramOffset + 1}, $${paramOffset + 2}, $${paramOffset + 3}, $${paramOffset + 4}, $${paramOffset + 5}, $${paramOffset + 6}, $${paramOffset + 7})`
+          );
+          allParams.push(
+            userId,
+            productId,
+            pred.userId,
+            pred.churnScore,
+            riskFactorsJson,
+            pred.narrative,
+            pred.recommendedAction,
+            dataSnapshotJson
+          );
+          paramOffset += 8;
+        }
+
+        const insertQuery = `INSERT INTO "${schema}".churn_predictions (creator_id, product_id, target_user_id, churn_score, risk_factors, narrative, recommended_action, data_snapshot) VALUES ${valuesList.join(', ')} RETURNING id`;
+        const { rows: insertedRows } = await pool.query<{ id: string }>(insertQuery, allParams);
+
+        // Guard: verify returned ID count matches predictions count
+        if (!insertedRows || insertedRows.length !== predictions.length) {
+          logger.error({ expectedCount: predictions.length, actualCount: insertedRows?.length ?? 0 }, 'persist count mismatch');
+          throw new Error('Persistence failed: ID count mismatch');
+        }
+
+        // Map returned ids back to predictions
+        for (let i = 0; i < insertedRows.length; i++) {
+          predictions[i].id = insertedRows[i].id;
+        }
+      }
+      logger.info({ predictionsStored: predictions.length }, 'Churn predictions persisted');
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Failed to persist churn predictions');
+
+      // Refund credits if persistence failed
+      try {
+        await aiCreditService.addCredits(userId, CREDIT_COST, 'Refund - churn prediction persistence failed');
+        creditsRefunded = true;
+      } catch (refundError: unknown) {
+        const refundErr = refundError instanceof Error ? refundError : new Error('Unknown error');
+        logger.error({ err: refundErr }, 'predictChurn: failed to refund credits after persistence failure');
+      }
+
+      // Don't block response — predictions are still returned
+    }
+
+    return { predictions, totalStudents, creditsUsed: creditsRefunded ? 0 : CREDIT_COST };
   },
 };
