@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const purchaseCreditsSchema = z.object({
   packageId: z.string().uuid({ message: 'Invalid package ID' }),
   currency: z.enum(['ARS', 'USD', 'USDT']).default('ARS'),
-  gatewayId: z.string().uuid().optional(),
+  gatewayId: z.string().uuid({ message: 'Invalid gateway ID' }).nullish(),
 });
 
 // Questions
@@ -22,8 +22,11 @@ export const answerQuestionSchema = z.object({
     .max(5000, 'Answer too long (max 5000 characters)'),
 });
 
+// Shared vote type schema — used by both voteQuestionSchema and voteReviewSchema
+const voteTypeSchema = z.enum(['helpful', 'not_helpful']);
+
 export const voteQuestionSchema = z.object({
-  vote_type: z.enum(['helpful', 'not_helpful']),
+  vote_type: voteTypeSchema,
 });
 
 // FAQs
@@ -42,7 +45,7 @@ export const updateFAQSchema = z.object({
 });
 
 export const reorderFAQsSchema = z.object({
-  faq_ids: z.array(z.string().uuid()),
+  faq_ids: z.array(z.string().uuid()).nonempty('faq_ids cannot be empty'),
 });
 
 // Reviews
@@ -60,7 +63,7 @@ export const updateReviewSchema = z.object({
 });
 
 export const voteReviewSchema = z.object({
-  vote_type: z.enum(['helpful', 'not_helpful']),
+  vote_type: voteTypeSchema,
 });
 
 // Reviews Settings
@@ -70,18 +73,25 @@ export const updateReviewSettingsSchema = z.object({
   auto_publish: z.boolean().optional(),
   min_rating: z.number().int().min(1).max(5).optional(),
   max_rating: z.number().int().min(1).max(5).optional(),
+})
+.superRefine((data, ctx) => {
+  if (data.min_rating !== undefined && data.max_rating !== undefined) {
+    if (data.min_rating > data.max_rating) {
+      ctx.addIssue({ code: 'custom', message: 'min_rating cannot exceed max_rating' });
+    }
+  }
 });
 
 // Reports/Denunciations
 export const createReportSchema = z.object({
   content_type: z.enum(['product', 'review', 'question', 'answer', 'user']),
   content_id: z.string().uuid(),
-  reason_code: z.string().min(1, 'Reason code is required'),
+  reason_code: z.string().min(1, 'Reason code is required').max(100),
   description: z.string().max(2000, 'Description too long').optional(),
 });
 
 export const resolveReportSchema = z.object({
-  status: z.enum(['resolved', 'dismissed', 'pending']),
+  status: z.enum(['resolved', 'dismissed']),
   resolution_notes: z.string().max(1000).optional(),
 });
 
@@ -120,12 +130,12 @@ export const updateTutorConfigSchema = z.object({
 // Insights
 export const createDashboardSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).nullish(),
 });
 
 export const updateDashboardSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).nullish(),
   is_default: z.boolean().optional(),
 });
 
@@ -147,9 +157,9 @@ export const publishQuestionSchema = z.object({
   is_published: z.boolean(),
 });
 
-// QA Chat with product_id
+// QA Chat with productId
 export const qaChatSchema = z.object({
-  product_id: z.string().uuid({ message: 'Invalid product ID' }),
+  productId: z.string().uuid({ message: 'Invalid product ID' }),
   message: z.string().min(1, 'Message is required').max(2000, 'Message too long'),
 });
 
@@ -224,6 +234,84 @@ export const reportsQuerySchema = paginationSchema.extend({
 export const conversationsQuerySchema = paginationSchema.extend({
   agent_type: z.enum(['qa', 'tutor', 'insights']).optional(),
 });
+
+// Insights: Churn Prediction
+export const churnPredictionSchema = z.object({
+  productId: z.string().uuid({ message: 'productId must be a valid UUID' }),
+  threshold: z.number().int().min(0).max(100).default(50),
+});
+
+// Insights: Recovery Email
+export const recoveryEmailSchema = z.object({
+  productId: z.string().uuid({ message: 'productId must be a valid UUID' }),
+  targetUserId: z.string().uuid({ message: 'targetUserId must be a valid UUID' }),
+  tone: z.enum(['empathic', 'direct', 'motivational']).default('empathic'),
+});
+
+// Insights: A/B Comparatives
+const METRICS_VALUES = ['revenue', 'sales', 'conversion', 'engagement', 'reviews'] as const;
+
+export const compareSchema = z
+  .object({
+    entityType: z.enum(['period', 'product'], { message: 'entityType must be period or product' }),
+    entityA: z
+      .string()
+      .trim()
+      .min(1, { message: 'entityA is required' })
+      .max(100, 'entityA too long'),
+    entityB: z
+      .string()
+      .trim()
+      .min(1, { message: 'entityB is required' })
+      .max(100, 'entityB too long'),
+    metrics: z
+      .array(z.enum(METRICS_VALUES))
+      .min(1)
+      .max(METRICS_VALUES.length)
+      .refine(arr => new Set(arr).size === arr.length, {
+        message: 'Duplicate metrics are not allowed',
+      }),
+  })
+  .superRefine((data, ctx) => {
+    if (data.entityType === 'product') {
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(data.entityA)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'entityA must be UUID for product type',
+          path: ['entityA'],
+        });
+      }
+      if (!uuidRegex.test(data.entityB)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'entityB must be UUID for product type',
+          path: ['entityB'],
+        });
+      }
+    } else if (data.entityType === 'period') {
+      const periodRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
+      if (!periodRegex.test(data.entityA)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'entityA must be YYYY-MM format for period type',
+          path: ['entityA'],
+        });
+      }
+      if (!periodRegex.test(data.entityB)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'entityB must be YYYY-MM format for period type',
+          path: ['entityB'],
+        });
+      }
+    }
+  });
+
+export type ChurnPredictionRequest = z.infer<typeof churnPredictionSchema>;
+export type RecoveryEmailRequest = z.infer<typeof recoveryEmailSchema>;
+export type CompareRequest = z.infer<typeof compareSchema>;
 
 // Analytics Query
 export const analyticsQuerySchema = dateRangeSchema;
