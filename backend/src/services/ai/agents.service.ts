@@ -1035,6 +1035,43 @@ function validateGeneratedSQL(sql: string): { valid: boolean; reason?: string } 
   return { valid: true };
 }
 
+/**
+ * Sanitize HTML output from LLM — strips XSS vectors before persistence or return.
+ * Removes: <script> tags, <iframe> tags, javascript: URIs, on* event handlers.
+ * Decodes HTML entities before checking to prevent entity-encoded bypasses.
+ */
+export function sanitizeHtml(html: string): string {
+  if (!html) return '';
+
+  let sanitized = html;
+
+  // Decode HTML entities before running security checks (prevents &#106;&#97;&#118;&#97;... bypass)
+  function decodeHtmlEntities(text: string): string {
+    return text
+      .replace(/&#(\d+);/g, (_: string, code: string) => String.fromCharCode(Number(code)))
+      .replace(/&#x([0-9a-f]+);/gi, (_: string, code: string) => String.fromCharCode(parseInt(code, 16)));
+  }
+  sanitized = decodeHtmlEntities(sanitized);
+
+  // Strip <iframe> tags (including self-closing) — srcdoc can bypass <script> stripping
+  sanitized = sanitized.replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
+  sanitized = sanitized.replace(/<iframe[^>]*\/?>/gi, '');
+
+  // Strip <script>...</script> tags (case-insensitive, handles nested)
+  sanitized = sanitized.replace(/<script[\s\S]*?<\/script>/gi, '');
+  // Strip self-closing or unclosed <script> tags
+  sanitized = sanitized.replace(/<script[^>]*\/?>/gi, '');
+
+  // Strip javascript: URIs
+  sanitized = sanitized.replace(/javascript\s*:/gi, '');
+
+  // Strip on* event handlers (onclick, onerror, onload, onmouseover, etc.)
+  sanitized = sanitized.replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '');
+  sanitized = sanitized.replace(/\son\w+\s*=\s*[^\s>]+/gi, '');
+
+  return sanitized;
+}
+
 export const insightsService = {
   /**
    * Get user dashboards
@@ -1906,5 +1943,430 @@ ${JSON.stringify(finalStudentData, null, 2)}`;
     }
 
     return { predictions, totalStudents, creditsUsed: creditsRefunded ? 0 : CREDIT_COST };
+  },
+
+  /**
+   * Generate a personalized recovery email for an at-risk student.
+   * Uses LLM to produce subject + HTML body + preview text with configurable tone.
+   */
+  async generateRecoveryEmail(
+    productId: string,
+    targetUserId: string,
+    tone: 'empathic' | 'direct' | 'motivational' = 'empathic',
+    creatorId: string
+  ): Promise<{
+    email: { subject: string; bodyHtml: string; previewText: string | null };
+    studentName: string;
+    productName: string;
+  }> {
+    const CREDIT_COST = 3;
+    const schema = getValidatedSchema();
+
+    // Validate tone parameter
+    if (!['empathic', 'direct', 'motivational'].includes(tone)) {
+      throw new AppError('Tono inválido. Usa: empathic, direct, o motivational', 400);
+    }
+
+    logger.info({ creatorId, productId, targetUserId, tone }, 'Recovery email generation requested');
+
+    // 1. Verify product ownership
+    const ownershipQuery = `SELECT id, title FROM "${schema}".products WHERE id = $1 AND creator_id = $2`;
+    const { rows: ownershipRows } = await pool.query<{ id: string; title: string }>(ownershipQuery, [productId, creatorId]);
+    if (ownershipRows.length === 0) {
+      logger.warn({ creatorId, productId, reason: 'not_owner' }, 'Recovery email generation denied');
+      throw new AppError('No tienes permiso para acceder a este producto', 403);
+    }
+    const productName = ownershipRows[0].title;
+
+    // 2. Check credits
+    const credits = await aiCreditService.getBalance(creatorId);
+    if (!credits || credits.balance < CREDIT_COST) {
+      throw new AppError('Créditos insuficientes', 402);
+    }
+
+    // 3. Deduct credits BEFORE doing work (deduct first, refund on failure)
+    await aiCreditService.useCredits(creatorId, CREDIT_COST, 'Recovery Email Generation');
+
+    // 4. Fetch student data
+    const studentQuery = `
+      SELECT u.id as user_id, u.username, u.email,
+        COALESCE(
+          (SELECT AVG(lp.completion_percentage)
+           FROM "${schema}".lesson_progress lp
+           JOIN "${schema}".lessons l ON l.id = lp.lesson_id
+           JOIN "${schema}".modules m ON m.id = l.module_id
+           WHERE m.product_id = $1 AND lp.user_id = u.id),
+          0
+        ) as progress,
+        (SELECT MAX(o.created_at) FROM "${schema}".orders o WHERE o.product_id = $1 AND o.buyer_id = u.id AND o.status = 'completed') as last_access
+      FROM "${schema}".users u
+      WHERE u.id = $2
+    `;
+    const { rows: studentRows } = await pool.query<{
+      user_id: string;
+      username: string;
+      email: string;
+      progress: number;
+      last_access: Date | null;
+    }>(studentQuery, [productId, targetUserId]);
+
+    if (studentRows.length === 0) {
+      throw new AppError('Estudiante no encontrado', 404);
+    }
+
+    const student = studentRows[0];
+    const studentName = student.username || 'Estudiante';
+    const daysSinceAccess = student.last_access
+      ? Math.round((Date.now() - new Date(student.last_access).getTime()) / 86400000)
+      : null;
+
+    // 5. Build LLM prompt
+    const toneInstructions: Record<string, string> = {
+      empathic: 'Usa un tono empático y comprensivo. Reconoce las dificultades del estudiante.',
+      direct: 'Sé directo y claro. Ve al grano con acciones concretas.',
+      motivational: 'Usa un tono motivador y alentador. Destaca el potencial del estudiante.',
+    };
+
+    const llmPrompt = `Eres un especialista en retención de estudiantes para cursos online.
+Genera un email de recuperación personalizado para un estudiante que está en riesgo de abandonar.
+
+DATOS DEL ESTUDIANTE:
+- Nombre: ${studentName}
+- Progreso en el curso: ${student.progress}%
+- Último acceso: ${daysSinceAccess !== null ? `hace ${daysSinceAccess} días` : 'Sin registro'}
+- Producto: ${productName}
+
+TONO: ${toneInstructions[tone]}
+
+Responde SOLO con JSON en este formato:
+{
+  "subject": "Asunto del email",
+  "bodyHtml": "<p>Contenido HTML del email</p>",
+  "previewText": "Texto de vista previa (máx 150 caracteres)"
+}
+
+REGLAS:
+- Personaliza con el nombre del estudiante
+- Menciona su progreso específico
+- Incluye un llamado a la acción claro
+- El bodyHtml debe ser HTML válido con etiquetas seguras (p, strong, em, a, ul, li, br)
+- NO incluyas <script>, event handlers, ni javascript: URIs
+- previewText máximo 150 caracteres`;
+
+    // 6. Call LLM
+    let llmResponse;
+    try {
+      const messages = llmService.buildPrompt(llmPrompt, '', '');
+      llmResponse = await llmService.chat({
+        messages,
+        temperature: 0.7,
+        maxTokens: 800,
+      });
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'LLM call failed for recovery email');
+      // Refund credits since LLM call failed
+      try {
+        await aiCreditService.addCredits(creatorId, CREDIT_COST, 'Refund - recovery email LLM failed');
+      } catch (refundError: unknown) {
+        const refundErr = refundError instanceof Error ? refundError : new Error('Unknown error');
+        logger.error({ err: refundErr }, 'generateRecoveryEmail: failed to refund credits after LLM failure');
+      }
+      throw new AppError('No se pudo generar el email de recuperación', 500);
+    }
+
+    // 7. Parse response
+    let parsed: { subject: string; bodyHtml: string; previewText: string };
+    try {
+      const jsonMatch = llmResponse.content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in LLM response');
+      }
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message, response: llmResponse.content }, 'Failed to parse LLM response for recovery email');
+      // Refund credits since JSON parsing failed
+      try {
+        await aiCreditService.addCredits(creatorId, CREDIT_COST, 'Refund - recovery email parse failed');
+      } catch (refundError: unknown) {
+        const refundErr = refundError instanceof Error ? refundError : new Error('Unknown error');
+        logger.error({ err: refundErr }, 'generateRecoveryEmail: failed to refund credits after parse failure');
+      }
+      throw new AppError('Respuesta inválida del modelo de IA', 500);
+    }
+
+    // 8. Sanitize HTML
+    const sanitizedBodyHtml = sanitizeHtml(parsed.bodyHtml);
+
+    // 9. Persist to recovery_emails table
+    try {
+      await pool.query(
+        `INSERT INTO "${schema}".recovery_emails (creator_id, product_id, target_user_id, subject, body_html, preview_text, tone) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [creatorId, productId, targetUserId, parsed.subject, sanitizedBodyHtml, parsed.previewText || null, tone]
+      );
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Failed to persist recovery email');
+
+      // Refund credits if persistence failed (credits were deducted at step 3)
+      try {
+        await aiCreditService.addCredits(creatorId, CREDIT_COST, 'Refund - recovery email persistence failed');
+      } catch (refundError: unknown) {
+        const refundErr = refundError instanceof Error ? refundError : new Error('Unknown error');
+        logger.error({ err: refundErr }, 'generateRecoveryEmail: failed to refund credits');
+      }
+    }
+
+    // 10. Return result
+    return {
+      email: {
+        subject: parsed.subject,
+        bodyHtml: sanitizedBodyHtml,
+        previewText: parsed.previewText || null,
+      },
+      studentName,
+      productName,
+    };
+  },
+
+  /**
+   * Compare two entities (periods or products) across requested metrics.
+   * Generates SQL via LLM, validates it, executes, then produces comparative analysis.
+   */
+  async compareEntities(
+    entityType: 'period' | 'product',
+    entityA: string,
+    entityB: string,
+    metrics: string[],
+    creatorId: string
+  ): Promise<{
+    entityA: { label: string; data: Record<string, unknown> };
+    entityB: { label: string; data: Record<string, unknown> };
+    narrative: string;
+    deltas: Record<string, { a: number; b: number; delta: number; deltaPercent: number }>;
+    recommendation: string;
+  }> {
+    const CREDIT_COST = 3;
+    const schema = getValidatedSchema();
+
+    logger.info({ creatorId, entityType, entityA, entityB, metrics }, 'A/B comparative analysis requested');
+
+    // 1. Verify ownership based on entity type
+    if (entityType === 'product') {
+      // Verify both products belong to the requesting creator
+      const ownershipQuery = `SELECT id FROM "${schema}".products WHERE id = ANY($1::uuid[]) AND creator_id = $2`;
+      const { rows: ownershipRows } = await pool.query<{ id: string }>(ownershipQuery, [[entityA, entityB], creatorId]);
+      if (ownershipRows.length < 2) {
+        logger.warn({ creatorId, entityA, entityB, reason: 'not_owner' }, 'Compare entities denied');
+        throw new AppError('No tienes permiso para acceder a uno o ambos productos', 403);
+      }
+    }
+
+    // 2. Check credits
+    const credits = await aiCreditService.getBalance(creatorId);
+    if (!credits || credits.balance < CREDIT_COST) {
+      throw new AppError('Créditos insuficientes', 402);
+    }
+
+    // 3. Deduct credits BEFORE doing work (deduct first, refund on failure)
+    let creditsRefunded = false;
+    try {
+      await aiCreditService.useCredits(creatorId, CREDIT_COST, 'A/B Comparative Analysis');
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message, creatorId, cost: CREDIT_COST }, 'Failed to deduct credits for comparative analysis');
+      creditsRefunded = true; // credits were never deducted, mark as handled to prevent free refund
+      // Continue without credits — acceptable tradeoff vs blocking the request
+    }
+
+    // 4. Fetch data for each entity
+    const entityResults: { label: string; data: Record<string, unknown> }[] = [];
+
+    for (const [index, entityLabel] of [entityA, entityB].entries()) {
+      const entityName = index === 0 ? 'A' : 'B';
+      try {
+        // Build NL→SQL prompt
+        const metricList = metrics.join(', ');
+        const sqlPrompt = `Eres un asistente que genera consultas SQL para análisis de datos.
+
+ENTIDAD: ${entityName}
+TIPO: ${entityType}
+IDENTIFICADOR: ${entityLabel}
+MÉTRICAS SOLICITADAS: ${metricList}
+
+${entityType === 'period' ? `
+El identificador representa un período en formato YYYY-MM.
+Genera una consulta SQL que obtenga las métricas solicitadas para ese período.
+Usa orders.created_at para filtrar por período.
+IMPORTANTE: Filtra también por el creator_id del usuario para asegurar que solo ve sus propios datos.
+Ejemplo: para '2024-01', filtra WHERE created_at >= '2024-01-01' AND created_at < '2024-02-01'
+` : `
+El identificador es un UUID de producto.
+Genera una consulta SQL que obtenga las métricas solicitadas para ese producto.
+Filtra por product_id = '${entityLabel}' (usa parámetros $1, $2, etc.)
+`}
+
+Responde SOLO con JSON:
+{
+  "sql": "SELECT ... FROM ... WHERE ..."
+}
+
+REGLAS:
+- Usa SOLO SELECT
+- Usa parámetros ($1, $2) para valores dinámicos
+- Limita a 100 filas máximo
+- Usa las tablas: orders, products, users, commissions, product_reviews`;
+
+        const messages = llmService.buildPrompt(sqlPrompt, '', '');
+        const llmResponse = await llmService.chat({
+          messages,
+          temperature: 0.2,
+          maxTokens: 300,
+        });
+
+        // Parse SQL
+        let generatedSql = '';
+        try {
+          const jsonMatch = llmResponse.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            generatedSql = parsed.sql || '';
+          }
+        } catch {
+          const sqlMatch = llmResponse.content.match(/(SELECT[\s\S]+)/i);
+          if (sqlMatch) {
+            generatedSql = sqlMatch[1].trim();
+          }
+        }
+
+        if (!generatedSql) {
+          throw new Error('No se pudo generar SQL');
+        }
+
+        // Validate SQL
+        const validation = validateGeneratedSQL(generatedSql);
+        if (!validation.valid) {
+          logger.warn({ sql: generatedSql, reason: validation.reason, entity: entityName }, 'SQL validation failed for comparative');
+          throw new Error(`SQL inválido: ${validation.reason}`);
+        }
+
+        // Execute with safety limits
+        const safeSql = generatedSql
+          .replace(/\0/g, '')
+          .replace(/;.*$/gm, '')
+          .replace(/\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi, 'LIMIT 100')
+          .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100');
+
+        const { rows } = await pool.query(safeSql);
+
+        entityResults.push({ label: entityLabel, data: rows.length > 0 ? rows[0] : {} });
+      } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        logger.error({ error: err.message, entity: entityName }, `Entity ${entityName} query failed — storing error`);
+        entityResults.push({ label: entityLabel, data: { error: err.message } });
+      }
+    }
+
+    // 5. Call LLM with comparative analysis prompt
+    let narrative = '';
+    let deltas: Record<string, { a: number; b: number; delta: number; deltaPercent: number }> = {};
+    let recommendation = '';
+
+    const entityAData = entityResults[0].data;
+    const entityBData = entityResults[1].data;
+    const hasErrorA = (entityAData as Record<string, unknown>).error !== undefined;
+    const hasErrorB = (entityBData as Record<string, unknown>).error !== undefined;
+
+    if (!hasErrorA || !hasErrorB) {
+      try {
+        const comparePrompt = `Eres un analista de datos. Compara dos conjuntos de datos y produce un análisis comparativo.
+
+ENTIDAD A (${entityA}):
+${JSON.stringify(entityAData, null, 2)}
+
+ENTIDAD B (${entityB}):
+${JSON.stringify(entityBData, null, 2)}
+
+MÉTRICAS: ${metrics.join(', ')}
+
+Responde SOLO con JSON:
+{
+  "narrative": "Análisis comparativo en lenguaje natural (2-3 frases)",
+  "deltas": { "metrica": { "a": 100, "b": 120, "delta": 20, "deltaPercent": 20 } },
+  "recommendation": "Recomendación accionable"
+}
+
+Si una entidad tiene error, mencionalo en la narrativa y calcula deltas solo con los datos disponibles.`;
+
+        const messages = llmService.buildPrompt(comparePrompt, '', '');
+        const llmResponse = await llmService.chat({
+          messages,
+          temperature: 0.3,
+          maxTokens: 600,
+        });
+
+        try {
+          const jsonMatch = llmResponse.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            narrative = parsed.narrative || '';
+            deltas = parsed.deltas || {};
+            recommendation = parsed.recommendation || '';
+          }
+        } catch {
+          narrative = `Comparación entre ${entityA} y ${entityB}.`;
+          recommendation = 'Revisar los datos manualmente.';
+        }
+      } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        logger.error({ error: err.message }, 'LLM comparative analysis failed');
+        narrative = `No se pudo generar el análisis comparativo.`;
+        recommendation = 'Intenta de nuevo más tarde.';
+      }
+    } else {
+      narrative = 'Ambas entidades fallaron en la consulta.';
+      recommendation = 'Verifica los identificadores e intenta de nuevo.';
+    }
+
+    // 6. Persist to insights_history
+    try {
+      await pool.query(
+        `INSERT INTO "${schema}".insights_history (user_id, query, sql_generated, results, is_successful, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          creatorId,
+          `Compare ${entityType}: ${entityA} vs ${entityB}`,
+          JSON.stringify({ entityA: entityA, entityB: entityB }),
+          JSON.stringify({ entityA: entityResults[0], entityB: entityResults[1], narrative, deltas, recommendation }),
+          true,
+          null,
+        ]
+      );
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Failed to persist comparative analysis to history');
+      // Don't block response — continue
+    }
+
+    // 7. Refund credits if both entities failed (no useful result produced)
+    if (hasErrorA && hasErrorB && !creditsRefunded) {
+      try {
+        await aiCreditService.addCredits(creatorId, CREDIT_COST, 'Refund - compare entities both failed');
+        creditsRefunded = true;
+      } catch (refundError: unknown) {
+        const refundErr = refundError instanceof Error ? refundError : new Error('Unknown error');
+        logger.error({ err: refundErr }, 'compareEntities: failed to refund credits after both entities failed');
+      }
+    }
+
+    // 8. Return result
+    return {
+      entityA: entityResults[0],
+      entityB: entityResults[1],
+      narrative,
+      deltas,
+      recommendation,
+    };
   },
 };
