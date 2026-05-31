@@ -12,7 +12,7 @@
 | Field | Value |
 |-------|-------|
 | Estimated changed lines | ~1100–1300 (additions across 9 files) |
-| 400-line budget risk | High |
+| 600-line budget risk | Medium |
 | Chained PRs recommended | Yes |
 | Suggested split | 6 PRs (Task 0 → Task 5) |
 | Delivery strategy | auto-chain |
@@ -33,7 +33,7 @@
 Decision needed before apply: No
 Chained PRs recommended: Yes
 Chain strategy: stacked-to-main
-400-line budget risk: High
+600-line budget risk: Medium
 ```
 
 ---
