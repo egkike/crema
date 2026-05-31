@@ -241,11 +241,12 @@ export class AICreditService {
    * Get cost estimate for AI operation
    * This can be expanded based on actual pricing
    */
-  getOperationCost(operation: 'search' | 'chat' | 'generate_insight'): number {
+  getOperationCost(operation: 'search' | 'chat' | 'generate_insight' | 'churn_prediction'): number {
     const costs = {
       search: 1,
       chat: 5,
       generate_insight: 10,
+      churn_prediction: 5,
     };
     return costs[operation];
   }
