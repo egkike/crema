@@ -8,7 +8,7 @@ import logger from '../../utils/logger';
 // Limite para login (anti-brute force)
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // máximo 5 intentos
+  limit: 5, // máximo 5 intentos
   message: {
     success: false,
     error:
@@ -18,7 +18,8 @@ export const loginLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn(
@@ -36,16 +37,18 @@ export const loginLimiter = rateLimit({
 // - 3/min for transcription
 export const aiContentLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 10, // 10 requests por minuto por usuario
+  limit: 10, // 10 requests por minuto por usuario
   message: {
     success: false,
     error: 'Límite de contenido AI alcanzado. Intenta de nuevo en 1 minuto.',
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skipFailedRequests: true,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de contenido AI alcanzado');
@@ -56,7 +59,7 @@ export const aiContentLimiter = rateLimit({
 // Limite para refresh token (anti-abuso)
 export const refreshLimiter = rateLimit({
   windowMs: 30 * 60 * 1000, // 30 minutos
-  max: 10, // máximo 10 refreshes
+  limit: 10, // máximo 10 refreshes
   message: {
     success: false,
     error:
@@ -66,7 +69,8 @@ export const refreshLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de refresh alcanzado');
@@ -77,7 +81,7 @@ export const refreshLimiter = rateLimit({
 // Limite general para rutas protegidas (más permisivo)
 export const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 100, // máximo 100 peticiones
+  limit: 100, // máximo 100 peticiones
   message: {
     success: false,
     error: 'Demasiadas peticiones. Intenta de nuevo en 1 minuto.',
@@ -90,25 +94,22 @@ export const apiLimiter = rateLimit({
 // Los operaciones de AI son más costosas computacionalmente
 export const aiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 30, // máximo 30 peticiones por minuto por usuario
+  limit: 30, // máximo 30 peticiones por minuto por usuario
   message: {
     success: false,
     error: 'Límite de peticiones de AI alcanzado. Intenta de nuevo en 1 minuto.',
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skipFailedRequests: true,
   keyGenerator: req => {
     const userId = req.user?.id;
-    if (!userId) {
-      // Use debug level — public endpoints (no jwtAuthMiddleware) legitimately
-      // have no userId. Warn would spam logs for normal public traffic.
-      // Upgrade to warn if you need to detect authenticated routes with missing userId.
-      logger.debug(
-        { path: req.path, ip: req.ip },
-        'aiLimiter falling back to IP-based key (no userId)'
-      );
-    }
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    logger.debug(
+      { path: req.path, ip: req.ip },
+      'aiLimiter falling back to IP-based key (no userId)'
+    );
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de AI alcanzado');
@@ -120,16 +121,18 @@ export const aiLimiter = rateLimit({
 // Estas operaciones usan créditos y son las más costosas
 export const aiChatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 10, // máximo 10 chats por minuto por usuario
+  limit: 10, // máximo 10 chats por minuto por usuario
   message: {
     success: false,
     error: 'Límite de chats con IA alcanzado. Intenta de nuevo en 1 minuto.',
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skipFailedRequests: true,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de chat AI alcanzado');
@@ -141,7 +144,7 @@ export const aiChatLimiter = rateLimit({
 // Las pasarelas pueden reintentar, así que el límite es alto
 export const webhookLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 60, // máximo 60 peticiones por minuto por IP (Blockonomics envía 1-3 por transacción)
+  limit: 60, // máximo 60 peticiones por minuto por IP (Blockonomics envía 1-3 por transacción)
   message: {
     success: false,
     error: 'Demasiadas peticiones de webhook. Intenta de nuevo en 1 minuto.',
@@ -154,7 +157,7 @@ export const webhookLimiter = rateLimit({
 // Los endpoints de admin tienen operaciones sensibles
 export const adminReadLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 100, // máximo 100 peticiones por minuto para operaciones de lectura
+  limit: 100, // máximo 100 peticiones por minuto para operaciones de lectura
   message: {
     success: false,
     error: 'Límite de peticiones de lectura alcanzado. Intenta de nuevo en 1 minuto.',
@@ -163,7 +166,8 @@ export const adminReadLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de lectura admin alcanzado');
@@ -174,7 +178,7 @@ export const adminReadLimiter = rateLimit({
 // Rate limiter aún más restrictivo para operaciones de ESCRITURA de admin
 export const adminWriteLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 50, // máximo 50 peticiones por minuto para operaciones de escritura
+  limit: 50, // máximo 50 peticiones por minuto para operaciones de escritura
   message: {
     success: false,
     error: 'Límite de peticiones de escritura alcanzado. Intenta de nuevo en 1 minuto.',
@@ -183,7 +187,8 @@ export const adminWriteLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de escritura admin alcanzado');
@@ -202,7 +207,7 @@ export const adminWriteLimiter = rateLimit({
 
 export const productUploadLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 10, // máximo 10 solicitudes de upload por minuto por usuario
+  limit: 10, // máximo 10 solicitudes de upload por minuto por usuario
   message: {
     success: false,
     error:
@@ -223,8 +228,7 @@ export const productUploadLimiter = rateLimit({
     return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
-    const userId = req.user?.id;
-    const key = userId && typeof userId === 'string' ? userId : ipKeyGenerator(req.ip || '');
+    const key = req.rateLimit?.key ?? req.user?.id ?? req.ip ?? 'unknown';
     logger.warn({ key, path: req.path }, 'Límite de uploads de producto alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
@@ -234,7 +238,7 @@ export const productUploadLimiter = rateLimit({
 // SPEC §4.2: 10 requests/min per user para análisis
 export const interactiveAgentLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 10, // máximo 10 análisis por minuto por usuario
+  limit: 10, // máximo 10 análisis por minuto por usuario
   message: {
     success: false,
     error: 'Demasiadas solicitudes de análisis. Intenta de nuevo en un minuto.',
@@ -243,7 +247,8 @@ export const interactiveAgentLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn(
@@ -256,9 +261,45 @@ export const interactiveAgentLimiter = rateLimit({
 
 // Rate limiter para Affiliate Chat — configurable via affiliate_chat.rate_limit
 // SPEC AC-6: default 30/min, overrides aiChatLimiter (10/min) for this endpoint
+// Uses module-level cache with TTL to avoid Redis/DB I/O on every request
+// Promise-based dedup lock prevents TOCTOU race on concurrent cache misses
+const affiliateChatLimitCache = { value: 30, timestamp: 0 };
+const AFFILIATE_CHAT_CACHE_TTL_MS = 30_000; // 30 seconds
+let affiliateChatLimitPromise: Promise<number> | null = null;
+
 export const affiliateChatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: async () => await configService.getNumber('affiliate_chat.rate_limit', 30), // configurable via affiliate_chat.rate_limit, default 30
+  limit: async () => {
+    try {
+      const now = Date.now();
+      if (now - affiliateChatLimitCache.timestamp > AFFILIATE_CHAT_CACHE_TTL_MS) {
+        if (!affiliateChatLimitPromise) {
+          affiliateChatLimitPromise = configService
+            .getNumber('affiliate_chat.rate_limit', 30)
+            .then(val => {
+              affiliateChatLimitCache.value = val;
+              affiliateChatLimitCache.timestamp = Date.now();
+              affiliateChatLimitPromise = null;
+              return val;
+            })
+            .catch(err => {
+              logger.error(
+                { err },
+                'affiliateChatLimiter: failed to get max, using cached default 30'
+              );
+              affiliateChatLimitPromise = null;
+              return 30;
+            });
+        }
+        return affiliateChatLimitPromise;
+      }
+      return affiliateChatLimitCache.value;
+    } catch (err) {
+      logger.error({ err }, 'affiliateChatLimiter: unexpected error in limit function');
+      return affiliateChatLimitCache.value || 30;
+    }
+  },
+  skipFailedRequests: true,
   message: {
     success: false,
     error: 'Límite de chat con IA alcanzado. Intenta de nuevo en 1 minuto.',
@@ -267,7 +308,8 @@ export const affiliateChatLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn(
@@ -282,7 +324,7 @@ export const affiliateChatLimiter = rateLimit({
 // SPEC §4.12: dedicated limiter for SEO generation endpoint
 export const seoOptimizerLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 10, // máximo 10 generaciones SEO por minuto por usuario
+  limit: 10, // máximo 10 generaciones SEO por minuto por usuario
   message: {
     success: false,
     error: 'Límite de generación SEO alcanzado. Intenta de nuevo en 1 minuto.',
@@ -291,7 +333,8 @@ export const seoOptimizerLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: req => {
     const userId = req.user?.id;
-    return userId || ipKeyGenerator(req.ip || '');
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
     logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de generación SEO alcanzado');
@@ -306,7 +349,7 @@ export const seoOptimizerLimiter = rateLimit({
 
 export const transcribeUploadLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 3, // máximo 3 solicitudes de transcripción por minuto por usuario
+  limit: 3, // máximo 3 solicitudes de transcripción por minuto por usuario
   message: {
     success: false,
     error:
@@ -327,9 +370,65 @@ export const transcribeUploadLimiter = rateLimit({
     return ipKeyGenerator(req.ip || '');
   },
   handler: (req, res, _next, options) => {
-    const userId = req.user?.id;
-    const key = userId && typeof userId === 'string' ? userId : ipKeyGenerator(req.ip || '');
+    const key = req.rateLimit?.key ?? req.user?.id ?? req.ip ?? 'unknown';
     logger.warn({ key, path: req.path }, 'Límite de transcripciones alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
+// Rate limiter para Churn Prediction — 5 requests/min (operación costosa de ML)
+export const churnPredictionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  message: { success: false, error: 'Límite de predicción de churn alcanzado. Intenta de nuevo en 1 minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipFailedRequests: true,
+  keyGenerator: req => {
+    const userId = req.user?.id;
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de churn prediction alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
+// Rate limiter para Recovery Email — 10 requests/min
+export const recoveryEmailLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  message: { success: false, error: 'Límite de generación de email alcanzado. Intenta de nuevo en 1 minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipFailedRequests: true,
+  keyGenerator: req => {
+    const userId = req.user?.id;
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de recovery email alcanzado');
+    res.status(options.statusCode || 429).json(options.message);
+  },
+});
+
+// Rate limiter para A/B Comparativas — 10 requests/min
+export const compareLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  message: { success: false, error: 'Límite de comparativas alcanzado. Intenta de nuevo en 1 minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipFailedRequests: true,
+  keyGenerator: req => {
+    const userId = req.user?.id;
+    if (userId && typeof userId === 'string' && userId.length > 0) return userId;
+    return ipKeyGenerator(req.ip || '');
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn({ key: req.rateLimit?.key, path: req.path }, 'Límite de comparativas alcanzado');
     res.status(options.statusCode || 429).json(options.message);
   },
 });
