@@ -66,6 +66,9 @@ vi.mock('../../middlewares/rateLimit/rateLimit', () => {
     productUploadLimiter: passthrough,
     webhookLimiter: passthrough,
     seoOptimizerLimiter: withHeaders,
+    churnPredictionLimiter: passthrough,
+    recoveryEmailLimiter: passthrough,
+    compareLimiter: passthrough,
   };
 });
 

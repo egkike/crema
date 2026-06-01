@@ -370,9 +370,9 @@ Chain strategy: stacked-to-main
 3. Each handler MUST use the existing `uid(req)` helper and `AppError` pattern.
 
 **Verification**:
-- [ ] `pnpm tsc --noEmit` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm test` passes (no regression)
+- [x] `pnpm tsc --noEmit` passes
+- [x] `pnpm lint` passes
+- [x] `pnpm test` passes (no regression)
 - [ ] `GET /api/orchestrator/capabilities` returns the three new capabilities
 
 **Rollback**: Comment out capability registrations and route handlers.

@@ -42,8 +42,26 @@ vi.mock('../../../services/ai/embedding.service', () => ({
   },
 }));
 
+vi.mock('../../../services/ai/agents.service', () => ({
+  qaAgentService: { chat: vi.fn(), chatStream: vi.fn(), getConfig: vi.fn(), updateConfig: vi.fn(), getUserConversations: vi.fn(), getConversation: vi.fn() },
+  tutorService: { chat: vi.fn(), chatStream: vi.fn(), getConfig: vi.fn(), updateConfig: vi.fn(), getInsights: vi.fn() },
+  insightsService: {
+    query: vi.fn().mockResolvedValue({ results: [] }),
+    chatStream: vi.fn().mockResolvedValue(undefined),
+    getDashboards: vi.fn().mockResolvedValue([]),
+    createDashboard: vi.fn().mockResolvedValue({ id: 'd1' }),
+    getDashboardById: vi.fn().mockResolvedValue({ id: 'd1', creator_id: 'u1' }),
+    updateDashboard: vi.fn().mockResolvedValue(undefined),
+    deleteDashboard: vi.fn().mockResolvedValue(true),
+    predictChurn: vi.fn().mockResolvedValue({ predictions: [], totalStudents: 0, creditsUsed: 5 }),
+    generateRecoveryEmail: vi.fn().mockResolvedValue({ email: { subject: 'test', bodyHtml: '<p>test</p>', previewText: 'test' }, studentName: 'Test', productName: 'Test', creditsUsed: 3, recoveryEmailId: 'r1' }),
+    compareEntities: vi.fn().mockResolvedValue({ entityA: { label: 'A', data: [] }, entityB: { label: 'B', data: [] }, narrative: 'test', deltas: [], recommendation: 'test', creditsUsed: 3 }),
+  },
+  analyticsService: { getDashboardMetrics: vi.fn().mockResolvedValue({ metrics: [] }) },
+}));
+
 // Import after mocks are set
-import { registerAISkills } from '../../../services/ai/index';
+import { registerAISkills, skills } from '../../../services/ai/index';
 import { skillsRegistry, clearRegisteredSkills } from '../../../services/skills-registry.service';
 import type { Skill } from '../../../services/skills-registry.service';
 
@@ -99,10 +117,10 @@ describe('AI Services - registerAISkills', () => {
     );
   });
 
-  it('should register all 20 skills', async () => {
+  it('should register all skills', async () => {
     await registerAISkills();
-    expect(skillsRegistry.register).toHaveBeenCalledTimes(20);
-    expect(registerCallCount).toBe(20);
+    expect(skillsRegistry.register).toHaveBeenCalledTimes(skills.length);
+    expect(registerCallCount).toBe(skills.length);
   });
 
   it('should have streaming=false for llm.chat', async () => {
@@ -586,5 +604,251 @@ describe('AI Services - registerAISkills', () => {
     await expect(
       handler({ requestingUserId: 'u1', userId: 'u1', file: buffer26MB })
     ).rejects.toThrow('exceeds maximum size of 25MB');
+  });
+
+  // --- Insights Expansion: Churn Prediction, Compare, Recovery Email ---
+
+  it('insights.predict handler requires requestingUserId', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.predict');
+
+    await expect(handler({ productId: 'p1', userId: 'u1' })).rejects.toThrow(
+      'requestingUserId is required'
+    );
+  });
+
+  it('insights.predict handler validates authorization', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.predict');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', userId: 'u2' })
+    ).rejects.toThrow('Unauthorized access to user insights');
+  });
+
+  it('insights.predict handler rejects invalid threshold', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.predict');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', userId: 'u1', threshold: 150 })
+    ).rejects.toThrow('threshold must be a number between 0 and 100');
+  });
+
+  it('insights.predict handler rejects missing productId', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.predict');
+
+    await expect(
+      handler({ requestingUserId: 'u1', userId: 'u1', threshold: 70 })
+    ).rejects.toThrow('productId is required');
+  });
+
+  it('insights.predict handler rejects missing userId', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.predict');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', threshold: 70 })
+    ).rejects.toThrow('userId is required');
+  });
+
+  it('insights.predict handler accepts valid request', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.predict');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', userId: 'u1', threshold: 70 })
+    ).resolves.toBeDefined();
+  });
+
+  it('insights.compare handler requires requestingUserId', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.compare');
+
+    await expect(
+      handler({
+        userId: 'u1',
+        entityType: 'period',
+        entityA: 'A',
+        entityB: 'B',
+        metrics: ['revenue'],
+      })
+    ).rejects.toThrow('requestingUserId is required');
+  });
+
+  it('insights.compare handler validates authorization', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.compare');
+
+    await expect(
+      handler({
+        requestingUserId: 'u1',
+        userId: 'u2',
+        entityType: 'period',
+        entityA: 'A',
+        entityB: 'B',
+        metrics: ['revenue'],
+      })
+    ).rejects.toThrow('Unauthorized access to user insights');
+  });
+
+  it('insights.compare handler rejects invalid entityType', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.compare');
+
+    await expect(
+      handler({
+        requestingUserId: 'u1',
+        userId: 'u1',
+        entityType: 'invalid',
+        entityA: 'A',
+        entityB: 'B',
+        metrics: ['revenue'],
+      })
+    ).rejects.toThrow('entityType must be "period" or "product"');
+  });
+
+  it('insights.compare handler rejects empty metrics', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.compare');
+
+    await expect(
+      handler({
+        requestingUserId: 'u1',
+        userId: 'u1',
+        entityType: 'period',
+        entityA: 'A',
+        entityB: 'B',
+        metrics: [],
+      })
+    ).rejects.toThrow('metrics is required and must be a non-empty array');
+  });
+
+  it('insights.compare handler rejects empty entityA', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.compare');
+
+    await expect(
+      handler({
+        requestingUserId: 'u1',
+        userId: 'u1',
+        entityType: 'period',
+        entityA: '',
+        entityB: 'B',
+        metrics: ['revenue'],
+      })
+    ).rejects.toThrow('entityA is required and must be a non-empty string');
+  });
+
+  it('insights.compare handler rejects entityA as object', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.compare');
+
+    await expect(
+      handler({
+        requestingUserId: 'u1',
+        userId: 'u1',
+        entityType: 'period',
+        entityA: { label: 'A' },
+        entityB: 'B',
+        metrics: ['revenue'],
+      })
+    ).rejects.toThrow('entityA is required and must be a non-empty string');
+  });
+
+  it('insights.compare handler rejects entityB as number', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.compare');
+
+    await expect(
+      handler({
+        requestingUserId: 'u1',
+        userId: 'u1',
+        entityType: 'period',
+        entityA: 'A',
+        entityB: 42,
+        metrics: ['revenue'],
+      })
+    ).rejects.toThrow('entityB is required and must be a non-empty string');
+  });
+
+  it('insights.compare handler accepts valid period comparison', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.compare');
+
+    await expect(
+      handler({
+        requestingUserId: 'u1',
+        userId: 'u1',
+        entityType: 'period',
+        entityA: '2024-01',
+        entityB: '2024-02',
+        metrics: ['revenue', 'sales'],
+      })
+    ).resolves.toBeDefined();
+  });
+
+  it('insights.recover handler requires requestingUserId', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.recover');
+
+    await expect(
+      handler({ productId: 'p1', userId: 'u1', targetUserId: 't1' })
+    ).rejects.toThrow('requestingUserId is required');
+  });
+
+  it('insights.recover handler validates authorization', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.recover');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', userId: 'u2', targetUserId: 't1' })
+    ).rejects.toThrow('Unauthorized access to user insights');
+  });
+
+  it('insights.recover handler rejects invalid tone', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.recover');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', userId: 'u1', targetUserId: 't1', tone: 'aggressive' })
+    ).rejects.toThrow('tone must be empathic, direct, or motivational');
+  });
+
+  it('insights.recover handler rejects missing productId', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.recover');
+
+    await expect(
+      handler({ requestingUserId: 'u1', userId: 'u1', targetUserId: 't1' })
+    ).rejects.toThrow('productId is required');
+  });
+
+  it('insights.recover handler rejects missing userId', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.recover');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', targetUserId: 't1' })
+    ).rejects.toThrow('userId is required');
+  });
+
+  it('insights.recover handler rejects missing targetUserId', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.recover');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', userId: 'u1' })
+    ).rejects.toThrow('targetUserId is required');
+  });
+
+  it('insights.recover handler accepts valid request', async () => {
+    await registerAISkills();
+    const handler = await skillsRegistry.findHandler('insights.recover');
+
+    await expect(
+      handler({ requestingUserId: 'u1', productId: 'p1', userId: 'u1', targetUserId: 't1', tone: 'empathic' })
+    ).resolves.toBeDefined();
   });
 });
