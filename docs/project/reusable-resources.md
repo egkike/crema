@@ -96,7 +96,7 @@ throw new AppError('message', 400);
 | `contentAssistantService` | Content analysis (summary, topics, questions) |
 | `contentReaderService` | File content extraction (PDF, Md, TXT) |
 | `transcriptionService` | Audio/video transcription |
-| `qaAgentService`, `tutorService`, `insightsService`, `analyticsService` | Q&A agent, tutor, insights, analytics |
+| `qaAgentService`, `tutorService`, `insightsService`, `analyticsService` | Q&A agent, tutor, **insights (NL→SQL + streaming + dashboards + churn prediction, recovery email, A/B comparatives)**, analytics |
 | `interactiveAgentService` | Talleres dinámicos AI — user data + personalized analysis |
 | `seoOptimizerService` | SEO metadata generation (meta title, description, OG tags, schema markup) |
 
@@ -325,7 +325,8 @@ Database initialization scripts run **once on first container start** via docker
 | `10-user-context-tables.sql` | Q&A (questions, FAQs), reviews/ratings, reports, analytics, AI agents | `user-context` |
 | `11-hnsw-index.sql` | HNSW vector index (alternative to IVFFlat, requires pgvector) | `memory-enhancement` |
 | `12-interactive-agent.sql` | `user_course_data`, `product_module_fields` tables for interactive agent (talleres dinámicos AI) | `interactive-agent` |
-| `13-*-*.sql` | **Pending** — New scripts added during implementation | See SDD |
+| `13-seo-optimizer-tables.sql` | `seo_metadata`, `keyword_rankings` tables for SEO optimizer | `seo-optimizer` |
+| `14-ai-insights-expansion.sql` | `churn_predictions`, `recovery_emails`, `ab_comparatives` tables + insights_history fixes for AI insights expansion | `ai-insights-expansion` |
 
 > **📝 For SDD authors:** When creating a new `db/init/XX-*.sql` script:
 > 1. Document the script in your SDD tasks.md (e.g., Task 0 or first task)
