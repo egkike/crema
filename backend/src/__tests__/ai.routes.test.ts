@@ -175,7 +175,7 @@ describe('AI Routes - Reports (Admin)', () => {
     it('debería obtener las razones de reportes', async () => {
       const res = await request.get('/api/ai/reports/reasons');
 
-      expect([200, 500]).toContain(res.status);
+      expect([200, 400]).toContain(res.status);
     });
   });
 
