@@ -1002,8 +1002,10 @@ function validateGeneratedSQL(sql: string): { valid: boolean; reason?: string } 
   }
 
   // Remove SQL comments to prevent bypass via comment injection (e.g., SEL/**/ECT)
-  // NOTE: This is one layer of defense in depth. The query is also executed with
-  // parameterized queries, which prevents SQL injection regardless of keyword bypass.
+  // NOTE: LLM-generated SQL is NOT parameterized (no $1/$2 placeholders are used because
+  // the LLM produces complete SELECT statements with literal values). Defense in depth
+  // relies entirely on this validation function: comment stripping, dangerous keyword
+  // blocking, allowed-table allowlist, and a hard LIMIT cap applied at the call site.
   const sqlNoComments = sql.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '');
 
   const sqlLower = sqlNoComments.toLowerCase().trim();
@@ -1961,6 +1963,17 @@ ${JSON.stringify(finalStudentData, null, 2)}`;
   }> {
     const CREDIT_COST = 3;
     const schema = getValidatedSchema();
+
+    // Validate productId is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!productId || !uuidRegex.test(productId)) {
+      throw new AppError('El ID del producto debe ser un UUID válido', 400);
+    }
+
+    // Validate targetUserId is a valid UUID
+    if (!targetUserId || !uuidRegex.test(targetUserId)) {
+      throw new AppError('El ID del usuario debe ser un UUID válido', 400);
+    }
 
     // Validate tone parameter
     if (!['empathic', 'direct', 'motivational'].includes(tone)) {

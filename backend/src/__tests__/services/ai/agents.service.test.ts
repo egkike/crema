@@ -22,9 +22,10 @@ vi.mock('../../../utils/validators.util', () => ({
 
 vi.mock('../../../errors/AppError', () => ({
   AppError: class extends Error {
+    public statusCode: number;
     constructor(message: string, statusCode: number) {
       super(message);
-      (this as any).statusCode = statusCode;
+      this.statusCode = statusCode;
     }
   },
 }));
@@ -139,7 +140,16 @@ describe('insightsService.predictChurn', () => {
 
     const err = await predictChurn(productId, userId).catch((e) => e);
     expect(err).toBeInstanceOf(Error);
-    expect((err as any).statusCode).toBe(403);
+    expect((err as { statusCode: number }).statusCode).toBe(403);
+  });
+
+  it('should throw 400 when productId is not a valid UUID', async () => {
+    const predictChurn = await getPredictChurn();
+
+    const err = await predictChurn('not-a-uuid', userId).catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(400);
+    expect(err.message).toContain('UUID');
   });
 
   it('should throw 402 when credits are insufficient', async () => {
@@ -151,7 +161,7 @@ describe('insightsService.predictChurn', () => {
 
     const err = await predictChurn(productId, userId).catch((e) => e);
     expect(err).toBeInstanceOf(Error);
-    expect((err as any).statusCode).toBe(402);
+    expect((err as { statusCode: number }).statusCode).toBe(402);
     expect(err.message).toBe('Créditos insuficientes');
   });
 
@@ -319,6 +329,64 @@ describe('insightsService.predictChurn', () => {
     expect(result.predictions[0].confidence).toBe('high');
   });
 
+  it('should cap churn score at 90 when all risk factors are triggered', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify([
+        { userId: studentId1, narrative: 'Max risk', recommendedAction: 'Immediate action' },
+      ]),
+      model: 'simulator',
+    });
+
+    // All 3 risk factors: days>30 (+40), progress<20% AND days>14 (+30), interactions=0 (+20) = 90
+    const studentData = [
+      {
+        buyer_id: studentId1,
+        user_name: 'Student One',
+        last_purchase_date: new Date(Date.now() - 60 * 86400000).toISOString(),
+        progress: 5,
+        interactions_60d: 0,
+        days_since_last_access: 60,
+      },
+    ];
+    await mockPoolQuery([{ id: productId }], studentData);
+
+    const predictChurn = await getPredictChurn();
+    const result = await predictChurn(productId, userId);
+
+    expect(result.predictions).toHaveLength(1);
+    expect(result.predictions[0].churnScore).toBe(90);
+  });
+
+  it('should assign medium confidence for students with some interactions', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify([
+        { userId: studentId1, narrative: 'Some data available', recommendedAction: 'Monitor' },
+      ]),
+      model: 'simulator',
+    });
+
+    // Student with interactions_60d = 2 (between 1 and 3 → medium)
+    const studentData = [
+      {
+        buyer_id: studentId1,
+        user_name: 'Student One',
+        last_purchase_date: new Date(Date.now() - 10 * 86400000).toISOString(),
+        progress: 50,
+        interactions_60d: 2,
+        days_since_last_access: 10,
+      },
+    ];
+    await mockPoolQuery([{ id: productId }], studentData);
+
+    const predictChurn = await getPredictChurn();
+    const result = await predictChurn(productId, userId, 0);
+
+    expect(result.predictions).toHaveLength(1);
+    expect(result.predictions[0].confidence).toBe('medium');
+  });
+
   it('should deduct credits after successful prediction', async () => {
     const { llmService } = await import('../../../services/ai/llm.service');
     const { aiCreditService } = await import('../../../services/ai/credits.service');
@@ -460,7 +528,6 @@ describe('insightsService.predictChurn', () => {
       },
     ];
     // Make persist INSERT throw
-    await mockPoolQuery([{ id: productId }], studentData, { rows: [], rowCount: 0 });
     const pool = (await import('../../../db/postgres')).default;
     const queryMock = pool.query as ReturnType<typeof vi.fn>;
     queryMock.mockImplementation(async (sql: string) => {
@@ -482,12 +549,78 @@ describe('insightsService.predictChurn', () => {
     // Verify predictions have null IDs
     expect(result.predictions).toHaveLength(1);
     expect(result.predictions[0].id).toBeNull();
+    // Verify credits were initially used (deducted before LLM call)
+    expect(aiCreditService.useCredits).toHaveBeenCalled();
     // Verify credits were refunded (creditsUsed should be 0)
     expect(result.creditsUsed).toBe(0);
     // Verify addCredits was called for refund
     expect(aiCreditService.addCredits).toHaveBeenCalledWith(
       userId, 5, 'Refund - churn prediction persistence failed'
     );
+  });
+
+  it('should handle 600+ students with LLM prompt truncation to top 100', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    const { aiCreditService } = await import('../../../services/ai/credits.service');
+
+    // Generate 600 students with varying churn scores
+    const studentData = Array.from({ length: 600 }, (_, i) => ({
+      buyer_id: i === 0 ? studentId1 : crypto.randomUUID(),
+      user_name: `Student ${i}`,
+      last_purchase_date: new Date(Date.now() - 45 * 86400000).toISOString(),
+      progress: 5,
+      interactions_60d: 0,
+      days_since_last_access: 45,
+    }));
+
+    // Mock LLM to return results for all 600 students
+    const llmResults = studentData.map((s) => ({
+      userId: s.buyer_id,
+      narrative: `Student ${s.user_name} is at risk`,
+      recommendedAction: 'Send email',
+    }));
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify(llmResults),
+      model: 'simulator',
+    });
+
+    // Mock pool.query with custom persist handler that returns enough IDs
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    const insertedIds = Array.from({ length: 600 }, () => ({ id: crypto.randomUUID() }));
+    queryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM') && sql.includes('products') && sql.includes('creator_id') && sql.includes('$2')) {
+        return { rows: [{ id: productId }] };
+      }
+      if (sql.includes('FROM') && sql.includes('orders') && sql.includes('buyer_id')) {
+        return { rows: studentData };
+      }
+      if (sql.includes('INTO') && sql.includes('churn_predictions') && sql.includes('INSERT')) {
+        return { rows: insertedIds };
+      }
+      return { rows: [] };
+    });
+
+    const predictChurn = await getPredictChurn();
+    const result = await predictChurn(productId, userId);
+
+    // All 600 students should be in predictions (above threshold)
+    expect(result.predictions).toHaveLength(600);
+    expect(result.totalStudents).toBe(600);
+    // Every prediction should have an ID (persist succeeded)
+    expect(result.predictions.every((p) => p.id !== null)).toBe(true);
+    // Credits were used (not refunded)
+    expect(aiCreditService.useCredits).toHaveBeenCalledWith(userId, 5, 'Churn Prediction');
+    // LLM prompt was truncated: the prompt should contain at most 100 students
+    const chatCalls = vi.mocked(llmService.chat).mock.calls;
+    expect(chatCalls.length).toBeGreaterThan(0);
+    const promptArg = chatCalls[0][0] as { messages?: Array<{ content: string }> };
+    const systemMsg = promptArg?.messages?.[0]?.content ?? '';
+    // Count occurrences of "userId" in the prompt to estimate student entries
+    // The prompt template includes 1 "userId" in format instructions + 100 in data
+    const studentCountInPrompt = (systemMsg.match(/"userId"/g) || []).length;
+    expect(studentCountInPrompt).toBeGreaterThanOrEqual(100);
+    expect(studentCountInPrompt).toBeLessThanOrEqual(105);
   });
 });
 describe('insightsService.compareEntities', () => {
@@ -541,8 +674,27 @@ describe('insightsService.compareEntities', () => {
 
     const err = await compareEntities('product', productA, productB, ['revenue'], creatorId).catch((e) => e);
     expect(err).toBeInstanceOf(Error);
-    expect((err as any).statusCode).toBe(402);
+    expect((err as { statusCode: number }).statusCode).toBe(402);
     expect(err.message).toBe('Créditos insuficientes');
+  });
+
+  it('should throw 403 when user does not own both products', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    queryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM') && sql.includes('products') && sql.includes('ANY')) {
+        // Return only 1 row, user owns only productA, not productB
+        return { rows: [{ id: productA }] };
+      }
+      return { rows: [] };
+    });
+
+    const compareEntities = await getCompareEntities();
+    const err = await compareEntities('product', productA, productB, ['revenue'], creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(403);
+    expect(err.message).toContain('No tienes permiso');
   });
 
   it('should return comparative analysis on happy path', async () => {
@@ -692,5 +844,370 @@ describe('insightsService.compareEntities', () => {
 
     expect(result.narrative).toBe('Period B had more sales.');
     expect(result.recommendation).toBe('Analyze what drove Period B growth.');
+  });
+});
+
+// =============================================================================
+// generateRecoveryEmail Tests (Task 5 — Strict TDD)
+// =============================================================================
+
+describe('insightsService.generateRecoveryEmail', () => {
+  const productId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const targetUserId = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  const creatorId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const creditsModule = await import('../../../services/ai/credits.service');
+    const aiCreditService = creditsModule.aiCreditService;
+    (aiCreditService.getBalance as ReturnType<typeof vi.fn>).mockResolvedValue({
+      balance: 100,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    (aiCreditService.useCredits as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (aiCreditService.addCredits as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+  });
+
+  async function getGenerateRecoveryEmail() {
+    const { insightsService } = await import('../../../services/ai/agents.service');
+    return insightsService.generateRecoveryEmail.bind(insightsService);
+  }
+
+  /**
+   * Helper to mock pool.query for the recovery email flow.
+   * Call order:
+   *   1) ownership check (SELECT id, title FROM products WHERE id = $1 AND creator_id = $2)
+   *   2) student data query (SELECT ... FROM users WHERE u.id = $2)
+   *   3) persistence INSERT into recovery_emails
+   */
+  async function mockPoolQueryForRecoveryEmail(
+    ownershipResult: unknown[] = [{ id: productId, title: 'Curso de TypeScript' }],
+    studentResult: unknown[] = [
+      {
+        user_id: targetUserId,
+        username: 'juan_perez',
+        email: 'juan@test.com',
+        progress: 35,
+        last_access: new Date(Date.now() - 21 * 86400000),
+      },
+    ],
+    persistShouldFail: boolean = false
+  ) {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    queryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT id, title') && sql.includes('products') && sql.includes('creator_id')) {
+        return { rows: ownershipResult, rowCount: ownershipResult.length };
+      }
+      if (sql.includes('FROM') && sql.includes('users u') && sql.includes('WHERE u.id')) {
+        return { rows: studentResult, rowCount: studentResult.length };
+      }
+      if (sql.includes('INSERT INTO') && sql.includes('recovery_emails')) {
+        if (persistShouldFail) {
+          throw new Error('Database connection lost');
+        }
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [] };
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // GREEN — Happy path
+  // -------------------------------------------------------------------------
+
+  it('should generate recovery email successfully with default tone', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    const { aiCreditService } = await import('../../../services/ai/credits.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify({
+        subject: 'Volvé a tu curso de TypeScript',
+        bodyHtml: '<p>Hola juan_perez, te extrañamos en el curso.</p>',
+        previewText: 'Te extrañamos en tu curso',
+      }),
+      model: 'simulator',
+    });
+    await mockPoolQueryForRecoveryEmail();
+
+    const generate = await getGenerateRecoveryEmail();
+    const result = await generate(productId, targetUserId, 'empathic', creatorId);
+
+    // Structure assertions
+    expect(result.email.subject).toBe('Volvé a tu curso de TypeScript');
+    expect(result.email.bodyHtml).toBe('<p>Hola juan_perez, te extrañamos en el curso.</p>');
+    expect(result.email.previewText).toBe('Te extrañamos en tu curso');
+    expect(result.studentName).toBe('juan_perez');
+    expect(result.productName).toBe('Curso de TypeScript');
+
+    // Credits deducted (CREDIT_COST = 3)
+    expect(aiCreditService.useCredits).toHaveBeenCalledWith(
+      creatorId, 3, 'Recovery Email Generation'
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — Authorization (403)
+  // -------------------------------------------------------------------------
+
+  it('should throw 403 when creator does not own the product', async () => {
+    await mockPoolQueryForRecoveryEmail([]); // empty = not found / not owner
+
+    const generate = await getGenerateRecoveryEmail();
+    const err = await generate(productId, targetUserId, 'empathic', creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(403);
+    expect(err.message).toBe('No tienes permiso para acceder a este producto');
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — Insufficient credits (402)
+  // -------------------------------------------------------------------------
+
+  it('should throw 402 when credits are insufficient', async () => {
+    const { aiCreditService } = await import('../../../services/ai/credits.service');
+    vi.mocked(aiCreditService.getBalance).mockResolvedValue({
+      balance: 2,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    await mockPoolQueryForRecoveryEmail();
+
+    const generate = await getGenerateRecoveryEmail();
+    const err = await generate(productId, targetUserId, 'empathic', creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(402);
+    expect(err.message).toBe('Créditos insuficientes');
+    expect(aiCreditService.useCredits).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — Invalid tone (400)
+  // -------------------------------------------------------------------------
+
+  it('should throw 400 when tone is invalid', async () => {
+    const generate = await getGenerateRecoveryEmail();
+    // Bypass TS type check with `as any` for invalid tone value
+    const err = await generate(productId, targetUserId, 'angry' as any, creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(400);
+    expect(err.message).toContain('Tono inválido');
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — UUID validation (400)
+  // -------------------------------------------------------------------------
+
+  it('should throw 400 when productId is not a valid UUID', async () => {
+    const generate = await getGenerateRecoveryEmail();
+    const err = await generate('not-a-uuid', targetUserId, 'empathic', creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(400);
+    expect(err.message).toContain('UUID');
+  });
+
+  it('should throw 400 when targetUserId is not a valid UUID', async () => {
+    const generate = await getGenerateRecoveryEmail();
+    const err = await generate(productId, 'not-a-uuid', 'empathic', creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(400);
+    expect(err.message).toContain('UUID');
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — Student not found (404)
+  // -------------------------------------------------------------------------
+
+  it('should throw 404 when student does not exist', async () => {
+    await mockPoolQueryForRecoveryEmail(
+      [{ id: productId, title: 'Curso' }],
+      [] // empty student rows
+    );
+
+    const generate = await getGenerateRecoveryEmail();
+    const err = await generate(productId, targetUserId, 'empathic', creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(404);
+    expect(err.message).toBe('Estudiante no encontrado');
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — HTML sanitization (all 5 protections)
+  // -------------------------------------------------------------------------
+
+  it('should strip all XSS vectors from bodyHtml', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify({
+        subject: 'Test',
+        bodyHtml: [
+          '<p>Safe content</p>',
+          '<script>alert("XSS")</script>',
+          '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+          '<a href="javascript:alert(1)">Click</a>',
+          '<img src="x" onerror="alert(1)">',
+          '&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;',
+        ].join(''),
+        previewText: 'Preview',
+      }),
+      model: 'simulator',
+    });
+    await mockPoolQueryForRecoveryEmail();
+
+    const generate = await getGenerateRecoveryEmail();
+    const result = await generate(productId, targetUserId, 'empathic', creatorId);
+
+    // 1) <script> tags stripped
+    expect(result.email.bodyHtml).not.toContain('<script>');
+    // 2) <iframe> tags stripped (including srcdoc)
+    expect(result.email.bodyHtml).not.toContain('<iframe');
+    expect(result.email.bodyHtml).not.toContain('srcdoc');
+    // 3) javascript: URIs stripped
+    expect(result.email.bodyHtml).not.toContain('javascript:');
+    // 4) on* event handlers stripped
+    expect(result.email.bodyHtml).not.toContain('onerror');
+    // 5) Entity-encoded bypass caught — the encoded version does not survive
+    expect(result.email.bodyHtml).not.toContain('&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;');
+    expect(result.email.bodyHtml).not.toContain('&#40;&#49;&#41;');
+    // Safe tags preserved
+    expect(result.email.bodyHtml).toContain('<p>');
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — LLM call fails (500 + refund)
+  // -------------------------------------------------------------------------
+
+  it('should throw 500 and refund credits when LLM call fails', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    const { aiCreditService } = await import('../../../services/ai/credits.service');
+    vi.mocked(llmService.chat).mockRejectedValue(new Error('LLM service down'));
+    await mockPoolQueryForRecoveryEmail();
+
+    const generate = await getGenerateRecoveryEmail();
+    const err = await generate(productId, targetUserId, 'empathic', creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(500);
+    expect(err.message).toBe('No se pudo generar el email de recuperación');
+    // Credits should be refunded
+    expect(aiCreditService.addCredits).toHaveBeenCalledWith(
+      creatorId, 3, 'Refund - recovery email LLM failed'
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — JSON parse failure (500 + refund)
+  // -------------------------------------------------------------------------
+
+  it('should throw 500 and refund credits when LLM returns invalid JSON', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    const { aiCreditService } = await import('../../../services/ai/credits.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: 'No JSON at all, just text response',
+      model: 'simulator',
+    });
+    await mockPoolQueryForRecoveryEmail();
+
+    const generate = await getGenerateRecoveryEmail();
+    const err = await generate(productId, targetUserId, 'empathic', creatorId).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { statusCode: number }).statusCode).toBe(500);
+    expect(err.message).toBe('Respuesta inválida del modelo de IA');
+    // Credits should be refunded
+    expect(aiCreditService.addCredits).toHaveBeenCalledWith(
+      creatorId, 3, 'Refund - recovery email parse failed'
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — Persistence failure (does not throw, only logs + refunds)
+  // -------------------------------------------------------------------------
+
+  it('should still return result when persistence fails (best-effort, refund credits)', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    const { aiCreditService } = await import('../../../services/ai/credits.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify({
+        subject: 'Test',
+        bodyHtml: '<p>Content</p>',
+        previewText: 'Preview',
+      }),
+      model: 'simulator',
+    });
+    await mockPoolQueryForRecoveryEmail(
+      [{ id: productId, title: 'Curso' }],
+      [
+        {
+          user_id: targetUserId,
+          username: 'student',
+          email: 's@test.com',
+          progress: 50,
+          last_access: new Date(),
+        },
+      ],
+      true // persist should fail
+    );
+
+    const generate = await getGenerateRecoveryEmail();
+    const result = await generate(productId, targetUserId, 'empathic', creatorId);
+
+    // Should still return email content even though persistence failed
+    expect(result.email.subject).toBe('Test');
+    // Credits were used before persistence step
+    expect(aiCreditService.useCredits).toHaveBeenCalled();
+    // Credits should be refunded due to persistence failure
+    expect(aiCreditService.addCredits).toHaveBeenCalledWith(
+      creatorId, 3, 'Refund - recovery email persistence failed'
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // TRIANGULATE — Different tones are accepted
+  // -------------------------------------------------------------------------
+
+  it('should accept "direct" tone and pass it to LLM prompt', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    const chatMock = vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify({
+        subject: 'Action required',
+        bodyHtml: '<p>Direct message</p>',
+        previewText: 'Action',
+      }),
+      model: 'simulator',
+    });
+    await mockPoolQueryForRecoveryEmail();
+
+    const generate = await getGenerateRecoveryEmail();
+    await generate(productId, targetUserId, 'direct', creatorId);
+
+    // Verify the LLM was called with the 'direct' tone instruction in the prompt
+    expect(chatMock).toHaveBeenCalled();
+    const callArgs = vi.mocked(llmService.chat).mock.calls[0]?.[0];
+    const messages = callArgs?.messages ?? [];
+    const allContent = messages.map((m: { content: string }) => m.content).join(' ');
+    expect(allContent).toContain('Sé directo');
+  });
+
+  it('should accept "motivational" tone and generate email', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify({
+        subject: '¡Tú puedes!',
+        bodyHtml: '<p>Motivational message</p>',
+        previewText: 'Believe in yourself',
+      }),
+      model: 'simulator',
+    });
+    await mockPoolQueryForRecoveryEmail();
+
+    const generate = await getGenerateRecoveryEmail();
+    const result = await generate(productId, targetUserId, 'motivational', creatorId);
+
+    expect(result.email.subject).toBe('¡Tú puedes!');
   });
 });
