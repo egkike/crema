@@ -31,12 +31,15 @@ import {
   compareLimiter,
 } from '../middlewares/rateLimit/rateLimit';
 import { validate } from '../middlewares/auth/validate.middleware';
+import { asyncHandler } from '../middlewares/global-error.middleware';
 import { AppError } from '../errors/AppError';
 import type { AuthenticatedRequest } from '../types/express';
 import type { EmbeddingSourceType } from '../types/ai.types';
 import { PaymentProviderFactory } from '../services/payment/PaymentProviderFactory';
 import { configRepository } from '../repositories/config.repository';
 import { seoOptimizerService } from '../services/ai/seo-optimizer.service';
+import { aiContentController } from '../controllers/ai-content.controller';
+import { upload } from '../middlewares/storage/upload.middleware';
 import {
   purchaseCreditsSchema,
   createQuestionSchema,
@@ -67,7 +70,6 @@ import {
   recoveryEmailSchema,
   compareSchema,
 } from '../schemas/ai.schema';
-// eslint-disable-next-line import/order
 import {
   affiliateChatService,
   classifyIntent,
@@ -99,7 +101,7 @@ const router = Router();
  * GET /api/ai/credits
  * Get user's credit balance
  */
-router.get('/credits', jwtAuthMiddleware, aiLimiter, async (req: Request, res: Response) => {
+router.get('/credits', jwtAuthMiddleware, aiLimiter, asyncHandler(async (req: Request, res: Response) => {
   try {
     const userId = uid(req);
     const { balance, expiresAt } = await aiCreditService.getBalance(userId);
@@ -112,17 +114,18 @@ router.get('/credits', jwtAuthMiddleware, aiLimiter, async (req: Request, res: R
       },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * GET /api/ai/credits/packages
  * Get available credit packages
  */
-router.get('/credits/packages', aiLimiter, async (_req: Request, res: Response) => {
+router.get('/credits/packages', aiLimiter, asyncHandler(async (_req: Request, res: Response) => {
   try {
     const packages = await aiCreditService.getPackages();
 
@@ -131,11 +134,12 @@ router.get('/credits/packages', aiLimiter, async (_req: Request, res: Response) 
       data: { packages },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * POST /api/ai/credits/purchase
@@ -146,7 +150,7 @@ router.post(
   jwtAuthMiddleware,
   aiLimiter,
   validate(purchaseCreditsSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { packageId, currency = 'ARS', gatewayId } = req.body;
@@ -231,11 +235,12 @@ router.post(
         },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -246,7 +251,7 @@ router.get(
   '/credits/transactions',
   jwtAuthMiddleware,
   aiLimiter,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const limit = parseClamped(req.query.limit, 50, 1, 100);
@@ -264,11 +269,12 @@ router.get(
         },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 // ============================================
@@ -284,7 +290,7 @@ router.post(
   asMw(jwtAuthMiddleware),
   aiLimiter,
   validate(createEmbeddingSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { sourceType, sourceId, content, metadata } = req.body;
@@ -316,11 +322,12 @@ router.post(
         data: { embedding },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -331,7 +338,7 @@ router.get(
   '/embeddings/search',
   jwtAuthMiddleware,
   aiLimiter,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { query, limit, sourceTypes } = req.query;
@@ -357,11 +364,12 @@ router.get(
         data: { results },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -372,7 +380,7 @@ router.delete(
   '/embeddings/:sourceType/:sourceId',
   jwtAuthMiddleware,
   aiLimiter,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const { sourceType, sourceId } = req.params;
 
@@ -410,11 +418,12 @@ router.delete(
         data: { deleted },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 // ============================================
@@ -425,7 +434,7 @@ router.delete(
  * GET /api/ai/products/:productId/questions
  * Get questions for a product (public)
  */
-router.get('/products/:productId/questions', aiLimiter, async (req: Request, res: Response) => {
+router.get('/products/:productId/questions', aiLimiter, asyncHandler(async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const limit = parseClamped(req.query.limit, 20, 1, 100);
@@ -460,11 +469,12 @@ router.get('/products/:productId/questions', aiLimiter, async (req: Request, res
       },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * POST /api/ai/products/:productId/questions
@@ -474,7 +484,7 @@ router.post(
   '/products/:productId/questions',
   jwtAuthMiddleware,
   validate(createQuestionSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -488,11 +498,12 @@ router.post(
         data: { question: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -503,7 +514,7 @@ router.put(
   '/questions/:questionId/answer',
   jwtAuthMiddleware,
   validate(answerQuestionSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const questionId = toString(req.params.questionId);
       const answeredBy = uid(req);
@@ -516,11 +527,12 @@ router.put(
         data: { question: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -531,7 +543,7 @@ router.put(
   '/questions/:questionId/publish',
   jwtAuthMiddleware,
   validate(publishQuestionSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const questionId = toString(req.params.questionId);
 
@@ -556,18 +568,19 @@ router.put(
         data: { question: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
  * DELETE /api/ai/questions/:questionId
  * Delete a question
  */
-router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Request, res: Response) => {
+router.delete('/questions/:questionId', jwtAuthMiddleware, asyncHandler(async (req: Request, res: Response) => {
   try {
     const questionId = toString(req.params.questionId);
 
@@ -591,11 +604,12 @@ router.delete('/questions/:questionId', jwtAuthMiddleware, async (req: Request, 
       data: { deleted },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * POST /api/ai/questions/:questionId/vote
@@ -605,7 +619,7 @@ router.post(
   '/questions/:questionId/vote',
   jwtAuthMiddleware,
   validate(voteQuestionSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const questionId = toString(req.params.questionId);
 
@@ -619,11 +633,12 @@ router.post(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -633,7 +648,7 @@ router.post(
 router.delete(
   '/questions/:questionId/vote',
   jwtAuthMiddleware,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const questionId = toString(req.params.questionId);
 
@@ -646,11 +661,12 @@ router.delete(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 // ============================================
@@ -661,7 +677,7 @@ router.delete(
  * GET /api/ai/products/:productId/faqs
  * Get FAQs for a product (public)
  */
-router.get('/products/:productId/faqs', aiLimiter, async (req: Request, res: Response) => {
+router.get('/products/:productId/faqs', aiLimiter, asyncHandler(async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const includeInactive = req.query.include_inactive === 'true';
@@ -673,11 +689,12 @@ router.get('/products/:productId/faqs', aiLimiter, async (req: Request, res: Res
       data: { faqs },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * POST /api/ai/products/:productId/faqs
@@ -687,7 +704,7 @@ router.post(
   '/products/:productId/faqs',
   jwtAuthMiddleware,
   validate(createFAQSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
       const { question, answer, sort_order } = req.body;
@@ -699,11 +716,12 @@ router.post(
         data: { faq: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -714,7 +732,7 @@ router.put(
   '/faqs/:faqId',
   jwtAuthMiddleware,
   validate(updateFAQSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const faqId = toString(req.params.faqId);
 
@@ -744,18 +762,19 @@ router.put(
         data: { faq: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
  * DELETE /api/ai/faqs/:faqId
  * Delete a FAQ (creator or admin)
  */
-router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: Request, res: Response) => {
+router.delete('/faqs/:faqId', jwtAuthMiddleware, asyncHandler(async (req: Request, res: Response) => {
   try {
     const faqId = toString(req.params.faqId);
 
@@ -779,11 +798,12 @@ router.delete('/faqs/:faqId', jwtAuthMiddleware, async (req: Request, res: Respo
       data: { deleted },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * PUT /api/ai/products/:productId/faqs/reorder
@@ -793,7 +813,7 @@ router.put(
   '/products/:productId/faqs/reorder',
   jwtAuthMiddleware,
   validate(reorderFAQsSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
       const { faq_ids } = req.body;
@@ -805,11 +825,12 @@ router.put(
         data: { message: 'FAQs reordered successfully' },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 // ============================================
@@ -820,7 +841,7 @@ router.put(
  * GET /api/ai/products/:productId/reviews
  * Get reviews for a product (public)
  */
-router.get('/products/:productId/reviews', aiLimiter, async (req: Request, res: Response) => {
+router.get('/products/:productId/reviews', aiLimiter, asyncHandler(async (req: Request, res: Response) => {
   try {
     const productId = toString(req.params.productId);
     const limit = parseClamped(req.query.limit, 20, 1, 100);
@@ -845,11 +866,12 @@ router.get('/products/:productId/reviews', aiLimiter, async (req: Request, res: 
       },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * POST /api/ai/products/:productId/reviews
@@ -859,7 +881,7 @@ router.post(
   '/products/:productId/reviews',
   jwtAuthMiddleware,
   validate(createReviewSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -873,11 +895,12 @@ router.post(
         data: { review: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -888,7 +911,7 @@ router.put(
   '/reviews/:reviewId',
   jwtAuthMiddleware,
   validate(updateReviewSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const reviewId = toString(req.params.reviewId);
 
@@ -918,18 +941,19 @@ router.put(
         data: { review: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
  * DELETE /api/ai/reviews/:reviewId
  * Delete a review
  */
-router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Request, res: Response) => {
+router.delete('/reviews/:reviewId', jwtAuthMiddleware, asyncHandler(async (req: Request, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
 
@@ -953,11 +977,12 @@ router.delete('/reviews/:reviewId', jwtAuthMiddleware, async (req: Request, res:
       data: { deleted },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * POST /api/ai/reviews/:reviewId/vote
@@ -967,7 +992,7 @@ router.post(
   '/reviews/:reviewId/vote',
   jwtAuthMiddleware,
   validate(voteReviewSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const reviewId = toString(req.params.reviewId);
 
@@ -981,18 +1006,19 @@ router.post(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
  * DELETE /api/ai/reviews/:reviewId/vote
  * Remove vote from a review
  */
-router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Request, res: Response) => {
+router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, asyncHandler(async (req: Request, res: Response) => {
   try {
     const reviewId = toString(req.params.reviewId);
 
@@ -1005,11 +1031,12 @@ router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Request,
       data: result,
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * GET /api/ai/products/:productId/reviews/settings
@@ -1018,7 +1045,7 @@ router.delete('/reviews/:reviewId/vote', jwtAuthMiddleware, async (req: Request,
 router.get(
   '/products/:productId/reviews/settings',
   jwtAuthMiddleware,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1034,11 +1061,12 @@ router.get(
         data: { settings },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1049,7 +1077,7 @@ router.put(
   '/products/:productId/reviews/settings',
   jwtAuthMiddleware,
   validate(updateReviewSettingsSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1073,11 +1101,12 @@ router.put(
         data: { settings: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1087,7 +1116,7 @@ router.put(
 router.get(
   '/products/:productId/reviews/distribution',
   aiLimiter,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1098,11 +1127,12 @@ router.get(
         data: { distribution },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 // ============================================
@@ -1113,7 +1143,7 @@ router.get(
  * GET /api/ai/reports/reasons?contentType=product
  * Get available report reasons for a content type
  */
-router.get('/reports/reasons', aiLimiter, async (req: Request, res: Response) => {
+router.get('/reports/reasons', aiLimiter, asyncHandler(async (req: Request, res: Response) => {
   try {
     const contentType = req.query.contentType as string;
 
@@ -1128,11 +1158,12 @@ router.get('/reports/reasons', aiLimiter, async (req: Request, res: Response) =>
       data: { reasons },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * POST /api/ai/reports
@@ -1142,7 +1173,7 @@ router.post(
   '/reports',
   jwtAuthMiddleware,
   validate(createReportSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const reporterId = uid(req);
       const { content_type, content_id, reason_code, description } = req.body;
@@ -1160,11 +1191,12 @@ router.post(
         data: { report: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1175,7 +1207,7 @@ router.get(
   '/reports',
   jwtAuthMiddleware,
   restrictTo('ADMIN'),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const limit = parseClamped(req.query.limit, 20, 1, 100);
       const offset = parseClamped(req.query.offset, 0, 0, 10000);
@@ -1198,11 +1230,12 @@ router.get(
         },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1213,7 +1246,7 @@ router.get(
   '/reports/:reportId',
   jwtAuthMiddleware,
   restrictTo('ADMIN'),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const reportId = toString(req.params.reportId);
 
@@ -1229,11 +1262,12 @@ router.get(
         data: { report, actions },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1245,7 +1279,7 @@ router.put(
   jwtAuthMiddleware,
   restrictTo('ADMIN'),
   validate(resolveReportSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const reportId = toString(req.params.reportId);
       const resolvedBy = uid(req);
@@ -1263,11 +1297,12 @@ router.put(
         data: { report: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1279,7 +1314,7 @@ router.post(
   jwtAuthMiddleware,
   restrictTo('ADMIN'),
   validate(reportActionSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const reportId = toString(req.params.reportId);
       const performedBy = uid(req);
@@ -1304,18 +1339,19 @@ router.post(
         data: { action: result },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
  * GET /api/ai/content/policies
  * Get content policies (public)
  */
-router.get('/content/policies', aiLimiter, async (req: Request, res: Response) => {
+router.get('/content/policies', aiLimiter, asyncHandler(async (req: Request, res: Response) => {
   try {
     const contentType = req.query.content_type as string | undefined;
 
@@ -1326,11 +1362,12 @@ router.get('/content/policies', aiLimiter, async (req: Request, res: Response) =
       data: { policies },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 // ============================================
 // Phase 5: AI Agents Routes
@@ -1343,7 +1380,7 @@ router.get('/content/policies', aiLimiter, async (req: Request, res: Response) =
 router.get(
   '/products/:productId/qa-agent/config',
   jwtAuthMiddleware,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1359,11 +1396,12 @@ router.get(
         data: { config },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1374,7 +1412,7 @@ router.put(
   '/products/:productId/qa-agent/config',
   jwtAuthMiddleware,
   validate(updateQAConfigSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1400,11 +1438,12 @@ router.put(
         data: { config },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1416,7 +1455,7 @@ router.post(
   jwtAuthMiddleware,
   aiChatLimiter,
   validate(qaChatSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { product_id, message } = req.body;
@@ -1431,11 +1470,12 @@ router.post(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1447,7 +1487,7 @@ router.post(
   jwtAuthMiddleware,
   aiChatLimiter,
   validate(qaChatSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const userId = uid(req);
     const { product_id, message } = req.body;
 
@@ -1520,22 +1560,27 @@ router.post(
       // Send done event
       sendSSE(res, 'done', { done: true });
     } catch (error: unknown) {
-      const err = error instanceof Error ? error : new Error('Unknown error');
-      // Log internal details for debugging (server-side only, never sent to client)
-      logger.error({ err: err.name }, 'SSE stream error');
-
-      // Handle specific errors
-      if (err.message.includes('Insufficient credits')) {
-        sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: err.message });
-      } else if (err.name === 'AbortError') {
+      // SSE: response is already in streaming mode, so we cannot re-throw to the
+      // global error handler (headers sent, res.end() runs in finally). Route all
+      // errors through SSE events instead. Use statusCode (locale-agnostic) to
+      // classify — fragile string-matching on error.message is not reliable.
+      if (error instanceof AppError && error.statusCode === 402) {
+        logger.error({ code: 'INSUFFICIENT_CREDITS', message: error.message }, 'SSE stream error');
+        sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: error.message });
+      } else if (error instanceof AppError) {
+        logger.error({ statusCode: error.statusCode, message: error.message }, 'SSE stream error');
+        sendSSE(res, 'error', { code: 'APP_ERROR', message: error.message });
+      } else if (error instanceof Error && error.name === 'AbortError') {
         sendSSE(res, 'done', { done: true, cancelled: true });
       } else {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        logger.error({ err: err.message }, 'SSE stream error');
         sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error generating response' });
       }
     } finally {
       res.end();
     }
-  }
+  })
 );
 
 /**
@@ -1549,8 +1594,9 @@ function sendSSE(res: Response, event: string, data: Record<string, unknown>) {
   try {
     res.write(`event: ${event}\n`);
     res.write(`data: ${JSON.stringify(data)}\n\n`);
-  } catch {
-    // Silently ignore write errors (client disconnected)
+  } catch (err) {
+    // Client likely disconnected mid-stream. Log at debug level for diagnostics.
+    logger.debug({ err: err instanceof Error ? err.message : 'Unknown' }, 'SSE write failed (client likely disconnected)');
   }
 }
 
@@ -1558,7 +1604,7 @@ function sendSSE(res: Response, event: string, data: Record<string, unknown>) {
  * GET /api/ai/agents/conversations
  * Get user's conversations
  */
-router.get('/agents/conversations', jwtAuthMiddleware, async (req: Request, res: Response) => {
+router.get('/agents/conversations', jwtAuthMiddleware, asyncHandler(async (req: Request, res: Response) => {
   try {
     const userId = uid(req);
     const agentType = req.query.agent_type as string | undefined;
@@ -1571,11 +1617,12 @@ router.get('/agents/conversations', jwtAuthMiddleware, async (req: Request, res:
       data: { conversations },
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * GET /api/ai/agents/conversations/:conversationId
@@ -1584,7 +1631,7 @@ router.get('/agents/conversations', jwtAuthMiddleware, async (req: Request, res:
 router.get(
   '/agents/conversations/:conversationId',
   jwtAuthMiddleware,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const conversationId = toString(req.params.conversationId);
 
@@ -1605,11 +1652,12 @@ router.get(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 // ============================================
@@ -1624,7 +1672,7 @@ router.get(
   '/analytics/dashboard',
   jwtAuthMiddleware,
   aiLimiter,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const startDate = parseDate(req.query.start_date);
@@ -1637,11 +1685,12 @@ router.get(
         data: metrics,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 // ============================================
@@ -1655,7 +1704,7 @@ router.get(
 router.get(
   '/products/:productId/tutor/config',
   jwtAuthMiddleware,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1671,11 +1720,12 @@ router.get(
         data: { config },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1686,7 +1736,7 @@ router.put(
   '/products/:productId/tutor/config',
   jwtAuthMiddleware,
   validate(updateTutorConfigSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1709,11 +1759,12 @@ router.put(
         data: { message: 'Tutor config updated' },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1723,7 +1774,7 @@ router.put(
 router.get(
   '/products/:productId/tutor/insights',
   jwtAuthMiddleware,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1736,11 +1787,12 @@ router.get(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1752,7 +1804,7 @@ router.post(
   jwtAuthMiddleware,
   aiChatLimiter,
   validate(chatMessageSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const productId = toString(req.params.productId);
 
@@ -1769,11 +1821,12 @@ router.post(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1785,7 +1838,7 @@ router.post(
   jwtAuthMiddleware,
   aiChatLimiter,
   validate(chatMessageSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const productId = toString(req.params.productId);
 
     const userId = uid(req);
@@ -1850,27 +1903,34 @@ router.post(
 
       sendSSE(res, 'done', { done: true });
     } catch (error: unknown) {
-      const err = error instanceof Error ? error : new Error('Unknown error');
-      logger.error({ error: err.message }, 'Tutor SSE stream error');
-
-      if (err.message.includes('Créditos insuficientes')) {
-        sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: err.message });
-      } else if (err.name === 'AbortError') {
+      // SSE: response is already in streaming mode, so we cannot re-throw to the
+      // global error handler (headers sent, res.end() runs in finally). Route all
+      // errors through SSE events instead. Use statusCode (locale-agnostic) to
+      // classify — fragile string-matching on error.message is not reliable.
+      if (error instanceof AppError && error.statusCode === 402) {
+        logger.error({ code: 'INSUFFICIENT_CREDITS', message: error.message }, 'Tutor SSE stream error');
+        sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: error.message });
+      } else if (error instanceof AppError) {
+        logger.error({ statusCode: error.statusCode, message: error.message }, 'Tutor SSE stream error');
+        sendSSE(res, 'error', { code: 'APP_ERROR', message: error.message });
+      } else if (error instanceof Error && error.name === 'AbortError') {
         sendSSE(res, 'done', { done: true, cancelled: true });
       } else {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        logger.error({ error: err.message }, 'Tutor SSE stream error');
         sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error generating response' });
       }
     } finally {
       res.end();
     }
-  }
+  })
 );
 
 /**
  * GET /api/ai/insights/dashboards
  * Get user's insight dashboards
  */
-router.get('/insights/dashboards', jwtAuthMiddleware, async (req: Request, res: Response) => {
+router.get('/insights/dashboards', jwtAuthMiddleware, asyncHandler(async (req: Request, res: Response) => {
   try {
     const userId = uid(req);
 
@@ -1881,11 +1941,12 @@ router.get('/insights/dashboards', jwtAuthMiddleware, async (req: Request, res: 
       data: result,
     });
   } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
     const err = error instanceof Error ? error : new Error('Unknown error');
     logger.error({ error: err.message }, 'Endpoint error');
     throw new AppError('Internal server error', 500);
   }
-});
+}));
 
 /**
  * POST /api/ai/insights/dashboards
@@ -1895,7 +1956,7 @@ router.post(
   '/insights/dashboards',
   jwtAuthMiddleware,
   validate(createDashboardSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { name, description } = req.body;
@@ -1907,11 +1968,12 @@ router.post(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1922,7 +1984,7 @@ router.put(
   '/insights/dashboards/:dashboardId',
   jwtAuthMiddleware,
   validate(updateDashboardSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const dashboardId = toString(req.params.dashboardId);
 
@@ -1945,11 +2007,12 @@ router.put(
         data: { message: 'Dashboard updated' },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1959,7 +2022,7 @@ router.put(
 router.delete(
   '/insights/dashboards/:dashboardId',
   jwtAuthMiddleware,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const dashboardId = toString(req.params.dashboardId);
 
@@ -1981,11 +2044,12 @@ router.delete(
         data: { deleted },
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -1997,7 +2061,7 @@ router.post(
   jwtAuthMiddleware,
   aiChatLimiter,
   validate(insightsQuerySchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { query } = req.body;
@@ -2009,11 +2073,12 @@ router.post(
         data: result,
       });
     } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
       logger.error({ error: err.message }, 'Endpoint error');
       throw new AppError('Internal server error', 500);
     }
-  }
+  })
 );
 
 /**
@@ -2025,7 +2090,7 @@ router.post(
   jwtAuthMiddleware,
   aiChatLimiter,
   validate(insightsQuerySchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const userId = uid(req);
     const { query } = req.body;
 
@@ -2070,20 +2135,27 @@ router.post(
 
       sendSSE(res, 'done', { done: true });
     } catch (error: unknown) {
-      const err = error instanceof Error ? error : new Error('Unknown error');
-      logger.error({ error: err.message }, 'Insights SSE stream error');
-
-      if (err.message.includes('Créditos insuficientes')) {
-        sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: err.message });
-      } else if (err.name === 'AbortError') {
+      // SSE: response is already in streaming mode, so we cannot re-throw to the
+      // global error handler (headers sent, res.end() runs in finally). Route all
+      // errors through SSE events instead. Use statusCode (locale-agnostic) to
+      // classify — fragile string-matching on error.message is not reliable.
+      if (error instanceof AppError && error.statusCode === 402) {
+        logger.error({ code: 'INSUFFICIENT_CREDITS', message: error.message }, 'Insights SSE stream error');
+        sendSSE(res, 'error', { code: 'INSUFFICIENT_CREDITS', message: error.message });
+      } else if (error instanceof AppError) {
+        logger.error({ statusCode: error.statusCode, message: error.message }, 'Insights SSE stream error');
+        sendSSE(res, 'error', { code: 'APP_ERROR', message: error.message });
+      } else if (error instanceof Error && error.name === 'AbortError') {
         sendSSE(res, 'done', { done: true, cancelled: true });
       } else {
-        sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error al procesar consulta' });
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        logger.error({ error: err.message }, 'Insights SSE stream error');
+        sendSSE(res, 'error', { code: 'LLM_ERROR', message: 'Error processing query' });
       }
     } finally {
       res.end();
     }
-  }
+  })
 );
 
 // ============================================
@@ -2102,7 +2174,7 @@ router.post(
   jwtAuthMiddleware,
   churnPredictionLimiter,
   validate(churnPredictionSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { productId, threshold } = req.validatedBody as {
@@ -2120,10 +2192,10 @@ router.post(
       // Preserve AppError status codes (402, 403)
       if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
-      logger.error({ error: err.message }, 'Churn prediction endpoint error');
+      logger.error({ error: err.message, path: 'insights/predict/churn' }, 'Churn prediction endpoint error');
       throw new AppError('Error al generar predicciones', 500);
     }
-  }
+  })
 );
 
 /**
@@ -2138,7 +2210,7 @@ router.post(
   jwtAuthMiddleware,
   compareLimiter,
   validate(compareSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { entityType, entityA, entityB, metrics } = req.validatedBody as {
@@ -2160,10 +2232,10 @@ router.post(
     } catch (error: unknown) {
       if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
-      logger.error({ error: err.message }, 'Compare endpoint error');
+      logger.error({ error: err.message, path: 'insights/compare' }, 'Compare endpoint error');
       throw new AppError('Error al generar comparativa', 500);
     }
-  }
+  })
 );
 
 /**
@@ -2178,7 +2250,7 @@ router.post(
   jwtAuthMiddleware,
   recoveryEmailLimiter,
   validate(recoveryEmailSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
       const { productId, targetUserId, tone } = req.validatedBody as {
@@ -2201,10 +2273,10 @@ router.post(
     } catch (error: unknown) {
       if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
-      logger.error({ error: err.message }, 'Recovery email endpoint error');
+      logger.error({ error: err.message, path: 'insights/recover/email' }, 'Recovery email endpoint error');
       throw new AppError('Error al generar email de recuperación', 500);
     }
-  }
+  })
 );
 
 // ============================================
@@ -2222,7 +2294,7 @@ router.post(
   jwtAuthMiddleware,
   affiliateChatLimiter,
   validate(affiliateChatSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const userId = uid(req);
     const { productId, message } = req.body;
 
@@ -2262,23 +2334,17 @@ router.post(
         data: result,
       });
     } catch (error: unknown) {
-      if (error instanceof AppError) {
-        // Re-throw AppError preserving its status code (e.g., 403 from verifyProductAccess)
-        throw error;
-      }
+      if (error instanceof AppError) throw error;
       const err = error instanceof Error ? error : new Error('Unknown error');
-      logger.error({ error: err.message }, 'Affiliate chat endpoint error');
+      logger.error({ error: err.message, path: 'affiliate/chat' }, 'Affiliate chat endpoint error');
       throw new AppError('Error processing request. Please try again.', 500);
     }
-  }
+  })
 );
 
 // ============================================================================
 // AI Content Assistant Routes (Phase 6)
 // ============================================================================
-
-import { aiContentController } from '../controllers/ai-content.controller';
-import { upload } from '../middlewares/storage/upload.middleware';
 
 /**
  * POST /api/ai/content/assist
@@ -2295,9 +2361,9 @@ router.post(
   '/content/assist',
   jwtAuthMiddleware,
   aiContentLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     await aiContentController.assist(req, res, next);
-  }
+  })
 );
 
 /**
@@ -2314,9 +2380,9 @@ router.post(
   '/quiz/generate',
   jwtAuthMiddleware,
   aiContentLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     await aiContentController.generateQuiz(req, res, next);
-  }
+  })
 );
 
 /**
@@ -2331,9 +2397,9 @@ router.post(
   jwtAuthMiddleware,
   transcribeUploadLimiter,
   upload.single('file'),
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     await aiContentController.transcribe(req, res, next);
-  }
+  })
 );
 
 /**
@@ -2344,9 +2410,9 @@ router.get(
   '/transcription/usage',
   jwtAuthMiddleware,
   aiContentLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     await aiContentController.getTranscriptionUsage(req, res, next);
-  }
+  })
 );
 
 // ============================================
@@ -2365,7 +2431,7 @@ router.post(
   jwtAuthMiddleware,
   seoOptimizerLimiter,
   validate(seoOptimizerSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const userId = uid(req);
     const { productId, productName, productDescription, productType, creatorName } = req.body;
 
@@ -2412,6 +2478,7 @@ router.post(
     try {
       await aiCreditService.useCredits(userId, 1, 'SEO Optimizer', productId);
     } catch (creditError: unknown) {
+      if (creditError instanceof AppError) throw creditError;
       logger.error(
         {
           error: creditError instanceof Error ? creditError.message : 'Unknown',
@@ -2428,7 +2495,7 @@ router.post(
       data: result.data,
       creditsUsed: 1,
     });
-  }
+  })
 );
 
 export default router;

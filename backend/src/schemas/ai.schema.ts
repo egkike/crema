@@ -137,6 +137,7 @@ export const updateDashboardSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).nullish(),
   is_default: z.boolean().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const insightsQuerySchema = z.object({
