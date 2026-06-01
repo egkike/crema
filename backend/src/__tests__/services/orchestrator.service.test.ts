@@ -285,7 +285,7 @@ describe('orchestrator.service.ts', () => {
       expect(result2.error).toContain('userId');
     });
 
-it('should apply default values from schema', async () => {
+  it('should validate input and pass original to handler without applying defaults', async () => {
       const skillWithDefaults: Skill = {
         id: 'defaults-skill',
         name: 'Skill with Defaults',
@@ -313,6 +313,128 @@ it('should apply default values from schema', async () => {
       expect(result.success).toBe(true);
       // Handler receives original input (no mutation)
       expect(result.data).toEqual({ received: { query: 'test' } });
+    });
+  });
+
+  // =========================================================================
+  // listCapabilities — Insights Expansion (Task 5)
+  // =========================================================================
+
+  describe('listCapabilities — insights expansion skills', () => {
+    it('should include insights.predict capability when registered', async () => {
+      const mockSkills: Skill[] = [
+        {
+          id: 'insights-predict',
+          name: 'Churn Prediction',
+          capability: 'insights.predict',
+          description: 'Predict churn probability for product students',
+          parameters: [
+            { name: 'productId', type: 'string', required: true },
+            { name: 'threshold', type: 'number', required: false, default: 50 },
+          ],
+          options: { timeout: 60000 },
+          handler: vi.fn(),
+        },
+      ];
+
+      vi.spyOn(skillsRegistry, 'listAll').mockResolvedValue(mockSkills);
+
+      const result = await orchestratorService.listCapabilities();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.capability).toBe('insights.predict');
+    });
+
+    it('should include insights.compare capability when registered', async () => {
+      const mockSkills: Skill[] = [
+        {
+          id: 'insights-compare',
+          name: 'A/B Comparative Analysis',
+          capability: 'insights.compare',
+          description: 'Compare two entities (periods or products) across metrics',
+          parameters: [
+            { name: 'entityType', type: 'string', required: true },
+            { name: 'entityA', type: 'string', required: true },
+            { name: 'entityB', type: 'string', required: true },
+            { name: 'metrics', type: 'array', required: true },
+          ],
+          options: { timeout: 60000 },
+          handler: vi.fn(),
+        },
+      ];
+
+      vi.spyOn(skillsRegistry, 'listAll').mockResolvedValue(mockSkills);
+
+      const result = await orchestratorService.listCapabilities();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.capability).toBe('insights.compare');
+    });
+
+    it('should include insights.recover capability when registered', async () => {
+      const mockSkills: Skill[] = [
+        {
+          id: 'insights-recover',
+          name: 'Recovery Email Generator',
+          capability: 'insights.recover',
+          description: 'Generate personalized recovery email for at-risk student',
+          parameters: [
+            { name: 'productId', type: 'string', required: true },
+            { name: 'targetUserId', type: 'string', required: true },
+            { name: 'tone', type: 'string', required: false, default: 'empathic' },
+          ],
+          options: { timeout: 30000 },
+          handler: vi.fn(),
+        },
+      ];
+
+      vi.spyOn(skillsRegistry, 'listAll').mockResolvedValue(mockSkills);
+
+      const result = await orchestratorService.listCapabilities();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.capability).toBe('insights.recover');
+    });
+
+    it('should return all three insights capabilities together when registered', async () => {
+      const mockSkills: Skill[] = [
+        {
+          id: 'insights-predict',
+          name: 'Churn Prediction',
+          capability: 'insights.predict',
+          description: 'Predict churn',
+          parameters: [],
+          options: {},
+          handler: vi.fn(),
+        },
+        {
+          id: 'insights-compare',
+          name: 'A/B Comparative',
+          capability: 'insights.compare',
+          description: 'Compare entities',
+          parameters: [],
+          options: {},
+          handler: vi.fn(),
+        },
+        {
+          id: 'insights-recover',
+          name: 'Recovery Email',
+          capability: 'insights.recover',
+          description: 'Generate recovery email',
+          parameters: [],
+          options: {},
+          handler: vi.fn(),
+        },
+      ];
+
+      vi.spyOn(skillsRegistry, 'listAll').mockResolvedValue(mockSkills);
+
+      const result = await orchestratorService.listCapabilities();
+
+      const capabilities = result.map((s) => s.capability);
+      expect(capabilities).toContain('insights.predict');
+      expect(capabilities).toContain('insights.compare');
+      expect(capabilities).toContain('insights.recover');
     });
   });
 });

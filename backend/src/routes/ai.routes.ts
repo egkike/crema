@@ -2105,7 +2105,10 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
-      const { productId, threshold } = req.body;
+      const { productId, threshold } = req.validatedBody as {
+        productId: string;
+        threshold?: number;
+      };
 
       // Verify product ownership using helper
       await verifyProductOwnership(pool, productId, userId);
@@ -2138,7 +2141,12 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
-      const { entityType, entityA, entityB, metrics } = req.body;
+      const { entityType, entityA, entityB, metrics } = req.validatedBody as {
+        entityType: 'product' | 'period';
+        entityA: string;
+        entityB: string;
+        metrics: Array<'revenue' | 'sales' | 'conversion' | 'engagement' | 'reviews'>;
+      };
 
       const result = await insightsService.compareEntities(
         entityType,
@@ -2173,7 +2181,11 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const userId = uid(req);
-      const { productId, targetUserId, tone } = req.body;
+      const { productId, targetUserId, tone } = req.validatedBody as {
+        productId: string;
+        targetUserId: string;
+        tone?: 'empathic' | 'direct' | 'motivational';
+      };
 
       // Verify product ownership
       await verifyProductOwnership(pool, productId, userId);
