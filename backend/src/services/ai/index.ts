@@ -153,7 +153,7 @@ function validateModel(model: unknown): void {
 // NOTE: Rate limiting is handled at the API Gateway level (Orchestrator route),
 // not in individual skill handlers. Configure rate limits in the route definitions.
 
-const skills: Skill[] = [
+export const skills: Skill[] = [
   // ========================================================================
   // LLM Service Skills
   // ========================================================================
@@ -1369,6 +1369,162 @@ const skills: Skill[] = [
         contentId as string,
         reasonCode as string,
         description as string | undefined
+      );
+    },
+  },
+
+  // ========================================================================
+  // Insights Expansion: Churn Prediction, A/B Comparatives, Recovery Email
+  // ========================================================================
+  {
+    id: 'insights-predict',
+    name: 'Churn Prediction',
+    capability: 'insights.predict',
+    description: 'Predice probabilidad de abandono por alumno usando datos históricos + LLM',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'productId', type: 'string', required: true },
+      { name: 'userId', type: 'string', required: true },
+      { name: 'threshold', type: 'number', required: false },
+    ],
+    options: { timeout: 60000, retries: 1, cacheable: false },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const { requestingUserId, productId, userId, threshold } = input as {
+        requestingUserId: unknown;
+        productId: unknown;
+        userId: unknown;
+        threshold: unknown;
+      };
+
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required', 400);
+      }
+      if (typeof productId !== 'string' || productId.length === 0) {
+        throw new AppError('productId is required', 400);
+      }
+      if (typeof userId !== 'string' || userId.length === 0) {
+        throw new AppError('userId is required', 400);
+      }
+      if (requestingUserId !== userId) {
+        throw new AppError('Unauthorized access to user insights', 403);
+      }
+      if (threshold !== undefined && (typeof threshold !== 'number' || threshold < 0 || threshold > 100)) {
+        throw new AppError('threshold must be a number between 0 and 100', 400);
+      }
+
+      return insightsService.predictChurn(productId, userId, threshold as number | undefined);
+    },
+  },
+  {
+    id: 'insights-compare',
+    name: 'A/B Comparatives',
+    capability: 'insights.compare',
+    description: 'Compara métricas entre dos períodos o productos con insight narrativo',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'userId', type: 'string', required: true },
+      { name: 'entityType', type: 'string', required: true },
+      { name: 'entityA', type: 'object', required: true },
+      { name: 'entityB', type: 'object', required: true },
+      { name: 'metrics', type: 'array', required: true },
+    ],
+    options: { timeout: 60000, retries: 1, cacheable: false },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const { requestingUserId, userId, entityType, entityA, entityB, metrics } = input as {
+        requestingUserId: unknown;
+        userId: unknown;
+        entityType: unknown;
+        entityA: unknown;
+        entityB: unknown;
+        metrics: unknown;
+      };
+
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required', 400);
+      }
+      if (typeof userId !== 'string' || userId.length === 0) {
+        throw new AppError('userId is required', 400);
+      }
+      if (requestingUserId !== userId) {
+        throw new AppError('Unauthorized access to user insights', 403);
+      }
+      if (entityType !== 'period' && entityType !== 'product') {
+        throw new AppError('entityType must be "period" or "product"', 400);
+      }
+      if (typeof entityA !== 'string' || entityA.length === 0) {
+        throw new AppError('entityA is required and must be a non-empty string', 400);
+      }
+      if (typeof entityB !== 'string' || entityB.length === 0) {
+        throw new AppError('entityB is required and must be a non-empty string', 400);
+      }
+      if (!Array.isArray(metrics) || metrics.length === 0) {
+        throw new AppError('metrics is required and must be a non-empty array', 400);
+      }
+
+      return insightsService.compareEntities(
+        entityType as 'period' | 'product',
+        entityA,
+        entityB,
+        metrics as string[],
+        userId,
+      );
+    },
+  },
+  {
+    id: 'insights-recover',
+    name: 'Recovery Email Generator',
+    capability: 'insights.recover',
+    description: 'Genera email personalizado para recuperar alumno en riesgo',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'productId', type: 'string', required: true },
+      { name: 'userId', type: 'string', required: true },
+      { name: 'targetUserId', type: 'string', required: true },
+      { name: 'tone', type: 'string', required: false },
+    ],
+    options: { timeout: 60000, retries: 1, cacheable: false },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const { requestingUserId, productId, userId, targetUserId, tone } = input as {
+        requestingUserId: unknown;
+        productId: unknown;
+        userId: unknown;
+        targetUserId: unknown;
+        tone: unknown;
+      };
+
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required', 400);
+      }
+      if (typeof productId !== 'string' || productId.length === 0) {
+        throw new AppError('productId is required', 400);
+      }
+      if (typeof userId !== 'string' || userId.length === 0) {
+        throw new AppError('userId is required', 400);
+      }
+      if (typeof targetUserId !== 'string' || targetUserId.length === 0) {
+        throw new AppError('targetUserId is required', 400);
+      }
+      if (requestingUserId !== userId) {
+        throw new AppError('Unauthorized access to user insights', 403);
+      }
+      if (tone !== undefined && !['empathic', 'direct', 'motivational'].includes(tone as string)) {
+        throw new AppError('tone must be empathic, direct, or motivational', 400);
+      }
+
+      return insightsService.generateRecoveryEmail(
+        productId,
+        targetUserId,
+        tone as 'empathic' | 'direct' | 'motivational' | undefined,
+        userId,
       );
     },
   },

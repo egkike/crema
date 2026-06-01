@@ -26,6 +26,9 @@ import {
   transcribeUploadLimiter,
   affiliateChatLimiter,
   seoOptimizerLimiter,
+  churnPredictionLimiter,
+  recoveryEmailLimiter,
+  compareLimiter,
 } from '../middlewares/rateLimit/rateLimit';
 import { validate } from '../middlewares/auth/validate.middleware';
 import { AppError } from '../errors/AppError';
@@ -60,6 +63,9 @@ import {
   qaChatSchema,
   affiliateChatSchema,
   seoOptimizerSchema,
+  churnPredictionSchema,
+  recoveryEmailSchema,
+  compareSchema,
 } from '../schemas/ai.schema';
 // eslint-disable-next-line import/order
 import {
@@ -2076,6 +2082,115 @@ router.post(
       }
     } finally {
       res.end();
+    }
+  }
+);
+
+// ============================================
+// Insights Expansion: Churn Prediction, A/B Comparatives, Recovery Email
+// ============================================
+
+/**
+ * POST /api/ai/insights/predict/churn
+ * Predict churn probability for product students
+ * Access: JWT (creator must own product)
+ * Rate limited: 5/min (churnPredictionLimiter)
+ * Credits: 5 per prediction
+ */
+router.post(
+  '/insights/predict/churn',
+  jwtAuthMiddleware,
+  churnPredictionLimiter,
+  validate(churnPredictionSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = uid(req);
+      const { productId, threshold } = req.body;
+
+      // Verify product ownership using helper
+      await verifyProductOwnership(pool, productId, userId);
+
+      const result = await insightsService.predictChurn(productId, userId, threshold);
+
+      res.json({ success: true, data: result });
+    } catch (error: unknown) {
+      // Preserve AppError status codes (402, 403)
+      if (error instanceof AppError) throw error;
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Churn prediction endpoint error');
+      throw new AppError('Error al generar predicciones', 500);
+    }
+  }
+);
+
+/**
+ * POST /api/ai/insights/compare
+ * Compare metrics between two entities (periods or products)
+ * Access: JWT (creator must own compared products)
+ * Rate limited: 10/min (compareLimiter)
+ * Credits: 3 per comparison
+ */
+router.post(
+  '/insights/compare',
+  jwtAuthMiddleware,
+  compareLimiter,
+  validate(compareSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = uid(req);
+      const { entityType, entityA, entityB, metrics } = req.body;
+
+      const result = await insightsService.compareEntities(
+        entityType,
+        entityA,
+        entityB,
+        metrics,
+        userId,
+      );
+
+      res.json({ success: true, data: result });
+    } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Compare endpoint error');
+      throw new AppError('Error al generar comparativa', 500);
+    }
+  }
+);
+
+/**
+ * POST /api/ai/insights/recover/email
+ * Generate a personalized recovery email for a student
+ * Access: JWT (creator must own product)
+ * Rate limited: 10/min (recoveryEmailLimiter)
+ * Credits: 3 per generation
+ */
+router.post(
+  '/insights/recover/email',
+  jwtAuthMiddleware,
+  recoveryEmailLimiter,
+  validate(recoveryEmailSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = uid(req);
+      const { productId, targetUserId, tone } = req.body;
+
+      // Verify product ownership
+      await verifyProductOwnership(pool, productId, userId);
+
+      const result = await insightsService.generateRecoveryEmail(
+        productId,
+        targetUserId,
+        tone,
+        userId,
+      );
+
+      res.json({ success: true, data: result });
+    } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      logger.error({ error: err.message }, 'Recovery email endpoint error');
+      throw new AppError('Error al generar email de recuperación', 500);
     }
   }
 );
