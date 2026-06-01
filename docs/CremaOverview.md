@@ -101,7 +101,7 @@ Vende diferentes tipos de productos digitales:
 | **Reports Agent** | Triage automático de denuncias con IA |
 | **AI Agents** | Agente Q&A entrenable por producto |
 | **Tutor AI** | Asistente inteligente para estudiantes |
-| **Insights AI** | Consultas en lenguaje natural a datos |
+| **Insights AI** | Consultas en lenguaje natural + predicción de churn, emails de recuperación, comparativas A/B |
 | **AI Content Assistant** | Análisis de contenido, quizzes, transcripción |
 | **Orchestrator** | Router centralizado con 18 capabilities (streaming SSE) |
 | **Memory Enhancement** | HNSW index, RBAC validation, cleanup jobs, per-user quota |

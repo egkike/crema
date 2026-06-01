@@ -4,6 +4,7 @@
 **Date**: 2026-05-26
 **Phase**: Design (SDD Phase 3)
 **PRD Ref**: PRD.md §4.8
+**Status**: ✅ **IMPLEMENTED** (Junio 2026) — All design decisions applied. PRs #32, #33, #35-#41, #43, #44 mergeados.
 
 ---
 

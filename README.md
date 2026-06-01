@@ -87,7 +87,7 @@ Plataforma all-in-one para creadores y emprendedores.
 - ✅ **AI Agents** - Agente Q&A entrenable por producto
 - ✅ **Analytics Dashboard** - Métricas diarias de creadores
 - ✅ **Tutor AI** - Asistente inteligente para estudiantes
-- ✅ **Insights AI** - Consultas en lenguaje natural a datos
+- ✅ **Insights AI** - Consultas en lenguaje natural + predicción de churn, emails de recuperación, comparativas A/B
 - ✅ **AI Content Assistant** - Análisis de contenido, quizzes, transcripción
 - ✅ **Interactive Agent** - Talleres dinámicos con análisis personalizado (3 créditos/análisis)
 - ✅ **Reports Agent** - Triage automático de denuncias con IA

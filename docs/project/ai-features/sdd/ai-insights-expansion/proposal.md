@@ -5,6 +5,7 @@
 **Phase**: A (weeks 1-2)
 **Date**: Mayo 2026
 **PRD Ref**: PRD.md §4.8
+**Status**: ✅ **COMPLETED** (Junio 2026) — All 3 capabilities implemented and verified. See tasks.md for PR breakdown.
 
 ---
 

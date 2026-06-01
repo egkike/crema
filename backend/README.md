@@ -214,6 +214,9 @@
 | PUT    | `/api/ai/insights/dashboards/:id`            | Actualizar dashboard |
 | DELETE | `/api/ai/insights/dashboards/:id`            | Eliminar dashboard   |
 | POST   | `/api/ai/insights/query`                     | Query con IA         |
+| POST   | `/api/ai/insights/predict/churn`             | Predicción de churn  |
+| POST   | `/api/ai/insights/compare`                   | Comparativa A/B      |
+| POST   | `/api/ai/insights/recover/email`             | Generar email recuperación |
 
 #### Interactive Agent (Talleres Dinámicos)
 

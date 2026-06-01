@@ -290,6 +290,7 @@ These SDDs have been completed and reference this catalog:
 - `docs/project/ai-features/sdd/memory-enhancement/` — Memory RAG con HNSW, RBAC, cleanup, quota
 - `docs/project/ai-features/sdd/interactive-agent/` — Talleres dinámicos con análisis personalizado, usa aiCreditService, llmService
 - `docs/project/ai-features/sdd/seo-optimizer/` — SEO meta tags con RAG context, capability `seo.optimizer` (✅ Implementado)
+- `docs/project/ai-features/sdd/ai-insights-expansion/` — Churn prediction, recovery email, A/B comparatives; capabilities `ai.insights.predict_churn`, `ai.insights.compare`, `ai.insights.recover_email` (✅ Implementado)
 
 ### Architecture Improvements
 - `docs/project/architecture-improvements/sdd/config-service/` — Tiered config with Redis caching, crea `app_configs`

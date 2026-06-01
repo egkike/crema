@@ -4,6 +4,7 @@
 **PRD Ref**: PRD.md §4.8  
 **Type**: AI Feature — New Capabilities  
 **Artifact Store**: `openspec` (file-backed)  
+**Status**: ✅ **COMPLETED** (Junio 2026) — All requirements implemented. See verify-report-rejudge-2.md for final verdict.
 
 ---
 

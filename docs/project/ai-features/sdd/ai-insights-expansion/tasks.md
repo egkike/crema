@@ -4,6 +4,7 @@
 **Type**: AI Feature
 **PRD Ref**: PRD.md §4.8
 **Mode**: Strict TDD (pnpm run vitest)
+**Status**: ✅ **COMPLETED** (Junio 2026) — All Tasks 0-5 + N+1 done. PRs #32, #33, #35-#41, #43, #44 mergeados. 1414 tests passing, TSC clean, lint clean.
 
 ---
 
@@ -631,17 +632,17 @@ Add new endpoints to API reference section:
 ```
 
 ### Verification
-- [ ] PRD.md §4.8 shows status `✅ **COMPLETO**`
-- [ ] PRD.md header removes §4.8 from "Parciales"
-- [ ] PRD.md §4.8 includes implementation reference block
-- [ ] TECHNICAL-SPEC.md AI Services table updated
-- [ ] reusable-resources.md §3 AI Services updated
-- [ ] reusable-resources.md Active SDDs Reference updated
-- [ ] reusable-resources.md §10 Init Script Inventory updated
-- [ ] CremaOverview.md AI Features table updated
-- [ ] root README.md AI Features list updated
-- [ ] backend/README.md API reference updated
-- [ ] No broken internal links
+- [x] PRD.md §4.8 shows status `✅ **COMPLETO**`
+- [x] PRD.md header removes §4.8 from "Parciales"
+- [x] PRD.md §4.8 includes implementation reference block
+- [x] TECHNICAL-SPEC.md AI Services table updated
+- [x] reusable-resources.md §3 AI Services updated
+- [x] reusable-resources.md Active SDDs Reference updated
+- [x] reusable-resources.md §10 Init Script Inventory updated
+- [x] CremaOverview.md AI Features table updated
+- [x] root README.md AI Features list updated
+- [x] backend/README.md API reference updated
+- [x] No broken internal links
 
 ### Documents Summary
 

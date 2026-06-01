@@ -2195,7 +2195,7 @@ GET    /api/admin/tutor/stats               - Stats globales de uso
 |---------|----------|-----|--------|
 | Tutor AI | `tutorService` en `agents.service.ts` | ✅ `/tutor/chat`, `/tutor/insights` | ✅ `product_tutor_config`, `tutor_insights` |
 | Analytics | `analyticsService.getDashboardMetrics()` | ✅ `/analytics/dashboard` | ✅ `creator_daily_metrics` |
-| Insights AI | `insightsService` (CRUD dashboards, NL→SQL) | ✅ `/insights/dashboards`, `/insights/query` | ✅ `creator_dashboards`, `insights_history` |
+| Insights AI | `insightsService` (CRUD dashboards, NL→SQL) + `agents.service` (predictChurn, generateRecoveryEmail, compareEntities) | ✅ `/insights/dashboards`, `/insights/query`, `/insights/predict/churn`, `/insights/compare`, `/insights/recover/email` | ✅ `creator_dashboards`, `insights_history`, `churn_predictions`, `recovery_emails`, `ab_comparatives` |
 | Reports | `reportService` en `denunciation.service.ts` | ✅ `/reports` CRUD | ✅ `reports`, `report_reasons`, `report_actions` |
 | **Reports Agent** | `reportService.triageReport()` en `denunciation.service.ts` | ✅ `POST /admin/reports/:reportId/triage` | ✅ Reports + AI classification |
 | Memory Enhancement | `memory-enhancement` SDD | ✅ RBAC, Quota, LRU | ✅ Índices HNSW, cleanup |

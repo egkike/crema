@@ -14,7 +14,7 @@
 - ✅ Credit Management Dashboard: COMPLETO
 - ✅ AI Affiliate Chat: COMPLETO (Tasks 1-7)
 - ✅ SEO Optimizer: COMPLETO (Tasks 0-7)
-- 🆕 Features pendientes: §4.3-§4.7, §4.11, §4.13-§4.15, §4.17-§4.18, §4.20 (12 features) + ⚠️ Parciales: §4.8, §4.19 - Roadmap priorizado
+- 🆕 Features pendientes: §4.3-§4.7, §4.11, §4.13-§4.15, §4.17-§4.18, §4.20 (12 features) + ⚠️ Parciales: §4.19 - Roadmap priorizado
 **Owner**: Kike García
 
 > **Dependencias**:
@@ -675,7 +675,16 @@ Dashboard analytics para creadores.
 | INS-03 | Creador | recibir alertas de alumnos en riesgo | recuperar usuarios antes de que abandonen |
 
 #### Estado
-⚠️ **PARCIAL** - InsightsService existe con dashboards CRUD + NL→SQL query + streaming. Requiere expandir: predicción de churn, generación de email de recuperación, comparativas A/B.
+✅ **COMPLETO** - InsightsService con dashboards CRUD + NL→SQL query + streaming + expansión de capabilities (predictChurn, generateRecoveryEmail, compareEntities). Ver SDD `ai-insights-expansion` (Tasks 0-5 completadas) y endpoints REST nuevos en §5.
+
+> **Referencia de Implementación** (SDD `ai-insights-expansion`, PRs #32, #33, #35-#41, #43, #44):
+> - **DB Migration**: `churn_predictions`, `recovery_emails`, `ab_comparatives` (init script 14)
+> - **Service methods**: `predictChurn(userId)`, `generateRecoveryEmail(userId, context)`, `compareEntities(entityA, entityB)`, `sanitizeHtml(html)` en `agents.service.ts`
+> - **Orchestrator capabilities**: `ai.insights.predict_churn`, `ai.insights.compare`, `ai.insights.recover_email` registradas en `ai/index.ts` (3 nuevas skills)
+> - **REST endpoints**: `POST /api/ai/insights/predict/churn`, `POST /api/ai/insights/compare`, `POST /api/ai/insights/recover/email`
+> - **Schemas Zod**: validación de payload en `schemas/ai.schema.ts`
+> - **Rate limiters**: `aiInsightsPredict`, `aiInsightsCompare`, `aiInsightsRecover` (dedicados)
+> - **Tests**: 39 unit tests + 32 integration tests + 4 orchestrator tests (1414 tests passing)
 
 ---
 
@@ -1997,7 +2006,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | **Personalized Learning Path** | §4.24 Memory Enhancement | ✅ Completado (Mayo 2026) |
 | **User Notes & Highlights** | §4.24 Memory Enhancement | ✅ Completado |
 | **AI Summary** | ContentAssistantService | ✅ Disponible |
-| **Predictive Analytics** | AI Insights + pgvector | ⚠️ Pendiente (§4.8) |
+| **Predictive Analytics** | AI Insights + pgvector | ✅ Implementado (§4.8 expandido) |
 | **Content Moderation** | AI Content Assistant | ✅ Disponible |
 
 ### 8.3 Dependencias con CONTENT-SECURITY-PRD (v2.0)
@@ -2079,7 +2088,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 |--------|---------|---------|-------|-------------|--------------|
 | 1-2 | **AI Afiliate Chat** | §4.10 | 7/10 | Chat para afiliados (variant de Concierge) | ConciergeService |
 | 3-4 | **SEO Optimizer** | §4.12 | 6/10 | Meta tags automáticos | ContentAssistant |
-| 5-6 | **AI Insights (expandido)** | §4.8 | — | Analytics mejorados | InsightsService existente |
+| 5-6 | **AI Insights (expandido)** | §4.8 | ✅ Completado | Analytics mejorados | InsightsService existente |
 
 > **Razón**:复用 código existente con bajo esfuerzo
 
