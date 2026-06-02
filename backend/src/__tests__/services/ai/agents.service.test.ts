@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { PoolClient } from 'pg';
 
 // Mock dependencies
 vi.mock('../../../utils/logger', () => ({
@@ -57,6 +58,37 @@ vi.mock('../../../services/ai/llm.service', () => ({
     isConfigured: vi.fn().mockReturnValue(false),
   },
 }));
+
+// Mock withReadOnlyRole (PR 3c / Task 3.6 — defense-in-depth wire-in).
+// Default impl is a pass-through that runs the callback with a mock client
+// whose `query` delegates to the mocked `pool.query`. This preserves the
+// pre-wire-in behavior of the existing tests (SQL execution observable
+// via pool.query). The wire-in tests at the bottom of the file override
+// this impl to track calls and to verify the callback uses the client.
+vi.mock('../../../lib/withReadOnlyRole', () => ({
+  withReadOnlyRole: vi.fn(),
+}));
+
+import { withReadOnlyRole } from '../../../lib/withReadOnlyRole';
+import pool from '../../../db/postgres';
+
+// Install the default pass-through impl. `vi.clearAllMocks()` does NOT
+// remove mock implementations (only call history), so this default
+// survives the per-describe `beforeEach` resets. The wire-in tests
+// override it locally in their own `beforeEach` to capture call args.
+vi.mocked(withReadOnlyRole).mockImplementation(
+  async (_userId: string, _options: { op: string; sqlText: string }, fn: (client: PoolClient) => Promise<unknown>) => {
+    const mockClient = {
+      query: pool.query.bind(pool),
+      release: () => {},
+    } as unknown as PoolClient;
+    const result = await fn(mockClient);
+    return {
+      result,
+      audit: { success: true, errorMessage: null, resultCount: 0, durationMs: 0 },
+    };
+  },
+);
 
 describe('AgentsService', () => {
   describe('exports', () => {
@@ -1703,6 +1735,276 @@ describe('tutorService.chatStream — conversation persistence (PR #2 / Task 2.8
     expect(messageInserts).toHaveLength(2);
     expect(messageInserts[0][1]).toEqual(expect.arrayContaining(['user', 'msg-1']));
     expect(messageInserts[1][1]).toEqual(expect.arrayContaining(['assistant', 'resp-1']));
+  });
+});
+
+// =============================================================================
+// Phase 3 (PR 3c / Task 3.6 + 3.9): withReadOnlyRole wire-in tests
+// =============================================================================
+//
+// The 3 LLM-SQL execution paths in agents.service.ts (insightsService.query,
+// insightsService.chatStream, compareEntities) MUST go through
+// withReadOnlyRole — never direct pool.query. The tests below verify:
+//   1. withReadOnlyRole is called with the correct op label and the
+//      (transformed) safe SQL.
+//   2. The callback receives a PoolClient and uses client.query (NOT
+//      direct pool.query) for the LLM SQL.
+//   3. Direct pool.query with the LLM SQL is NEVER called — the audit
+//      trail is the only pool.query that runs against ai_sql_audit, and
+//      that path uses a separate fresh connection inside withReadOnlyRole.
+//
+// These tests override the default withReadOnlyRole mock (installed at
+// the top of the file as a pass-through) with a tracker that captures
+// call args and the mock client passed to the callback.
+
+interface WireInMockClient {
+  query: ReturnType<typeof vi.fn>;
+  release: ReturnType<typeof vi.fn>;
+}
+
+describe('Phase 3 wire-in: LLM-SQL goes through withReadOnlyRole, not direct pool.query', () => {
+  const userId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  const creatorId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  const productA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const productB = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+  const llmSql = 'SELECT COUNT(*) AS total FROM orders';
+
+  // Capture every withReadOnlyRole invocation (userId, op, sqlText).
+  let wireInCalls: Array<{ userId: string; op: string; sqlText: string }>;
+  // The mock client passed to the callback (so we can assert client.query
+  // was called with the LLM SQL and pool.query was NOT).
+  let mockClient: WireInMockClient;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    wireInCalls = [];
+    mockClient = {
+      query: vi.fn().mockResolvedValue({ rows: [{ total: '42' }] }),
+      release: vi.fn(),
+    };
+
+    // Override the default withReadOnlyRole mock to track calls and
+    // return a deterministic result. The default pass-through installed
+    // at the top of the file is replaced for the duration of this
+    // describe block.
+    vi.mocked(withReadOnlyRole).mockImplementation(
+      async (
+        uid: string,
+        options: { op: string; sqlText: string },
+        fn: (client: PoolClient) => Promise<unknown>,
+      ) => {
+        wireInCalls.push({ userId: uid, op: options.op, sqlText: options.sqlText });
+        const result = await fn(mockClient as unknown as PoolClient);
+        return {
+          result,
+          audit: { success: true, errorMessage: null, resultCount: 1, durationMs: 0 },
+        };
+      },
+    );
+
+    // Reset pool.query: empty for the user-products pre-query and the
+    // insights_history INSERT. Anything else should NOT be called.
+    (pool.query as ReturnType<typeof vi.fn>).mockImplementation(async (sql: string) => {
+      if (sql.includes('INTO') && sql.includes('insights_history')) {
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [] };
+    });
+
+    // Configure LLM to return a valid SQL response.
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: JSON.stringify({ sql: llmSql, explanation: 'count orders' }),
+      model: 'simulator',
+    });
+    // chatStream also needs an impl — the agent's `insightsService.chatStream`
+    // uses llmService.chatStream with an onChunk callback. Simulate the
+    // stream by emitting the full JSON in one chunk.
+    vi.mocked(llmService.chatStream).mockImplementation(
+      async (opts: { onChunk?: (chunk: string) => void } | undefined) => {
+        if (opts && typeof opts === 'object' && opts.onChunk) {
+          opts.onChunk(JSON.stringify({ sql: llmSql, explanation: 'count orders' }));
+        }
+        return { content: JSON.stringify({ sql: llmSql, explanation: 'count orders' }) };
+      },
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // insightsService.query
+  // -------------------------------------------------------------------------
+
+  describe('insightsService.query', () => {
+    it('calls withReadOnlyRole with op="insightsService.query" and the safe SQL', async () => {
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      const result = await insightsService.query(userId, 'How many orders?');
+
+      // withReadOnlyRole was called exactly once with the right op + userId.
+      expect(wireInCalls).toHaveLength(1);
+      expect(wireInCalls[0].op).toBe('insightsService.query');
+      expect(wireInCalls[0].userId).toBe(userId);
+      // sqlText is the safeSql — must contain the LLM SQL but with the
+      // safety LIMIT replacement applied.
+      expect(wireInCalls[0].sqlText).toContain('SELECT COUNT(*)');
+      expect(wireInCalls[0].sqlText).toContain('FROM orders');
+
+      // The result is from the mock client's query, not a default.
+      expect(result.sql).toBe(llmSql);
+      expect(result.results).toEqual([{ total: '42' }]);
+    });
+
+    it('passes a PoolClient to the callback — the callback MUST use client.query (not pool.query) for the LLM SQL', async () => {
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      await insightsService.query(userId, 'How many orders?');
+
+      // The mock client received client.query(...) for the LLM SQL.
+      expect(mockClient.query).toHaveBeenCalledTimes(1);
+      const sqlArg = mockClient.query.mock.calls[0][0] as string;
+      expect(sqlArg).toContain('SELECT COUNT(*)');
+      expect(sqlArg).toContain('FROM orders');
+    });
+
+    it('does NOT call pool.query directly with the LLM SQL — the LLM SQL only flows through withReadOnlyRole', async () => {
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      await insightsService.query(userId, 'How many orders?');
+
+      const queryMock = pool.query as ReturnType<typeof vi.fn>;
+      const llmSqlPoolCalls = queryMock.mock.calls.filter(
+        (call) => typeof call[0] === 'string' && (call[0] as string).includes('SELECT COUNT(*)'),
+      );
+      expect(llmSqlPoolCalls).toHaveLength(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // insightsService.chatStream
+  // -------------------------------------------------------------------------
+
+  describe('insightsService.chatStream', () => {
+    it('calls withReadOnlyRole with op="insightsService.chatStream" and the safe SQL', async () => {
+      const onChunk = vi.fn();
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      const result = await insightsService.chatStream(userId, 'How many orders?', onChunk);
+
+      expect(wireInCalls).toHaveLength(1);
+      expect(wireInCalls[0].op).toBe('insightsService.chatStream');
+      expect(wireInCalls[0].userId).toBe(userId);
+      expect(wireInCalls[0].sqlText).toContain('SELECT COUNT(*)');
+      expect(wireInCalls[0].sqlText).toContain('FROM orders');
+
+      // SQL was streamed to the client.
+      expect(onChunk).toHaveBeenCalledWith(llmSql, 'sql');
+      // Result returned with the mock client's data.
+      expect(result.sql).toBe(llmSql);
+      expect(result.results).toEqual([{ total: '42' }]);
+    });
+
+    it('passes a PoolClient to the callback for chatStream LLM SQL', async () => {
+      const onChunk = vi.fn();
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      await insightsService.chatStream(userId, 'How many orders?', onChunk);
+
+      expect(mockClient.query).toHaveBeenCalledTimes(1);
+      const sqlArg = mockClient.query.mock.calls[0][0] as string;
+      expect(sqlArg).toContain('SELECT COUNT(*)');
+      expect(sqlArg).toContain('FROM orders');
+    });
+
+    it('does NOT call pool.query directly with the LLM SQL in chatStream', async () => {
+      const onChunk = vi.fn();
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      await insightsService.chatStream(userId, 'How many orders?', onChunk);
+
+      const queryMock = pool.query as ReturnType<typeof vi.fn>;
+      const llmSqlPoolCalls = queryMock.mock.calls.filter(
+        (call) => typeof call[0] === 'string' && (call[0] as string).includes('SELECT COUNT(*)'),
+      );
+      expect(llmSqlPoolCalls).toHaveLength(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // compareEntities
+  // -------------------------------------------------------------------------
+
+  describe('compareEntities', () => {
+    /**
+     * compareEntities makes 3 LLM calls:
+     *   1) SQL for entity A
+     *   2) SQL for entity B
+     *   3) comparative narrative
+     * Each of (1) and (2) is executed via withReadOnlyRole. The third
+     * is an LLM-only call (no SQL execution).
+     */
+    beforeEach(async () => {
+      const { llmService } = await import('../../../services/ai/llm.service');
+      vi.mocked(llmService.chat)
+        .mockResolvedValueOnce({
+          content: JSON.stringify({ sql: llmSql }),
+          model: 'simulator',
+        })
+        .mockResolvedValueOnce({
+          content: JSON.stringify({ sql: llmSql }),
+          model: 'simulator',
+        })
+        .mockResolvedValueOnce({
+          content: JSON.stringify({
+            narrative: 'Entity B has more orders than A.',
+            deltas: { total: { a: 10, b: 20, delta: 10, deltaPercent: 100 } },
+            recommendation: 'Investigate what drove B.',
+          }),
+          model: 'simulator',
+        });
+
+      // Ownership + insights_history pool.query setup
+      (pool.query as ReturnType<typeof vi.fn>).mockImplementation(async (sql: string) => {
+        if (sql.includes('FROM') && sql.includes('products') && sql.includes('ANY')) {
+          return { rows: [{ id: productA }, { id: productB }] };
+        }
+        if (sql.includes('INTO') && sql.includes('insights_history')) {
+          return { rows: [], rowCount: 1 };
+        }
+        return { rows: [] };
+      });
+    });
+
+    it('calls withReadOnlyRole with op="insightsService.compareEntities" once per entity (×2)', async () => {
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      await insightsService.compareEntities('product', productA, productB, ['total'], creatorId);
+
+      const compareCalls = wireInCalls.filter((c) => c.op === 'insightsService.compareEntities');
+      expect(compareCalls).toHaveLength(2);
+      for (const call of compareCalls) {
+        expect(call.userId).toBe(creatorId);
+        expect(call.sqlText).toContain('SELECT COUNT(*)');
+        expect(call.sqlText).toContain('FROM orders');
+      }
+    });
+
+    it('passes a PoolClient to the callback for each comparative query', async () => {
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      await insightsService.compareEntities('product', productA, productB, ['total'], creatorId);
+
+      // The mock client is reused across both entity queries. Both
+      // queries call client.query(safeSql).
+      expect(mockClient.query).toHaveBeenCalledTimes(2);
+      for (const call of mockClient.query.mock.calls) {
+        const sqlArg = call[0] as string;
+        expect(sqlArg).toContain('SELECT COUNT(*)');
+        expect(sqlArg).toContain('FROM orders');
+      }
+    });
+
+    it('does NOT call pool.query directly with the LLM SQL for comparative queries', async () => {
+      const { insightsService } = await import('../../../services/ai/agents.service');
+      await insightsService.compareEntities('product', productA, productB, ['total'], creatorId);
+
+      const queryMock = pool.query as ReturnType<typeof vi.fn>;
+      const llmSqlPoolCalls = queryMock.mock.calls.filter(
+        (call) => typeof call[0] === 'string' && (call[0] as string).includes('SELECT COUNT(*)'),
+      );
+      expect(llmSqlPoolCalls).toHaveLength(0);
+    });
   });
 });
 

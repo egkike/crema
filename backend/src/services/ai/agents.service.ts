@@ -12,6 +12,7 @@ import logger from '../../utils/logger';
 import { getValidatedSchema } from '../../utils/validators.util';
 import { verifyProductOwnership, verifyBuyerOfProduct, verifyCreatorHasDataInPeriod } from '../../utils/routeHelpers.util';
 import { sanitizeEmailHtml } from '../../lib/sanitizeEmailHtml';
+import { withReadOnlyRole } from '../../lib/withReadOnlyRole';
 import { withSanitizedErrors } from '../../lib/withSanitizedErrors';
 
 import { aiCreditService } from './credits.service';
@@ -1397,10 +1398,13 @@ REGLAS:
             ) // Force limit
             .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100'); // Handle LIMIT ALL
 
-          const { rows } = await withSanitizedErrors(
-            'insightsService.query',
+          const { result: rows } = await withReadOnlyRole(
             userId,
-            () => pool.query(safeSql)
+            { op: 'insightsService.query', sqlText: generatedSql },
+            async (client) => {
+              const result = await client.query(safeSql);
+              return result.rows;
+            },
           );
           sqlResults = rows;
         }
@@ -1627,10 +1631,13 @@ REGLAS:
             ) // Force limit
             .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100'); // Handle LIMIT ALL
 
-          const { rows } = await withSanitizedErrors(
-            'insightsService.chatStream',
+          const { result: rows } = await withReadOnlyRole(
             userId,
-            () => pool.query(safeSql)
+            { op: 'insightsService.chatStream', sqlText: generatedSql },
+            async (client) => {
+              const result = await client.query(safeSql);
+              return result.rows;
+            },
           );
           sqlResults = rows;
           onChunk(JSON.stringify(sqlResults), 'results');
@@ -2383,10 +2390,13 @@ REGLAS:
           .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100');
 
         try {
-          const { rows } = await withSanitizedErrors(
-            'insightsService.compareEntities',
+          const { result: rows } = await withReadOnlyRole(
             creatorId,
-            () => pool.query(safeSql)
+            { op: 'insightsService.compareEntities', sqlText: generatedSql },
+            async (client) => {
+              const result = await client.query(safeSql);
+              return result.rows;
+            },
           );
           entityResults.push({ label: entityLabel, data: rows.length > 0 ? rows[0] : {} });
         } catch (err) {
