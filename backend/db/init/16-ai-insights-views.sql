@@ -67,7 +67,7 @@ SELECT
     id,
     username,
     level,
-    created_at
+    createdate AS created_at
 FROM users;
 
 -- 4. Commissions: creator_id is the order's product creator

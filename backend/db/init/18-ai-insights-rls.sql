@@ -25,11 +25,13 @@
 --      the policies either.
 --
 -- TABLES COVERED
---   * orders         -> isolation via order's product.creator_id
---   * products       -> isolation via products.creator_id
---   * users          -> isolation: creator sees self + buyers of own products
---   * commissions    -> isolation via commission's order's product.creator_id
---   * product_reviews-> isolation via review's product.creator_id
+--   * orders          -> isolation via order's product.creator_id
+--   * products        -> isolation via products.creator_id
+--   * users           -> isolation: creator sees self + buyers of own products
+--   * commissions     -> isolation via commission's order's product.creator_id
+--   * product_reviews -> isolation via review's product.creator_id
+--   * product_questions -> isolation via question's product.creator_id
+--   * user_balances   -> isolation: creator sees only their own balance row
 --
 -- WHY EACH POLICY
 --   - orders / commissions / product_reviews: no `creator_id` column, so
@@ -114,11 +116,35 @@ CREATE POLICY ai_insights_creator_isolation ON product_reviews
       AND p.creator_id = current_setting('app.current_creator_id', true)::uuid
   ));
 
+-- 6. product_questions — isolation through products
+ALTER TABLE product_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_questions FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS ai_insights_creator_isolation ON product_questions;
+CREATE POLICY ai_insights_creator_isolation ON product_questions
+  FOR SELECT
+  TO ai_insights_ro
+  USING (EXISTS (
+    SELECT 1 FROM products p
+    WHERE p.id = product_questions.product_id
+      AND p.creator_id = current_setting('app.current_creator_id', true)::uuid
+  ));
+
+-- 7. user_balances — direct user_id match (a creator can only see their own balances)
+ALTER TABLE user_balances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_balances FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS ai_insights_creator_isolation ON user_balances;
+CREATE POLICY ai_insights_creator_isolation ON user_balances
+  FOR SELECT
+  TO ai_insights_ro
+  USING (user_id = current_setting('app.current_creator_id', true)::uuid);
+
 -- =============================================================================
 -- Log de migración exitosa
 -- =============================================================================
 
 DO $$
 BEGIN
-    RAISE NOTICE 'Migration 18-ai-insights-rls.sql executed successfully';
+    RAISE NOTICE 'Migration 18-ai-insights-rls.sql executed successfully (extended for product_questions and user_balances)';
 END $$;

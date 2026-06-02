@@ -6,9 +6,12 @@
  * other creators. Three guarantees:
  *
  *   1. READ-ONLY ROLE — the transaction runs as `ai_insights_ro`, a
- *      NOLOGIN PostgreSQL role with SELECT only on the safe views and
- *      REVOKEd on every underlying table. Any write attempt fails with
- *      `permission denied`.
+ *      NOLOGIN PostgreSQL role with SELECT on the curated
+ *      `ai_insights_safe_*` views AND on the underlying raw tables,
+ *      where raw-table access is filtered by RLS policies (see
+ *      `18-ai-insights-rls.sql`) using
+ *      `current_setting('app.current_creator_id', true)::uuid`. Any
+ *      write attempt fails with `permission denied`.
  *
  *   2. CREATOR-LEVEL ISOLATION — `SET LOCAL app.current_creator_id` is
  *      set inside the transaction. RLS policies on the underlying
@@ -81,6 +84,11 @@ export async function withReadOnlyRole<T>(
   options: WithReadOnlyRoleOptions,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<WithReadOnlyRoleResult<T>> {
+  // Defense-in-depth: the upstream auth middleware validates UUID, but the
+  // SET LOCAL cast is a critical boundary that warrants explicit validation.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    throw new AppError('Invalid user identifier', 400);
+  }
   const start = Date.now();
   const client = await pool.connect();
   let result: T | undefined;
@@ -100,10 +108,17 @@ export async function withReadOnlyRole<T>(
     rawError = err instanceof Error ? err : new Error(String(err));
     try {
       await client.query('ROLLBACK');
-    } catch {
+    } catch (rollbackErr) {
       // ROLLBACK can fail if the connection is already in an error state.
       // The original error is more important — we just make sure to
-      // release the client in `finally`.
+      // release the client in `finally`. Logged at debug level to
+      // satisfy GGA's "no silent error handling" rule without
+      // polluting production logs.
+      const message = rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr);
+      logger.debug(
+        { err: message, op: options.op },
+        'withReadOnlyRole: ROLLBACK failed (connection already in error state)',
+      );
     }
   } finally {
     client.release();

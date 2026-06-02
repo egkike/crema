@@ -11,10 +11,18 @@
 --                 The application's pool user is what connects, then
 --                 issues `SET LOCAL ROLE ai_insights_ro` to swap roles
 --                 inside a transaction (see `withReadOnlyRole`).
---     * SELECT on the curated views only (16-ai-insights-views.sql).
---     * Explicit REVOKE on the underlying tables — defense in depth.
---       Even if a future view is misconfigured, the role has no access
---       to the raw tables that the views wrap.
+--     * SELECT on the curated views (16-ai-insights-views.sql) — the
+--       safe-by-default API the LLM is encouraged to use.
+--     * SELECT on the underlying raw tables, filtered by Row Level
+--       Security (see `18-ai-insights-rls.sql`) using
+--       `current_setting('app.current_creator_id', true)::uuid`. The
+--       LLM prompt in `agents.service.ts` may target either the views
+--       or the raw tables; RLS guarantees row-level isolation in
+--       both cases (defense in depth).
+--     * Column-level grants on `users` restrict PII access — the role
+--       sees only `id, username, level, createdate`, not `email` or
+--       credential columns. The safe view `ai_insights_safe_users`
+--       remains the preferred path for typical queries.
 --     * USAGE on the public schema so SELECT grants resolve.
 --
 -- USAGE
@@ -42,7 +50,9 @@ END $$;
 -- via SET LOCAL ROLE. GRANT CONNECT ON DATABASE is intentionally omitted
 -- because a NOLOGIN role cannot initiate connections.
 
--- USAGE on the public schema (so the role can resolve object references)
+-- USAGE on the public schema (so the role can resolve object references).
+-- Schema-level USAGE is required by PG to access objects in the schema.
+-- The role is NOLOGIN, so external enumeration is not a concern.
 GRANT USAGE ON SCHEMA public TO ai_insights_ro;
 
 -- SELECT on the curated views (the ONLY path the LLM has into the data)
@@ -54,19 +64,30 @@ GRANT SELECT ON
     ai_insights_safe_reviews
 TO ai_insights_ro;
 
--- Defense in depth: explicit REVOKE on the underlying tables.
--- Even if a future view is created over a sensitive table and the role
--- is mistakenly granted SELECT on the view, the role can never see the
--- raw data directly. The role has no privileges on these tables.
-REVOKE ALL ON
+-- Defense in depth: SELECT on the underlying raw tables is paired with
+-- RLS policies (see 18-ai-insights-rls.sql). The role can read these
+-- tables, but rows are filtered by `current_setting('app.current_creator_id', true)::uuid`
+-- so the LLM only sees the creator's own data, regardless of the query.
+-- The LLM may target either the curated views (preferred) or these
+-- raw tables — both are safe by construction.
+-- `users` is granted separately with a column-level grant below to
+-- avoid exposing PII columns (email, password, tokens, etc.).
+GRANT SELECT ON
     orders,
     products,
-    users,
     commissions,
     product_reviews,
     product_questions,
     user_balances
-FROM ai_insights_ro;
+TO ai_insights_ro;
+
+-- Column-level grant (PG 15+) prevents PII exfiltration via the raw
+-- table — the safe view remains the preferred path for typical queries.
+-- First REVOKE any table-level SELECT on users (a prior batch granted
+-- table-level access; column-level grants alone are NOT enough to override
+-- a table-level grant — both coexist and the table-level wins).
+REVOKE SELECT ON users FROM ai_insights_ro;
+GRANT SELECT (id, username, level, createdate) ON users TO ai_insights_ro;
 
 -- =============================================================================
 -- Grant membership so the app pool user can SET LOCAL ROLE to ai_insights_ro
