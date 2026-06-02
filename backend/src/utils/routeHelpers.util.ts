@@ -116,3 +116,67 @@ export async function verifyConversationOwnership(
     throw new AppError('You do not have permission to access this conversation', 403);
   }
 }
+
+/**
+ * Verifies that a user is a confirmed buyer of a product.
+ * Throws 404 if not a confirmed buyer (404 to avoid leaking user existence).
+ *
+ * @param pool - Database pool
+ * @param productId - Product UUID to verify
+ * @param buyerId - User UUID to check buyer status against
+ * @throws AppError with 404 status if user is not a confirmed buyer
+ */
+export async function verifyBuyerOfProduct(
+  pool: Pool,
+  productId: string,
+  buyerId: string
+): Promise<void> {
+  const schema = getValidatedSchema();
+  const buyerCheck = await pool.query(
+    `SELECT id FROM "${schema}"."orders" WHERE product_id = $1 AND buyer_id = $2 AND status = 'confirmed'`,
+    [productId, buyerId]
+  );
+
+  if (buyerCheck.rows.length === 0) {
+    throw new AppError('User not found in this product\'s roster', 404);
+  }
+}
+
+/**
+ * Verifies that a creator has orders in a specific period (YYYY-MM format).
+ * Throws 403 if zero orders in that period.
+ *
+ * @param pool - Database pool
+ * @param creatorId - Creator UUID
+ * @param period - Period string in YYYY-MM format
+ * @throws AppError with 403 status if creator has zero orders in the period
+ */
+export async function verifyCreatorHasDataInPeriod(
+  pool: Pool,
+  creatorId: string,
+  period: string
+): Promise<void> {
+  const schema = getValidatedSchema();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    throw new AppError('Period must be in YYYY-MM format', 400);
+  }
+
+  const [year, month] = period.split('-');
+  const startDate = `${year}-${month}-01`;
+  // End date is the first day of the NEXT month, so `created_at < endDate` includes all of the current month
+  const endDate = new Date(parseInt(year), parseInt(month), 1).toISOString().split('T')[0];
+
+  const periodCheck = await pool.query(
+    `SELECT id FROM "${schema}"."orders" o
+     JOIN "${schema}"."products" p ON p.id = o.product_id
+     WHERE p.creator_id = $1
+       AND o.created_at >= $2
+       AND o.created_at < $3
+     LIMIT 1`,
+    [creatorId, startDate, endDate]
+  );
+
+  if (periodCheck.rows.length === 0) {
+    throw new AppError('No data available for the requested period', 403);
+  }
+}

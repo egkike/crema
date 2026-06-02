@@ -10,6 +10,7 @@ import pool from '../../db/postgres';
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 import { getValidatedSchema } from '../../utils/validators.util';
+import { verifyProductOwnership, verifyBuyerOfProduct, verifyCreatorHasDataInPeriod } from '../../utils/routeHelpers.util';
 
 import { aiCreditService } from './credits.service';
 import { llmService, type LLMMessage, type ChatStreamResponse } from './llm.service';
@@ -170,12 +171,21 @@ export const qaAgentService = {
 
     setClauses.push('updated_at = CURRENT_TIMESTAMP');
 
+    // Build $N placeholders for VALUES to prevent SQL injection
+    const valuePlaceholders: string[] = [];
+    for (let i = 1; i < params.length; i++) {
+      valuePlaceholders.push(`$${i + 1}`);
+    }
+    if (valuePlaceholders.length !== columns.length) {
+      throw new AppError('Internal: placeholder/column count mismatch', 500);
+    }
+
     // Column names come from a controlled set of hardcoded keys (isEnabled, model, etc.)
     // extracted from the data object. This is safe because only whitelisted keys are used.
     // Using RETURNING * to get the final row state after upsert (handles partial updates correctly)
     const query = `
       INSERT INTO "${getValidatedSchema()}".product_qa_agent_config (product_id, ${columns.join(', ')})
-      VALUES ($1, ${params.slice(1).join(', ')})
+      VALUES ($1, ${valuePlaceholders.join(', ')})
       ON CONFLICT (product_id) DO UPDATE SET
         ${setClauses.join(', ')}
       RETURNING *
@@ -711,9 +721,18 @@ export const tutorService = {
 
     setClauses.push('updated_at = CURRENT_TIMESTAMP');
 
+    // Build $N placeholders for VALUES to prevent SQL injection
+    const valuePlaceholders: string[] = [];
+    for (let i = 1; i < params.length; i++) {
+      valuePlaceholders.push(`$${i + 1}`);
+    }
+    if (valuePlaceholders.length !== columns.length) {
+      throw new AppError('Internal: placeholder/column count mismatch', 500);
+    }
+
     const query = `
       INSERT INTO "${getValidatedSchema()}".product_tutor_config (product_id, ${columns.join(', ')})
-      VALUES ($1, ${params.slice(1).join(', ')})
+      VALUES ($1, ${valuePlaceholders.join(', ')})
       ON CONFLICT (product_id) DO UPDATE SET ${setClauses.join(', ')}
     `;
 
@@ -1050,8 +1069,8 @@ export function sanitizeHtml(html: string): string {
   // Decode HTML entities before running security checks (prevents &#106;&#97;&#118;&#97;... bypass)
   function decodeHtmlEntities(text: string): string {
     return text
-      .replace(/&#(\d+);/g, (_: string, code: string) => String.fromCharCode(Number(code)))
-      .replace(/&#x([0-9a-f]+);/gi, (_: string, code: string) => String.fromCharCode(parseInt(code, 16)));
+      .replace(/&#(\d+);/g, (_: string, code: string) => String.fromCodePoint(Number(code)))
+      .replace(/&#x([0-9a-f]+);/gi, (_: string, code: string) => String.fromCodePoint(parseInt(code, 16)));
   }
   sanitized = decodeHtmlEntities(sanitized);
 
@@ -1619,6 +1638,7 @@ REGLAS:
     }>;
     totalStudents: number;
     creditsUsed: number;
+    creditsRefunded: boolean;
   }> {
     const CREDIT_COST = aiCreditService.getOperationCost('churn_prediction');
     const effectiveThreshold = threshold ?? 50;
@@ -1632,15 +1652,7 @@ REGLAS:
     }
 
     // 2. Verify product ownership
-    const schema = getValidatedSchema();
-    const ownershipQuery = `
-      SELECT id FROM "${schema}".products WHERE id = $1 AND creator_id = $2
-    `;
-    const { rows: ownershipRows } = await pool.query(ownershipQuery, [productId, userId]);
-    if (ownershipRows.length === 0) {
-      logger.warn({ userId, productId, reason: 'not_owner' }, 'Churn prediction denied');
-      throw new AppError('No tienes permiso para acceder a este producto', 403);
-    }
+    await verifyProductOwnership(pool, productId, userId);
 
     // 3. Check credits
     const credits = await aiCreditService.getBalance(userId);
@@ -1649,6 +1661,7 @@ REGLAS:
     }
 
     // 4. Fetch student data — JOIN on orders to filter only confirmed buyers
+    const schema = getValidatedSchema();
     // NOTE: "last_purchase_date" is used as a proxy for engagement since there is
     // no dedicated access-tracking table. days_since_last_access actually measures
     // days since last purchase, not last login. Churn heuristics reflect this.
@@ -1694,7 +1707,7 @@ REGLAS:
     logger.info({ studentCount: totalStudents }, 'Student data collected for churn prediction');
 
     if (totalStudents === 0) {
-      return { predictions: [], totalStudents: 0, creditsUsed: 0 };
+      return { predictions: [], totalStudents: 0, creditsUsed: 0, creditsRefunded: false };
     }
 
     // 5. Compute churn score using heuristics
@@ -1765,7 +1778,7 @@ REGLAS:
     const atRiskStudents = scoredStudents.filter((s) => s.churnScore >= effectiveThreshold);
 
     if (atRiskStudents.length === 0) {
-      return { predictions: [], totalStudents, creditsUsed: 0 };
+      return { predictions: [], totalStudents, creditsUsed: 0, creditsRefunded: false };
     }
 
     // 7. Deduct credits BEFORE doing work (same pattern as chat() at line 321)
@@ -1944,7 +1957,7 @@ ${JSON.stringify(finalStudentData, null, 2)}`;
       // Don't block response — predictions are still returned
     }
 
-    return { predictions, totalStudents, creditsUsed: creditsRefunded ? 0 : CREDIT_COST };
+    return { predictions, totalStudents, creditsUsed: creditsRefunded ? 0 : CREDIT_COST, creditsRefunded };
   },
 
   /**
@@ -1960,6 +1973,7 @@ ${JSON.stringify(finalStudentData, null, 2)}`;
     email: { subject: string; bodyHtml: string; previewText: string | null };
     studentName: string;
     productName: string;
+    creditsRefunded: boolean;
   }> {
     const CREDIT_COST = 3;
     const schema = getValidatedSchema();
@@ -1983,13 +1997,12 @@ ${JSON.stringify(finalStudentData, null, 2)}`;
     logger.info({ creatorId, productId, targetUserId, tone }, 'Recovery email generation requested');
 
     // 1. Verify product ownership
-    const ownershipQuery = `SELECT id, title FROM "${schema}".products WHERE id = $1 AND creator_id = $2`;
-    const { rows: ownershipRows } = await pool.query<{ id: string; title: string }>(ownershipQuery, [productId, creatorId]);
-    if (ownershipRows.length === 0) {
-      logger.warn({ creatorId, productId, reason: 'not_owner' }, 'Recovery email generation denied');
-      throw new AppError('No tienes permiso para acceder a este producto', 403);
-    }
-    const productName = ownershipRows[0].title;
+    await verifyProductOwnership(pool, productId, creatorId);
+
+    // Fetch product title for the email
+    const productTitleQuery = `SELECT title FROM "${schema}".products WHERE id = $1`;
+    const { rows: productRows } = await pool.query<{ title: string }>(productTitleQuery, [productId]);
+    const productName = productRows[0]?.title || 'Producto';
 
     // 2. Check credits
     const credits = await aiCreditService.getBalance(creatorId);
@@ -1997,7 +2010,10 @@ ${JSON.stringify(finalStudentData, null, 2)}`;
       throw new AppError('Créditos insuficientes', 402);
     }
 
-    // 3. Deduct credits BEFORE doing work (deduct first, refund on failure)
+    // 3. Verify target user is a confirmed buyer of this product BEFORE deducting credits
+    await verifyBuyerOfProduct(pool, productId, targetUserId);
+
+    // 4. Deduct credits (deduct first, refund on failure)
     await aiCreditService.useCredits(creatorId, CREDIT_COST, 'Recovery Email Generation');
 
     // 4. Fetch student data
@@ -2114,6 +2130,7 @@ REGLAS:
     const sanitizedBodyHtml = sanitizeHtml(parsed.bodyHtml);
 
     // 9. Persist to recovery_emails table
+    let creditsRefunded = false;
     try {
       await pool.query(
         `INSERT INTO "${schema}".recovery_emails (creator_id, product_id, target_user_id, subject, body_html, preview_text, tone) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -2124,6 +2141,7 @@ REGLAS:
       logger.error({ error: err.message }, 'Failed to persist recovery email');
 
       // Refund credits if persistence failed (credits were deducted at step 3)
+      creditsRefunded = true;
       try {
         await aiCreditService.addCredits(creatorId, CREDIT_COST, 'Refund - recovery email persistence failed');
       } catch (refundError: unknown) {
@@ -2141,6 +2159,7 @@ REGLAS:
       },
       studentName,
       productName,
+      creditsRefunded,
     };
   },
 
@@ -2160,6 +2179,7 @@ REGLAS:
     narrative: string;
     deltas: Record<string, { a: number; b: number; delta: number; deltaPercent: number }>;
     recommendation: string;
+    creditsRefunded: boolean;
   }> {
     const CREDIT_COST = 3;
     const schema = getValidatedSchema();
@@ -2175,6 +2195,31 @@ REGLAS:
         logger.warn({ creatorId, entityA, entityB, reason: 'not_owner' }, 'Compare entities denied');
         throw new AppError('No tienes permiso para acceder a uno o ambos productos', 403);
       }
+    } else if (entityType === 'period') {
+      // Step 1a: Check if creator has ANY orders globally
+      const globalOrdersCheck = await pool.query(
+        `SELECT o.id FROM "${schema}".orders o
+         JOIN "${schema}".products p ON p.id = o.product_id
+         WHERE p.creator_id = $1
+         LIMIT 1`,
+        [creatorId]
+      );
+
+      if (globalOrdersCheck.rows.length === 0) {
+        // New creator with zero orders globally — return 200 with empty data
+        return {
+          entityA: { label: entityA, data: {} },
+          entityB: { label: entityB, data: {} },
+          narrative: 'No data available for comparison.',
+          deltas: {},
+          recommendation: 'Start collecting data to enable comparisons.',
+          creditsRefunded: false,
+        };
+      }
+
+      // Step 1b: Creator has orders globally — verify data exists in each requested period
+      await verifyCreatorHasDataInPeriod(pool, creatorId, entityA);
+      await verifyCreatorHasDataInPeriod(pool, creatorId, entityB);
     }
 
     // 2. Check credits
@@ -2218,7 +2263,7 @@ Ejemplo: para '2024-01', filtra WHERE created_at >= '2024-01-01' AND created_at 
 ` : `
 El identificador es un UUID de producto.
 Genera una consulta SQL que obtenga las métricas solicitadas para ese producto.
-Filtra por product_id = '${entityLabel}' (usa parámetros $1, $2, etc.)
+Filtra por product_id = '${entityLabel}'
 `}
 
 Responde SOLO con JSON:
@@ -2272,9 +2317,13 @@ REGLAS:
           .replace(/\b(LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?|FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY)/gi, 'LIMIT 100')
           .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100');
 
-        const { rows } = await pool.query(safeSql);
-
-        entityResults.push({ label: entityLabel, data: rows.length > 0 ? rows[0] : {} });
+        try {
+          const { rows } = await pool.query(safeSql);
+          entityResults.push({ label: entityLabel, data: rows.length > 0 ? rows[0] : {} });
+        } catch (err) {
+          entityResults.push({ label: entityLabel, data: { error: 'Error executing comparative query' } });
+          logger.error({ err, op: 'compareEntities.safeSql', userId: creatorId, entityLabel });
+        }
       } catch (error: unknown) {
         const err = error instanceof Error ? error : new Error('Unknown error');
         logger.error({ error: err.message, entity: entityName }, `Entity ${entityName} query failed — storing error`);
@@ -2380,6 +2429,7 @@ Si una entidad tiene error, mencionalo en la narrativa y calcula deltas solo con
       narrative,
       deltas,
       recommendation,
+      creditsRefunded,
     };
   },
 };
