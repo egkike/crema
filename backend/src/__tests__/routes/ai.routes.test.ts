@@ -141,6 +141,7 @@ describe('AI Insights Routes — POST /api/ai/insights/predict/churn', () => {
       ],
       totalStudents: 1,
       creditsUsed: 5,
+      creditsRefunded: false,
     });
   });
 
@@ -273,6 +274,7 @@ describe('AI Insights Routes — POST /api/ai/insights/compare', () => {
       narrative: 'Product A has more sales than Product B',
       deltas: { sales: { a: 100, b: 80, delta: 20, deltaPercent: 25 } },
       recommendation: 'Analyze Product A success factors',
+      creditsRefunded: false,
     });
   });
 
@@ -467,6 +469,7 @@ describe('AI Insights Routes — POST /api/ai/insights/recover/email', () => {
       },
       studentName: 'juan_perez',
       productName: 'Curso de TypeScript',
+      creditsRefunded: false,
     });
   });
 

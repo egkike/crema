@@ -54,8 +54,8 @@ vi.mock('../../../services/ai/agents.service', () => ({
     updateDashboard: vi.fn().mockResolvedValue(undefined),
     deleteDashboard: vi.fn().mockResolvedValue(true),
     predictChurn: vi.fn().mockResolvedValue({ predictions: [], totalStudents: 0, creditsUsed: 5 }),
-    generateRecoveryEmail: vi.fn().mockResolvedValue({ email: { subject: 'test', bodyHtml: '<p>test</p>', previewText: 'test' }, studentName: 'Test', productName: 'Test', creditsUsed: 3, recoveryEmailId: 'r1' }),
-    compareEntities: vi.fn().mockResolvedValue({ entityA: { label: 'A', data: [] }, entityB: { label: 'B', data: [] }, narrative: 'test', deltas: [], recommendation: 'test', creditsUsed: 3 }),
+    generateRecoveryEmail: vi.fn().mockResolvedValue({ email: { subject: 'test', bodyHtml: '<p>test</p>', previewText: 'test' }, studentName: 'Test', productName: 'Test', creditsUsed: 3, recoveryEmailId: 'r1', creditsRefunded: false }),
+    compareEntities: vi.fn().mockResolvedValue({ entityA: { label: 'A', data: [] }, entityB: { label: 'B', data: [] }, narrative: 'test', deltas: [], recommendation: 'test', creditsUsed: 3, creditsRefunded: false }),
   },
   analyticsService: { getDashboardMetrics: vi.fn().mockResolvedValue({ metrics: [] }) },
 }));
