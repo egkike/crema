@@ -1052,13 +1052,18 @@ export const tutorService = {
 // =============================================================================
 
 const ALLOWED_TABLES = [
+  'ai_insights_safe_orders',
+  'ai_insights_safe_products',
+  'ai_insights_safe_users',
+  'ai_insights_safe_commissions',
+  'ai_insights_safe_reviews',
   'orders',
   'products',
   'users',
   'commissions',
   'product_reviews',
   'product_questions',
-  'balances',
+  'user_balances',
 ];
 const DANGEROUS_KEYWORDS = [
   'union',
@@ -1079,6 +1084,12 @@ const DANGEROUS_KEYWORDS = [
   'information_schema',
   'pg_',
   'pg_catalog',
+  // RLS bypass prevention: these PostgreSQL config functions can override
+  // the `app.current_creator_id` setting established by `SET LOCAL` in
+  // `withReadOnlyRole`, which would let the LLM escape creator-scoped
+  // row filtering on every RLS-protected table.
+  'set_config',
+  'current_setting',
 ];
 
 /**
@@ -1297,11 +1308,11 @@ export const insightsService = {
 Tablas disponibles:
 - orders: id, buyer_id, product_id, total_amount, currency, status, created_at
 - products: id, creator_id, title, type, status, prices (JSON), created_at
-- users: id, email, username, level, created_at
+- users: id, username, level, createdate
 - commissions: id, order_id, recipient_id, amount, currency, type, status, created_at
 - product_reviews: id, product_id, user_id, rating, content, created_at
 - product_questions: id, product_id, user_id, question, answer, created_at
-- balances: id, user_id, available, pending, currency
+- user_balances: user_id, total_earned, available_balance, pending_balance, currency, updated_at
 
 Precios en orders.total_amount (entero, ejemplo: 5000 = $50.00)
 Fechas en orders.created_at (timestamp)
@@ -1479,11 +1490,11 @@ REGLAS:
 Tablas disponibles:
 - orders: id, buyer_id, product_id, total_amount, currency, status, created_at
 - products: id, creator_id, title, type, status, prices (JSON), created_at
-- users: id, email, username, level, created_at
+- users: id, username, level, createdate
 - commissions: id, order_id, recipient_id, amount, currency, type, status, created_at
 - product_reviews: id, product_id, user_id, rating, content, created_at
 - product_questions: id, product_id, user_id, question, answer, created_at
-- balances: id, user_id, available, pending, currency
+- user_balances: user_id, total_earned, available_balance, pending_balance, currency, updated_at
 
 Precios en orders.total_amount (entero, ejemplo: 5000 = $50.00)
 Fechas en orders.created_at (timestamp)
@@ -2317,6 +2328,10 @@ REGLAS:
     for (const [index, entityLabel] of [entityA, entityB].entries()) {
       const entityName = index === 0 ? 'A' : 'B';
       try {
+        // Defense-in-depth: prevent prompt injection via the period identifier.
+        if (entityType === 'period' && !/^\d{4}-\d{2}$/.test(entityLabel)) {
+          throw new AppError('Invalid period format', 400);
+        }
         // Build NL→SQL prompt
         const metricList = metrics.join(', ');
         const sqlPrompt = `Eres un asistente que genera consultas SQL para análisis de datos.
@@ -2347,7 +2362,8 @@ REGLAS:
 - Usa SOLO SELECT
 - Usa parámetros ($1, $2) para valores dinámicos
 - Limita a 100 filas máximo
-- Usa las tablas: orders, products, users, commissions, product_reviews`;
+- Usa las tablas: orders, products, users (solo columnas: id, username, level, createdate), commissions, product_reviews, product_questions, user_balances
+- o las views equivalentes (curadas, sin PII): ai_insights_safe_orders, ai_insights_safe_products, ai_insights_safe_users, ai_insights_safe_commissions, ai_insights_safe_reviews`;
 
         const messages = llmService.buildPrompt(sqlPrompt, '', '');
         const llmResponse = await llmService.chat({
