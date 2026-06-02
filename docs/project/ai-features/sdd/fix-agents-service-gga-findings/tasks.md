@@ -1,7 +1,7 @@
 # Tasks: Fix Agents Service GGA Findings
 
 **Change**: fix-agents-service-gga-findings
-**Issue Ref**: [#42](https://github.com/egkike/crema/issues/42)
+**Issue Ref**: [#42](https://github.com/egkike/crema/issues/42) (CRITICALs fixed in PR #46) | [#47](https://github.com/egkike/crema/issues/47) (remaining WARNINGs)
 **Date**: Junio 2026
 **Status**: 🚧 IN PROGRESS
 **Author**: sdd-tasks
