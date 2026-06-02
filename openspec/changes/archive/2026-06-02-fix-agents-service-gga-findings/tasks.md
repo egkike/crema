@@ -3,7 +3,7 @@
 **Change**: fix-agents-service-gga-findings
 **Issue Ref**: [#42](https://github.com/egkike/crema/issues/42) (CRITICALs fixed in PR #46) | [#47](https://github.com/egkike/crema/issues/47) (remaining WARNINGs)
 **Date**: Junio 2026
-**Status**: 🚧 IN PROGRESS
+**Status**: ✅ COMPLETED
 **Author**: sdd-tasks
 
 ## Review Workload Forecast
@@ -77,6 +77,6 @@ Issue #42 closes: PR #3 (docs) merge closes the issue
 
 ## Task 10: Update SDD Folder Artifacts
 
-- [ ] 10.1 Update `proposal.md` status to `✅ COMPLETED` after all phases merged
-- [ ] 10.2 Append init scripts 16–19 and new lib helpers to `docs/project/reusable-resources.md` (§10 init-script inventory, §3 lib helpers)
-- [ ] 10.3 Create `post-merge-verification.md` with global regression results (tsc, lint, full test suite, GGA pass)
+- [x] 10.1 Update `proposal.md` status to `✅ COMPLETED` after all phases merged
+- [x] 10.2 Append init scripts 16–19 and new lib helpers to `docs/project/reusable-resources.md` (§10 init-script inventory, §3 lib helpers)
+- [x] 10.3 Create `post-merge-verification.md` with global regression results (tsc, lint, full test suite, GGA pass)

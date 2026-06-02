@@ -26,9 +26,18 @@
 --   * creator_id   — UUID of the requesting user. NOT a FK because
 --                    creator rows can be deleted while their audit
 --                    history must remain (audit outlives the user).
---   * sql_text     — the full executed SQL (after safeSql transformation).
---   * sql_hash     — SHA-256 of sql_text, hex-encoded (64 chars). Useful
---                    for "how often is this query run" analytics.
+--   * sql_text     — the original LLM-generated SQL (pre-sanitization),
+--                    preserved verbatim for forensic value. Note: the
+--                    statement actually executed by Postgres is the
+--                    post-sanitization `safeSql` variant (see
+--                    `agents.service.ts` — `client.query(safeSql)` while
+--                    `sqlText: generatedSql` is passed to `withReadOnlyRole`).
+--                    Storing the original lets us audit attack payloads
+--                    and prompt drift, not just the neutralized form.
+--   * sql_hash     — SHA-256 of sql_text (the same original LLM output),
+--                    hex-encoded (64 chars). Useful for dedup and
+--                    "how often is this query generated" frequency
+--                    analysis without indexing the full SQL.
 --   * result_count — number of rows returned (0 on error / write attempts).
 --   * success      — TRUE if the readonly transaction COMMITted, FALSE on
 --                    ROLLBACK (including permission-denied write attempts).

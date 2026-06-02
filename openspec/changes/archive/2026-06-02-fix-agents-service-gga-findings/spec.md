@@ -1,7 +1,7 @@
 # Fix Agents Service GGA Findings — Specification
 
 **Change**: `fix-agents-service-gga-findings` · **Issue**: [#42](https://github.com/egkike/crema/issues/42)  
-**Date**: Junio 2026 · **Status**: 🚧 IN PROGRESS · **Author**: `sdd-spec`  
+**Date**: Junio 2026 · **Status**: ✅ COMPLETED · **Author**: `sdd-spec`  
 **File**: `backend/src/services/ai/agents.service.ts`
 
 **MUST** = absolute, **SHOULD** = recommended, **MAY** = optional. Scenarios: GIVEN → WHEN → THEN.
