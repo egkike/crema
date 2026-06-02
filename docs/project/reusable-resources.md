@@ -100,6 +100,16 @@ throw new AppError('message', 400);
 | `interactiveAgentService` | Talleres dinámicos AI — user data + personalized analysis |
 | `seoOptimizerService` | SEO metadata generation (meta title, description, OG tags, schema markup) |
 
+### Lib Helpers
+
+Standalone cross-cutting helpers in `src/lib/`. Reusable across services; pure functions or thin async wrappers with no service-layer coupling.
+
+| Helper | What it does | Pattern |
+|--------|-------------|---------|
+| `withReadOnlyRole` | Defense-in-depth: BEGIN + `SET LOCAL ROLE ai_insights_ro` + `SET LOCAL app.current_creator_id` + user fn + audit write + COMMIT/ROLLBACK. Guarantees LLM-generated SQL runs as a least-privilege role with RLS filtering, and every execution is recorded in `ai_sql_audit`. | Async function `(userId, { op, sqlText }, fn) => { result, audit }` |
+| `sanitizeEmailHtml` | Email-safe HTML allowlist via `sanitize-html` (no native deps, server-side optimized). Preserves `<a>`, `<b>`, `<i>`, `<p>`, `<ul>`, `<li>`, `<h1>`–`<h3>`, `https`/`mailto` schemes only. Strips `<script>`, `on*` handlers, `<svg>` with active content, `<iframe>`, `javascript:` URIs, and Unicode-escape variants. | Pure function `(html: string) => string` |
+| `withSanitizedErrors` | Wraps DB-touching callbacks: catches non-`AppError` errors, logs the full detail server-side with `{ err, op, userId }`, throws a generic `AppError('Error executing query', 500)` to the client. `AppError` instances pass through unchanged (4xx from upstream validation are preserved). | Async wrapper `(op, userId, fn) => Promise<T>` |
+
 ### Orchestrator
 
 ```typescript
@@ -328,6 +338,11 @@ Database initialization scripts run **once on first container start** via docker
 | `12-interactive-agent.sql` | `user_course_data`, `product_module_fields` tables for interactive agent (talleres dinámicos AI) | `interactive-agent` |
 | `13-seo-optimizer-tables.sql` | `seo_metadata`, `keyword_rankings` tables for SEO optimizer | `seo-optimizer` |
 | `14-ai-insights-expansion.sql` | `churn_predictions`, `recovery_emails`, `ab_comparatives` tables + insights_history fixes for AI insights expansion | `ai-insights-expansion` |
+| `15-tutor-conversations.sql` | (doc-only) No-op migration; `agent_type='tutor'` already supported by existing `agent_conversations` table | `fix-agents-service-gga-findings` |
+| `16-ai-insights-views.sql` | 5 curated `ai_insights_safe_*` views (orders, products, users, commissions, reviews) with `security_invoker = true`, no PII, `creator_id` embedded | `fix-agents-service-gga-findings` |
+| `17-ai-insights-role.sql` | `ai_insights_ro` NOLOGIN role with SELECT-only on the 5 views; REVOKE on raw tables; GRANT membership to the app user | `fix-agents-service-gga-findings` |
+| `18-ai-insights-rls.sql` | RLS policies on 5 underlying tables — `FOR SELECT TO ai_insights_ro` using `current_setting('app.current_creator_id', true)::uuid` | `fix-agents-service-gga-findings` |
+| `19-ai-sql-audit.sql` | `ai_sql_audit` table (BIGSERIAL id, creator_id, sql_text, sql_hash, result_count, success, error_message, duration_ms, created_at) + 3 indexes; REVOKE on the table for the read-only role | `fix-agents-service-gga-findings` |
 
 > **📝 For SDD authors:** When creating a new `db/init/XX-*.sql` script:
 > 1. Document the script in your SDD tasks.md (e.g., Task 0 or first task)
