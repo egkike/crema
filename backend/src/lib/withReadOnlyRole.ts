@@ -39,6 +39,7 @@
  * See docs/project/ai-features/sdd/fix-agents-service-gga-findings/design.md §3.1.
  */
 import { createHash } from 'crypto';
+
 import type { PoolClient } from 'pg';
 
 import pool from '../db/postgres';

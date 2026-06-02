@@ -58,11 +58,6 @@ function buildMockClient(): MockClient {
   };
 }
 
-function lastQuerySql(mockClient: MockClient): string {
-  const calls = mockClient.query.mock.calls;
-  return calls[calls.length - 1][0] as string;
-}
-
 function allQuerySql(mockClient: MockClient): string[] {
   return mockClient.query.mock.calls.map((call) => call[0] as string);
 }
