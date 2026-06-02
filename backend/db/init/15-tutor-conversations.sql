@@ -1,0 +1,24 @@
+-- =============================================================================
+-- 15-tutor-conversations.sql
+--
+-- SDD: fix-agents-service-gga-findings (Phase 2, finding #8)
+-- Refs: issue #47, PR #2 of the chained fix.
+--
+-- PURPOSE
+--   Document that `agent_type = 'tutor'` is already supported by the existing
+--   `agent_conversations` table, and that the Phase 2 fix lives in the
+--   application layer (tutorService.chat / chatStream) rather than the schema.
+--
+-- WHY NO DDL
+--   `agent_conversations.agent_type` is a free-text column (added in 12-interactive-agent.sql)
+--   so 'tutor' works without any change. The previous behaviour — using
+--   `productId` as the returned `conversationId` — was a contract bug, not a
+--   schema bug. tutorService.chat and chatStream now persist via
+--   createConversation('tutor', productId, userId) and return the real UUID.
+--
+-- This file is intentionally a no-op so that the init-script sequence number
+-- remains consistent with the SDD work-unit ordering (reusable-resources.md §10).
+-- =============================================================================
+
+-- No schema changes required.
+SELECT 1;

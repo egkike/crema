@@ -11,6 +11,8 @@ import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 import { getValidatedSchema } from '../../utils/validators.util';
 import { verifyProductOwnership, verifyBuyerOfProduct, verifyCreatorHasDataInPeriod } from '../../utils/routeHelpers.util';
+import { sanitizeEmailHtml } from '../../lib/sanitizeEmailHtml';
+import { withSanitizedErrors } from '../../lib/withSanitizedErrors';
 
 import { aiCreditService } from './credits.service';
 import { llmService, type LLMMessage, type ChatStreamResponse } from './llm.service';
@@ -191,7 +193,11 @@ export const qaAgentService = {
       RETURNING *
     `;
 
-    const { rows } = await pool.query<QAAgentConfig>(query, params);
+    const { rows } = await withSanitizedErrors(
+      'qaAgentService.updateConfig',
+      undefined,
+      () => pool.query<QAAgentConfig>(query, params)
+    );
     logger.info({ productId }, 'QA agent config updated');
     return rows[0];
   },
@@ -210,12 +216,16 @@ export const qaAgentService = {
       VALUES ($1, $2, $3, $4)
       RETURNING id, agent_type, product_id, user_id, status, metadata, created_at, updated_at
     `;
-    const { rows } = await pool.query<AgentConversation>(query, [
-      agentType,
-      productId,
+    const { rows } = await withSanitizedErrors(
+      'qaAgentService.createConversation',
       userId,
-      JSON.stringify(metadata),
-    ]);
+      () => pool.query<AgentConversation>(query, [
+        agentType,
+        productId,
+        userId,
+        JSON.stringify(metadata),
+      ])
+    );
     return rows[0];
   },
 
@@ -233,12 +243,16 @@ export const qaAgentService = {
       VALUES ($1, $2, $3, $4)
       RETURNING id, conversation_id, role, content, tokens_used, created_at
     `;
-    const { rows } = await pool.query<AgentMessage>(query, [
-      conversationId,
-      role,
-      content,
-      tokensUsed,
-    ]);
+    const { rows } = await withSanitizedErrors(
+      'qaAgentService.addMessage',
+      undefined,
+      () => pool.query<AgentMessage>(query, [
+        conversationId,
+        role,
+        content,
+        tokensUsed,
+      ])
+    );
     return rows[0];
   },
 
@@ -736,7 +750,11 @@ export const tutorService = {
       ON CONFLICT (product_id) DO UPDATE SET ${setClauses.join(', ')}
     `;
 
-    await pool.query(query, params);
+    await withSanitizedErrors(
+      'tutorService.updateConfig',
+      undefined,
+      () => pool.query(query, params)
+    );
     logger.info({ productId }, 'Tutor config updated');
   },
 
@@ -858,8 +876,35 @@ export const tutorService = {
 
     const response = llmResponse.content;
 
-    logger.info({ productId, userId }, 'Tutor response generated');
-    return { response, conversationId: productId };
+    // Persist conversation + messages so the returned conversationId
+    // is a real UUID (not the productId). Each call creates a new
+    // conversation; the caller is responsible for tracking the
+    // returned conversationId if continuing the same thread.
+    // Phase 2 fix for issue #42 / PR #2.
+    let conversationId: string;
+    try {
+      const conv = await qaAgentService.createConversation('tutor', productId, userId, {
+        productId,
+      });
+      await qaAgentService.addMessage(conv.id, 'user', message);
+      const assistantTokens = llmResponse?.usage?.totalTokens ?? Math.ceil(response.length / 4);
+      await qaAgentService.addMessage(conv.id, 'assistant', response, assistantTokens);
+      conversationId = conv.id;
+    } catch (persistErr: unknown) {
+      // Persistence is best-effort — do not block the user response if the
+      // conversation table is unreachable. The previous behaviour was to
+      // return productId as the id; we still want to return SOMETHING
+      // shaped like an id, so keep productId as the fallback.
+      const errMsg = persistErr instanceof Error ? persistErr.message : 'Unknown error';
+      logger.error(
+        { err: errMsg, productId, userId },
+        'tutorService.chat: failed to persist conversation, falling back to productId',
+      );
+      conversationId = productId;
+    }
+
+    logger.info({ productId, userId, conversationId }, 'Tutor response generated');
+    return { response, conversationId };
   },
 
   /**
@@ -946,8 +991,9 @@ export const tutorService = {
     if (config.maxTokens !== undefined) streamOptions.maxTokens = config.maxTokens;
     if (signal) streamOptions.signal = signal;
 
+    let streamResult: ChatStreamResponse | undefined;
     try {
-      await llmService.chatStream(streamOptions);
+      streamResult = await llmService.chatStream(streamOptions);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled - refund credits
@@ -967,7 +1013,30 @@ export const tutorService = {
     }
 
     logger.info({ productId, userId }, 'Tutor stream completed');
-    return { conversationId: productId, content: fullResponse };
+
+    // Persist conversation + messages (Phase 2 fix — see task 2.8 in
+    // docs/project/ai-features/sdd/fix-agents-service-gga-findings/tasks.md).
+    // Best-effort: do not break the user-visible stream if persistence fails.
+    let conversationId: string;
+    try {
+      const conv = await qaAgentService.createConversation('tutor', productId, userId, {
+        productId,
+      });
+      await qaAgentService.addMessage(conv.id, 'user', message);
+      const streamTokens =
+        streamResult?.usage?.totalTokens ?? Math.ceil(fullResponse.length / 4);
+      await qaAgentService.addMessage(conv.id, 'assistant', fullResponse, streamTokens);
+      conversationId = conv.id;
+    } catch (persistErr: unknown) {
+      const errMsg = persistErr instanceof Error ? persistErr.message : 'Unknown error';
+      logger.error(
+        { err: errMsg, productId, userId },
+        'tutorService.chatStream: failed to persist conversation, falling back to productId',
+      );
+      conversationId = productId;
+    }
+
+    return { conversationId, content: fullResponse };
   },
 };
 
@@ -1058,40 +1127,20 @@ function validateGeneratedSQL(sql: string): { valid: boolean; reason?: string } 
 
 /**
  * Sanitize HTML output from LLM — strips XSS vectors before persistence or return.
- * Removes: <script> tags, <iframe> tags, javascript: URIs, on* event handlers.
- * Decodes HTML entities before checking to prevent entity-encoded bypasses.
+ *
+ * Re-export of `sanitizeEmailHtml` (see `backend/src/lib/sanitizeEmailHtml.ts`).
+ * The previous hand-rolled implementation was replaced in PR #2 of
+ * `fix-agents-service-gga-findings` because it missed several XSS vectors
+ * (Unicode escapes inside attribute values, SVG with active content,
+ * attribute-based XSS via non-`href` attributes, tab/newline splitting
+ * inside tag names). `sanitize-html` covers all of these and is pure-JS,
+ * no native deps.
+ *
+ * @deprecated Prefer importing `sanitizeEmailHtml` directly from
+ *   `../../lib/sanitizeEmailHtml`. This re-export is kept for backward
+ *   compatibility with any internal call sites.
  */
-export function sanitizeHtml(html: string): string {
-  if (!html) return '';
-
-  let sanitized = html;
-
-  // Decode HTML entities before running security checks (prevents &#106;&#97;&#118;&#97;... bypass)
-  function decodeHtmlEntities(text: string): string {
-    return text
-      .replace(/&#(\d+);/g, (_: string, code: string) => String.fromCodePoint(Number(code)))
-      .replace(/&#x([0-9a-f]+);/gi, (_: string, code: string) => String.fromCodePoint(parseInt(code, 16)));
-  }
-  sanitized = decodeHtmlEntities(sanitized);
-
-  // Strip <iframe> tags (including self-closing) — srcdoc can bypass <script> stripping
-  sanitized = sanitized.replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
-  sanitized = sanitized.replace(/<iframe[^>]*\/?>/gi, '');
-
-  // Strip <script>...</script> tags (case-insensitive, handles nested)
-  sanitized = sanitized.replace(/<script[\s\S]*?<\/script>/gi, '');
-  // Strip self-closing or unclosed <script> tags
-  sanitized = sanitized.replace(/<script[^>]*\/?>/gi, '');
-
-  // Strip javascript: URIs
-  sanitized = sanitized.replace(/javascript\s*:/gi, '');
-
-  // Strip on* event handlers (onclick, onerror, onload, onmouseover, etc.)
-  sanitized = sanitized.replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '');
-  sanitized = sanitized.replace(/\son\w+\s*=\s*[^\s>]+/gi, '');
-
-  return sanitized;
-}
+export const sanitizeHtml = sanitizeEmailHtml;
 
 export const insightsService = {
   /**
@@ -1348,7 +1397,11 @@ REGLAS:
             ) // Force limit
             .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100'); // Handle LIMIT ALL
 
-          const { rows } = await pool.query(safeSql);
+          const { rows } = await withSanitizedErrors(
+            'insightsService.query',
+            userId,
+            () => pool.query(safeSql)
+          );
           sqlResults = rows;
         }
       } catch (sqlError: unknown) {
@@ -1574,7 +1627,11 @@ REGLAS:
             ) // Force limit
             .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100'); // Handle LIMIT ALL
 
-          const { rows } = await pool.query(safeSql);
+          const { rows } = await withSanitizedErrors(
+            'insightsService.chatStream',
+            userId,
+            () => pool.query(safeSql)
+          );
           sqlResults = rows;
           onChunk(JSON.stringify(sqlResults), 'results');
         }
@@ -1695,13 +1752,17 @@ REGLAS:
       GROUP BY o.buyer_id, u.username
       LIMIT 500
     `;
-    const { rows: studentRows } = await pool.query<{
-      buyer_id: string;
-      user_name: string;
-      progress: number;
-      interactions_60d: number;
-      days_since_last_access: number;
-    }>(studentDataQuery, [productId]);
+    const { rows: studentRows } = await withSanitizedErrors(
+      'predictChurn.studentQuery',
+      userId,
+      () => pool.query<{
+        buyer_id: string;
+        user_name: string;
+        progress: number;
+        interactions_60d: number;
+        days_since_last_access: number;
+      }>(studentDataQuery, [productId])
+    );
 
     const totalStudents = studentRows.length;
     logger.info({ studentCount: totalStudents }, 'Student data collected for churn prediction');
@@ -2031,13 +2092,17 @@ ${JSON.stringify(finalStudentData, null, 2)}`;
       FROM "${schema}".users u
       WHERE u.id = $2
     `;
-    const { rows: studentRows } = await pool.query<{
-      user_id: string;
-      username: string;
-      email: string;
-      progress: number;
-      last_access: Date | null;
-    }>(studentQuery, [productId, targetUserId]);
+    const { rows: studentRows } = await withSanitizedErrors(
+      'generateRecoveryEmail.studentQuery',
+      creatorId,
+      () => pool.query<{
+        user_id: string;
+        username: string;
+        email: string;
+        progress: number;
+        last_access: Date | null;
+      }>(studentQuery, [productId, targetUserId])
+    );
 
     if (studentRows.length === 0) {
       throw new AppError('Estudiante no encontrado', 404);
@@ -2126,8 +2191,8 @@ REGLAS:
       throw new AppError('Respuesta inválida del modelo de IA', 500);
     }
 
-    // 8. Sanitize HTML
-    const sanitizedBodyHtml = sanitizeHtml(parsed.bodyHtml);
+    // 8. Sanitize HTML (vetted `sanitize-html` allowlist — see sanitizeEmailHtml.ts)
+    const sanitizedBodyHtml = sanitizeEmailHtml(parsed.bodyHtml);
 
     // 9. Persist to recovery_emails table
     let creditsRefunded = false;
@@ -2318,7 +2383,11 @@ REGLAS:
           .replace(/\bLIMIT\s+ALL\b/gi, 'LIMIT 100');
 
         try {
-          const { rows } = await pool.query(safeSql);
+          const { rows } = await withSanitizedErrors(
+            'insightsService.compareEntities',
+            creatorId,
+            () => pool.query(safeSql)
+          );
           entityResults.push({ label: entityLabel, data: rows.length > 0 ? rows[0] : {} });
         } catch (err) {
           entityResults.push({ label: entityLabel, data: { error: 'Error executing comparative query' } });

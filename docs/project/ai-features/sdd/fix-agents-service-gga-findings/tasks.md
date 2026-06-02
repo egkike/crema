@@ -47,16 +47,16 @@ Issue #42 closes: PR #3 (docs) merge closes the issue
 
 ## Phase 2: WARNING Hardening — Sanitizer + Error Wrapper + Conversation Contract (PR 2a + PR 2b)
 
-- [ ] 2.1 Create `backend/src/lib/sanitizeEmailHtml.ts`: configure `sanitize-html` with email-friendly allowlist (`<a>`, `<b>`, `<i>`, `<p>`, `<ul>`, `<li>`, `<h1>`–`<h3>`, `https`/`mailto` schemes only)
-- [ ] 2.2 Create `backend/src/lib/withSanitizedErrors.ts`: wrapper that catches non-AppError DB errors, logs detail server-side with `{ op, userId }`, throws generic `AppError('Error executing query', 500)`
-- [ ] 2.3 Replace hand-rolled `sanitizeHtml()` in `agents.service.ts` (lines ~1045–1075) with `sanitizeEmailHtml`; update call site at line ~2114
-- [ ] 2.4 Apply `withSanitizedErrors` wrapper to DB query paths: `insightsService.query`, `chatStream`, `compareEntities`, `predictChurn` student query, `generateRecoveryEmail` student query
-- [ ] 2.5 Write tests: `sanitizeEmailHtml` strips 4 XSS vectors (Unicode escapes, SVG, attribute-based XSS, tab/newline splitting); preserves legitimate markup (`<a>`, `<b>`, `<ul>`, `<h1>`)
-- [ ] 2.6 Write tests: `withSanitizedErrors` passes through AppError/4xx; replaces raw Error with generic 500; server log contains full detail
-- [ ] 2.7 Fix `tutorService.chat` (line ~762): call `createConversation('tutor', productId, userId)` and `addMessage`; return `conversationId: conv.id` (real UUID, not productId)
-- [ ] 2.8 Fix `tutorService.chatStream` (line ~849): persist conversation + messages using existing `createConversation`/`addMessage` helpers
-- [ ] 2.9 Create `backend/db/init/15-tutor-conversations.sql`: no-op doc-only migration noting `agent_type='tutor'` already supported
-- [ ] 2.10 Write tests: `tutorService.chat` returns real UUID v4 `conversationId`; `chatStream` persists to `agent_conversations` + `agent_conversation_messages`
+- [x] 2.1 Create `backend/src/lib/sanitizeEmailHtml.ts`: configure `sanitize-html` with email-friendly allowlist (`<a>`, `<b>`, `<i>`, `<p>`, `<ul>`, `<li>`, `<h1>`–`<h3>`, `https`/`mailto` schemes only)
+- [x] 2.2 Create `backend/src/lib/withSanitizedErrors.ts`: wrapper that catches non-AppError DB errors, logs detail server-side with `{ op, userId }`, throws generic `AppError('Error executing query', 500)`
+- [x] 2.3 Replace hand-rolled `sanitizeHtml()` in `agents.service.ts` (lines ~1045–1075) with `sanitizeEmailHtml`; update call site at line ~2114
+- [x] 2.4 Apply `withSanitizedErrors` wrapper to DB query paths: `insightsService.query`, `chatStream`, `compareEntities`, `predictChurn` student query, `generateRecoveryEmail` student query
+- [x] 2.5 Write tests: `sanitizeEmailHtml` strips 4 XSS vectors (Unicode escapes, SVG, attribute-based XSS, tab/newline splitting); preserves legitimate markup (`<a>`, `<b>`, `<ul>`, `<h1>`)
+- [x] 2.6 Write tests: `withSanitizedErrors` passes through AppError/4xx; replaces raw Error with generic 500; server log contains full detail
+- [x] 2.7 Fix `tutorService.chat` (line ~762): call `createConversation('tutor', productId, userId)` and `addMessage`; return `conversationId: conv.id` (real UUID, not productId)
+- [x] 2.8 Fix `tutorService.chatStream` (line ~849): persist conversation + messages using existing `createConversation`/`addMessage` helpers
+- [x] 2.9 Create `backend/db/init/15-tutor-conversations.sql`: no-op doc-only migration noting `agent_type='tutor'` already supported
+- [x] 2.10 Write tests: `tutorService.chat` returns real UUID v4 `conversationId`; `chatStream` persists to `agent_conversations` + `agent_conversation_messages`
 
 ## Phase 3: Architectural — Views + RLS + Audit on Primary DB (PR 3.1 + PR 3.2)
 
