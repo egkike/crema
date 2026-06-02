@@ -153,3 +153,40 @@ Lessons learned (saved to engram for future SDD cycles):
 - Don't use "Closes #N" on intermediate chained PRs — only on the last one.
 - GGA has a hard prompt-size limit (~200KB) independent of the 600-line reviewer budget. Plan for split commits when changes touch many files.
 - When a tool returns empty results, STOP and ASK the user. Don't relaunch, don't try workarounds.
+
+---
+
+## 10. Post-Archive Follow-up — PR #51 (defense-in-depth gaps)
+
+After archiving this SDD, a manual end-to-end audit against the live Docker DB (`crema-db`) found **2 production-blocking bugs** that the original verify phase missed:
+
+| # | Bug | Why verify missed it |
+|---|-----|----------------------|
+| A | `ai_insights_safe_users` view failed to compile — referenced `users.created_at` but the actual column is `users.createdate` (historical exception, no underscore) | View was never queried in tests |
+| B | `ai_insights_ro` had `REVOKE ALL` on raw tables, but the LLM prompt instructed the LLM to use raw tables → every NL→SQL query would fail `permission denied` at runtime | Tests mocked the DB (`pool.query` mocked → no real role enforcement) |
+
+PR [#51](https://github.com/egkike/crema/pull/51) (5 files, 108+ / 30−) closed those plus **4 more defense-in-depth gaps** found by running a fresh judgment-day pair on the same diff:
+
+1. Column-level grant on `users` (`id, username, level, createdate`) to strip PII (email/password/two_factor_secret/reset tokens were readable by the LLM)
+2. RLS policies for `product_questions` and `user_balances` (had GRANT but no RLS — tenant isolation broken)
+3. `set_config` / `current_setting` added to `DANGEROUS_KEYWORDS` (RLS bypass prevention)
+4. `ALLOWED_TABLES` missing 5 view names + had `balances` (wrong — table is `user_balances`) — making the views-first design's preferred path dead code
+
+### What this SDD got right vs. what it missed
+
+**Right**:
+- Architecture (views + RLS + read-only role + audit) is sound and now production-correct.
+- All 4 PRs followed the chained-PR protocol with docs split out.
+- The original GGA findings are all resolved.
+
+**Missed**:
+- The verify phase (sdd-verify) ran unit tests that mocked the DB, so no end-to-end behavior was tested.
+- The judgment-day pair on Phase 3 didn't catch the missing RLS policies (probably because the SQL was reviewed statically, not against a live DB).
+- The LLM prompt change in PR #50 (adding view names) was reviewed for grammar/correctness, not for whether the views would actually compile.
+
+### Lessons learned (new)
+
+- **A test suite that mocks the DB cannot catch DB-level bugs.** Defense-in-depth layers added by this SDD (view aliases, RLS policies, role grants, dangerous keyword blocklist) require integration tests against a real Postgres container. Tracked as follow-up.
+- **Judgment-day reviews on SQL changes need a "run it" step** — `EXPLAIN`-based verification or a smoke test against a live DB. Static review caught syntax, not runtime behavior.
+- **PG grants are additive** — `GRANT SELECT (col1, col2)` does NOT replace a prior table-level `GRANT SELECT`. You must `REVOKE` first. Caught and fixed during PR #51's DB smoke test.
+- **GGA bypass recovery**: `git reset --soft HEAD~1` + re-run `gga run` + re-commit. `gga run` only reviews staged changes, not commits. PR #51's first commit (39c2a78) bypassed GGA due to a bash timeout; recovered with this procedure.
