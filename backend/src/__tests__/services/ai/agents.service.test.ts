@@ -1083,13 +1083,19 @@ describe('insightsService.generateRecoveryEmail', () => {
     // 2) <iframe> tags stripped (including srcdoc)
     expect(result.email.bodyHtml).not.toContain('<iframe');
     expect(result.email.bodyHtml).not.toContain('srcdoc');
-    // 3) javascript: URIs stripped
-    expect(result.email.bodyHtml).not.toContain('javascript:');
+    // 3) javascript: URI removed from the <a> href attribute (the dangerous
+    //    vector is the URI, not the literal text). The text content of the
+    //    <a> tag is preserved, but the href attribute is dropped.
+    expect(result.email.bodyHtml).not.toMatch(/href\s*=\s*["']?javascript:/i);
     // 4) on* event handlers stripped
     expect(result.email.bodyHtml).not.toContain('onerror');
     // 5) Entity-encoded bypass caught — the encoded version does not survive
+    //    as raw entities in the output (sanitize-html decodes them to text,
+    //    which is harmless because no URL attribute survives).
     expect(result.email.bodyHtml).not.toContain('&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;');
     expect(result.email.bodyHtml).not.toContain('&#40;&#49;&#41;');
+    // 6) <img> tag stripped (not in allowlist)
+    expect(result.email.bodyHtml).not.toContain('<img');
     // Safe tags preserved
     expect(result.email.bodyHtml).toContain('<p>');
   });
@@ -1455,3 +1461,248 @@ describe('Regression: Auth enforcement in compareEntities — period type', () =
     expect(err.message).toContain('No data available for the requested period');
   });
 });
+
+// =============================================================================
+// tutorService.chat / chatStream Conversation Persistence (PR #2 / Task 2.7, 2.8, 2.10)
+// =============================================================================
+
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+describe('tutorService.chat — conversation persistence (PR #2 / Task 2.7)', () => {
+  const productId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const userId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const creditsModule = await import('../../../services/ai/credits.service');
+    const aiCreditService = creditsModule.aiCreditService;
+    (aiCreditService.getBalance as ReturnType<typeof vi.fn>).mockResolvedValue({
+      balance: 100,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    (aiCreditService.useCredits as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (aiCreditService.getOperationCost as ReturnType<typeof vi.fn>).mockImplementation((op) => {
+      if (op === 'churn_prediction') return 5;
+      return 1;
+    });
+  });
+
+  /**
+   * Sets up `pool.query` to handle the call sequence used by `tutorService.chat`:
+   *   1) getConfig   (product_tutor_config)
+   *   2) lessons     (lessons JOIN modules)
+   *   3) createConversation (agent_conversations INSERT ... RETURNING)
+   *   4) addMessage  (agent_messages INSERT ... RETURNING)  — called twice
+   */
+  async function mockTutorChatPoolQuery(options: {
+    conversationInsertShouldFail?: boolean;
+  } = {}) {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+
+    const fakeConvId = crypto.randomUUID();
+    queryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes('product_tutor_config')) {
+        return { rows: [{ product_id: productId, is_enabled: true, model: 'gpt-4', system_prompt: null, temperature: 0.7, max_tokens: 1000, use_memory: true, use_faqs: true }] };
+      }
+      if (sql.includes('FROM') && sql.includes('lessons') && sql.includes('modules')) {
+        return { rows: [] };
+      }
+      if (sql.includes('agent_conversations') && sql.includes('INSERT')) {
+        if (options.conversationInsertShouldFail) {
+          throw new Error('simulated DB failure on conversation insert');
+        }
+        return {
+          rows: [{
+            id: fakeConvId,
+            agent_type: 'tutor',
+            product_id: productId,
+            user_id: userId,
+            status: 'active',
+            metadata: { productId },
+            created_at: new Date(),
+            updated_at: new Date(),
+          }],
+        };
+      }
+      if (sql.includes('agent_messages') && sql.includes('INSERT')) {
+        return { rows: [{ id: crypto.randomUUID() }] };
+      }
+      return { rows: [] };
+    });
+
+    return { fakeConvId };
+  }
+
+  it('returns a real UUID v4 conversationId, NOT the productId', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: 'Hola, soy el tutor. ¿En qué puedo ayudarte?',
+      model: 'simulator',
+    });
+    const { fakeConvId } = await mockTutorChatPoolQuery();
+
+    const { tutorService } = await import('../../../services/ai/agents.service');
+    const result = await tutorService.chat(productId, userId, 'Hola');
+
+    // The conversationId must be a UUID v4 — not the productId
+    expect(result.conversationId).not.toBe(productId);
+    expect(result.conversationId).toMatch(UUID_V4_REGEX);
+    // It should match the UUID returned by the (mocked) createConversation call
+    expect(result.conversationId).toBe(fakeConvId);
+    // The assistant content should still come through
+    expect(result.response).toContain('tutor');
+  });
+
+  it('persists both user and assistant messages via addMessage', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: 'response-content-123',
+      model: 'simulator',
+    });
+    await mockTutorChatPoolQuery();
+
+    const { tutorService } = await import('../../../services/ai/agents.service');
+    await tutorService.chat(productId, userId, 'user-message-456');
+
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    const agentMessagesCalls = queryMock.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('agent_messages') && call[0].includes('INSERT'),
+    );
+    // user message + assistant message = 2 inserts
+    expect(agentMessagesCalls).toHaveLength(2);
+    // user message
+    expect(agentMessagesCalls[0][1]).toEqual(expect.arrayContaining(['user', 'user-message-456']));
+    // assistant message
+    expect(agentMessagesCalls[1][1]).toEqual(expect.arrayContaining(['assistant', 'response-content-123']));
+  });
+
+  it('falls back to productId if persistence fails (best-effort, does not break the response)', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({
+      content: 'response',
+      model: 'simulator',
+    });
+    await mockTutorChatPoolQuery({ conversationInsertShouldFail: true });
+
+    const { tutorService } = await import('../../../services/ai/agents.service');
+    const result = await tutorService.chat(productId, userId, 'hi');
+
+    // User still gets a usable response
+    expect(result.response).toBe('response');
+    // Fallback is the productId (so the API contract shape is preserved)
+    expect(result.conversationId).toBe(productId);
+  });
+
+  it('passes agent_type=tutor in createConversation', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chat).mockResolvedValue({ content: 'ok', model: 'simulator' });
+    await mockTutorChatPoolQuery();
+
+    const { tutorService } = await import('../../../services/ai/agents.service');
+    await tutorService.chat(productId, userId, 'test');
+
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    const convInsert = queryMock.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('agent_conversations') && call[0].includes('INSERT'),
+    );
+    expect(convInsert).toBeDefined();
+    // First positional param after the SQL is 'tutor'
+    expect(convInsert![1][0]).toBe('tutor');
+    // productId and userId follow
+    expect(convInsert![1][1]).toBe(productId);
+    expect(convInsert![1][2]).toBe(userId);
+  });
+});
+
+describe('tutorService.chatStream — conversation persistence (PR #2 / Task 2.8)', () => {
+  const productId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const userId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const creditsModule = await import('../../../services/ai/credits.service');
+    const aiCreditService = creditsModule.aiCreditService;
+    (aiCreditService.getBalance as ReturnType<typeof vi.fn>).mockResolvedValue({
+      balance: 100,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    (aiCreditService.useCredits as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (aiCreditService.addCredits as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (aiCreditService.getOperationCost as ReturnType<typeof vi.fn>).mockImplementation((op) => {
+      if (op === 'churn_prediction') return 5;
+      return 1;
+    });
+  });
+
+  async function mockTutorStreamPoolQuery() {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    const fakeConvId = crypto.randomUUID();
+    queryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes('product_tutor_config')) {
+        return { rows: [{ product_id: productId, is_enabled: true, model: 'gpt-4', system_prompt: null, temperature: 0.7, max_tokens: 1000, use_memory: true, use_faqs: true }] };
+      }
+      if (sql.includes('FROM') && sql.includes('lessons') && sql.includes('modules')) {
+        return { rows: [] };
+      }
+      if (sql.includes('agent_conversations') && sql.includes('INSERT')) {
+        return { rows: [{ id: fakeConvId, agent_type: 'tutor', product_id: productId, user_id: userId, status: 'active', metadata: { productId }, created_at: new Date(), updated_at: new Date() }] };
+      }
+      if (sql.includes('agent_messages') && sql.includes('INSERT')) {
+        return { rows: [{ id: crypto.randomUUID() }] };
+      }
+      return { rows: [] };
+    });
+    return { fakeConvId };
+  }
+
+  it('persists the conversation and returns a real UUID v4 conversationId', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chatStream).mockImplementation(async (opts) => {
+      // Simulate the streaming LLM calling the chunk callback
+      if (opts && typeof opts === 'object' && 'onChunk' in opts && opts.onChunk) {
+        opts.onChunk('Hola ');
+        opts.onChunk('mundo');
+      }
+      return { content: 'Hola mundo' };
+    });
+
+    const { fakeConvId } = await mockTutorStreamPoolQuery();
+    const { tutorService } = await import('../../../services/ai/agents.service');
+    const result = await tutorService.chatStream(productId, userId, 'hola', () => {});
+
+    // conversationId is a real UUID v4 — not the productId
+    expect(result.conversationId).not.toBe(productId);
+    expect(result.conversationId).toMatch(UUID_V4_REGEX);
+    expect(result.conversationId).toBe(fakeConvId);
+    // Content accumulated from chunks
+    expect(result.content).toBe('Hola mundo');
+  });
+
+  it('persists user and assistant messages in agent_messages', async () => {
+    const { llmService } = await import('../../../services/ai/llm.service');
+    vi.mocked(llmService.chatStream).mockImplementation(async (opts) => {
+      if (opts && typeof opts === 'object' && 'onChunk' in opts && opts.onChunk) {
+        opts.onChunk('resp-1');
+      }
+      return { content: 'resp-1' };
+    });
+
+    await mockTutorStreamPoolQuery();
+    const { tutorService } = await import('../../../services/ai/agents.service');
+    await tutorService.chatStream(productId, userId, 'msg-1', () => {});
+
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    const messageInserts = queryMock.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('agent_messages') && call[0].includes('INSERT'),
+    );
+    expect(messageInserts).toHaveLength(2);
+    expect(messageInserts[0][1]).toEqual(expect.arrayContaining(['user', 'msg-1']));
+    expect(messageInserts[1][1]).toEqual(expect.arrayContaining(['assistant', 'resp-1']));
+  });
+});
+
