@@ -29,8 +29,13 @@ Issue #42 closes: PR #3 (docs) merge closes the issue
 |----|------|-------|-------|-------------|
 | **PR 1** | master | 1.1–1.8 | SQL injection ×2 + auth gaps ×3 + 2 helpers + regression tests | ~350 |
 | **PR 2** | master | 2.1–2.10 | Sanitizer swap + error wrapper + tutor chat persistence | ~350 |
-| **PR 3** | master | 3.1–3.9 | Views/RLS/role + readOnlyRole + scheduler + audit + tests | ~300 |
+| **PR 3a** | master | 3.1–3.5 | SQL files 16-19 + `withReadOnlyRole` lib + tests | ~300 |
+| **PR 3b** | master | 3.1–3.5 | (merged with 3a) | — |
+| **PR 3c** | master | 3.6–3.9 | Wire `withReadOnlyRole` into agents.service.ts + audit-cleanup scheduler/worker + wire-in tests | ~200 |
 | **Docs** | master (direct push) | 10.1–10.3 | reusable-resources.md §3 + §10 + post-merge verification | ~100 |
+
+**PR #49 merged**: PR 3a + 3b (SQL files 16-19 + `withReadOnlyRole` lib + its 20 isolated tests) shipped to master.
+**PR 3c (this)**: wires the lib into the 3 LLM-SQL execution paths in `agents.service.ts`, adds the audit-cleanup job to the scheduler/worker, and adds the wire-in tests.
 
 **Post-merge (PRs #1–#3 merged)**: Task 10 — push docs directo a master (no PR, no review).
 
@@ -60,15 +65,15 @@ Issue #42 closes: PR #3 (docs) merge closes the issue
 
 ## Phase 3: Architectural — Views + RLS + Audit on Primary DB (PR 3.1 + PR 3.2)
 
-- [ ] 3.1 Create `backend/db/init/16-ai-insights-views.sql`: 5 curated views (`ai_insights_safe_orders`, `_products`, `_users`, `_commissions`, `_reviews`) with safe columns only, no PII, `creator_id` embedded via JOINs
-- [ ] 3.2 Create `backend/db/init/17-ai-insights-role.sql`: `ai_insights_ro` role (NOLOGIN), SELECT only on views, explicit REVOKE on underlying tables
-- [ ] 3.3 Create `backend/db/init/18-ai-insights-rls.sql`: RLS policies on 5 underlying tables using `current_setting('app.current_creator_id')::uuid`; `ENABLE` + `FORCE ROW LEVEL SECURITY`
-- [ ] 3.4 Create `backend/db/init/19-ai-sql-audit.sql`: `ai_sql_audit` table (id, creator_id, sql_text, sql_hash, result_count, success, error_message, duration_ms, created_at) + index
-- [ ] 3.5 Create `backend/src/lib/withReadOnlyRole.ts`: helper that acquires pool client, runs `BEGIN` + `SET LOCAL ROLE ai_insights_ro` + `SET LOCAL app.current_creator_id`, executes fn, writes audit row, commits/rollbacks
-- [ ] 3.6 Wire `withReadOnlyRole` into `validateGeneratedSQL` execution path in `agents.service.ts`: replace direct `pool.query` with `withReadOnlyRole(userId, fn)` for LLM-SQL queries
-- [ ] 3.7 Add `audit-cleanup` job to `backend/src/queues/scheduler.ts`: daily pattern `'0 0 * * *'`
-- [ ] 3.8 Add `audit-cleanup` case to `backend/src/queues/main.worker.ts`: parameterized `DELETE FROM ai_sql_audit WHERE created_at < NOW() - INTERVAL '90 days'`
-- [ ] 3.9 Write tests: `withReadOnlyRole` captures SET LOCAL calls; RLS filters cross-creator rows; audit row written on success and failure; `EXPLAIN` shows RLS predicate
+- [x] 3.1 Create `backend/db/init/16-ai-insights-views.sql`: 5 curated views (`ai_insights_safe_orders`, `_products`, `_users`, `_commissions`, `_reviews`) with safe columns only, no PII, `creator_id` embedded via JOINs
+- [x] 3.2 Create `backend/db/init/17-ai-insights-role.sql`: `ai_insights_ro` role (NOLOGIN), SELECT only on views, explicit REVOKE on underlying tables
+- [x] 3.3 Create `backend/db/init/18-ai-insights-rls.sql`: RLS policies on 5 underlying tables using `current_setting('app.current_creator_id')::uuid`; `ENABLE` + `FORCE ROW LEVEL SECURITY`
+- [x] 3.4 Create `backend/db/init/19-ai-sql-audit.sql`: `ai_sql_audit` table (id, creator_id, sql_text, sql_hash, result_count, success, error_message, duration_ms, created_at) + index
+- [x] 3.5 Create `backend/src/lib/withReadOnlyRole.ts`: helper that acquires pool client, runs `BEGIN` + `SET LOCAL ROLE ai_insights_ro` + `SET LOCAL app.current_creator_id`, executes fn, writes audit row, commits/rollbacks
+- [x] 3.6 Wire `withReadOnlyRole` into `validateGeneratedSQL` execution path in `agents.service.ts`: replace direct `pool.query` with `withReadOnlyRole(userId, fn)` for LLM-SQL queries
+- [x] 3.7 Add `audit-cleanup` job to `backend/src/queues/scheduler.ts`: daily pattern `'0 0 * * *'`
+- [x] 3.8 Add `audit-cleanup` case to `backend/src/queues/main.worker.ts`: parameterized `DELETE FROM ai_sql_audit WHERE created_at < NOW() - INTERVAL '90 days'`
+- [x] 3.9 Write tests: `withReadOnlyRole` captures SET LOCAL calls; RLS filters cross-creator rows; audit row written on success and failure; `EXPLAIN` shows RLS predicate
 
 ## Task 10: Update SDD Folder Artifacts
 

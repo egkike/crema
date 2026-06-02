@@ -258,6 +258,153 @@ export const initMainWorker = () => {
             break;
           }
 
+          case 'audit-cleanup': {
+            // 90-day rolling retention para ai_sql_audit. Tabla definida en
+            // 19-ai-sql-audit.sql. Schema en public (la tabla se crea sin schema prefix).
+            // Parámetro: 90 días fijos (no configurable vía env — la duración está
+            // documentada en design.md §3.3 como decisión de diseño).
+            //
+            // BATCHING: mirror del patrón memory-cleanup (líneas 86-258). Sin batching
+            // un único DELETE mantendría un ACCESS EXCLUSIVE lock durante toda la
+            // operación, bloqueando los INSERTs concurrentes de withReadOnlyRole.writeAuditRow
+            // (que es best-effort pero igual es ruido operacional bajo carga).
+            const schema = (config.db?.schema || 'public').trim();
+            if (!config.allowedSchemas.includes(schema)) {
+              logger.error({ schema, allowedSchemas: config.allowedSchemas }, 'CRITICAL: Invalid schema for audit-cleanup, skipping');
+              break;
+            }
+
+            const BATCH_SIZE_STR = process.env.AUDIT_CLEANUP_BATCH_SIZE || '1000';
+            const BATCH_SIZE = parseInt(BATCH_SIZE_STR, 10);
+            if (isNaN(BATCH_SIZE) || BATCH_SIZE < 1 || BATCH_SIZE > 10000) {
+              logger.error({ BATCH_SIZE, raw: BATCH_SIZE_STR }, 'CRITICAL: Invalid AUDIT_CLEANUP_BATCH_SIZE (must be 1-10000), skipping');
+              break;
+            }
+
+            const BATCH_DELAY_MS_STR = process.env.AUDIT_CLEANUP_BATCH_DELAY_MS || '100';
+            const BATCH_DELAY_MS = parseInt(BATCH_DELAY_MS_STR, 10);
+            if (isNaN(BATCH_DELAY_MS) || BATCH_DELAY_MS < 0 || BATCH_DELAY_MS > 10000) {
+              logger.error({ BATCH_DELAY_MS, raw: BATCH_DELAY_MS_STR }, 'CRITICAL: Invalid AUDIT_CLEANUP_BATCH_DELAY_MS, skipping');
+              break;
+            }
+
+            const MAX_ITERATIONS_STR = process.env.AUDIT_CLEANUP_MAX_ITERATIONS || '360';
+            const MAX_ITERATIONS = parseInt(MAX_ITERATIONS_STR, 10);
+            if (isNaN(MAX_ITERATIONS) || MAX_ITERATIONS < 1) {
+              logger.error({ MAX_ITERATIONS, raw: MAX_ITERATIONS_STR }, 'CRITICAL: Invalid AUDIT_CLEANUP_MAX_ITERATIONS, skipping');
+              break;
+            }
+
+            const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+            let totalDeleted = 0;
+            // Composite cursor (created_at, id). id es BIGSERIAL — usamos
+            // casting a bigint para que la comparación tuple (created_at, id) > (cursor)
+            // funcione correctamente. El índice idx_ai_sql_audit_created_at
+            // (definido en 19-ai-sql-audit.sql) soporta el ORDER BY created_at ASC.
+            let lastCreatedAt: string | null = null;
+            let lastId: string | null = null;
+            let iterations = 0;
+
+            logger.info(
+              { schema, cutoff: cutoff.toISOString(), BATCH_SIZE, MAX_ITERATIONS },
+              'CRITICAL: Iniciando cleanup de ai_sql_audit antiguos'
+            );
+
+            try {
+              while (true) {
+                iterations++;
+
+                if (iterations > MAX_ITERATIONS) {
+                  logger.warn(
+                    { iterations, totalDeleted, maxIterations: MAX_ITERATIONS },
+                    'CRITICAL: audit-cleanup interrumpido — alcanzó max iteraciones (posible backlog)'
+                  );
+                  break;
+                }
+
+                let query: string;
+                let params: unknown[];
+
+                if (lastCreatedAt === null) {
+                  // First batch: from the oldest rows (no cursor yet)
+                  query = `
+                    SELECT created_at, id FROM (
+                      WITH to_delete AS (
+                        SELECT id FROM "${schema}".ai_sql_audit
+                        WHERE created_at < $1
+                        ORDER BY created_at ASC, id ASC
+                        LIMIT $2
+                      )
+                      DELETE FROM "${schema}".ai_sql_audit
+                      WHERE id IN (SELECT id FROM to_delete)
+                      RETURNING created_at, id
+                    ) AS deleted_rows
+                    ORDER BY created_at ASC, id ASC
+                  `;
+                  params = [cutoff, BATCH_SIZE];
+                } else {
+                  // Subsequent batches: composite cursor
+                  query = `
+                    SELECT created_at, id FROM (
+                      WITH to_delete AS (
+                        SELECT id FROM "${schema}".ai_sql_audit
+                        WHERE created_at < $1 AND (created_at, id) > ($2::timestamptz, $3::bigint)
+                        ORDER BY created_at ASC, id ASC
+                        LIMIT $4
+                      )
+                      DELETE FROM "${schema}".ai_sql_audit
+                      WHERE id IN (SELECT id FROM to_delete)
+                      RETURNING created_at, id
+                    ) AS deleted_rows
+                    ORDER BY created_at ASC, id ASC
+                  `;
+                  params = [cutoff, lastCreatedAt, lastId ?? '0', BATCH_SIZE];
+                }
+
+                const result = await pool.query<{ created_at: Date; id: string }>(query, params);
+                const deleted = result.rowCount ?? 0;
+
+                if (iterations === 1 && deleted === 0) {
+                  logger.info(
+                    { cutoff: cutoff.toISOString() },
+                    'CRITICAL: audit-cleanup completado sin filas a borrar'
+                  );
+                }
+
+                if (deleted === 0) break;
+
+                const returnedRows = result.rows;
+                const lastRow = returnedRows[returnedRows.length - 1];
+                if (!lastRow || lastRow.created_at === null) {
+                  logger.error({ iterations, totalDeleted }, 'CRITICAL: RETURNING produced NULL or empty row, aborting');
+                  throw new Error('audit-cleanup: RETURNING produced NULL row, cursor cannot advance');
+                }
+                // Pad to µs precision (PostgreSQL uses 6 digits, JS Date toISOString uses 3)
+                lastCreatedAt = lastRow.created_at.toISOString().slice(0, -1) + '000';
+                lastId = lastRow.id;
+
+                totalDeleted += deleted;
+                await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+              }
+
+              if (totalDeleted > 0) {
+                logger.info(
+                  { deleted: totalDeleted, iterations },
+                  'CRITICAL: Limpieza de ai_sql_audit completada'
+                );
+              }
+            } catch (err) {
+              const error = err instanceof Error ? err.message : String(err);
+              logger.error(
+                { deleted: totalDeleted, lastCreatedAt, lastId, iterations, error },
+                'CRITICAL: audit-cleanup job failed after deleting some rows'
+              );
+              throw err;
+            }
+            break;
+          }
+
           case 'liquidity-check': {
             // Revisa si el balance de la plataforma está por debajo del mínimo
             const alerts = await PayoutService.checkPlatformLiquidity();

@@ -15,6 +15,7 @@ export const initScheduler = async () => {
       // --- TAREAS DE LIMPIEZA DE TABLAS ---
       { name: 'auth-cleanup', pattern: '0 3 * * *' }, // 03:00 AM
       { name: 'memory-cleanup', pattern: '0 * * * *' }, // Cada hora (borrado de embeddings >30 días)
+      { name: 'audit-cleanup', pattern: '0 0 * * *' }, // Diario a medianoche UTC (90-day retention de ai_sql_audit)
       // --- TAREAS DE MONITOREO FINANCIERO ---
       { name: 'release-balances', pattern: '*/30 * * * *' }, // Cada 30 min
       { name: 'subscription-check', pattern: '5 0 * * *' }, // 00:05 AM
