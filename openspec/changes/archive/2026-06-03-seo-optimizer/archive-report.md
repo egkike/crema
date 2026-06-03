@@ -72,7 +72,7 @@ A re-audit was triggered after the SDD migration sync (2026-06-03 14:21). The or
 | C-1 | CRITICAL | `og_description` char limit drift (100 vs 160) | Code caps at 100; DB column is VARCHAR(160) | ✅ Doc-only fix (2026-06-03): inline comments in `design.md` + `tasks.md` clarify API 100 / DB 160 layering. No SQL change required. |
 | C-2 | CRITICAL | Endpoint path mismatch | Code: `POST /api/ai/product/seo` (correct) | ✅ Pre-fixed in source artifacts before re-audit |
 | C-3 | CRITICAL | Missing `ogType`/`ogSiteName` in SPEC response | Code has both; SPEC §4.3 has both | ✅ Pre-fixed in source artifacts before re-audit |
-| W-2 | WARNING | `meta_title` minimum 30 chars not enforced in code | **Real bug** — code only caps max 60, not min 30 | ⏸️ Awaiting user decision (options A/B/C/D proposed 2026-06-03 16:30) |
+| W-2 | WARNING | `meta_title` minimum 30 chars not enforced in code | **Real bug** — code only caps max 60, not min 30 | ✅ Fixed in PR #52 (commit `b885772`, merged 2026-06-03 16:48) |
 | W-3 | WARNING | SPEC scenarios used placeholder `prod-abc` | SPEC already uses valid UUIDs | ✅ Pre-fixed in source artifacts before re-audit |
 | W-4 | WARNING | PROPOSAL referenced wrong rate limiter name | PROPOSAL uses `seoOptimizerLimiter` correctly | ✅ Pre-fixed in source artifacts before re-audit |
 | S-1 | SUGGESTION | SPEC `sources?` field missing | SPEC §4.3 has `sources?` | ✅ Pre-fixed in source artifacts before re-audit |
@@ -86,10 +86,10 @@ A re-audit was triggered after the SDD migration sync (2026-06-03 14:21). The or
 
 - **2 doc drifts fixed** (C-1, S-4, S-5) — 2026-06-03
 - **5 doc drifts pre-fixed** before this audit (C-2, C-3, W-3, W-4, S-1, S-2, S-3) — already accurate
-- **1 code bug pending** (W-2: `meta_title` min 30) — gated on user decision
+- **1 code bug fixed** (W-2: `meta_title` min 30) — resolved in PR #52 (commit `b885772`, merged 2026-06-03 16:48)
 - **1 skipped** (S-6: MUST/SHALL — low value)
 
-**Net verdict**: SDD cycle complete, code is production-ready, doc consistency restored. The only known remaining item is the optional `meta_title` min-30 enforcement (low risk; LLM rarely returns <30 chars).
+**Net verdict**: SDD cycle 100% complete, code is production-ready, doc consistency restored, all judge findings resolved. The seo-optimizer change is fully closed.
 
 ---
 
