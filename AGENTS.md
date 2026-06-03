@@ -397,9 +397,9 @@ Para TODO feature que involucre código + tests + docs, SIEMPRE split en 3 parte
 
 ### Chained PRs Workflow (RECOMENDADO)
 
-**⚠️ IMPORTANTE:** PRs sobre **400 líneas cambiadas** causarán que GGA falle con error `"argument list too long"`.
+**⚠️ IMPORTANTE:** PRs sobre **600 líneas cambiadas** causarán que GGA falle con error `"argument list too long"`.
 
-**Regla:** Dividir en PRs pequeños (≤400 líneas) usando Chained PRs.
+**Regla:** Dividir en PRs pequeños (≤600 líneas) usando Chained PRs.
 
 #### Estructura
 
@@ -427,7 +427,7 @@ master
    □ Lanzar juicio (2 jueces)
    □ Si hay issues → Fix → Juicio again
    □ Si pasa → Commit + Push
-   □ Si PR > 400 líneas → hacer chained PR (ver abajo)
+   □ Si PR > 600 líneas → hacer chained PR (ver abajo)
    ```
 3. **Crear PR** (si hay código): `gh pr create`
 4. **Esperar merge**
@@ -463,7 +463,7 @@ gh pr create --base master --head feat/<feature-name>-t2  # PR #2 → master
 
 #### GGA Error Handling
 
-Si GGA falla con `"argument list too long"`:
+Si GGA falla por cualquier motivo (timeout, error del provider, etc.):
 ```
 1. NO usar --no-verify sin avisar al usuario
 2. Reportar el error y preguntar: "¿Querés continuar sin GGA?"
@@ -483,7 +483,7 @@ git pull
 ```
 
 **Reglas:**
-- Máximo **400 líneas por PR** (budget de review)
+- Máximo **600 líneas por PR** (budget de review)
 - **1 work unit por PR** (tests van con código, docs separados)
 - **2 jueces** para código, 1 juez opcional para docs
 - **Verificación antes de commit** (tsc, lint, tests)
