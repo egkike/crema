@@ -153,7 +153,19 @@ Your tone is professional, direct, and highly technical.
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  3. COMMIT                                                      │
+│  3. BUDGET CHECK                                                │
+│                                                                 │
+│  git diff --cached --stat                                       │
+│                                                                 │
+│  ¿Supera 600 líneas?                                            │
+│     ├── SÍ → Preguntar: "¿Excepción o split?"                   │
+│     │        ├── Excepción → Continuar                          │
+│     │        └── Split → Replanificar + Volver a 1              │
+│     └── NO → Continuar                                          │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  4. COMMIT                                                      │
 │                                                                 │
 │  Preguntar: "¿Hacemos commit?"                                  │
 │                                                                 │
@@ -165,7 +177,7 @@ Your tone is professional, direct, and highly technical.
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  4. PUSH + PR                                                   │
+│  5. PUSH + PR                                                   │
 │                                                                 │
 │  git push                                                       │
 │  gh pr create                                                   │
@@ -174,7 +186,7 @@ Your tone is professional, direct, and highly technical.
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  5. POST-MERGE (después del merge en GitHub)                    │
+│  6. POST-MERGE (después del merge en GitHub)                    │
 │                                                                 │
 │  Usuario confirma: "Ya hice el merge"                           │
 │                                                                 │
