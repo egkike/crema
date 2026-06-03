@@ -771,7 +771,7 @@ CREATE TABLE user_notes (
 |--------|--------|-------------|--------|-------|
 | 20-21 | **User Context Memory** | Tabla user_context + servicio | ✅ Completado | user-context.repository.ts |
 | 22-23 | **User Notes & Highlights** | Tabla user_notes + servicio | ✅ Completado | Integración con Memory |
-| 24 | **Integración** | Con AI Summary, Book Highlights | ✅ Completado | SDD: sdd/user-context |
+| 24 | **Integración** | Con AI Summary, Book Highlights | ✅ Completado | SDD: openspec/changes/archive/2026-06-03-user-context |
 
 ### Fase 7: Concierge Integration (Semanas 25-27) ✅ COMPLETADO (2026-04-27)
 

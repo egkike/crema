@@ -33,29 +33,34 @@ PRD (existing) → init → explore → proposal → spec → design → tasks �
 
 ### SDD Location
 
-Two artifact locations:
+**`openspec/changes/<change>/` is the single source of truth** for all SDD artifacts (proposal, spec, design, tasks, apply-progress, verify-report, archive-report). The older `docs/project/<feature>/sdd/<change>/` convention was deprecated on 2026-06-03 and replaced with openspec-first. See `openspec/changes/archive/2026-06-03-*` for historical SDDs migrated from the old layout.
 
 | Location | Purpose |
 |----------|---------|
-| `docs/project/<feature>/sdd/<change>/` | Source of truth for SDD documents |
-| `openspec/specs/` | Canonical delta specs (synced from SDD) |
-| `openspec/templates/` | Reusable SDD templates |
-| `openspec/changes/<change>/` | Change-specific artifacts (verify-report, etc.) |
+| `openspec/changes/<change>/` | **Source of truth** — proposal, spec, design, tasks, apply-progress, verify-report |
+| `openspec/changes/archive/YYYY-MM-DD-<change>/` | Archived completed SDDs (after `sdd-archive`) |
+| `openspec/templates/` | Reusable SDD templates (sdd-checklist, task-template, verify-report) |
+| `openspec/config.yaml` | SDD configuration (`strict_tdd`, test commands, lint, typecheck) |
+| `docs/project/<feature>/PRD.md` | PRD lives here (PRE-SDD, never in openspec) |
+| `docs/project/common/prd-template.md` | **Template canónico** para nuevos PRDs (10 secciones: contexto → objetivos → alcance → RF/RNF → roadmap). Usar para TODOS los nuevos PRDs. |
 
 ### Document Structure
 
 ```
+openspec/changes/<change>/
+├── proposal.md            ← SDD: scope y objetivos
+├── spec.md                ← SDD: requisitos técnicos
+├── design.md              ← SDD: arquitectura
+├── tasks.md               ← SDD: checklist (INCLUYE Task N+1)
+├── apply-progress.md      ← SDD: implementation progress (strict TDD evidence)
+├── verify-report.md       ← SDD: verification report
+└── (after sdd-archive)
+    → openspec/changes/archive/YYYY-MM-DD-<change>/
+      ├── archive-report.md      ← Final archive
+      └── (proposal, spec, design, tasks, verify-report)
+
 docs/project/<feature>/
-├── PRD.md                         ← Product requirements (PRE-SDD)
-└── sdd/
-    └── <change>/
-        ├── proposal.md            ← SDD: scope y objetivos
-        ├── spec.md                ← SDD: requisitos técnicos
-        ├── design.md              ← SDD: arquitectura
-        ├── tasks.md               ← SDD: checklist (INCLUYE Task N+1)
-        ├── init.md                ← SDD: context initialization
-        ├── exploration.md         ← SDD: scope y riesgos
-        └── verify-report.md       ← SDD: verification report
+└── PRD.md                 ← Product requirements (PRE-SDD, lives here, not in openspec)
 ```
 
 ### Code Implementation Rules

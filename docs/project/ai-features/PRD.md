@@ -17,6 +17,8 @@
 - 🆕 Features pendientes: §4.3-§4.7, §4.11, §4.13-§4.15, §4.17-§4.18, §4.20 (12 features) + ⚠️ Parciales: §4.19 - Roadmap priorizado
 **Owner**: Kike García
 
+> **📦 Migración a openspec (2026-06-03)**: 7 SDDs de features ✅ de este PRD vivían en `docs/project/ai-features/sdd/<name>/` (workflow anterior a openspec) y fueron migrados a `openspec/changes/archive/2026-06-03-<name>/`. Los originales fueron eliminados — openspec es la **única fuente canónica** de SDDs a partir de esta fecha. Los 4 sin verify formal (**ai-content-assistant, memory-enhancement, interactive-agent, reports-agent**) completaron el ciclo de planificación (proposal → spec → design → tasks); la verificación se realizó vía code review + test suite del PR de merge. Los 3 con verify formal (**ai-affiliate-chat, ai-insights-expansion, seo-optimizer**) pasaron por sdd-archive completo. No hay tareas pendientes asociadas a esta migración.
+
 > **Dependencias**:
 > - Orchestrator, Config, User Context: ver **architecture-improvements PRD**
 > - Memory Enhancement (RAG + HNSW): ver **architecture-improvements PRD** sección 4.4
@@ -291,11 +293,11 @@ WITH (m = 16, ef_construction = 64);
 
 #### 2.4.5 SDD Completado e Implementado
 
-> El SDD de Memory Enhancement está completo E IMPLEMENTADO en:
-> - `sdd/memory-enhancement/proposal.md` ✅
-> - `sdd/memory-enhancement/spec.md` ✅
-> - `sdd/memory-enhancement/design.md` ✅
-> - `sdd/memory-enhancement/tasks.md` ✅ (Tasks 1-7 completados + testeados)
+> El SDD de Memory Enhancement está completo E IMPLEMENTADO en `openspec/changes/archive/2026-06-03-memory-enhancement/`:
+> - `openspec/changes/archive/2026-06-03-memory-enhancement/proposal.md` ✅
+> - `openspec/changes/archive/2026-06-03-memory-enhancement/spec.md` ✅
+> - `openspec/changes/archive/2026-06-03-memory-enhancement/design.md` ✅
+> - `openspec/changes/archive/2026-06-03-memory-enhancement/tasks.md` ✅ (Tasks 1-7 completados + testeados)
 
 > **Pattern**: El SDD está adaptado al patrón RAG de Crema (NO session_id, NO memory.store/recall, NO summarization).
 
@@ -439,7 +441,7 @@ Todos los tipos de productos de Crema.
 #### Estado
 ✅ **Implementado** (Fases 1-9 completadas, incluyendo tests) - Phase 8 Testing done (PR #12)
 
-> **Implementación técnica:** Ver PRD.md §2.5 (AI Content Assistant) + SDD `docs/project/ai-features/sdd/ai-content-assistant/`
+> **Implementación técnica:** Ver PRD.md §2.5 (AI Content Assistant) + SDD `openspec/changes/archive/2026-06-03-ai-content-assistant/`
 > - Servicios: `ContentAssistantService`, `ContentReaderService`, `QuizGeneratorService`, `TranscriptionService`
 > - Tablas: `product_lessons`, `product_lesson_quizzes`, `ai_transcription_usage`
 > - Endpoints: `/api/ai/content/assist`, `/api/ai/quiz/generate`, `/api/ai/transcribe`
@@ -865,7 +867,7 @@ Chat de dudas para Afiliados y Compradores sobre productos específicos. Entrena
 #### Estado
 ✅ **IMPLEMENTADO** (Tasks 1-7 completados, Mayo 2026)
 
-> **Implementación técnica:** Ver SDD `docs/project/ai-features/sdd/ai-affiliate-chat/`
+> **Implementación técnica:** Ver SDD `openspec/changes/archive/2026-06-03-ai-affiliate-chat/`
 > - Servicio: `affiliateChatService` en `services/ai/affiliate-chat.service.ts`
 > - Endpoint: `POST /api/ai/affiliate/chat`
 > - Rate limiter: `affiliateChatLimiter` (configurable via `affiliate_chat.rate_limit`, default 30/min)
@@ -931,7 +933,7 @@ Genera meta tags automáticos para las páginas de productos.
 #### Estado
 ✅ **IMPLEMENTADO** (Tasks 0-7 completados, Mayo 2026)
 
-> **Implementación técnica:** Ver SDD `docs/project/ai-features/sdd/seo-optimizer/`
+> **Implementación técnica:** Ver SDD `openspec/changes/archive/2026-06-03-seo-optimizer/`
 > - Servicio: `seoOptimizerService` en `services/ai/seo-optimizer.service.ts`
 > - Repositorio: `seoOptimizerRepository` en `repositories/seo-optimizer.repository.ts`
 > - Endpoint: `POST /api/ai/product/seo`
@@ -1311,7 +1313,7 @@ CREATE TABLE product_module_fields (
 #### Estado
 ✅ **IMPLEMENTADO** (SDD completo, Mayo 2026) - Phase 11
 
-> **Implementación técnica:** Ver PRD.md §2.5 Agente de Implementación Interactiva + SDD `docs/project/ai-features/sdd/interactive-agent/`
+> **Implementación técnica:** Ver PRD.md §2.5 Agente de Implementación Interactiva + SDD `openspec/changes/archive/2026-06-03-interactive-agent/`
 > - Servicio: `InteractiveAgentService` en `services/ai/interactive-agent.service.ts`
 > - Repository: `interactive-agent.repository.ts` con Advisory Lock pattern
 > - Tablas: `user_course_data`, `product_module_fields`
@@ -1506,7 +1508,7 @@ WITH (m = 16, ef_construction = 64);
 #### Estado
 ✅ **IMPLEMENTADO** (SDD completo) - Tasks M-1 a M-7
 
-> **Implementación técnica:** Ver PRD.md §2.4 Memory Enhancement + SDD `docs/project/ai-features/sdd/memory-enhancement/`
+> **Implementación técnica:** Ver PRD.md §2.4 Memory Enhancement + SDD `openspec/changes/archive/2026-06-03-memory-enhancement/`
 > - Servicio: `MemoryService` en `services/ai/memory.service.ts` (mejoras M-1 a M-7)
 > - Migration: `db/init/11-hnsw-index.sql`
 > - Worker: `main.worker.ts` (cleanup job hourly)

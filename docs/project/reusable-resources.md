@@ -21,6 +21,14 @@
 
 ---
 
+## Documentation Templates
+
+| Template | Purpose | When to use |
+|----------|---------|-------------|
+| `docs/project/common/prd-template.md` | PRD canónico (10 secciones) | **Todo nuevo PRD** — antes de iniciar un SDD |
+
+---
+
 ## 1. Configuration (`src/config/`)
 
 ### `config/index.ts`
@@ -296,27 +304,52 @@ Uses `AppError` class + `globalErrorHandler` middleware
 These SDDs have been completed and reference this catalog:
 
 ### AI Features
-- `docs/project/ai-features/sdd/ai-affiliate-chat/` — AI chat contextual para afiliados, usa memoryService (RAG)
-- `docs/project/ai-features/sdd/memory-enhancement/` — Memory RAG con HNSW, RBAC, cleanup, quota
-- `docs/project/ai-features/sdd/interactive-agent/` — Talleres dinámicos con análisis personalizado, usa aiCreditService, llmService
-- `docs/project/ai-features/sdd/seo-optimizer/` — SEO meta tags con RAG context, capability `seo.optimizer` (✅ Implementado)
-- `docs/project/ai-features/sdd/ai-insights-expansion/` — Churn prediction, recovery email, A/B comparatives; capabilities `ai.insights.predict_churn`, `ai.insights.compare`, `ai.insights.recover_email` (✅ Implementado)
+- `openspec/changes/archive/2026-06-03-ai-affiliate-chat/` — AI chat contextual para afiliados, usa memoryService (RAG)
+- `openspec/changes/archive/2026-06-03-memory-enhancement/` — Memory RAG con HNSW, RBAC, cleanup, quota
+- `openspec/changes/archive/2026-06-03-interactive-agent/` — Talleres dinámicos con análisis personalizado, usa aiCreditService, llmService
+- `openspec/changes/archive/2026-06-03-seo-optimizer/` — SEO meta tags con RAG context, capability `seo.optimizer` (✅ Implementado)
+- `openspec/changes/archive/2026-06-03-ai-insights-expansion/` — Churn prediction, recovery email, A/B comparatives; capabilities `ai.insights.predict_churn`, `ai.insights.compare`, `ai.insights.recover_email` (✅ Implementado)
 
 ### Architecture Improvements
-- `docs/project/architecture-improvements/sdd/config-service/` — Tiered config with Redis caching, crea `app_configs`
-- `docs/project/architecture-improvements/sdd/concierge-integration/` — AI support chatbot con escalación, usa conciergeService
-- `docs/project/architecture-improvements/sdd/error-handling/` — Error notifications con Slack/Datadog
-- `docs/project/architecture-improvements/sdd/orchestrator/` — Central routing con 18 capabilities (SSE streaming)
-- `docs/project/architecture-improvements/sdd/user-context/` — User context y notas, crea `user_context`, `user_notes`
+- `openspec/changes/archive/2026-06-03-config-service/` — Tiered config with Redis caching, crea `app_configs`
+- `openspec/changes/archive/2026-06-03-concierge-integration/` — AI support chatbot con escalación, usa conciergeService
+- `openspec/changes/archive/2026-06-03-error-handling/` — Error notifications con Slack/Datadog
+- `openspec/changes/archive/2026-06-03-orchestrator/` — Central routing con 18 capabilities (SSE streaming)
+- `openspec/changes/archive/2026-06-03-user-context/` — User context y notas, crea `user_context`, `user_notes`
 
 ### Content Security
-- `docs/project/content-security/sdd/content-security/` — uses upload middleware, url-validator, config patterns
+- `openspec/changes/archive/2026-06-03-content-security/` — uses upload middleware, url-validator, config patterns
 
 ---
 
 ## 10. Database Schema (`db/init/`)
 
 Database initialization scripts run **once on first container start** via docker-compose volume mount (`./db/init:/docker-entrypoint-initdb.d`). All scripts use `CREATE INDEX IF NOT EXISTS` and `CREATE TABLE IF NOT EXISTS` for idempotency.
+
+> [!CAUTION]
+> **STOP — Before writing ANY DB modification code (migrations, `ALTER TABLE`, `INSERT`, queries, repositories):**
+>
+> 1. **The `.sql` files in `db/init/` are the source of truth** — not this doc, not `docs/database/schema.md`. If this doc or `schema.md` contradicts the `.sql`, trust the `.sql`.
+> 2. **For each table you need to modify, open the corresponding `.sql` file and find the `CREATE TABLE` statement.** Do not assume column names from memory, from older docs, or from `schema.md` (which can drift).
+> 3. **Common mistakes in this project:** `user_id` vs `creator_id`, `entity_type` vs `source_type`, missing `::uuid` casts, wrong index columns. Always read the actual `CREATE TABLE` first.
+>
+> **Why:** the most common DB bugs come from agents using column names that don't exist. The `.sql` file is always right.
+
+### Most-edited tables — quick lookup
+
+| Table(s) | Defined in | Used by SDD(s) |
+|----------|------------|----------------|
+| `ai_embeddings`, `ai_credits`, `ai_credit_transactions`, `ai_credit_packages` | `05-ai-tables.sql` | memory-enhancement, ai-affiliate-chat, interactive-agent |
+| `app_configs` | `07-config-service-tables.sql` | config-service |
+| Orchestrator tables, skills registry | `08-orchestrator-tables.sql` | orchestrator |
+| `error_policies`, `content_policies`, `report_reasons` | `09-error-handling-config.sql` | error-handling |
+| `user_context`, `user_notes`, Q&A, reviews, reports, AI agents | `10-user-context-tables.sql` | user-context |
+| `user_course_data`, `product_module_fields` | `12-interactive-agent.sql` | interactive-agent |
+| `seo_metadata`, `keyword_rankings` | `13-seo-optimizer-tables.sql` | seo-optimizer |
+| `churn_predictions`, `recovery_emails`, `ab_comparatives` | `14-ai-insights-expansion.sql` | ai-insights-expansion |
+| `ai_sql_audit` | `19-ai-sql-audit.sql` | fix-agents-service-gga-findings |
+
+> **For core tables** (users, products, orders, balances, payouts, commissions, subscriptions, modules, lessons, quizzes, certificates, coupons, refunds): see [`docs/database/schema.md`](../database/schema.md) for human-readable column listings. Still verify the column exists in the `.sql` before writing queries.
 
 > **Always check this section before adding tables or indexes in an SDD.** Creating something that already exists wastes migration effort.
 

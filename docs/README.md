@@ -39,7 +39,7 @@ Bienvenido a la documentación oficial de **Crema** - Plataforma all-in-one para
 - [LMS (Learning Management System)](./features/lms.md)
 - [Cumplimiento Fiscal (LEC)](./features/compliance.md)
 - [Safe-Guard (Anti-Fraude)](./features/safeguard.md)
-- [AI Features](./project/PRD-Crema-Interaccion-Analytics.md) ⭐ Nuevo
+- [AI Features](./project/ai-features/PRD.md) ⭐ Nuevo
 
 ### Desarrollo
 - [Setup Local](./development/setup.md)
@@ -47,8 +47,8 @@ Bienvenido a la documentación oficial de **Crema** - Plataforma all-in-one para
 - [Guía de Estilo](./development/style-guide.md)
 
 ### Proyecto
-- [Glosario de Términos](./project/glossary.md)
-- [Roadmap](./project/roadmap.md)
+- [Glosario de Términos](./project/common/glossary.md)
+- [Roadmap](./project/common/roadmap.md)
 
 ---
 
@@ -77,8 +77,8 @@ Bienvenido a la documentación oficial de **Crema** - Plataforma all-in-one para
 
 - [Repositorio GitHub](https://github.com/egkike/crema)
 - [Swagger/OpenAPI Docs](/api-docs) - En backend running
-- [PRD: AI Features](./project/PRD-Crema-Interaccion-Analytics.md)
+- [PRD: AI Features](./project/ai-features/PRD.md)
 
 ---
 
-*Última actualización: Mayo 2026*
+*Última actualización: Junio 2026*
