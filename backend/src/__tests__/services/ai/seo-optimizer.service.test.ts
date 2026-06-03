@@ -209,7 +209,7 @@ describe('seoOptimizerService', () => {
     it('should call memoryService.searchSimilar with correct params for RAG context', async () => {
       vi.mocked(llmService.chat).mockResolvedValue({
         content: JSON.stringify({
-          metaTitle: 'Test Title',
+          metaTitle: 'Test Title Long Enough For SEO Validation',
           metaDescription: 'Test description for testing',
           ogTitle: 'Test OG',
           ogDescription: 'Test OG desc',
@@ -263,6 +263,34 @@ describe('seoOptimizerService', () => {
       expect(result.data?.metaTitle.length).toBeLessThanOrEqual(60);
     });
 
+    it('should return success=false if LLM returns metaTitle shorter than 30 chars', async () => {
+      vi.mocked(llmService.chat).mockResolvedValue({
+        content: JSON.stringify({
+          metaTitle: 'Too short',
+          metaDescription:
+            'Valid description here with enough characters to pass other validations',
+          ogTitle: 'Short OG',
+          ogDescription: 'Short OG desc',
+          keywords: ['test'],
+        }),
+        model: 'test-model',
+      });
+
+      vi.mocked(memoryService.searchSimilar).mockResolvedValue([]);
+
+      const result = await seoOptimizerService.generate({
+        userId: USER_ID,
+        productId: PRODUCT_ID,
+        productName: PRODUCT_NAME,
+        productDescription: PRODUCT_DESCRIPTION,
+        productType: PRODUCT_TYPE,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('metaTitle shorter than 30');
+      expect(result.data).toBeUndefined();
+    });
+
     it('should include sources in output when RAG returns results', async () => {
       const mockSources = [
         {
@@ -277,7 +305,7 @@ describe('seoOptimizerService', () => {
 
       vi.mocked(llmService.chat).mockResolvedValue({
         content: JSON.stringify({
-          metaTitle: 'Test Title',
+          metaTitle: 'Test Title Long Enough For SEO Validation',
           metaDescription: 'Valid description here',
           ogTitle: 'Short OG',
           ogDescription: 'Short OG desc',
