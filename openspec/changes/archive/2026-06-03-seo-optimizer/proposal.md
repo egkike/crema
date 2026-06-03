@@ -213,9 +213,9 @@ seo.optimizer handler
 
 - [ ] `seo.optimizer` registrado en Orchestrator y verificable vía `skillsRegistry.listCapabilities()`
 - [ ] Creador puede generar meta tags para un producto que posee y recibe respuesta válida
-- [ ] Meta title generado tiene máximo 60 caracteres
+- [ ] Meta title generado tiene entre 30 y 60 caracteres
 - [ ] Meta description generada tiene entre 100-155 caracteres
-- [ ] OG tags incluyen title, description, e image
+- [ ] OG tags incluyen `ogTitle`, `ogDescription`, `ogImageUrl`, `ogType`, `ogSiteName`, `canonicalUrl`
 - [ ] Schema markup es JSON válido y cumple con schema.org/Product
 - [ ] Keywords contiene máximo 10 keywords relevantes
 - [ ] `pnpm tsc --noEmit` pasa

@@ -267,7 +267,7 @@ interface SeoOptimizerResponse {
       "name": "Crema"
     }
   },
-  "keywords": ["marketing digital", "SEO", "redes sociales", "email marketing"]
+  "keywords": ["marketing digital", "SEO", "redes sociales", "email marketing", "analytics", "conversión"]
 }
 ```
 

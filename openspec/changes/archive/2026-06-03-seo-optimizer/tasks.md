@@ -68,11 +68,11 @@ Create database migration script for `product_seo_configs` table.
 CREATE TABLE IF NOT EXISTS product_seo_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID UNIQUE REFERENCES products(id) ON DELETE CASCADE,
-    meta_title VARCHAR(70),
-    meta_description VARCHAR(160),
-    og_title VARCHAR(70),
-    og_description VARCHAR(160),
-    og_image_url VARCHAR(500),
+    meta_title VARCHAR(70),  -- 70 chars allows future expansion beyond current 60-char API cap (see SPEC §1 SEO Metadata)
+    meta_description VARCHAR(160),  -- 160 chars; API contract caps at 155 (see SPEC §1 SEO Metadata Generation)
+    og_title VARCHAR(70),  -- 70 chars allows future expansion beyond current 60-char API cap (see SPEC §1 Open Graph Tags)
+    og_description VARCHAR(160),  -- 160 chars allows future expansion beyond current 100-char API cap (see SPEC §1 Open Graph Tags)
+    og_image_url VARCHAR(500),  -- 500 chars per API contract (see SPEC §1 Open Graph Tags)
     schema_markup JSONB,
     keywords TEXT[],
     canonical_url VARCHAR(500),
@@ -897,11 +897,11 @@ The `product_seo_configs` table should be created separately (if not already exi
 CREATE TABLE product_seo_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID UNIQUE REFERENCES products(id) ON DELETE CASCADE,
-    meta_title VARCHAR(70),
-    meta_description VARCHAR(160),
-    og_title VARCHAR(70),
-    og_description VARCHAR(160),
-    og_image_url VARCHAR(500),
+    meta_title VARCHAR(70),  -- 70 chars allows future expansion beyond current 60-char API cap (see SPEC §1 SEO Metadata)
+    meta_description VARCHAR(160),  -- 160 chars; API contract caps at 155 (see SPEC §1 SEO Metadata Generation)
+    og_title VARCHAR(70),  -- 70 chars allows future expansion beyond current 60-char API cap (see SPEC §1 Open Graph Tags)
+    og_description VARCHAR(160),  -- 160 chars allows future expansion beyond current 100-char API cap (see SPEC §1 Open Graph Tags)
+    og_image_url VARCHAR(500),  -- 500 chars per API contract (see SPEC §1 Open Graph Tags)
     schema_markup JSONB,
     keywords TEXT[],
     canonical_url VARCHAR(500),

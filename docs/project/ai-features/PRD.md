@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD)
 ## Crema - Ecosistema de Funcionalidades AI
 
-**Versión**: 3.7
-**Fecha**: Mayo 2026
+**Versión**: 3.8
+**Fecha**: Junio 2026
 **Estado**:
 - ✅ Backend Services (18 servicios)
 - ✅ Orchestrator registration (18 capabilities)
@@ -1534,11 +1534,11 @@ WITH (m = 16, ef_construction = 64);
 | **Smart Chapters** | 🆕 | 🆕 Usa | 🆕 Usa | - | - |
 | **Personalized Learning Path** | 🆕 | 🆕 Configura | 🆕 Usa | - | - |
 | **AI Content Studio** | 🆕 | 🆕 Usa | - | - | - |
-| **AI Insights** | ⚠️ Partial | 🆕 Usa | - | - | - |
+| **AI Insights** | ✅ | ✅ Usa | - | - | - |
 | **AI Support Chatbot** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | ✅ Usa |
 | **AI Afiliate Chat** | ✅ | - | ✅ Usa | ✅ Usa | - |
 | **Description Generator** | 🆕 | 🆕 Usa | - | - | - |
-| **SEO Optimizer** | 🆕 | 🆕 Usa | - | - | - |
+| **SEO Optimizer** | ✅ | ✅ Usa | - | - | - |
 | **Certificate PDF Generator** | 🆕 | 🆕 Genera | 🆕 Descarga | - | 🆕 Verifica |
 | **Sentiment Analytics** | 🆕 | 🆕 Usa | - | - | - |
 | **Advanced DRM** | 🆕 | 🆕 Configura | - | - | - |
@@ -1547,7 +1547,7 @@ WITH (m = 16, ef_construction = 64);
 | **Audio Notes** | 🆕 | - | 🆕 Usa | - | - |
 | **AI Summary** | ⚠️ Partial | 🆕 Usa | 🆕 Usa | - | - |
 | **Transcript Search** | 🆕 | - | 🆕 Usa | - | - |
-| **Interactive Agent** | ✅ | 🆕 Configura | ✅ Usa | - | - |
+| **Interactive Agent** | ✅ | Configura | ✅ Usa | - | - |
 | **Reports Agent** | ✅ | ✅ Admin | ✅ Reporta | ✅ Reporta | - |
 | **Orchestrator** | ✅ | ✅ Usa | ✅ Usa | ✅ Usa | - |
 | **Memory Enhancement** | ✅ | - | - | - | - |
