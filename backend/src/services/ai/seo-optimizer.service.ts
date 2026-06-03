@@ -311,6 +311,15 @@ export const seoOptimizerService = {
       const ogTitle = truncateToLength(parsed.ogTitle ?? parsed.metaTitle, 60);
       const ogDescription = truncateToLength(parsed.ogDescription ?? parsed.metaDescription, 100);
 
+      // 8.5. Enforce SPEC §1 SEO Metadata: metaTitle must be 30-60 chars
+      // The LLM may return a title shorter than 30 chars; reject as upstream failure.
+      if (metaTitle.length < 30) {
+        throw new AppError(
+          'LLM returned metaTitle shorter than 30 characters; retry the request',
+          502
+        );
+      }
+
       // 9. Build schema markup
       const schemaType = getSchemaType(input.productType);
       const schemaMarkup = buildSchemaMarkup(
