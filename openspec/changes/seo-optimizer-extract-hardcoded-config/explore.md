@@ -131,7 +131,7 @@ Searched `backend/src/` excluding test files, env defaults, and admin emails. Pr
 
 **Scope**:
 - `backend/src/config/index.ts`: add `BRAND_NAME` and `OG_IMAGE_DEFAULT` env keys with sensible defaults.
-- `backend/src/services/ai/seo-optimizer.service.ts`: replace hardcoded `https://crema.com` with `config.frontendUrl`; replace `'Crema'` (lines 356, 475) with `config.brandName`; replace `parsed.ogImageUrl ?? ''` with explicit fallback logic (use `config.ogImageDefault` if set, else return `null` or omit the field with a logged warning).
+- `backend/src/services/ai/seo-optimizer.service.ts`: replace hardcoded `https://crema.com` with `config.frontendUrl`; replace `'Crema'` (lines 356, 475) with `config.brandName`; replace `parsed.ogImageUrl ?? ''` with `parsed.ogImageUrl ?? config.ogImageDefault` (per Resolved Decision §1).
 - `backend/src/__tests__/routes/seo-optimizer.routes.test.ts`: update mocked responses to derive `canonicalUrl` from `config.frontendUrl`; add a new test case that verifies the brand name comes from config.
 - `backend/.env.example`: document the two new env keys.
 
@@ -164,7 +164,7 @@ The fix should:
 1. Add `BRAND_NAME` (default `'Crema'`) and `OG_IMAGE_DEFAULT` (optional) to `config/index.ts`.
 2. Replace `https://crema.com` with `config.frontendUrl` in `seo-optimizer.service.ts:339`.
 3. Replace both `'Crema'` literals (lines 356, 475) with `config.brandName`.
-4. Replace `parsed.ogImageUrl ?? ''` with explicit fallback to `config.ogImageDefault` (or omit the field and log a warning) — choose the behaviour that better matches the consumer's contract (open question for `sdd-propose`).
+4. Replace `parsed.ogImageUrl ?? ''` with explicit fallback to `config.ogImageDefault` (per Resolved Decision §1).
 5. Update `seo-optimizer.routes.test.ts` mocked responses to use the same config-driven values.
 6. Add a small unit test that verifies the brand and canonical URL come from config, not from hardcoded literals.
 7. Document the two new env keys in `.env.example`.
@@ -183,7 +183,7 @@ If the user approves this exploration and wants to formalize it:
    - List the rollback plan (revert the PR; no DB migration, no env migration since new keys have defaults)
 3. **Run `sdd-spec`** to write delta specs under `openspec/changes/seo-optimizer-extract-hardcoded-config/specs/`. Likely domains: `seo-optimizer` (delta) and possibly `config` (delta for new keys).
 4. **Run `sdd-design`** — should be short; the design is "read from `config` object, mirror the existing `APP_URL` → `config.frontendUrl` pattern."
-5. **Run `sdd-tasks`** — forecast should show well under 400 lines, no chained PRs needed.
+5. **Run `sdd-tasks`** — forecast should show well under 600 lines, no chained PRs needed.
 6. **Run `sdd-apply`** on a single feature branch `feat/seo-optimizer-extract-hardcoded-config`. The PR should:
    - CODE: `config/index.ts` + `seo-optimizer.service.ts` (under 50 lines changed)
    - TESTS: `seo-optimizer.routes.test.ts` + a new unit test file (under 100 lines)
