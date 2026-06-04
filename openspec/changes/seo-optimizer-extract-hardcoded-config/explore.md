@@ -184,7 +184,7 @@ If the user approves this exploration and wants to formalize it:
 3. **Run `sdd-spec`** to write delta specs under `openspec/changes/seo-optimizer-extract-hardcoded-config/specs/`. Likely domains: `seo-optimizer` (delta) and possibly `config` (delta for new keys).
 4. **Run `sdd-design`** — should be short; the design is "read from `config` object, mirror the existing `APP_URL` → `config.frontendUrl` pattern."
 5. **Run `sdd-tasks`** — forecast should show well under 600 lines, no chained PRs needed.
-6. **Run `sdd-apply`** on a single feature branch `feat/seo-optimizer-extract-hardcoded-config`. The PR should:
+6. **Run `sdd-apply`** on a single feature branch `fix/seo-optimizer-extract-hardcoded-config` (from `master`). The PR should:
    - CODE: `config/index.ts` + `seo-optimizer.service.ts` (under 50 lines changed)
    - TESTS: `seo-optimizer.routes.test.ts` + a new unit test file (under 100 lines)
    - DOCS: `backend/.env.example` (push direct to master)

@@ -4,7 +4,7 @@
 **Date**: 2026-06-04
 **Status**: proposed
 
-**Refs**: [Explore](openspec/changes/seo-optimizer-extract-hardcoded-config/explore.md) · [Issue #53](https://github.com/egkike/crema/issues/53) · [PR #52](https://github.com/egkike/crema/pull/52) (`b885772`)
+**Refs**: [Explore](explore.md) · [Issue #53](https://github.com/egkike/crema/issues/53) · [PR #52](https://github.com/egkike/crema/pull/52) (`b885772`)
 
 ## Intent
 
@@ -12,7 +12,7 @@ Three GGA PREFER findings from PR #52 in `seo-optimizer.service.ts`: hardcoded c
 
 ## Scope
 
-**In:** `config/index.ts` (+2 env keys), `seo-optimizer.service.ts` (4 value replacements + `config` import), route test (update mocks + brand test via `vi.mock`), `.env.example` (2 lines).
+**In:** `config/index.ts` (+2 env keys), `seo-optimizer.service.ts` (4 value replacements + `config` import), new service-level test `seo-optimizer.service.test.ts` (canonical: `vi.mock` of config + real service, 6 cases covering the fallback chain + brand + canonical + provider.name), route test (sanity-only: add `vi.mock('../../config', ...)` as safety net, no fixture changes, no new assertions), `.env.example` (2 lines).
 
 **Out:** Concierge system-prompt, TOTP issuer, email display name, `payout.service.ts` admin email, DB allowlist, other `?? ''` patterns.
 

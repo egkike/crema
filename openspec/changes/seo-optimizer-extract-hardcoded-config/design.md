@@ -12,7 +12,7 @@ The `seo-optimizer` service has two configuration pathways:
 - **DB-backed `configService`**: runtime-tunable knobs (temperature, model, rate limit)
 - **Env-driven `config`**: deployment-level constants (frontend URL, brand name, OG fallback)
 
-This change adds the second path to the service. It is the **second** AI service to import `config` (after `denunciation.service.ts`). The pattern is local — an 18-file survey confirmed no other AI service emits user-facing SEO/OG/brand output.
+This change adds the second path to the service. It is the **fifth** AI service to import `config` (after `llm.service.ts`, `embedding.service.ts`, `transcription.service.ts`, `denunciation.service.ts`). The `content/*` services use `aiContentConfig` (a separate `ai-content.config` module) and the rest use `configService` (DB-backed) — neither fits the deployment-level-constant nature of `BRAND_NAME` / `OG_IMAGE_DEFAULT` / `APP_URL`. An 18-file survey confirmed no other AI service emits user-facing SEO/OG/brand output.
 
 ## Data Flow
 
@@ -52,12 +52,12 @@ config.frontendUrl (APP_URL env → already trimmed of trailing / by line 182)
 |------|--------|---------|
 | `backend/src/config/index.ts` | Modify | +2 Zod schema entries after `APP_URL` (line 41): `BRAND_NAME: z.string().default('Crema').transform(s => s.trim())`, `OG_IMAGE_DEFAULT: z.string().default('').transform(s => s.trim())`. +2 exports on the `config` object after `frontendUrl` (line 182): `brandName`, `ogImageDefault`. |
 | `backend/src/services/ai/seo-optimizer.service.ts` | Modify | Line 12: add `import { config } from '../../config';` adjacent to existing `configService` import. Line 339: `` `${config.frontendUrl}/product/${input.productId}` ``. Line 354: `parsed.ogImageUrl ?? config.ogImageDefault`. Line 356: `config.brandName`. Line 475: `config.brandName`. |
-| `backend/src/__tests__/routes/seo-optimizer.routes.test.ts` | Modify | Line 22 mock: derive `canonicalUrl` from config; add `ogSiteName: config.brandName`. Line 136 mock: same. +2 new assertions per spec: brand from config, OG fallback chain. |
+| `backend/src/__tests__/routes/seo-optimizer.routes.test.ts` | Modify | Add `vi.mock('../../config', ...)` at the top (after the service mock at line 9) as a **safety net** — injects `frontendUrl`, `brandName`, `ogImageDefault`. Does NOT change fixtures (lines 22, 136) and does NOT add new test cases — the service is already mocked at line 9, so the route test verifies pass-through only. The new service-level test in Task 1 step 6 covers config-driven behavior. |
 | `backend/.env.example` | Modify | +2 lines after `APP_URL`: `BRAND_NAME` and `OG_IMAGE_DEFAULT` with inline comments. |
 
 ## Type Contract
 
-**Confirmed**: `SeoOptimizerResponse.ogImageUrl: string` (required, not nullable). The empty string `''` is the documented "no OG image available" signal at the API boundary. Consumers SHALL treat `''` as "omit the `og:image` meta tag" — not as an error.
+**Confirmed**: `SEOOptimizerResponse.data.ogImageUrl: string` (required, not nullable), where `data: SEOOptimizerOutput`. The empty string `''` is the documented "no OG image available" signal at the API boundary. Consumers SHALL treat `''` as "omit the `og:image` meta tag" — not as an error.
 
 ```typescript
 // In SEOOptimizerOutput interface (line 43): unchanged
@@ -66,29 +66,25 @@ ogImageUrl: string;
 
 ## Test Strategy
 
-**Approach**: `vi.mock` of `../../config` module to inject known values for `brandName`, `frontendUrl`, and `ogImageDefault`. Test directly returns mocked service response — verifies the route integration (where `vi.mock` influences what the service returns), not the service internals (which `sdd-apply` unit tests separately).
+**Approach (split between two test files):**
 
-| Scenario | Mock Config | Assertion |
-|----------|------------|-----------|
-| Canonical URL reflects deployment host | `frontendUrl: 'https://staging.crema.com'` | `canonicalUrl` starts with `https://staging.crema.com/product/` |
-| `ogSiteName` reflects brand config | `brandName: 'FooCo'` | `ogSiteName === 'FooCo'` |
-| Schema.org provider.name reflects brand | `brandName: 'FooCo'` | `schemaMarkup.provider.name === 'FooCo'` |
-| OG image falls back to config default | `ogImageDefault: '/img/og-default.png'` | `ogImageUrl === '/img/og-default.png'` |
-| OG image honours LLM output | `ogImageDefault: '/img/og-default.png'` | `ogImageUrl === 'https://cdn.example.com/x.jpg'` |
-| OG image empty when nothing configured | `ogImageDefault: ''` | `ogImageUrl === ''` |
+**1. Route test (sanity-only)** — `backend/src/__tests__/routes/seo-optimizer.routes.test.ts`
+- `vi.mock('../../config', ...)` is a **safety net** to fail fast (with a clear module error) if the route ever reads `config` directly without going through the service.
+- The service is already mocked at line 9, so the config mock does not influence the response — it only validates that route code does not bypass the service to access config.
+- No new assertions — pre-existing assertions (auth, response shape, error handling) are unchanged.
+- No fixture changes — `canonicalUrl: 'https://crema.com/product/...'` (lines 22, 136) exactly matches the mocked service response; changing them to reference `${config.frontendUrl}` would cause `ReferenceError: config is not defined` because vitest factory callbacks have isolated module scope (the `config` identifier is not in scope inside the `vi.mock('../../services/ai/seo-optimizer.service', () => ({ ... }))` factory).
 
-**Fixture update pattern** (lines 22, 136):
-
-```typescript
-// Before:  canonicalUrl: 'https://crema.com/product/test-id',
-// After:   canonicalUrl: `${config.frontendUrl}/product/${PRODUCT_ID}`,
-```
+**2. Service-level unit test (canonical for config-driven behavior)** — `backend/src/__tests__/services/seo-optimizer.service.test.ts` (new, Task 1 step 6)
+- `vi.mock('../../config', ...)` to inject known `brandName`, `frontendUrl`, `ogImageDefault` values.
+- Exercises the **real** service (no service-level `vi.mock`) — verifies the actual fallback chain, brand resolution, canonical URL construction, and schema.org `provider.name` emission. 6 test cases cover: (a) LLM `ogImageUrl` wins, (b) fallback to `config.ogImageDefault`, (c) `''` when both LLM and config are empty, (d) `ogSiteName = config.brandName`, (e) `canonicalUrl` uses `config.frontendUrl`, (f) `schemaMarkup.provider.name = config.brandName` for course type.
 
 ## Implementation Order
 
 1. **Config** (`config/index.ts`): foundation — nothing compiles without the new keys. Add `BRAND_NAME` and `OG_IMAGE_DEFAULT` to `envSchema` + export on `config` object.
-2. **Service** (`seo-optimizer.service.ts`): 1 new import + 4 surgical replacements. Each replacement is a single-line change with no structural impact.
-3. **Tests** (`seo-optimizer.routes.test.ts`): update existing fixtures + add new assertions. Tests verify integration; `sdd-apply` may add a small service-level test for the fallback chain.
+2. **Service** (`seo-optimizer.service.ts`): 1 new import + 4 surgical replacements. Each replacement is a single-line change with no structural impact. The new service-level test file (`seo-optimizer.service.test.ts`) is created in the same step (Task 1 step 6).
+3. **Tests** — two files, see Test Strategy:
+   - `seo-optimizer.routes.test.ts` (sanity): add `vi.mock('../../config', ...)` as safety net; no fixture changes, no new assertions.
+   - `seo-optimizer.service.test.ts` (new, canonical): `vi.mock('../../config', ...)` + real service exercises the fallback chain (6 test cases).
 4. **Docs** (`backend/.env.example`): 2 documented env keys. This goes in the same feature branch PR since the code changes are tightly coupled (< 30 lines, no chained PR needed).
 
 ## Verification

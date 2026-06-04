@@ -11,7 +11,7 @@
 
 This change removes three hardcoded values from `backend/src/services/ai/seo-optimizer.service.ts` that surfaced as GGA PREFER findings in PR #52 (`b885772`): the canonical URL host, two `'Crema'` brand literals, and a silent OG-image mask. They are replaced by reads from the env-driven `config` object so the service is correct in every deployment (local, staging, preview, white-label, prod) without code changes. The fix is surgical (single file + 2 new env keys + tests + `.env.example`); an 18-file AI services survey confirmed the anti-pattern is local, not systemic, so no further scope is justified.
 
-The change preserves the public response shape (`SeoOptimizerResponse.ogImageUrl: string` — required, not nullable). The only behavioural change at the API boundary is that `ogImageUrl` now follows an explicit, documented fallback chain: LLM output → `config.ogImageDefault` → `''` (documented "no image available" signal). Operators can inject a default OG image at deploy time via `OG_IMAGE_DEFAULT`; the empty-string is no longer a silent fallback but a documented contract for "no image configured".
+The change preserves the public response shape (`SEOOptimizerResponse.data.ogImageUrl: string` — required, not nullable, where `data: SEOOptimizerOutput`). The only behavioural change at the API boundary is that `ogImageUrl` now follows an explicit, documented fallback chain: LLM output → `config.ogImageDefault` → `''` (documented "no image available" signal). Operators can inject a default OG image at deploy time via `OG_IMAGE_DEFAULT`; the empty-string is no longer a silent fallback but a documented contract for "no image configured".
 
 ---
 
@@ -69,11 +69,11 @@ The service MUST emit `ogSiteName = config.brandName` in the OG output and MUST 
 
 #### REQ-SEO-003: OG image follows an explicit fallback chain
 
-The service MUST compute `ogImageUrl` as `parsed.ogImageUrl ?? config.ogImageDefault`. The field type in `SeoOptimizerResponse` MUST remain `string` (required, not `string | null`, not `string | undefined`). The empty string `''` is the explicit, documented "no OG image available" signal at the API boundary — consumers SHALL treat `''` as "omit the `og:image` meta tag" rather than as an error. The fallback chain MUST be applied exactly once; no further `?? ''` mask downstream.
+The service MUST compute `ogImageUrl` as `parsed.ogImageUrl ?? config.ogImageDefault`. The field type in `SEOOptimizerOutput` (nested under `SEOOptimizerResponse.data`) MUST remain `string` (required, not `string | null`, not `string | undefined`). The empty string `''` is the explicit, documented "no OG image available" signal at the API boundary — consumers SHALL treat `''` as "omit the `og:image` meta tag" rather than as an error. The fallback chain MUST be applied exactly once; no further `?? ''` mask downstream.
 
 #### REQ-SEO-004: `config` import is added to the service
 
-`backend/src/services/ai/seo-optimizer.service.ts` MUST import `config` from `../../config` to read the env-driven values required by REQ-SEO-001, REQ-SEO-002, and REQ-SEO-003. The import MUST follow the project's universal convention: `import { config } from '../../config';` (no alias — 58 occurrences of this exact form across the backend, zero occurrences of any aliased form like `import { config as appConfig }`). The import MUST be placed adjacent to the existing `configService` import (line 12) so both configuration sources are visible in one place. This will make `seo-optimizer.service.ts` the **second** AI service to import the env-driven `config` (the first is `denunciation.service.ts:10`); the other AI services in this directory use either `aiContentConfig` (a separate `ai-content.config` module) or `configService` (DB-backed) — neither fits the deployment-level-constant nature of `BRAND_NAME` / `OG_IMAGE_DEFAULT` / `APP_URL`.
+`backend/src/services/ai/seo-optimizer.service.ts` MUST import `config` from `../../config` to read the env-driven values required by REQ-SEO-001, REQ-SEO-002, and REQ-SEO-003. The import MUST follow the project's universal convention: `import { config } from '../../config';` (no alias — over 50 occurrences of this plain form across the backend, zero occurrences of any aliased form like `import { config as appConfig }`). The import MUST be placed adjacent to the existing `configService` import (line 12) so both configuration sources are visible in one place. This will make `seo-optimizer.service.ts` the **fifth** AI service to import the env-driven `config` (predecessors: `llm.service.ts`, `embedding.service.ts`, `transcription.service.ts`, `denunciation.service.ts`); the `content/*` services use `aiContentConfig` (a separate `ai-content.config` module) and the rest use `configService` (DB-backed) — neither fits the deployment-level-constant nature of `BRAND_NAME` / `OG_IMAGE_DEFAULT` / `APP_URL`.
 
 #### Scenario: Canonical URL reflects deployment host
 
@@ -117,21 +117,15 @@ The service MUST compute `ogImageUrl` as `parsed.ogImageUrl ?? config.ogImageDef
 - **WHEN** the service generates SEO metadata
 - **THEN** `ogImageUrl` MUST equal `''` (documented "no image" signal — not `null`, not `undefined`)
 
-#### Scenario: Route integration returns config-driven brand and canonical
+#### Scenario: Service returns config-driven brand and canonical (verified at service level)
 
 - **GIVEN** a `vi.mock` of the config module that sets `config.brandName = 'TestBrand'` and `config.frontendUrl = 'https://test.crema.com'`
-- **WHEN** `POST /api/ai/product/seo` is called by a valid owner
-- **THEN** the response `data.ogSiteName` MUST equal `'TestBrand'`
-- **AND** the response `data.canonicalUrl` MUST start with `'https://test.crema.com/product/'`
-- **AND** the response `data.schemaMarkup.provider.name` (for course type) MUST equal `'TestBrand'`
-
-#### Scenario: Test fixture updates align with new behaviour
-
-- **GIVEN** the existing test `backend/src/__tests__/routes/seo-optimizer.routes.test.ts` hardcodes `canonicalUrl: 'https://crema.com/product/...'`
-- **WHEN** the test is updated for this change
-- **THEN** the fixture MUST derive `canonicalUrl` from the mocked `config.frontendUrl`
-- **AND** the test MUST add at least one assertion that verifies `ogSiteName` equals the mocked `config.brandName`
-- **AND** the test MUST add at least one assertion that verifies `ogImageUrl` equals the mocked `config.ogImageDefault` when the LLM omits the field
+- **AND** the **real** `seo-optimizer` service is invoked (no service-level `vi.mock`)
+- **WHEN** the service generates SEO metadata
+- **THEN** the result `ogSiteName` MUST equal `'TestBrand'`
+- **AND** the result `canonicalUrl` MUST start with `'https://test.crema.com/product/'`
+- **AND** the result `schemaMarkup.provider.name` (for course type) MUST equal `'TestBrand'`
+- **Note**: the route test (`seo-optimizer.routes.test.ts`) mocks the service, so it cannot verify config-driven values directly. The route test's job is to verify route plumbing (auth, response shape, error handling); the service-level test (created in `tasks.md` Task 1 step 6) is the canonical place to verify that the service reads from config. The route test's only added element is a `vi.mock('../../config', ...)` safety net at the top of the file — no fixture changes, no new assertions.
 
 ---
 
@@ -139,7 +133,7 @@ The service MUST compute `ogImageUrl` as `parsed.ogImageUrl ?? config.ogImageDef
 
 The following items are explicitly excluded from this change. They share the same anti-pattern category but are deferred to separate change requests:
 
-1. **`buildSchemaMarkup` internal `?? ''` masks at lines 428-429** (`metaTitle`, `metaDescription` parse fallbacks). **Risk: LOW** — the outer generator throws `AppError` at line 316 when `metaTitle.length < 30`, so the masks are unreachable on the happy path. They are internal parse-defensive code, not user-facing fields. Aligns with [issue #53](https://github.com/egkike/crema/issues/53) acceptance exclusion.
+1. **`parseLLMResponse` internal `?? ''` masks at lines 428-429** (`metaTitle`, `metaDescription` parse fallbacks). **Risk: LOW** — the outer generator throws `AppError` at line 316 when `metaTitle.length < 30`, so the masks are unreachable on the happy path. They are internal parse-defensive code, not user-facing fields. Aligns with [issue #53](https://github.com/egkike/crema/issues/53) acceptance exclusion.
 2. **Concierge system-prompt brand strings** (`concierge.service.ts` lines 37, 45). Different problem domain (LLM behaviour shaping, not user-facing output). The DB-backed `configService.support.system_prompt` already provides admin override.
 3. **TOTP issuer** (`twoFactor.service.ts:18`, `issuer: 'Crema'`). Specced value that authenticator apps display — changing it would break user TOTP setups.
 4. **SMTP display name** (`email.service.ts:39`, `"Crema" <${config.smtp.from}>`). The `config.smtp.from` is already configurable; the display name is acceptable per project convention.
@@ -156,7 +150,7 @@ The following items are explicitly excluded from this change. They share the sam
 
 | Term | Definition |
 |------|------------|
-| **`ogImageUrl` type contract** | Chosen: `SeoOptimizerResponse.ogImageUrl: string` (required, not nullable). The empty string `''` is the explicit, documented "no OG image available" signal at the API boundary — consumers SHALL treat `''` as "omit the `og:image` meta tag". Justification: preserves the existing public contract (no breaking change for current consumers), lifts the silent-mask anti-pattern by making the empty case a documented contract, and gives operators a deploy-time injection point (`OG_IMAGE_DEFAULT`) without forcing a type-system rewrite. Rejected alternatives: `string \| null` (inconsistent with sibling required string fields), `string \| undefined` (same downstream burden as `''` with worse ergonomics). |
+| **`ogImageUrl` type contract** | Chosen: `SEOOptimizerResponse.data.ogImageUrl: string` (required, not nullable), where `data: SEOOptimizerOutput`. The empty string `''` is the explicit, documented "no OG image available" signal at the API boundary — consumers SHALL treat `''` as "omit the `og:image` meta tag". Justification: preserves the existing public contract (no breaking change for current consumers), lifts the silent-mask anti-pattern by making the empty case a documented contract, and gives operators a deploy-time injection point (`OG_IMAGE_DEFAULT`) without forcing a type-system rewrite. Rejected alternatives: `string \| null` (inconsistent with sibling required string fields), `string \| undefined` (same downstream burden as `''` with worse ergonomics). |
 | **Fallback chain** | Three-tier resolution for `ogImageUrl`: (1) `parsed.ogImageUrl` from LLM, (2) `config.ogImageDefault` from `OG_IMAGE_DEFAULT` env, (3) `''` literal. Tier 1 wins when present; tier 2 is the operator default; tier 3 is the documented "nothing configured" signal. |
 | **Config-driven value** | A value read at request time from the env-validated `config` object (`backend/src/config/index.ts`) — not a hardcoded literal, not the DB-backed `configService`. |
 | **GGA PREFER finding** | A non-blocking style/consistency observation from GGA (Gentleman Guardian Angel) review. Distinct from `REJECT` (blocks merge). PREFER items are encouraged to be addressed when the diff is small. |
