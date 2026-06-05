@@ -36,9 +36,9 @@
 | 0 | Add config keys | `backend/src/config/index.ts` | +4 | [x] |
 | 1 | Update service (canonical/brand/OG) | `backend/src/services/ai/seo-optimizer.service.ts` | +2 / -4 | [x] |
 | 2 | Add config mock safety net to route test (config-driven values verified at service level) | `backend/src/__tests__/routes/seo-optimizer.routes.test.ts` | +6 / -0 | [x] |
-| 3 | Document new env keys | `backend/.env.example` | +4 | [ ] |
-| 4 | Full verification + grep checks | (gates only) | n/a | [ ] |
-| 5 | Update project documentation | `docs/project/reusable-resources.md` + `docs/project/ai-features/PRD.md` | +6 | [ ] |
+| 3 | Document new env keys | `backend/.env.example` | +4 | [x] |
+| 4 | Full verification + grep checks | (gates only) | n/a | [x] |
+| 5 | Update project documentation | `docs/project/reusable-resources.md` + `docs/project/ai-features/PRD.md` | +6 | [x] |
 
 ## Implementation Order
 
