@@ -43,6 +43,10 @@ import { config } from '../config';
 - `config` — singleton with all env vars (db, jwt, storage, redis, etc.)
 - `getValidatedSchema()` — returns the Zod schema
 
+**Deployment-level brand/OG config keys (env-driven):**
+- `brandName` — env: `BRAND_NAME`, default `'Crema'`, trimmed.
+- `ogImageDefault` — env: `OG_IMAGE_DEFAULT`, default `''`, trimmed.
+
 ### `config/ai-content.config.ts`
 AI content assistant configuration (chunk sizes, limits, formats).
 

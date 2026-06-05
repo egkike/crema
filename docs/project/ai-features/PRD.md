@@ -933,7 +933,7 @@ Genera meta tags automáticos para las páginas de productos.
 #### Estado
 ✅ **IMPLEMENTADO** (Tasks 0-7 completados, Mayo 2026)
 
-> **Implementación técnica:** Ver SDD `openspec/changes/archive/2026-06-03-seo-optimizer/`
+> **Implementación técnica:** Ver SDD `openspec/changes/archive/2026-06-03-seo-optimizer/` y SDD de seguimiento `openspec/changes/seo-optimizer-extract-hardcoded-config/`
 > - Servicio: `seoOptimizerService` en `services/ai/seo-optimizer.service.ts`
 > - Repositorio: `seoOptimizerRepository` en `repositories/seo-optimizer.repository.ts`
 > - Endpoint: `POST /api/ai/product/seo`
@@ -942,6 +942,7 @@ Genera meta tags automáticos para las páginas de productos.
 > - Costo: 1 crédito AI por generación
 > - RAG Context: Reutiliza `memoryService.searchSimilar` con sourceTypes ['lesson', 'faq', 'review']
 > - Tests: 18 unit + 16 integration = 34 total, all passing
+> - Env keys: `BRAND_NAME` (default: Crema), `OG_IMAGE_DEFAULT` (default: empty)
 
 ---
 
