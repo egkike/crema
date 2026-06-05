@@ -9,6 +9,7 @@
 import type { EmbeddingSearchResult } from '../../types/ai.types';
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
+import { config } from '../../config';
 import { configService } from '../config.service';
 
 import { llmService } from './llm.service';
@@ -336,7 +337,7 @@ export const seoOptimizerService = {
           : extractKeywords(`${input.productName} ${input.productDescription}`, 8);
 
       // 11. Build canonical URL
-      const canonicalUrl = `https://crema.com/product/${input.productId}`;
+      const canonicalUrl = `${config.frontendUrl}/product/${input.productId}`;
 
       // 12. Map RAG sources for output
       const sources = ragResults.map(r => ({
@@ -351,9 +352,9 @@ export const seoOptimizerService = {
         metaDescription,
         ogTitle,
         ogDescription,
-        ogImageUrl: parsed.ogImageUrl ?? '',
+        ogImageUrl: parsed.ogImageUrl ?? config.ogImageDefault,
         ogType: 'product',
-        ogSiteName: 'Crema',
+        ogSiteName: config.brandName,
         canonicalUrl,
         schemaMarkup,
         keywords,
@@ -472,7 +473,7 @@ function buildSchemaMarkup(
   if (schemaType === 'Course') {
     markup.provider = {
       '@type': 'Organization',
-      name: 'Crema',
+      name: config.brandName,
     };
   }
 
