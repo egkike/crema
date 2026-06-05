@@ -39,6 +39,8 @@ const envSchema = z.object({
   MERCADO_PAGO_WEBHOOK_SECRET: z.string().optional().default(''),
   API_BASE_URL: z.string().optional(),
   APP_URL: z.string().default('http://localhost:5173'),
+  BRAND_NAME: z.string().default('Crema').transform(s => s.trim()),
+  OG_IMAGE_DEFAULT: z.string().default('').transform(s => s.trim()),
   RECAPTCHA_SECRET_KEY: z.string().optional().default(''),
   SMTP_HOST: z.string().default('sandbox.smtp.mailtrap.io'),
   SMTP_PORT: z.coerce.number().default(2525),
@@ -180,6 +182,8 @@ export const config = {
   },
   apiBaseUrl: (env.API_BASE_URL || `http://localhost:${env.PORT}`).trim().replace(/\/$/, ''),
   frontendUrl: (env.APP_URL || '').trim().replace(/\/$/, ''),
+  brandName: env.BRAND_NAME,
+  ogImageDefault: env.OG_IMAGE_DEFAULT,
   recaptchaSecretKey: env.RECAPTCHA_SECRET_KEY,
   passwordPepper: (() => {
     const pepper = process.env.PASSWORD_PEPPER;

@@ -31,6 +31,58 @@ vi.mock('../../services/ai/seo-optimizer.service', () => ({
   },
 }));
 
+// Safety net — mock the env-driven config module so the route test fails
+// fast (with a clear module-resolution error) if any route or middleware
+// ever reads `config` directly without going through the service layer.
+// The actual config-driven values are verified at the service level in
+// `seo-optimizer.service.test.ts` (Task 1 step 6). This mock does NOT
+// influence the mocked service response above.
+//
+// NOTE: this local mock must include every config field the import chain
+// in this test file transitively touches (e.g. `config.redis` is read at
+// module load time by `src/config/redis.ts`, which is pulled in by the
+// route's scheduler chain). Mirroring the comprehensive setup.ts mock
+// keeps the chain happy.
+vi.mock('../../config', () => ({
+  config: {
+    redis: { host: 'localhost', port: 6379, password: '' },
+    jwt: {
+      secret: 'static-test-secret-32-chars-long-!!',
+      refreshSecret: 'static-refresh-secret-32-chars-long-!!',
+      accessTokenExpiry: '1h',
+      refreshTokenExpiry: '7d',
+      accessTokenMaxAge: 900000,
+      refreshTokenMaxAge: 604800000,
+    },
+    passwordPepper: 'test-pepper',
+    nodeEnv: 'test',
+    db: { schema: 'public' },
+    allowedSchemas: ['public'],
+    smtp: { host: 'localhost', port: 587, user: 'test', pass: 'test', from: 'test@crema.com' },
+    mercadoPago: { accessToken: 'test' },
+    cors: { origins: '*' },
+    apiBaseUrl: 'http://localhost:3000',
+    frontendUrl: 'https://test.crema.com',
+    brandName: 'TestBrand',
+    ogImageDefault: '/img/og-default.png',
+    daysOfGuarantee: 7,
+    ai: {
+      provider: 'simulator',
+      openaiApiKey: '',
+      openaiModel: 'gpt-4o-mini',
+      openaiEmbeddingModel: 'text-embedding-3-small',
+      anthropicApiKey: '',
+      anthropicModel: 'claude-3-haiku-20240307',
+      geminiApiKey: '',
+      geminiModel: 'gemini-1.5-flash',
+      ollamaBaseUrl: 'http://localhost:11434',
+      ollamaEnabled: false,
+      defaultOllamaChatModel: 'qwen2.5:3b',
+      defaultOllamaEmbeddingModel: 'nomic-embed-text',
+    },
+  },
+}));
+
 // Mock credits service
 vi.mock('../../services/ai/credits.service', () => ({
   aiCreditService: {
