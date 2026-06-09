@@ -210,11 +210,13 @@ import { auditMiddleware, logAudit, getAuditLogs } from '../middlewares/audit/au
 | `jwt` | JWT generation, verification, payload cleaning | `generateAccessToken()`, `verifyToken()` |
 | `validators` | Argentina-specific validators (CUIT, CBU) | `validateCUIT(cuit)` |
 | `params` | Safe query parameter parsing | `toString()`, `parseClamped()` |
-| `routeHelpers` | Ownership/access verification | `verifyProductOwnership()` |
+| `routeHelpers` | Ownership/access verification | `verifyProductOwnership()`, `verifyProductAccess()`, `verifyDashboardOwnership()` |
 | `rounder` | Financial rounding to 2 decimals | `roundToTwo(value)` |
 | `streamingUtil` | Mux/Cloudflare signed URL generation | `streamingUtil.getSignedUrl()` |
 | `ip` | Client IP extraction | `extractClientIp(req)` |
 | `url-validator` | External URL validation with domain allowlist | `validateExternalUrl()`, `validateExternalUrlSafe()`, `getExternalUrlError()` |
+
+> **Note (#55, PR #56):** `verifyDashboardOwnership` was fixed (table `insight_dashboards` → `creator_dashboards`) and is now production-ready. `withSanitizedErrors` usage expanded to: `agents.service.ts` (4 dashboard methods), `affiliate-chat.service.ts` (existence check), `concierge.service.ts` (repository calls), and `routeHelpers.util.ts` (`verifyProductAccess` + `verifyDashboardOwnership`).
 
 ---
 
@@ -320,6 +322,9 @@ These SDDs have been completed and reference this catalog:
 - `openspec/changes/archive/2026-06-03-error-handling/` — Error notifications con Slack/Datadog
 - `openspec/changes/archive/2026-06-03-orchestrator/` — Central routing con 18 capabilities (SSE streaming)
 - `openspec/changes/archive/2026-06-03-user-context/` — User context y notas, crea `user_context`, `user_notes`
+
+### Security Hardening
+- `openspec/changes/fix-agents-service-auth-sanitization-reuse/` — Dashboard ownership bypass fix, error sanitization, product access checks (#55, PR #56)
 
 ### Content Security
 - `openspec/changes/archive/2026-06-03-content-security/` — uses upload middleware, url-validator, config patterns
