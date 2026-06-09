@@ -6,8 +6,12 @@
  * Uses RAG grounding + credit-based access control.
  */
 
+import pool from '../../db/postgres';
 import { AppError } from '../../errors/AppError';
+import { withSanitizedErrors } from '../../lib/withSanitizedErrors';
 import logger from '../../utils/logger';
+import { verifyProductAccess } from '../../utils/routeHelpers.util';
+import { getValidatedSchema } from '../../utils/validators.util';
 import { configService } from '../config.service';
 import type { EmbeddingSearchResult } from '../../types/ai.types';
 
@@ -121,6 +125,19 @@ export const affiliateChatService = {
   async chat(input: AffiliateChatInput): Promise<AffiliateChatResponse> {
     const { productId, userId, message } = input;
 
+    // 0. Check product exists (404) — before sanitization per spec
+    const existence = await withSanitizedErrors(
+      'affiliateChat.chat.checkProduct',
+      userId,
+      async () => pool.query(`SELECT 1 FROM "${getValidatedSchema()}".products WHERE id = $1`, [productId])
+    );
+    if (existence.rows.length === 0) {
+      throw new AppError('Producto no encontrado', 404);
+    }
+
+    // 0b. Verify user has access (403) — before sanitization per spec
+    await verifyProductAccess(pool, productId, userId);
+
     // 1. Sanitize input
     const sanitized = sanitizeInput(message);
     const originalLength = message.length;
@@ -140,7 +157,7 @@ export const affiliateChatService = {
 
     // 3. Empty check after sanitization
     if (sanitized.length === 0) {
-      throw new AppError('Invalid input', 400);
+      throw new AppError('Entrada inválida', 400);
     }
 
     // 4. Frame the sanitized message
@@ -196,9 +213,9 @@ export const affiliateChatService = {
          error.message.toLowerCase().includes('deadline'));
 
       if (isTimeout) {
-        throw new AppError('Service temporarily unavailable', 503);
+        throw new AppError('Servicio temporalmente no disponible', 503);
       }
-      throw new AppError('Error processing request. Please try again.', 500);
+      throw new AppError('Error al procesar la solicitud. Por favor intenta de nuevo.', 500);
     }
 
     logger.info(

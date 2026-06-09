@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 
 import { AppError } from '../errors/AppError';
+import { withSanitizedErrors } from '../lib/withSanitizedErrors';
 
 import { getValidatedSchema } from './validators.util';
 
@@ -45,28 +46,40 @@ export async function verifyProductAccess(
   const schema = getValidatedSchema();
   
   // 1. Check if user is the creator
-  const creatorCheck = await pool.query(
-    `SELECT id FROM "${schema}"."products" WHERE id = $1 AND creator_id = $2`,
-    [productId, userId]
+  const creatorCheck = await withSanitizedErrors(
+    'routeHelpers.verifyProductAccess.ownership',
+    userId,
+    async () => pool.query(
+      `SELECT id FROM "${schema}"."products" WHERE id = $1 AND creator_id = $2`,
+      [productId, userId]
+    )
   );
   if (creatorCheck.rows.length > 0) return;
 
   // 2. Check if user has purchased the product (confirmed order)
-  const purchaseCheck = await pool.query(
-    `SELECT id FROM "${schema}"."orders" WHERE product_id = $1 AND buyer_id = $2 AND status = 'confirmed'`,
-    [productId, userId]
+  const purchaseCheck = await withSanitizedErrors(
+    'routeHelpers.verifyProductAccess.purchase',
+    userId,
+    async () => pool.query(
+      `SELECT id FROM "${schema}"."orders" WHERE product_id = $1 AND buyer_id = $2 AND status = 'confirmed'`,
+      [productId, userId]
+    )
   );
   if (purchaseCheck.rows.length > 0) return;
 
   // 3. Check if user is an active affiliate for this product
-  const affiliateCheck = await pool.query(
-    `SELECT id FROM "${schema}"."affiliate_sales" WHERE product_id = $1 AND affiliate_id = $2`,
-    [productId, userId]
+  const affiliateCheck = await withSanitizedErrors(
+    'routeHelpers.verifyProductAccess.affiliate',
+    userId,
+    async () => pool.query(
+      `SELECT id FROM "${schema}"."affiliate_sales" WHERE product_id = $1 AND affiliate_id = $2`,
+      [productId, userId]
+    )
   );
   if (affiliateCheck.rows.length > 0) return;
 
   // No access found
-  throw new AppError('You do not have access to this product. Purchase required.', 403);
+  throw new AppError('No tienes acceso a este producto. Compra requerida.', 403);
 }
 
 /**
@@ -83,13 +96,17 @@ export async function verifyDashboardOwnership(
   dashboardId: string,
   userId: string
 ): Promise<void> {
-  const ownershipCheck = await pool.query(
-    `SELECT id FROM "${getValidatedSchema()}"."insight_dashboards" WHERE id = $1 AND creator_id = $2`,
-    [dashboardId, userId]
+  const ownershipCheck = await withSanitizedErrors(
+    'routeHelpers.verifyDashboardOwnership',
+    userId,
+    () => pool.query(
+      `SELECT id FROM "${getValidatedSchema()}"."creator_dashboards" WHERE id = $1 AND creator_id = $2`,
+      [dashboardId, userId]
+    )
   );
   
   if (ownershipCheck.rows.length === 0) {
-    throw new AppError('You do not have permission to access this dashboard', 403);
+    throw new AppError('No tienes permiso para acceder a este dashboard', 403);
   }
 }
 

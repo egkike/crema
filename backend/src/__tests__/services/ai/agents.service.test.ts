@@ -2008,3 +2008,130 @@ describe('Phase 3 wire-in: LLM-SQL goes through withReadOnlyRole, not direct poo
   });
 });
 
+// =============================================================================
+// Phase 3: Dashboard auth + sanitization tests (Tasks 3.1 + 3.5)
+// =============================================================================
+
+describe('dashboard auth and sanitization', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects updateDashboard from non-owner with 403', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    // Existence pre-check returns row (dashboard exists)
+    queryMock.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+    // verifyDashboardOwnership query returns empty rows → not owner
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    const { insightsService } = await import('../../../services/ai/agents.service');
+
+    await expect(
+      insightsService.updateDashboard('user-1', 'dash-other', { name: 'X' })
+    ).rejects.toThrow('No tienes permiso para acceder a este dashboard');
+  });
+
+  it('rejects deleteDashboard from non-owner with 403', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    // Existence pre-check returns row (dashboard exists)
+    queryMock.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+    // verifyDashboardOwnership query returns empty rows → not owner
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    const { insightsService } = await import('../../../services/ai/agents.service');
+
+    await expect(
+      insightsService.deleteDashboard('user-1', 'dash-other')
+    ).rejects.toThrow('No tienes permiso para acceder a este dashboard');
+  });
+
+  it('rejects getDashboardById from non-owner with 403', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    // Existence check returns row (dashboard exists)
+    queryMock.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+    // Ownership check returns empty (not owner)
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    const { insightsService } = await import('../../../services/ai/agents.service');
+
+    await expect(
+      insightsService.getDashboardById('user-1', 'dash-other')
+    ).rejects.toThrow('No tienes permiso para acceder a este dashboard');
+  });
+
+  it('throws 404 on getDashboardById when dashboard does not exist', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    // Existence check returns empty
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    const { insightsService } = await import('../../../services/ai/agents.service');
+
+    await expect(
+      insightsService.getDashboardById('user-1', 'nonexistent')
+    ).rejects.toThrow('Dashboard no encontrado');
+  });
+
+  it('throws 404 on updateDashboard when dashboard does not exist', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    // Existence pre-check returns empty (dashboard doesn't exist)
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    const { insightsService } = await import('../../../services/ai/agents.service');
+
+    await expect(
+      insightsService.updateDashboard('user-1', 'nonexistent-dash', { name: 'X' })
+    ).rejects.toThrow('Dashboard no encontrado');
+  });
+
+  it('throws 404 on deleteDashboard when dashboard does not exist', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    // Existence pre-check returns empty (dashboard doesn't exist)
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    const { insightsService } = await import('../../../services/ai/agents.service');
+
+    await expect(
+      insightsService.deleteDashboard('user-1', 'nonexistent-dash')
+    ).rejects.toThrow('Dashboard no encontrado');
+  });
+
+  it('sanitizes DB errors on createDashboard to generic 500', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    // The INSERT query throws a raw constraint error
+    queryMock.mockRejectedValueOnce(new Error('duplicate key value violates unique constraint'));
+
+    const { insightsService } = await import('../../../services/ai/agents.service');
+
+    await expect(
+      insightsService.createDashboard('user-1', 'X')
+    ).rejects.toThrow('Error al ejecutar la consulta');
+  });
+
+  it('returns 404 (not 403) when dashboard does not exist, even for non-owners', async () => {
+    const pool = (await import('../../../db/postgres')).default;
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    // Existence check returns empty (dashboard doesn't exist)
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    // Ownership check should NOT be called — but if it is, mock it anyway
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    const { insightsService } = await import('../../../services/ai/agents.service');
+
+    await expect(
+      insightsService.getDashboardById('user-1', 'nonexistent-dash')
+    ).rejects.toThrow('Dashboard no encontrado');
+
+    // Verify the OWNERSHIP query was NOT called (existence check short-circuits).
+    // Security guarantee: 404 doesn't leak existence, 403 is only for
+    // existing-but-unauthorized dashboards.
+    expect(queryMock).toHaveBeenCalledTimes(1);
+  });
+});
+

@@ -4,12 +4,21 @@ import { app } from '../../app';
 import '../setup';
 import { generateTestAccessToken, generateTestRefreshToken } from '../setup';
 
+// Shared mock fn so the hoisted service mock can reference verifyProductAccess
+const { mockVerifyProductAccess } = vi.hoisted(() => ({
+  mockVerifyProductAccess: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock affiliate chat service
 vi.mock('../../services/ai/affiliate-chat.service', () => ({
   affiliateChatService: {
-    chat: vi.fn().mockResolvedValue({
-      response: 'Test response',
-      sources: [],
+    chat: vi.fn().mockImplementation(async (input: { productId: string; userId: string }) => {
+      // Mirrors what the real service does internally (Phase 2)
+      await mockVerifyProductAccess(null, input.productId, input.userId);
+      return {
+        response: 'Test response',
+        sources: [],
+      };
     }),
   },
   classifyIntent: vi.fn().mockReturnValue('product_info'),
@@ -64,11 +73,9 @@ vi.mock('../../middlewares/rateLimit/rateLimit', () => {
 
 import { affiliateChatLimiter } from '../../middlewares/rateLimit/rateLimit';
 import { aiCreditService } from '../../services/ai/credits.service';
-import { classifyIntent } from '../../services/ai/affiliate-chat.service';
+import { affiliateChatService, classifyIntent } from '../../services/ai/affiliate-chat.service';
 import pool from '../../db/postgres';
 import { AppError } from '../../errors/AppError';
-
-import { verifyProductAccess } from '../../utils/routeHelpers.util';
 
 // Test constants — valid UUIDs that pass zod validation
 const BUYER_USER_ID = '123e4567-e89b-42d3-a456-426614174000';
@@ -84,8 +91,17 @@ describe('Affiliate Chat Routes', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    // Reset verifyProductAccess to resolve (has access)
-    vi.mocked(verifyProductAccess).mockResolvedValue(undefined);
+    // Reset mockVerifyProductAccess to resolve (has access)
+    mockVerifyProductAccess.mockResolvedValue(undefined);
+
+    // Re-establish chat mock implementation (resetAllMocks clears it)
+    vi.mocked(affiliateChatService.chat).mockImplementation(
+      async (input: { productId: string; userId: string }) => {
+        await mockVerifyProductAccess(null, input.productId, input.userId);
+        return { response: 'Test response', sources: [] };
+      }
+    );
+    vi.mocked(classifyIntent).mockReturnValue('product_info');
 
     // Reset pool.query to return empty rows
     vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as never);
@@ -176,8 +192,8 @@ describe('Affiliate Chat Routes', () => {
     });
 
     it('Returns 403 when user has no product access', async () => {
-      // Make verifyProductAccess throw 403
-      vi.mocked(verifyProductAccess).mockRejectedValue(
+      // Make mockVerifyProductAccess throw 403 — mirrors the real service calling verifyProductAccess
+      mockVerifyProductAccess.mockRejectedValue(
         new AppError('You do not have access to this product. Purchase required.', 403)
       );
 
