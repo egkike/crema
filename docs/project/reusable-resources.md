@@ -324,7 +324,7 @@ These SDDs have been completed and reference this catalog:
 - `openspec/changes/archive/2026-06-03-user-context/` — User context y notas, crea `user_context`, `user_notes`
 
 ### Security Hardening
-- `openspec/changes/fix-agents-service-auth-sanitization-reuse/` — Dashboard ownership bypass fix, error sanitization, product access checks (#55, PR #56)
+- `openspec/changes/archive/2026-06-09-fix-agents-service-auth-sanitization-reuse/` — Dashboard ownership bypass fix, error sanitization, product access checks (#55, PR #56)
 
 ### Content Security
 - `openspec/changes/archive/2026-06-03-content-security/` — uses upload middleware, url-validator, config patterns
