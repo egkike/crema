@@ -10,7 +10,7 @@ import pool from '../../db/postgres';
 import { AppError } from '../../errors/AppError';
 import logger from '../../utils/logger';
 import { getValidatedSchema } from '../../utils/validators.util';
-import { verifyProductOwnership, verifyBuyerOfProduct, verifyCreatorHasDataInPeriod } from '../../utils/routeHelpers.util';
+import { verifyProductOwnership, verifyBuyerOfProduct, verifyCreatorHasDataInPeriod, verifyDashboardOwnership } from '../../utils/routeHelpers.util';
 import { sanitizeEmailHtml } from '../../lib/sanitizeEmailHtml';
 import { withReadOnlyRole } from '../../lib/withReadOnlyRole';
 import { withSanitizedErrors } from '../../lib/withSanitizedErrors';
@@ -1167,12 +1167,16 @@ export const insightsService = {
       WHERE creator_id = $1
       ORDER BY is_default DESC, name ASC
     `;
-    const { rows } = await pool.query<{
-      id: string;
-      name: string;
-      description: string | null;
-      is_default: boolean;
-    }>(query, [userId]);
+    const { rows } = await withSanitizedErrors(
+      'insightsService.getDashboards',
+      userId,
+      async () => pool.query<{
+        id: string;
+        name: string;
+        description: string | null;
+        is_default: boolean;
+      }>(query, [userId])
+    );
 
     return {
       dashboards: rows.map(r => ({
@@ -1197,7 +1201,11 @@ export const insightsService = {
       VALUES ($1, $2, $3)
       RETURNING id
     `;
-    const { rows } = await pool.query<{ id: string }>(query, [userId, name, description || null]);
+    const { rows } = await withSanitizedErrors(
+      'insightsService.createDashboard',
+      userId,
+      async () => pool.query<{ id: string }>(query, [userId, name, description || null])
+    );
     return rows[0];
   },
 
@@ -1205,9 +1213,22 @@ export const insightsService = {
    * Update a dashboard
    */
   async updateDashboard(
+    userId: string,
     dashboardId: string,
     data: { name?: string; description?: string; config?: Record<string, unknown> }
   ): Promise<void> {
+    // Existence pre-check → 404 if missing
+    const existence = await withSanitizedErrors(
+      'insightsService.updateDashboard.check',
+      userId,
+      async () => pool.query(`SELECT 1 FROM "${getValidatedSchema()}".creator_dashboards WHERE id = $1`, [dashboardId])
+    );
+    if (existence.rows.length === 0) {
+      throw new AppError('Dashboard no encontrado', 404);
+    }
+
+    await verifyDashboardOwnership(pool, dashboardId, userId);
+
     const updates: string[] = [];
     const params: unknown[] = [dashboardId];
     let paramIndex = 2;
@@ -1230,37 +1251,57 @@ export const insightsService = {
     updates.push('updated_at = CURRENT_TIMESTAMP');
 
     const query = `UPDATE "${getValidatedSchema()}".creator_dashboards SET ${updates.join(', ')} WHERE id = $1`;
-    await pool.query(query, params);
+    await withSanitizedErrors(
+      'insightsService.updateDashboard',
+      userId,
+      async () => pool.query(query, params)
+    );
   },
 
   /**
    * Get a single dashboard by ID with ownership verification
    */
-  async getDashboardById(dashboardId: string): Promise<{
+  async getDashboardById(userId: string, dashboardId: string): Promise<{
     id: string;
     name: string;
     description: string | null;
     isDefault: boolean;
     creator_id: string;
     config: Record<string, unknown> | null;
-  } | null> {
+  }> {
+    const existence = await withSanitizedErrors(
+      'insightsService.getDashboardById.check',
+      userId,
+      async () => pool.query(`SELECT 1 FROM "${getValidatedSchema()}".creator_dashboards WHERE id = $1`, [dashboardId])
+    );
+    if (existence.rows.length === 0) {
+      throw new AppError('Dashboard no encontrado', 404);
+    }
+
+    await verifyDashboardOwnership(pool, dashboardId, userId);
+
     const query = `
       SELECT id, creator_id, name, description, is_default, config
       FROM "${getValidatedSchema()}".creator_dashboards
       WHERE id = $1
     `;
-    const { rows } = await pool.query<{
-      id: string;
-      creator_id: string;
-      name: string;
-      description: string | null;
-      is_default: boolean;
-      config: Record<string, unknown> | null;
-    }>(query, [dashboardId]);
-
-    if (rows.length === 0) return null;
+    const { rows } = await withSanitizedErrors(
+      'insightsService.getDashboardById',
+      userId,
+      async () => pool.query<{
+        id: string;
+        creator_id: string;
+        name: string;
+        description: string | null;
+        is_default: boolean;
+        config: Record<string, unknown> | null;
+      }>(query, [dashboardId])
+    );
 
     const r = rows[0];
+    if (!r) {
+      throw new AppError('Dashboard no encontrado', 404);
+    }
     return {
       id: r.id,
       creator_id: r.creator_id,
@@ -1274,9 +1315,25 @@ export const insightsService = {
   /**
    * Delete a dashboard
    */
-  async deleteDashboard(dashboardId: string): Promise<boolean> {
+  async deleteDashboard(userId: string, dashboardId: string): Promise<boolean> {
+    // Existence pre-check → 404 if missing
+    const existence = await withSanitizedErrors(
+      'insightsService.deleteDashboard.check',
+      userId,
+      async () => pool.query(`SELECT 1 FROM "${getValidatedSchema()}".creator_dashboards WHERE id = $1`, [dashboardId])
+    );
+    if (existence.rows.length === 0) {
+      throw new AppError('Dashboard no encontrado', 404);
+    }
+
+    await verifyDashboardOwnership(pool, dashboardId, userId);
+
     const query = `DELETE FROM "${getValidatedSchema()}".creator_dashboards WHERE id = $1`;
-    const result = await pool.query(query, [dashboardId]);
+    const result = await withSanitizedErrors(
+      'insightsService.deleteDashboard',
+      userId,
+      async () => pool.query(query, [dashboardId])
+    );
     return (result.rowCount || 0) > 0;
   },
 

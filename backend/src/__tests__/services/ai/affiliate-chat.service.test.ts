@@ -10,6 +10,7 @@ import { memoryService } from '../../../services/ai/memory.service';
 import { llmService } from '../../../services/ai/llm.service';
 import logger from '../../../utils/logger';
 import { AppError } from '../../../errors/AppError';
+import pool from '../../../db/postgres';
 
 // ============================================================================
 // Mocks
@@ -37,6 +38,20 @@ vi.mock('../../../services/config.service', () => ({
     getNumber: vi.fn().mockResolvedValue(0.7),
     get: vi.fn().mockResolvedValue(null),
   },
+}));
+
+vi.mock('../../../db/postgres', () => ({
+  default: {
+    query: vi.fn(),
+  },
+}));
+
+vi.mock('../../../utils/validators.util', () => ({
+  getValidatedSchema: vi.fn().mockReturnValue('public'),
+}));
+
+vi.mock('../../../utils/routeHelpers.util', () => ({
+  verifyProductAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ============================================================================
@@ -146,6 +161,7 @@ describe('affiliateChatService', () => {
     };
 
     it('should return product_info response', async () => {
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as never);
       vi.mocked(memoryService.searchSimilar).mockResolvedValue(mockFragments);
       vi.mocked(llmService.chat).mockResolvedValue(mockLLMResponse);
 
@@ -162,6 +178,7 @@ describe('affiliateChatService', () => {
     });
 
     it('should return promo_copy response with marketing prompt', async () => {
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as never);
       vi.mocked(memoryService.searchSimilar).mockResolvedValue(mockFragments);
       vi.mocked(llmService.chat).mockResolvedValue(mockLLMResponse);
 
@@ -179,6 +196,7 @@ describe('affiliateChatService', () => {
     });
 
     it('should return stub for affiliate_metrics without LLM call', async () => {
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as never);
       vi.mocked(memoryService.searchSimilar).mockResolvedValue(mockFragments);
 
       const result = await affiliateChatService.chat({
@@ -197,6 +215,7 @@ describe('affiliateChatService', () => {
       const maliciousInput = '\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09hello';
 
       const warnSpy = vi.spyOn(logger, 'warn');
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as never);
       vi.mocked(memoryService.searchSimilar).mockResolvedValue(mockFragments);
       vi.mocked(llmService.chat).mockResolvedValue(mockLLMResponse);
 
@@ -220,6 +239,7 @@ describe('affiliateChatService', () => {
     });
 
     it('should handle empty RAG results', async () => {
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as never);
       vi.mocked(memoryService.searchSimilar).mockResolvedValue([]);
       vi.mocked(llmService.chat).mockResolvedValue(mockLLMResponse);
 
@@ -237,6 +257,7 @@ describe('affiliateChatService', () => {
     });
 
     it('should throw 503 with generic message on LLM timeout', async () => {
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as never);
       vi.mocked(memoryService.searchSimilar).mockResolvedValue(mockFragments);
       vi.mocked(llmService.chat).mockRejectedValue(new Error('LLM provider timeout'));
 
@@ -246,10 +267,11 @@ describe('affiliateChatService', () => {
           userId: USER_ID,
           message: 'Que ensena este producto?',
         })
-      ).rejects.toThrow(new AppError('Service temporarily unavailable', 503));
+      ).rejects.toThrow(new AppError('Servicio temporalmente no disponible', 503));
     });
 
     it('should throw 500 with generic message on non-timeout LLM errors', async () => {
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as never);
       vi.mocked(memoryService.searchSimilar).mockResolvedValue(mockFragments);
       vi.mocked(llmService.chat).mockRejectedValue(new Error('Rate limit exceeded'));
 
@@ -259,7 +281,43 @@ describe('affiliateChatService', () => {
           userId: USER_ID,
           message: 'Que ensena este producto?',
         })
-      ).rejects.toThrow(new AppError('Error processing request. Please try again.', 500));
+      ).rejects.toThrow(new AppError('Error al procesar la solicitud. Por favor intenta de nuevo.', 500));
+    });
+
+    it('should throw 404 when product does not exist', async () => {
+      // Override the existence check to return empty rows
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as never);
+
+      await expect(
+        affiliateChatService.chat({
+          productId: PRODUCT_ID,
+          userId: USER_ID,
+          message: 'test',
+        })
+      ).rejects.toThrow(new AppError('Producto no encontrado', 404));
+
+      // Assert RAG search was NOT called
+      expect(memoryService.searchSimilar).not.toHaveBeenCalled();
+    });
+
+    it('should throw 403 when user has no product access', async () => {
+      // Existence check returns row (product exists)
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as never);
+      // verifyProductAccess throws 403
+      const { verifyProductAccess } = await import('../../../utils/routeHelpers.util');
+      vi.mocked(verifyProductAccess).mockRejectedValueOnce(
+        new AppError('You do not have access to this product. Purchase required.', 403)
+      );
+
+      await expect(
+        affiliateChatService.chat({
+          productId: PRODUCT_ID,
+          userId: USER_ID,
+          message: 'test',
+        })
+      ).rejects.toThrow('You do not have access to this product');
+
+      expect(memoryService.searchSimilar).not.toHaveBeenCalled();
     });
   });
 });

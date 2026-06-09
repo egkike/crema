@@ -339,9 +339,14 @@ describe('agents.service.ts', () => {
 
     describe('updateDashboard', () => {
       it('should update dashboard name', async () => {
+        // Mock 1: existence pre-check (dashboard exists)
+        mockQuery.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+        // Mock 2: verifyDashboardOwnership check
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 'dash-1' }] });
+        // Mock 3: actual UPDATE query
         mockQuery.mockResolvedValueOnce({ rows: [] });
 
-        await insightsService.updateDashboard('dash-1', { name: 'Updated Name' });
+        await insightsService.updateDashboard('user-123', 'dash-1', { name: 'Updated Name' });
 
         expect(mockQuery).toHaveBeenCalledWith(
           expect.stringContaining('name = $2'),
@@ -350,9 +355,14 @@ describe('agents.service.ts', () => {
       });
 
       it('should update dashboard description', async () => {
+        // Mock 1: existence pre-check (dashboard exists)
+        mockQuery.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+        // Mock 2: verifyDashboardOwnership check
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 'dash-1' }] });
+        // Mock 3: actual UPDATE query
         mockQuery.mockResolvedValueOnce({ rows: [] });
 
-        await insightsService.updateDashboard('dash-1', { description: 'New desc' });
+        await insightsService.updateDashboard('user-123', 'dash-1', { description: 'New desc' });
 
         expect(mockQuery).toHaveBeenCalledWith(
           expect.stringContaining('description = $2'),
@@ -361,9 +371,14 @@ describe('agents.service.ts', () => {
       });
 
       it('should update dashboard config', async () => {
+        // Mock 1: existence pre-check (dashboard exists)
+        mockQuery.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+        // Mock 2: verifyDashboardOwnership check
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 'dash-1' }] });
+        // Mock 3: actual UPDATE query
         mockQuery.mockResolvedValueOnce({ rows: [] });
 
-        await insightsService.updateDashboard('dash-1', {
+        await insightsService.updateDashboard('user-123', 'dash-1', {
           config: { charts: ['bar', 'line'] },
         });
 
@@ -376,9 +391,14 @@ describe('agents.service.ts', () => {
 
     describe('deleteDashboard', () => {
       it('should delete a dashboard', async () => {
+        // Mock 1: existence pre-check (dashboard exists)
+        mockQuery.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+        // Mock 2: verifyDashboardOwnership check
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 'dash-1' }] });
+        // Mock 3: actual DELETE query
         mockQuery.mockResolvedValueOnce({ rows: [] });
 
-        await insightsService.deleteDashboard('dash-1');
+        await insightsService.deleteDashboard('user-123', 'dash-1');
 
         expect(mockQuery).toHaveBeenCalledWith(
           expect.stringContaining('DELETE'),
@@ -389,6 +409,11 @@ describe('agents.service.ts', () => {
 
     describe('getDashboardById', () => {
       it('should return dashboard by ID', async () => {
+        // Mock 1: existence check (withSanitizedErrors)
+        mockQuery.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+        // Mock 2: verifyDashboardOwnership check
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 'dash-1' }] });
+        // Mock 3: actual SELECT query
         mockQuery.mockResolvedValueOnce({
           rows: [
             {
@@ -404,18 +429,19 @@ describe('agents.service.ts', () => {
           ],
         });
 
-        const result = await insightsService.getDashboardById('dash-1');
+        const result = await insightsService.getDashboardById('user-123', 'dash-1');
 
         expect(result).not.toBeNull();
-        expect(result?.name).toBe('Test Dashboard');
+        expect(result.name).toBe('Test Dashboard');
       });
 
-      it('should return null when dashboard not found', async () => {
+      it('should throw 404 when dashboard not found', async () => {
+        // Mock 1: existence check returns empty → triggers AppError 404
         mockQuery.mockResolvedValueOnce({ rows: [] });
 
-        const result = await insightsService.getDashboardById('dash-nonexistent');
-
-        expect(result).toBeNull();
+        await expect(
+          insightsService.getDashboardById('user-123', 'dash-nonexistent')
+        ).rejects.toThrow('Dashboard no encontrado');
       });
     });
   });

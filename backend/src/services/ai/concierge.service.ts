@@ -7,6 +7,7 @@
  */
 
 import { AppError } from '../../errors/AppError';
+import { withSanitizedErrors } from '../../lib/withSanitizedErrors';
 import logger from '../../utils/logger';
 import { userContextRepository } from '../../repositories/user-context.repository';
 import { configService } from '../config.service';
@@ -140,20 +141,24 @@ export const conciergeService = {
 
       logger.info({ userId, responseLength: response.length }, 'Concierge: Chat completed');
 
-      // Save user context for Concierge history (fire and forget)
-      userContextRepository.findByUserAndProduct(userId, CONCIERGE_PRODUCT_ID)
+      // Save user context for Concierge history (non-fatal, awaited)
+      await withSanitizedErrors('concierge.contextFind', userId, () =>
+        userContextRepository.findByUserAndProduct(userId, CONCIERGE_PRODUCT_ID)
+      )
         .then((existing) => {
           const existingData = existing?.contextData || {};
           // Use safe type guard for conversation count
           const conversationCount = safeConversationCount(existingData.conversationCount);
 
-          return userContextRepository.upsert(userId, CONCIERGE_PRODUCT_ID, {
-            ...existingData,
-            lastMessage: sanitizedMessage.substring(0, 500), // Truncate for storage
-            lastResponse: response.substring(0, 2000),
-            conversationCount: conversationCount + 1,
-            lastInteraction: new Date().toISOString(),
-          });
+          return withSanitizedErrors('concierge.contextUpsert', userId, () =>
+            userContextRepository.upsert(userId, CONCIERGE_PRODUCT_ID, {
+              ...existingData,
+              lastMessage: sanitizedMessage.substring(0, 500), // Truncate for storage
+              lastResponse: response.substring(0, 2000),
+              conversationCount: conversationCount + 1,
+              lastInteraction: new Date().toISOString(),
+            })
+          );
         })
         .catch((contextError) => {
           logger.warn({ error: contextError }, 'Concierge: Failed to save user context');

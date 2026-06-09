@@ -1987,20 +1987,10 @@ router.put(
   asyncHandler(async (req: Request, res: Response) => {
     try {
       const dashboardId = toString(req.params.dashboardId);
-
       const userId = uid(req);
       const { name, description, config } = req.body;
 
-      // Verify ownership
-      const dashboard = await insightsService.getDashboardById(dashboardId);
-      if (!dashboard) {
-        throw new AppError('Dashboard not found', 404);
-      }
-      if (dashboard.creator_id !== userId) {
-        throw new AppError('You do not have permission to modify this dashboard', 403);
-      }
-
-      await insightsService.updateDashboard(dashboardId, { name, description, config });
+      await insightsService.updateDashboard(userId, dashboardId, { name, description, config });
 
       res.json({
         success: true,
@@ -2025,19 +2015,9 @@ router.delete(
   asyncHandler(async (req: Request, res: Response) => {
     try {
       const dashboardId = toString(req.params.dashboardId);
-
       const userId = uid(req);
 
-      // Verify ownership
-      const dashboard = await insightsService.getDashboardById(dashboardId);
-      if (!dashboard) {
-        throw new AppError('Dashboard not found', 404);
-      }
-      if (dashboard.creator_id !== userId) {
-        throw new AppError('You do not have permission to delete this dashboard', 403);
-      }
-
-      const deleted = await insightsService.deleteDashboard(dashboardId);
+      const deleted = await insightsService.deleteDashboard(userId, dashboardId);
 
       res.json({
         success: true,
@@ -2299,8 +2279,6 @@ router.post(
     const { productId, message } = req.body;
 
     try {
-      await verifyProductAccess(pool, productId, userId);
-
       const buyerCheck = await pool.query(
         `SELECT id FROM "${getValidatedSchema()}"."orders" WHERE product_id = $1 AND buyer_id = $2 AND status = 'confirmed'`,
         [productId, userId]
