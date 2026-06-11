@@ -5,7 +5,7 @@
 **Fecha**: Junio 2026
 **Estado**:
 - ✅ Backend Services (18 servicios)
-- ✅ Orchestrator registration (18 capabilities)
+- ✅ Orchestrator registration (24 capabilities)
 - ✅ Memory Enhancement SDD: COMPLETO (Tasks M-1 a M-7)
 - ✅ Interactive Agent SDD: COMPLETO (Tasks 1-11)
 - ✅ Reports Agent: Implementado con triage IA
@@ -14,7 +14,7 @@
 - ✅ Credit Management Dashboard: COMPLETO
 - ✅ AI Affiliate Chat: COMPLETO (Tasks 1-7)
 - ✅ SEO Optimizer: COMPLETO (Tasks 0-7)
-- 🆕 Features pendientes: §4.3-§4.7, §4.11, §4.13-§4.15, §4.17-§4.18, §4.20 (12 features) + ⚠️ Parciales: §4.19 - Roadmap priorizado
+- 🆕 Features pendientes: §4.3-§4.7, §4.9b, §4.11, §4.13-§4.15, §4.17-§4.18, §4.20 (13 features) + ⚠️ Parciales: §4.19 - Roadmap priorizado
 **Owner**: Kike García
 
 > **📦 Migración a openspec (2026-06-03)**: 7 SDDs de features ✅ de este PRD vivían en `docs/project/ai-features/sdd/<name>/` (workflow anterior a openspec) y fueron migrados a `openspec/changes/archive/2026-06-03-<name>/`. Los originales fueron eliminados — openspec es la **única fuente canónica** de SDDs a partir de esta fecha. Los 4 sin verify formal (**ai-content-assistant, memory-enhancement, interactive-agent, reports-agent**) completaron el ciclo de planificación (proposal → spec → design → tasks); la verificación se realizó vía code review + test suite del PR de merge. Los 3 con verify formal (**ai-affiliate-chat, ai-insights-expansion, seo-optimizer**) pasaron por sdd-archive completo. No hay tareas pendientes asociadas a esta migración.
@@ -48,6 +48,7 @@
    - [4.7 AI Content Studio](#47-ai-content-studio)
    - [4.8 AI Insights](#48-ai-insights)
    - [4.9 AI Support Chatbot](#49-ai-support-chatbot)
+   - [4.9b Concierge Advanced Skills Expansion](#49b-concierge-advanced-skills-expansion)
    - [4.10 AI Afiliate Chat](#410-ai-afiliate-chat)
    - [4.11 Description Generator](#411-description-generator)
    - [4.12 SEO Optimizer](#412-seo-optimizer)
@@ -128,9 +129,9 @@ Crema busca posicionarse como la **plataforma de infoproductos más inteligente 
 | **ContentReaderService** | Lectura y síntesis de contenido | ✅ Completado | |
 | **QuizGeneratorService** | Generación de quizzes automáticos | ✅ Completado | |
 | **TranscriptionService** | Transcripción de audio/video (Whisper) | ✅ Completado | |
-| **Orchestrator Service** | Registro de 18 capabilities | ✅ Producción | |
+| **Orchestrator Service** | Registro de 24 capabilities | ✅ Producción | |
 
-> **Total: 18 servicios en Orchestrator** (13 registrados recently)
+> **Total: 24 capabilities registradas** en `backend/src/services/ai/index.ts`
 
 ### 2.2 Estado de Integración
 
@@ -140,7 +141,7 @@ Crema busca posicionarse como la **plataforma de infoproductos más inteligente 
 |-------------|--------|-------|
 | Memory → Agentes | ✅ Implementado | M-1: RBAC validation en memory-search |
 | Orchestrator → Capabilities | ✅ Completado | 13 servicios registrados |
-| IVFFlat → HNSW | ✅ Implementado | M-3: HNSW index en db/init/11-hnsw-index.sql |
+| IVFFlat → HNSW | ✅ Implementado | M-3: HNSW index en backend/db/init/11-hnsw-index.sql |
 | Cleanup jobs | ✅ Implementado | M-4: memory-cleanup job hourly en main.worker.ts |
 | Per-user quota + LRU | ✅ Implementado | M-5: Quota 10K con eviction en checkQuotaAndEvict |
 | Rate limiting | ✅ Implementado | aiLimiter aplicado a endpoints AI |
@@ -168,7 +169,7 @@ Múltiples proveedores LLM configurables
 | Gap | Descripción | Estado Actual | Impacto |
 |-----|-----------|-------------|-------------|
 | **G-1** | Sin RBAC en memory-search | ✅ Corregido | Validación de acceso implementada |
-| **G-2** | Sin índice vectorial eficiente (HNSW) | ✅ Corregido | HNSW index creado en 11-hnsw-index.sql |
+| **G-2** | Sin índice vectorial eficiente (HNSW) | ✅ Corregido | HNSW index creado en `backend/db/init/11-hnsw-index.sql` |
 | **G-3** | No hay política de cleanup | ✅ Corregido | memory-cleanup job hourly en main.worker.ts |
 | **G-4** | No hay per-user quota | ✅ Corregido | 10K quota con LRU eviction en checkQuotaAndEvict |
 | **G-5** | No hay rate limiting específico | ✅ Corregido | aiLimiter (30/min) en endpoints AI |
@@ -826,11 +827,60 @@ El Admin tiene paneles específicos para gestionar el soporte:
 | **Reportes de Admin** | ❌ No | **Crema** |
 
 #### Estado
-✅ **IMPLEMENTADO (core)** - ConciergeService con system prompt configurable, sanitización de input, y defensive framing contra prompt injection. Skills avanzados (search_faqs, get_order_status, evaluate_refund_risk, escalate_to_human, create_support_ticket) pendientes de implementación.
+✅ **IMPLEMENTADO (core)** - ConciergeService con system prompt configurable, sanitización de input, y defensive framing contra prompt injection. Skills avanzados pendientes — ver §4.9b para el detalle y la entrada en el roadmap.
 
 > **Implementación técnica:** Ver PRD.md §6 (Estado de Implementación) - Moderation/ConciergeService
 > - Servicio: `ConciergeService` en `services/ai/concierge.service.ts`
 > - Endpoint: Registrado como capability `concierge.chat` en Orchestrator
+
+---
+
+### 4.9b Concierge Advanced Skills Expansion
+
+#### Descripción
+Expansión del Concierge core (ver §4.9) con 10 skills que le permiten consultar datos de la cuenta del usuario, ejecutar acciones de soporte y derivar a humanos cuando no puede resolver. Cada skill se registra como capability en el Orchestrator y se invoca por routing del LLM.
+
+#### Skills a Implementar
+
+| Skill | Tipo | Descripción | Servicio / Tabla Reutilizada |
+|-------|------|-------------|------------------------------|
+| `search_faqs` | Query | Busca en FAQs de la plataforma | `product_faqs` table |
+| `get_order_status` | Query | Estado de una orden específica | `orders` table |
+| `get_access_details` | Query | Acceso a productos comprados | `orders` + `products` tables |
+| `get_user_orders` | Query | Lista de órdenes del usuario | `orders` table |
+| `get_subscription_status` | Query | Estado de suscripción Pro | `subscriptions` table |
+| `get_credit_balance` | Query | Saldo de créditos AI | `ai_credits` (existente) |
+| `list_refund_history` | Query | Historial de refunds del usuario | `refunds` table |
+| `evaluate_refund_risk` | Action | Safe-Guard: consumo vs tiempo de garantía | `refunds` + `orders` (lógica ya existe en safe-guard) |
+| `create_support_ticket` | Action | Crea ticket automático si no puede resolver | `support_tickets` table |
+| `escalate_to_human` | Action | Deriva a soporte humano vía notificación | `notifications` service |
+
+#### Dependencias
+**Todas las dependencias están resueltas** — los servicios y tablas listados arriba ya existen en el backend. No requiere infraestructura nueva. Esta expansión es 100% código nuevo sobre el `ConciergeService` core (ver §4.9).
+
+#### User Stories
+
+| ID | Como | quiero | para |
+|----|------|--------|------|
+| CAS-01 | Usuario | preguntar "¿cuál es el estado de mi orden?" | obtener respuesta inmediata sin esperar humano |
+| CAS-02 | Usuario | pedir un reembolso y que el Concierge evalúe el riesgo | resolver sin escalación si es simple |
+| CAS-03 | Usuario | pedir hablar con un humano | que el Concierge cree ticket y notifique |
+| CAS-04 | Admin | ver métricas de auto-resolución | medir cuántas consultas se resolvieron sin escalación |
+| CAS-05 | Usuario | consultar mi saldo de créditos desde el chat | saber cuántos tengo sin ir al dashboard |
+
+#### Costo Operativo
+
+| Aspecto | Tratamiento |
+|---------|-------------|
+| **Consumo de AI** | Pagado por Crema (mismo tratamiento que Concierge core) |
+| **Costo tipo** | `platform` (no `user`) |
+| **Categoría** | `support` |
+| **Facturación** | Costo operativo de la plataforma |
+
+#### Estado
+🆕 **NUEVO** - Requiere desarrollo. Reutiliza la infraestructura del Concierge core (§4.9) y los servicios/tablas existentes. No requiere migración de DB ni nuevo servicio.
+
+> **Referencia SDD de base**: `openspec/changes/archive/2026-06-03-concierge-integration/` (implementó el core; esta expansión agrega las 10 skills listadas arriba).
 
 ---
 
@@ -1100,7 +1150,7 @@ Cada transacción debe incluir:
 - Sistema de notificaciones para créditos por expirar (email/in-app)
 
 #### Estado
-🆕 **MEJORA** - Requiere desarrollo (backend existe, mejorar frontend y agregar features)
+✅ **BACKEND COMPLETO** - El `CreditsService` backend expone `getBalance()` y `getTransactions()` consumidos por los endpoints. Frontend del dashboard y features adicionales (filtros, exportación, alertas de expiración) tracked en **PRD de Frontend separado** (out of scope de este PRD).
 
 ---
 
@@ -1316,7 +1366,7 @@ CREATE TABLE product_module_fields (
 
 > **Implementación técnica:** Ver PRD.md §2.5 Agente de Implementación Interactiva + SDD `openspec/changes/archive/2026-06-03-interactive-agent/`
 > - Servicio: `InteractiveAgentService` en `services/ai/interactive-agent.service.ts`
-> - Repository: `interactive-agent.repository.ts` con Advisory Lock pattern
+> - Repository: `repositories/ai/interactive-agent.repository.ts` con Advisory Lock pattern
 > - Tablas: `user_course_data`, `product_module_fields`
 > - Endpoints: `/api/interactive/fields/:productId`, `/api/interactive/data/:productId`, `/api/interactive/analyze/:productId/:moduleKey`
 > - Rate limiter: `interactiveAgentLimiter` (10 req/min)
@@ -1420,22 +1470,28 @@ Router centralizado que registra y ejecuta capabilities de los servicios AI. Pro
 ```
 Cliente → Orchestrator → Skills Registry → Services
                     ↓
-            Capabilities (18 registered)
+            Capabilities (24 registered)
 ```
 
 #### Capabilities Registradas
 
 | Category | Capability | Descripción |
 |----------|------------|-------------|
-| **QA** | `qa.ask`, `qa.stream` | Q&A Agent chat |
-| **Tutor** | `tutor.ask`, `tutor.stream`, `tutor.config`, `tutor.insights` | Tutor AI |
-| **Insights** | `insights.ask`, `insights.stream`, `insights.list`, `insights.delete` | AI Insights |
-| **Credits** | `credits.balance`, `credits.packages`, `credits.purchase`, `credits.transactions` | Credit management |
-| **Reports** | `reports.create` | Report creation |
-| **Embeddings** | `embeddings.generate`, `embeddings.search`, `embeddings.delete` | Vector operations |
-| **Interactive** | `interactive.getFields`, `interactive.saveData`, `interactive.analyze`, `interactive.getAnalytics` | Interactive Agent |
-| **Memory** | `memory.search` | RAG search |
-| **Concierge** | `concierge.chat` | Support chatbot |
+| **LLM** | `llm.chat`, `llm.stream` | Orquestación LLM multi-provider (OpenAI, Ollama, Gemini, Anthropic) |
+| **Embeddings** | `embedding.generate`, `embedding.batch` | Generación de vectores (batch processing) |
+| **Memory** | `memory.search` | Búsqueda semántica RAG (pgvector + HNSW) |
+| **QA Agent** | `qa.chat`, `qa.list` | Q&A Agent con gestión de conversaciones |
+| **Tutor** | `tutor.chat` | Tutor IA — chat con estudiantes |
+| **Concierge** | `concierge.chat` | Chat de soporte (core — ver §4.9b para skills avanzadas) |
+| **Affiliate Chat** | `affiliate.chat` | Chat para afiliados sobre producto que promocionan |
+| **Insights** | `insights.ask`, `insights.predict`, `insights.compare`, `insights.recover` | AI Insights — métricas, predicción churn, recovery emails, comparativas A/B |
+| **Content** | `content.analyze`, `content.read`, `content.quiz`, `content.transcribe` | Content Assistant — análisis, lectura, quiz, transcripción |
+| **SEO Optimizer** | `seo.optimizer` | Generación de meta tags SEO |
+| **Analytics** | `analytics.metrics` | Métricas de uso AI |
+| **Credits** | `credits.balance` | Saldo de créditos AI del usuario |
+| **Reports** | `reports.create` | Creación de denuncias de contenido |
+| **Review** | `review.list` | Listado de reviews de producto |
+| **Interactive Agent** | `interactive.analyze` | AI analysis de datos del módulo (3 créditos) — registrado en Orchestrator. Las operaciones CRUD (fields, data save/update, getUserData, getAnalytics) permanecen como HTTP directo en `/api/interactive/*` (no AI, no necesitan routing LLM). Ver `services/ai/interactive-agent.service.ts` y `routes/interactive.routes.ts`. |
 
 #### API Endpoints
 
@@ -1456,7 +1512,7 @@ Cliente → Orchestrator → Skills Registry → Services
 | `orchestrator.stream_timeout` | 60000ms | Timeout para streaming |
 
 #### Estado
-✅ **IMPLEMENTADO** (Phase 2) - 18 capabilities registradas
+✅ **IMPLEMENTADO** (Phase 2) - 24 capabilities registradas
 
 > **Implementación técnica:** Ver PRD.md §0.2 (Servicios AI Implementados) + OrchestratorService
 > - Servicio: `OrchestratorService` en `services/orchestrator.service.ts`
@@ -1477,8 +1533,8 @@ Mejoras al sistema RAG existente: índice HNSW para búsqueda vectorial eficient
 | Task | Descripción | Archivo |
 |------|-------------|---------|
 | **M-1** | RBAC validation en memory-search | `memory.service.ts` |
-| **M-2** | HNSW index creado | `11-hnsw-index.sql` |
-| **M-3** | IVFFlat → HNSW migration | `11-hnsw-index.sql` |
+| **M-2** | HNSW index creado | `backend/db/init/11-hnsw-index.sql` |
+| **M-3** | IVFFlat → HNSW migration | `backend/db/init/11-hnsw-index.sql` |
 | **M-4** | Cleanup job hourly | `main.worker.ts` |
 | **M-5** | Per-user quota + LRU eviction | `checkQuotaAndEvict` |
 | **M-6** | Rate limiting en memory endpoints | `memoryLimiter` |
@@ -1511,7 +1567,7 @@ WITH (m = 16, ef_construction = 64);
 
 > **Implementación técnica:** Ver PRD.md §2.4 Memory Enhancement + SDD `openspec/changes/archive/2026-06-03-memory-enhancement/`
 > - Servicio: `MemoryService` en `services/ai/memory.service.ts` (mejoras M-1 a M-7)
-> - Migration: `db/init/11-hnsw-index.sql`
+> - Migration: `backend/db/init/11-hnsw-index.sql`
 > - Worker: `main.worker.ts` (cleanup job hourly)
 > - Quota: `checkQuotaAndEvict()` en memory service
 > - Rate limiter: `memoryLimiter` (100 req/min read, 20 req/min write)
@@ -1996,6 +2052,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | **§4.5 Smart Chapters** | TranscriptionService | ✅ Disponible | Servicio existente |
 | **§4.18 Audio Notes** | TranscriptionService | ✅ Disponible | Servicio existente |
 | **§4.20 Transcript Search** | TranscriptionService | ✅ Disponible | Servicio existente |
+| **§4.9b Concierge Advanced Skills** | OrdersService, RefundsService, CreditsService, SubscriptionsService, NotificationsService, SupportTicketsService | ✅ Resueltas | Todos los servicios/tablas ya implementados |
 | **§4.19 AI Summary** | ContentAssistantService | ✅ Disponible | Ya existe `analysisType: 'summary'` |
 | **§4.14 Sentiment Analytics** | ReviewsService | ✅ Disponible | Servicio existente |
 
@@ -2040,6 +2097,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 7. §4.14 Sentiment Analytics — score 9/10
 8. §4.3 Conversational Reader — base para §4.17
 9. §4.19 AI Summary —复用 existente
+10. §4.9b Concierge Advanced Skills — reuse existing backend services (Orders, Refunds, Credits, Subscriptions, Notifications)
 
 **Fase D (Meses 7-8): Protección y expansión**
 10. §4.15 Advanced DRM
@@ -2054,7 +2112,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 | Métrica | Cantidad |
 |---------|----------|
-| Dependencias resueltas (infraestructura existente) | 12 |
+| Dependencias resueltas (infraestructura existente) | 13 (incluye §4.9b Concierge Advanced Skills) |
 | Dependencias pendientes (entre features) | 1 (§4.3 → §4.17) |
 | Dependencias bloqueantes | 0 |
 
@@ -2076,7 +2134,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | **Completada** | AI Support Chatbot (Concierge - core) | ✅ | Phase 7 |
 | **Completada** | Reports Agent + DenunciationService | ✅ | Phase 9 |
 | **Completada** | Memory Enhancement (HNSW, RBAC, Quota, LRU, Cleanup) | ✅ | SDD M-1 a M-7 |
-| **Completada** | Orchestrator (18 capabilities) | ✅ | Phase 2 |
+| **Completada** | Orchestrator (24 capabilities) | ✅ | Phase 2 |
 | **Completada** | Interactive Agent (SDD Tasks 1-11) | ✅ | Phase 11 |
 
 ---
@@ -2116,6 +2174,7 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 | 13-14 | **Sentiment Analytics** | §4.14 | 9/10 | AI analiza reviews | ReviewsService |
 | 15-16 | **Conversational Reader** | §4.3 | — | Chat con PDF/Ebook | MemoryService |
 | 17-18 | **AI Summary** | §4.19 | — | Resumen de contenido | Transcription |
+| 19-20 | **Concierge Advanced Skills** | §4.9b | — | 10 skills: search_faqs, get_order_status, get_access_details, get_user_orders, get_subscription_status, get_credit_balance, list_refund_history, evaluate_refund_risk, create_support_ticket, escalate_to_human | Orders, Refunds, Credits, Subscriptions, Notifications (todos existentes) |
 
 > **Razón**: Score alto (Sentiment) + extensiones lógicas de transcription/memory
 
@@ -2125,9 +2184,9 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 | Semana | Feature | Sección | Score | Entregable | Dependencias |
 |--------|---------|---------|-------|-------------|--------------|
-| 19-20 | **Advanced DRM** | §4.15 | 8/10 | Watermarks + protección | — |
-| 21-22 | **Smart Chapters** | §4.5 | — | Timestamps + buscador | Transcription |
-| 23-24 | **Micro-Learning Generator** | §4.4 | — | Nuggets + resumen + quiz | Transcription + QuizGenerator |
+| 21-22 | **Advanced DRM** | §4.15 | 8/10 | Watermarks + protección | — |
+| 23-24 | **Smart Chapters** | §4.5 | — | Timestamps + buscador | Transcription |
+| 25-26 | **Micro-Learning Generator** | §4.4 | — | Nuggets + resumen + quiz | Transcription + QuizGenerator |
 
 > **Razón**: Protección de contenido + extensiones de transcription
 
@@ -2137,9 +2196,9 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 | Semana | Feature | Sección | Descripción | Dependencias |
 |--------|---------|---------|-------------|--------------|
-| 25-26 | **Personalized Learning Path** | §4.6 | Rutas personalizadas por usuario | — |
-| 27-28 | **Book Highlights** | §4.17 | Highlights en PDFs | Conversational Reader |
-| 29-30 | **Audio Notes** | §4.18 | Notas con timestamp | Transcription |
+| 27-28 | **Personalized Learning Path** | §4.6 | Rutas personalizadas por usuario | — |
+| 29-30 | **Book Highlights** | §4.17 | Highlights en PDFs | Conversational Reader |
+| 31-32 | **Audio Notes** | §4.18 | Notas con timestamp | Transcription |
 
 ---
 
@@ -2147,9 +2206,9 @@ Las compras de créditos se registran en `platform_earnings` con tipo `credit_pu
 
 | Semana | Feature | Sección | Descripción | Dependencias |
 |--------|---------|---------|-------------|--------------|
-| 31-32 | **AI Content Studio** | §4.7 | Suite completo de creación | Memory Service |
-| 33-36 | **Admin Tools** | — | Content Moderation, Security Dashboard | AI Content Assistant |
-| 37-40 | **Optimización** | — | Refinamiento prompts, testing, costos |Todas |
+| 33-34 | **AI Content Studio** | §4.7 | Suite completo de creación | Memory Service |
+| 35-38 | **Admin Tools** | — | Content Moderation, Security Dashboard | AI Content Assistant |
+| 39-42 | **Optimización** | — | Refinamiento prompts, testing, costos | Todas |
 
 ---
 
