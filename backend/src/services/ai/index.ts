@@ -33,6 +33,7 @@ import { qaService } from './qa.service';
 import { reviewService } from './review.service';
 import { reportService } from './denunciation.service';
 import { seoOptimizerService } from './seo-optimizer.service';
+import { interactiveAgentService } from './interactive-agent.service';
 
 // ============================================================================
 // Validation helpers
@@ -1526,6 +1527,48 @@ export const skills: Skill[] = [
         tone as 'empathic' | 'direct' | 'motivational' | undefined,
         userId,
       );
+    },
+  },
+  {
+    id: 'interactive-analyze',
+    name: 'Interactive Agent Analysis',
+    capability: 'interactive.analyze',
+    description: 'Genera análisis AI personalizado basado en los datos del usuario del módulo (3 créditos, requiere orden activa)',
+    parameters: [
+      { name: 'requestingUserId', type: 'string', required: true },
+      { name: 'productId', type: 'string', required: true },
+      { name: 'userId', type: 'string', required: true },
+      { name: 'moduleKey', type: 'string', required: true },
+    ],
+    options: { timeout: 60000, retries: 1, cacheable: false },
+    handler: async (input: unknown) => {
+      if (!input || typeof input !== 'object') {
+        throw new AppError('Invalid input: must be an object', 400);
+      }
+      const { requestingUserId, productId, userId, moduleKey } = input as {
+        requestingUserId: unknown;
+        productId: unknown;
+        userId: unknown;
+        moduleKey: unknown;
+      };
+
+      if (typeof requestingUserId !== 'string' || requestingUserId.length === 0) {
+        throw new AppError('requestingUserId is required', 400);
+      }
+      if (typeof productId !== 'string' || productId.length === 0) {
+        throw new AppError('productId is required', 400);
+      }
+      if (typeof userId !== 'string' || userId.length === 0) {
+        throw new AppError('userId is required', 400);
+      }
+      if (typeof moduleKey !== 'string' || moduleKey.length === 0) {
+        throw new AppError('moduleKey is required', 400);
+      }
+      if (requestingUserId !== userId) {
+        throw new AppError('Unauthorized: requestingUserId must match userId', 403);
+      }
+
+      return interactiveAgentService.analyzeData(productId, userId, moduleKey);
     },
   },
 ];
