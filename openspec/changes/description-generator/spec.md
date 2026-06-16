@@ -90,7 +90,7 @@ The system SHALL provide a `POST /api/ai/product/description` endpoint protected
 
 **Auth**: JWT required, `Creator` role required (via `restrictTo('CREATOR')`)
 **Rate limit**: 10 req/min via `descriptionGeneratorLimiter`
-**Ownership**: Verified via `verifyProductOwnership(pool, productId, userId)` — throws 404/403
+**Ownership**: Verified via `verifyProductOwnership(pool, productId, userId)` — throws 403 for both not-found and mismatch (single combined query)
 **Timeout**: 60 seconds (LLM call)
 
 #### Scenario: No JWT provided
@@ -297,7 +297,6 @@ None.
 | `asyncHandler` | `src/middlewares/global-error.middleware.ts` | Express wrapper | ai.routes.ts |
 | `rateLimit` | `src/middlewares/rateLimit/rateLimit.ts` | Express middleware factory | ai.routes.ts |
 | `logger` | `src/utils/logger.ts` | Pino logger | All layers |
-| `productRepository` | `src/repositories/product.repository.ts` | Singleton | ai.routes.ts (ownership check) |
 | `verifyProductOwnership` | `src/utils/routeHelpers.util.ts` | Helper function | ai.routes.ts (ownership check) |
 | `contentReaderService` | `src/services/ai/content/content-reader.service.ts` | Singleton | Future SEO Optimizer refactor |
 
@@ -344,17 +343,17 @@ None.
 
 Structure Given/When/Then scenarios to align with 4 chained PRs (strict TDD — each PR includes its own tests):
 
-1. **PR #1: Shared lib + lib tests** (~300 lines) — `lib/ai-product-optimizer.lib.ts` + `lib/ai-product-optimizer.lib.test.ts`
+1. **PR #1: Shared lib + lib tests** (~303 lines) — `lib/ai-product-optimizer.lib.ts` + `lib/ai-product-optimizer.lib.test.ts` + `config.service.ts` (+3 lines)
    - Scenarios: Shared lib scenarios (parseStructuredResponse, fetchProductRagContext, deductCreditsAfterSuccess, cache helpers)
 
-2. **PR #2a: Service skeleton + validation + cache read** (~250 lines) — `services/ai/description-generator.service.ts` (partial: skeleton + input validation + cache read logic only)
+2. **PR #2a: Service skeleton + validation + cache read** (~300 lines) — `services/ai/description-generator.service.ts` (partial: skeleton + input validation + cache read logic only) + partial test file (~50 lines)
    - Scenarios: Input validation only (3 tests: empty productId, description < 10 chars, description > 5000 chars)
 
-3. **PR #2b: Service core: RAG + LLM + output + error + lang** (~350 lines) — extends `services/ai/description-generator.service.ts` (LLM core, RAG, output, error handling, language detection) + `__tests__/services/ai/description-generator.service.test.ts`
-   - Scenarios: Service core scenarios (cache hit/miss, RAG, LLM success/failure, language detection, output truncation, degraded output) — 16 tests
+3. **PR #2b: Service core: RAG + LLM + output + error + lang** (~300 lines) — extends `services/ai/description-generator.service.ts` (LLM core, RAG, output, error handling, language detection) + `__tests__/services/ai/description-generator.service.test.ts` (remaining ~200 lines)
+    - Scenarios: Service core scenarios (cache hit/miss, RAG, LLM success/failure, language detection, output truncation, degraded output) — 21 tests (plus 3 from PR 2a = 24 total service tests)
 
-4. **PR #3: Registration + integration tests** (~500 lines) — orchestrator + route + schema + limiter + credit op + `__tests__/routes/description-generator.routes.test.ts`
-   - Scenarios: Route scenarios with full HTTP flow (auth, validation, authorization, credits, timeout, rate limit), Orchestrator scenarios — 13 tests (per tasks.md T3.7)
+4. **PR #3: Registration + integration tests** (~320 lines) — orchestrator + route + schema + limiter + credit op + `__tests__/routes/description-generator.routes.test.ts`
+    - Scenarios: Route scenarios with full HTTP flow (auth, validation, authorization, credits, timeout, rate limit), Orchestrator scenarios — 16 tests (per tasks.md T3.7)
 
 ---
 

@@ -61,10 +61,11 @@ None — new capability, no existing specs modified.
 | `schemas/ai.schema.ts` | Modified (+Zod) | +20 |
 | `middlewares/rateLimit/rateLimit.ts` | Modified (+limiter) | +20 |
 | `services/ai/credits.service.ts` | Modified (+op cost) | +5 |
+| `services/config.service.ts` | Modified (+ALLOWED_CONFIG_KEYS entries) | +3 |
 | `__tests__/services/ai/description-generator.service.test.ts` | New | ~250 |
 | `__tests__/routes/description-generator.routes.test.ts` | New | ~200 |
 
-**Total**: ~1,065 lines (may need chained PRs for D3=600 budget)
+**Total**: ~1,068 lines (may need chained PRs for D3=600 budget)
 
 ## 6. Risks
 
@@ -97,6 +98,6 @@ None — new capability, no existing specs modified.
 - [ ] Cache hit (repeat request) returns `cached: true` in < 50ms
 - [ ] Cache miss deducts 1 credit and returns `cached: false`
 - [ ] Insufficient credits returns 402 before LLM call
-- [ ] Invalid/non-owned productId returns 403
+- [ ] Invalid/non-owned productId returns 403 (verifyProductOwnership returns 403 for both cases)
 - [ ] Rate limit hit (11th request in 1 min) returns 429
 - [ ] `pnpm tsc --noEmit`, `pnpm lint`, `pnpm test` all pass

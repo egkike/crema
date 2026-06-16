@@ -13,7 +13,7 @@
 
 | Field | Value |
 |-------|-------|
-| Estimated changed lines | ~1,065 total |
+| Estimated changed lines | ~1,068 total |
 | 600-line budget risk | **Low** (every PR now has 17-58% buffer) |
 | Chained PRs recommended | **Yes** (4 PRs) |
 | Suggested split | 4 PRs as designed |
@@ -30,7 +30,7 @@ Chain strategy: stacked-to-main
 
 ---
 
-## PR 1: feat/description-generator-shared-lib (~300 lines)
+## PR 1: feat/description-generator-shared-lib (~303 lines)
 
 ### T1.0 — Create `backend/src/lib/` dir + stub `ai-product-optimizer.lib.ts`
 
@@ -143,13 +143,14 @@ Chain strategy: stacked-to-main
 
 **Scope**: `config.service.ts` has an `ALLOWED_CONFIG_KEYS` allowlist. The 3 new keys must be added or the `configService.getNumber/get` calls in `callLLMForOptimization` will fail at runtime.
 
-- **T1.6b.0 (RED)**: Test that `configService.getNumber('description_generator.temperatura', 0.7)` returns the default 0.7 when key is not set. Currently this would fail if the key is not in `ALLOWED_CONFIG_KEYS`.
-- **T1.6b.1 (GREEN)**: Add to `ALLOWED_CONFIG_KEYS` in `config.service.ts` (around line 17-67):
-  ```
-  'description_generator.temperatura': 0.7,
-  'description_generator.max_tokens': 2000,
-  'description_generator.model': null,
-  ```
+- **T1.6b.0 (RED)**: Test that `configService.getNumber('description_generator.temperature', 0.7)` returns the default 0.7 when key is not set. Currently this would fail if the key is not in `ALLOWED_CONFIG_KEYS`.
+- **T1.6b.1 (GREEN)**: Add to `ALLOWED_CONFIG_KEYS` in `config.service.ts` (around line 67, before the closing `];`):
+   ```typescript
+   // Description Generator
+   'description_generator.temperature',
+   'description_generator.max_tokens',
+   'description_generator.model',
+   ```
 
 **Files**: `backend/src/services/config.service.ts` (MODIFY, +3 lines)
 **Spec ref**: Configuration Keys §R4
@@ -162,7 +163,7 @@ Chain strategy: stacked-to-main
 
 ---
 
-## PR 2a: feat/description-generator-service-skeleton (~250 lines)
+## PR 2a: feat/description-generator-service-skeleton (~300 lines)
 
 ### T2.0 — Create `description-generator.service.ts` skeleton
 
@@ -198,7 +199,7 @@ Chain strategy: stacked-to-main
 
 ---
 
-## PR 2b: feat/description-generator-service-core (~350 lines)
+## PR 2b: feat/description-generator-service-core (~300 lines)
 
 ### T2.3 — RAG fetch with graceful degradation
 
@@ -230,7 +231,7 @@ Chain strategy: stacked-to-main
 **Scope**: Safe output construction.
 
 - **T2.5.0 (RED)**: Test 3 truncation cases — titles capped at 3, tags capped at 10, metaDescription capped at 155 chars. Test `degraded` flag in output (W8 fix).
-- **T2.5.1 (GREEN)**: Build output with `.slice(0, N)` on arrays and strings. Set `degraded` based on `__degraded` marker from parse.
+- **T2.5.1 (GREEN)**: Build output with `.slice(0, N)` on arrays and strings. Set `isDegraded` based on `parsed.degraded` flag from `parseStructuredResponse` fallback detection.
 - **T2.5.2 (REFACTOR)**: Extract `mapSources(ragResults)` helper.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
@@ -256,7 +257,7 @@ Chain strategy: stacked-to-main
 - **T2.7.1 (GREEN)**: Implement try/catch wrapper around all service logic.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
-**Spec ref**: Scenario: LLM failure returns 502
+**Spec ref**: Scenario: LLM failure returns 500
 
 ---
 
@@ -286,7 +287,7 @@ Chain strategy: stacked-to-main
 
 ---
 
-## PR 3: feat/description-generator-registration (~500 lines)
+## PR 3: feat/description-generator-registration (~320 lines)
 
 ### T3.0 — Add `descriptionGeneratorSchema` Zod schema
 
@@ -360,7 +361,7 @@ Chain strategy: stacked-to-main
 
 ---
 
-### T3.7 — Integration test file with all 11+ scenarios
+### T3.7 — Integration test file with all 16 scenarios
 
 **Scope**: `description-generator.routes.test.ts` with all route-level scenarios.
 
@@ -368,7 +369,7 @@ Chain strategy: stacked-to-main
 - **T3.7.1 (GREEN)**: Tests pass after T3.0-T3.6 implementations.
 - **T3.7.2 (REFACTOR)**: Extract common mocks/setup into `beforeEach` helpers.
 
-**Test scenarios** (13 total):
+**Test scenarios** (16 total):
 | # | Scenario | Assertion |
 |---|----------|-----------|
 | 1 | No JWT | 401 |
@@ -377,13 +378,16 @@ Chain strategy: stacked-to-main
 | 4 | Invalid UUID `productId` | 400 |
 | 5 | `productDescription` < 10 chars | 400 |
 | 6 | Invalid `productType` | 400 |
-| 7 | Product ownership mismatch | 403 |
-| 8 | Product not found | 404 |
+| 7 | Non-CREATOR role | 403 |
+| 8 | Product ownership mismatch (includes not found) | 403 |
 | 9 | 0 credits → 402 before LLM | 402 |
 | 10 | Service timeout > 60s | 504 |
 | 11 | Valid request → 200, `creditsUsed: 1` | 200 |
 | 12 | Cache hit → `cached: true`, `creditsUsed: 0` | 200 |
 | 13 | Rate limit headers present | Contains headers |
+| 14 | Service returns success:false → 500 | 500 |
+| 15 | Degraded output → `creditsUsed: 0` | 200 |
+| 16 | Credit deduction failure → 200, `creditsUsed: 0` | 200 |
 
 **Files**: `backend/src/__tests__/routes/description-generator.routes.test.ts` (CREATE, ~200 lines)
 **Spec ref**: All route scenarios from spec §R2
@@ -470,8 +474,9 @@ T1.1 ─────────────────────────
 T1.2 ───────────────────────────────────┤
 T1.3 ───────────────────────────────────┤
 T1.4 ───────────────────────────────────┤
-T1.5 ───────────────────────────────────┤──► PR 1 (stacked-to-main)
-T1.6 ───────────────────────────────────┤
+T1.5 ───────────────────────────────────┤
+T1.6 ───────────────────────────────────┤──► PR 1 (stacked-to-main)
+T1.6b ──────────────────────────────────┤
 T1.7 ───────────────────────────────────┘
                     │
 T2.0 ───────────────┤

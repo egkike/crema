@@ -31,8 +31,10 @@ The Description Generator adds a new AI capability that generates optimized prod
 │Ownership()   │ │   Service            │ │  getBalance()        │
 │(routeHelpers)│ │                      │ │  useCredits()        │
 │              │ │  ┌────────────────┐  │ │  getOperationCost()  │
-│throws 404/   │ │  │ lib/ai-product-│  │ └──────────────────────┘
-│403 if needed │ │  │ optimizer.lib  │  │
+│throws 403    │ │  │ lib/ai-product-│  │ └──────────────────────┘
+│(combined     │ │  │ optimizer.lib  │  │
+│not-found/    │ │  │                │  │
+│mismatch)     │ │  │                │  │
 └──────────────┘ │  │                │  │
                  │  │ cache helpers  │──┼────► Redis
                  │  │ RAG fetch      │──┼────► memoryService
@@ -221,6 +223,9 @@ export function parseStructuredResponse<T>(rawText: string, fallback: T): T {
 
 // ==========================================================================
 // Credit deduction after success
+// NOTE: The operationKey union type is hardcoded here and in credits.service.ts.
+// Future AI operations should extract this union to a single source of truth
+// (e.g. a type alias in credits.service.ts) to avoid divergence.
 // ==========================================================================
 export async function deductCreditsAfterSuccess(
   userId: string,
@@ -294,7 +299,7 @@ export interface DescriptionGeneratorOutput {
     similarity: number;
   }>;
   cached: boolean;
-  degraded: boolean;  // true when LLM response was malformed and fallback was used
+  degraded: boolean;  // true when LLM response was malformed, had empty required fields, or fallback was used
 }
 
 export interface DescriptionGeneratorResponse {
@@ -385,6 +390,14 @@ function mapSources(ragResults: EmbeddingSearchResult[]) {
   }));
 }
 
+/**
+ * Post-parse validation: even if JSON parsed successfully, check required fields.
+ * Returns true if the parsed output is degraded (empty/missing required fields).
+ */
+function hasDegradedFields(parsed: DescriptionGeneratorOutput): boolean {
+  return !parsed.titles || parsed.titles.length === 0 || !parsed.objectives;
+}
+
 // ==========================================================================
 // Service
 // ==========================================================================
@@ -457,22 +470,34 @@ export const descriptionGeneratorService = {
         detectedLanguage: 'en',  // International default
         sources: mapSources(ragResults),
         cached: false,
-        degraded: true,
+        degraded: true, // NOTE: This `degraded: true` sentinel is ONLY set on this fallback object.
+        // It is the sole mechanism for detecting parse failure. If the LLM prompt is ever changed
+        // to include a `degraded` field in its JSON schema, this invariant would break.
+        // The post-parse validation below also sets isDegraded for empty/missing required fields.
       };
 
       let isDegraded = false;
       let parsed = parseStructuredResponse<DescriptionGeneratorOutput>(rawResponse, fallback);
 
-      // 7. If parsing returned fallback (malformed JSON), retry once with stricter prompt
-      if (parsed.degraded === true) {
+      // Post-parse validation: check required fields even if JSON parsed successfully
+      if (!parsed.degraded && hasDegradedFields(parsed)) {
+        isDegraded = true;
+      }
+
+      // 7. If parsing returned fallback (malformed JSON) or post-parse validation failed, retry once with stricter prompt
+      if (parsed.degraded === true || isDegraded) {
         logger.warn({ productId: input.productId }, 'First parse failed, retrying with stricter prompt');
         const strictPrompt = SYSTEM_PROMPT + '\n\nATTENTION: The previous JSON was invalid. Respond EXCLUSIVELY with JSON. No markdown.';
         const retryResponse = await callLLMForOptimization(strictPrompt, userPrompt, CONFIG_PREFIX);
         parsed = parseStructuredResponse<DescriptionGeneratorOutput>(retryResponse, fallback);
-        if (parsed.degraded === true) {
-          logger.warn({ productId: input.productId }, 'Both LLM attempts returned malformed JSON');
+
+        // Re-apply post-parse validation on retry result
+        if (parsed.degraded === true || hasDegradedFields(parsed)) {
+          logger.warn({ productId: input.productId }, 'Both LLM attempts returned malformed or incomplete data');
           isDegraded = true;
           // Return fallback with degraded:true — caller handles
+        } else {
+          isDegraded = false; // Retry succeeded — clear degraded flag
         }
       }
 
@@ -555,14 +580,20 @@ Add route after SEO Optimizer block (line 2477), before `export default router`:
 router.post(
   '/product/description',
   jwtAuthMiddleware,
-  restrictTo('CREATOR'),
+  restrictTo('CREATOR'), // Defense-in-depth: SEO Optimizer doesn't use this middleware (relies on
+  // inline creator_id check), but description-generator adds explicit role enforcement because
+  // verifyProductOwnership only matches creator_id in its SQL — non-CREATOR roles should be
+  // rejected before reaching the DB query.
   descriptionGeneratorLimiter,
   validate(descriptionGeneratorSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const userId = uid(req);
     const { productId, productDescription, productType } = req.body as DescriptionGeneratorRequest;
 
-    // 1. Verify product ownership (uses existing helper — throws AppError(404|403))
+    // 1. Verify product ownership (uses existing helper — throws AppError(403) for both not-found and mismatch)
+    // Note: verifyProductOwnership uses a single combined query (WHERE id = $1 AND creator_id = $2),
+    // so it returns 403 for both "product doesn't exist" and "user doesn't own it". This differs from
+    // the SEO Optimizer route which uses inline pool.query with separate 404/403 checks.
     await verifyProductOwnership(pool, productId, userId);
 
     // 2. Pre-check credits (before expensive LLM call)
@@ -609,9 +640,10 @@ router.post(
               userId,
               productId,
             },
-            'Credit deduction failed after LLM success'
+            'Credit deduction failed after LLM success — response delivered with creditsUsed: 0'
           );
-          throw new AppError('Credit service unavailable', 503);
+          // Graceful degradation: LLM succeeded, don't penalize user for credit service failure
+          // Same pattern as affiliate chat (ai.routes.ts lines 2295-2306)
         }
       }
 
@@ -949,16 +981,15 @@ generate(input)
 | Missing/invalid JWT | 401 | `jwtAuthMiddleware` rejects before route handler | Middleware chain |
 | Non-creator role | 403 | `restrictTo('CREATOR')` middleware | Middleware chain |
 | Zod validation failure | 400 | `validate(descriptionGeneratorSchema)` before handler | Middleware chain |
-| Product not found | 404 | `verifyProductOwnership` throws if product doesn't exist | Route handler |
-| Product ownership mismatch | 403 | `verifyProductOwnership` throws if creator_id ≠ userId | Route handler |
+| Product not found / ownership mismatch | 403 | `verifyProductOwnership` throws 403 for both (single combined query — does not distinguish not-found from mismatch) | Route handler |
 | Insufficient credits (pre-check) | 402 | `balance < 1` before LLM call | Route handler |
 | LLM timeout (60s) | 504 | `Promise.race([service, timeout])` | Route handler |
-| LLM provider error | 500 | Service catches → returns `{ success: false }` → route handler re-throws as `AppError(..., 500)` | Service (line 447) |
-| LLM malformed JSON (1st attempt) | — | Retry once with stricter prompt | Service (line 151) |
-| LLM malformed JSON (2nd attempt) | — | Return fallback with `success: true` (partial data) | Service (line 155) |
+| LLM provider error | 500 | Service catches → returns `{ success: false }` → route handler re-throws as `AppError(..., 500)` | Service — LLM call block |
+| LLM malformed JSON (1st attempt) | — | Retry once with stricter prompt | Service — response parse block |
+| LLM malformed JSON (2nd attempt) | — | Return fallback with `success: true` (partial data) | Service — response parse block |
 | Cache Redis down | — | `cacheGet` returns `null`, `cacheSet` logs warning → service proceeds | Lib |
-| RAG memory down | — | `try/catch` in service → `ragResults = []` → generates without context | Service (line 123) |
-| Credit service down (deduction) | 503 | Catches non-AppError in route handler → throws `AppError('Credit service unavailable', 503)` | Route handler |
+| RAG memory down | — | `try/catch` in service → `ragResults = []` → generates without context | Service — RAG fetch block |
+| Credit service down (deduction) | — | Catches non-AppError in route handler → logs error, returns 200 with `creditsUsed: 0` (graceful degradation — same pattern as affiliate chat) | Route handler |
 | Rate limit exceeded | 429 | `descriptionGeneratorLimiter` rejects before handler | Middleware chain |
 
 ### Retry strategy for LLM:
@@ -971,7 +1002,7 @@ generate(input)
 
 ## 7. Testing Strategy
 
-### 7.1 Unit Tests — Service (`description-generator.service.test.ts`, ~250 lines)
+### 7.1 Unit Tests — Service (`description-generator.service.test.ts`, ~250 lines, split across PR 2a + PR 2b)
 
 **Mock pattern**: Same as `seo-optimizer.service.test.ts` (lines 17-34):
 
@@ -1008,7 +1039,7 @@ vi.mock('../../lib/ai-product-optimizer.lib', () => ({
 
 | Test group | Tests | What it validates |
 |-----------|-------|-------------------|
-| `normalizeDescription` | 4 | Trim, lowercase, strip HTML, collapse whitespace, cap 5000 |
+| `normalizeDescription` | 5 | Trim, lowercase, strip HTML, collapse whitespace, cap 5000 |
 | `buildCacheKey` | 3 | Deterministic, different inputs → different keys, schema version changes key |
 | `cacheGet` | 2 | Valid JSON returns parsed, Redis error returns null |
 | `cacheSet` | 1 | Redis error logs warning, does not throw |
@@ -1050,14 +1081,14 @@ vi.mock('../../services/ai/credits.service', () => ({
 |-----------|-------|----------------|
 | Authentication | 2 | No JWT → 401, invalid JWT → 401 |
 | Validation | 4 | Missing productId → 400, invalid UUID → 400, description < 10 chars → 400, invalid productType → 400 |
-| Authorization | 1 | Product owned by different user → 403 |
-| Product not found | 1 | Nonexistent productId → 404 |
+| Authorization | 2 | Non-CREATOR role → 403, Product owned by different user / not found → 403 |
 | Credits | 2 | 0 credits → 402, sufficient credits → success |
 | Success (cache miss) | 1 | 200, { success: true, data: {...}, creditsUsed: 1 } |
 | Success (cache hit) | 1 | 200, data.cached = true, creditsUsed: 0 |
 | Rate limit headers | 1 | X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset present |
 | Service error | 1 | Service returns success:false → 500 |
 | Timeout | 1 | Service hangs > 60s → 504 |
+| Credit deduction failure | 1 | Credit service throws → 200, creditsUsed: 0 (graceful degradation) |
 
 ### 7.4 Mock Patterns Summary
 
@@ -1089,7 +1120,7 @@ sequenceDiagram
     R->>R: descriptionGeneratorLimiter → rate check
     R->>Z: validate(descriptionGeneratorSchema)
     Z-->>R: validated body | 400
-    R->>R: verifyProductOwnership(pool, productId, userId) → 404|403
+    R->>R: verifyProductOwnership(pool, productId, userId) → 403
     R->>CR: getBalance(userId)
     CR-->>R: { balance: N } → 402 if N < 1
     R->>S: generate({ userId, productId, productDescription, productType })
@@ -1135,7 +1166,7 @@ sequenceDiagram
     end
     alt generation succeeded AND not cached AND not degraded
         R->>CR: deductCreditsAfterSuccess(userId, 'description_generation', meta)
-        CR-->>R: OK | error (503 if service unavailable)
+        CR-->>R: OK | error (logged, response delivered with creditsUsed: 0)
     end
     R-->>C: 200 { success: true, data: {...}, creditsUsed: 1|0 }
 ```
@@ -1146,48 +1177,51 @@ sequenceDiagram
 
 All 4 PRs are independently atomic and mergeable. Each PR includes its own tests (strict TDD compliance per `openspec/config.yaml`). Each targets `master` directly (not stacked).
 
-### PR 1: `feat/description-generator-shared-lib` (~300 lines)
+### PR 1: `feat/description-generator-shared-lib` (~303 lines)
 **Scope**: Create shared lib + lib unit tests.
 
 | File | Action | Lines |
 |------|--------|-------|
 | `backend/src/lib/ai-product-optimizer.lib.ts` | Create | ~150 |
 | `backend/src/lib/ai-product-optimizer.lib.test.ts` | Create | ~150 |
+| `backend/src/services/config.service.ts` | Modify (+3 ALLOWED_CONFIG_KEYS entries) | ~3 |
 
 **Dependency**: None — pure creation, no imports of this file exist yet.
 **Merge order**: First (enables PRs 2-3).
 **Verification**: `pnpm run vitest` — lib unit tests pass. `pnpm tsc --noEmit` — compiles.
-**Test coverage**: `normalizeDescription` (4), `buildCacheKey` (3), `cacheGet` (2), `cacheSet` (1), `parseStructuredResponse` (3), `fetchProductRagContext` (1), `callLLMForOptimization` (1), `deductCreditsAfterSuccess` (1) = 16 tests.
+**Test coverage**: `normalizeDescription` (5), `buildCacheKey` (3), `cacheGet` (2), `cacheSet` (1), `parseStructuredResponse` (3), `fetchProductRagContext` (1), `callLLMForOptimization` (1), `deductCreditsAfterSuccess` (1) = 17 tests.
 
-### PR 2a: `feat/description-generator-service-skeleton` (~250 lines)
+### PR 2a: `feat/description-generator-service-skeleton` (~300 lines)
 **Scope**: Service skeleton + input validation + cache READ logic. Establishes the service module and validates inputs (defense-in-depth, see W3).
 
 | File | Action | Lines |
 |------|--------|-------|
 | `backend/src/services/ai/description-generator.service.ts` | Create (skeleton + validation + cache read) | ~250 |
+| `backend/src/__tests__/services/ai/description-generator.service.test.ts` | Create (partial — 3 validation tests: empty productId, description < 10 chars, description > 5000 chars) | ~50 |
 
 **Dependency**: Uses `lib/ai-product-optimizer.lib.ts` (PR 1 must be merged first).
 **Merge order**: Second (after PR 1).
 **Verification**: `pnpm tsc --noEmit` compiles. Service file exists with exported `descriptionGeneratorService` object and `generate()` method.
 **Test scenarios in scope**: Input validation (3 tests — T2.1.0: empty productId, description < 10 chars, description > 5000 chars).
+**Test file**: `backend/src/__tests__/services/ai/description-generator.service.test.ts` (partial, ~50 lines).
 
 ---
 
-### PR 2b: `feat/description-generator-service-core` (~350 lines)
+### PR 2b: `feat/description-generator-service-core` (~300 lines)
 **Scope**: RAG + LLM call + parse with retry + output building (with `degraded` flag) + cache WRITE (with degraded guard) + error handling wrapper + language detection via system prompt.
 
 | File | Action | Lines |
 |------|--------|-------|
 | `backend/src/services/ai/description-generator.service.ts` | MODIFY (extends skeleton from PR 2a) | +100 (~350 total) |
-| `backend/src/__tests__/services/ai/description-generator.service.test.ts` | Create | ~250 |
+| `backend/src/__tests__/services/ai/description-generator.service.test.ts` | Extend (remaining ~200 lines; ~50 lines already created in PR 2a) | ~200 |
 
 **Dependency**: Uses PR 1 (lib) + PR 2a (skeleton). Both must be merged first.
 **Merge order**: Third (after PR 1 + PR 2a).
 **Verification**: `pnpm run vitest` — all service tests pass. `pnpm tsc --noEmit` — compiles.
-**Test scenarios in scope**: Cache hit (2), cache miss (1), RAG context (2), RAG failure (1), LLM success (2), LLM malformed JSON retry (2), language detection (3), output truncation (3) = 16 tests.
+**Test scenarios in scope**: Cache hit (2), cache miss (1), RAG context (2), RAG failure (1), LLM success (2), LLM malformed JSON retry (2), language detection (3), output truncation (3), cache key generation (2), degraded output (1) = 21 tests (plus 3 validation tests from PR 2a = 24 total service tests).
 **Verify gate**: T2.8b — must pass before PR 3 starts.
 
-### PR 3: `feat/description-generator-registration` (~500 lines)
+### PR 3: `feat/description-generator-registration` (~320 lines)
 **Scope**: Route, orchestrator, schema, limiter, credit cost wiring + integration tests.
 
 | File | Action | Lines |
@@ -1202,7 +1236,7 @@ All 4 PRs are independently atomic and mergeable. Each PR includes its own tests
 **Dependency**: Uses service from PR 2b AND lib from PR 1 (both must be merged).
 **Merge order**: Fourth (after PR 1 + PR 2a + PR 2b).
 **Verification**: `pnpm run vitest` — all integration tests pass. `pnpm tsc --noEmit` — compiles. Endpoint reachable (manual curl test possible).
-**Test coverage**: Authentication (2), validation (4), authorization (1), product not found (1), credits (2), success cache miss (1), success cache hit (1), rate limit headers (1), service error (1), timeout (1) = 15 tests.
+**Test coverage**: Authentication (2), validation (4), authorization (2), credits (2), success cache miss (1), success cache hit (1), rate limit headers (1), service error (1), timeout (1), credit deduction failure (1) = 16 tests.
 
 ---
 
@@ -1220,7 +1254,7 @@ All 4 PRs are independently atomic and mergeable. Each PR includes its own tests
 
 6. **Mock setup for concurrent request tests**: Testing concurrent identical requests requires careful `vi.mocked` sequencing. The SEO Optimizer test suite doesn't test concurrency — this is new territory for integration tests.
 
-7. **Idempotency reference ID for credit deduction**: The route handler passes `productId` as the reference ID to `deductCreditsAfterSuccess()`. This provides idempotency per product, meaning re-generating for the same product within the same transaction window won't double-charge. However, if Redis cache TTL expires and the same input re-generates, the new call won't have the same reference ID context. Cache hit prevention makes this unlikely in practice.
+7. **Credit deduction reference ID**: The route handler passes `productId` as metadata to `deductCreditsAfterSuccess()`. Note: `deductCreditsAfterSuccess` does NOT currently pass a `referenceId` to `useCredits()`, so idempotency is NOT guaranteed at the credit deduction level. If idempotent deduction is needed in the future, add a `referenceId` parameter to `deductCreditsAfterSuccess` and pass `productId` through to `useCredits()`.
 
 ---
 
@@ -1231,20 +1265,21 @@ All 4 PRs are independently atomic and mergeable. Each PR includes its own tests
 | `backend/src/lib/ai-product-optimizer.lib.ts` | Create | ~150 | 1 |
 | `backend/src/lib/ai-product-optimizer.lib.test.ts` | Create | ~150 | 1 |
 | `backend/src/services/ai/description-generator.service.ts` | Create (PR 2a: skeleton+validation+cache read) + Modify (PR 2b: LLM+RAG+output+error+lang) | ~350 | 2a + 2b |
-| `backend/src/__tests__/services/ai/description-generator.service.test.ts` | Create | ~250 | 2b |
+| `backend/src/__tests__/services/ai/description-generator.service.test.ts` | Create (PR 2a: 3 validation tests ~50 lines) + Extend (PR 2b: remaining ~200 lines) | ~250 | 2a + 2b |
 | `backend/src/schemas/ai.schema.ts` | Modify | +20 | 3 |
 | `backend/src/routes/ai.routes.ts` | Modify | +30 | 3 |
 | `backend/src/services/ai/index.ts` | Modify | +40 | 3 |
 | `backend/src/middlewares/rateLimit/rateLimit.ts` | Modify | +20 | 3 |
 | `backend/src/services/ai/credits.service.ts` | Modify | +5 | 3 |
+| `backend/src/services/config.service.ts` | Modify | +3 | 1 |
 | `backend/src/__tests__/routes/description-generator.routes.test.ts` | Create | ~200 | 3 |
-| **Total** | | **~1,065** (PR 1: 300 + PR 2a: 250 + PR 2b: 350 + PR 3: 500 - 335 overlap; original estimate was 1,215 because PR 2/3 weren't split) | |
+| **Total** | | **~1,068** — File-level total: ~1,223 lines. Service file (~350) and service test (~250) each span 2 PRs but counted once in file table. PR-level sum (1,223) − shared file overlap (~155) = ~1,068 net new lines. | |
 
 ---
 
 ## Key Learnings
 
-- The `parseStructuredResponse` in the lib uses a two-stage fallback: first attempt with standard prompt, second attempt with stricter prompt. If both fail, the service returns partial data (fallback = raw `productDescription`) with `degraded: true` rather than throwing — this prioritizes availability over completeness.
+- The `parseStructuredResponse` in the lib uses a two-stage fallback: first attempt with standard prompt, second attempt with stricter prompt. If both fail, the service returns partial data (fallback = raw `productDescription`) with `degraded: true` rather than throwing — this prioritizes availability over completeness. Additionally, post-parse validation checks for empty `titles` or missing `objectives` even when JSON parses successfully — these cases also trigger the retry path and ultimately set `degraded: true` if both attempts produce incomplete data.
 - The cache key prefix `description-generator:` is namespaced within `crema:` via the Redis client's `keyPrefix` — effective keys look like `crema:description-generator:{sha256hash}`.
 - The orchestrator registration uses `requestingUserId !== userId` auth check (same pattern as concierge-chat, line 295), NOT `creator_id` DB check — the orchestrator does product ownership verification at a higher level. The orchestrator handler does NOT check product ownership itself; it assumes the caller (route) has already validated resource access.
 - All error paths at the service level return `{ success: false, error: "..." }` rather than throwing, matching the SEO Optimizer pattern. Only the route handler throws `AppError` for HTTP status codes.
@@ -1253,4 +1288,4 @@ All 4 PRs are independently atomic and mergeable. Each PR includes its own tests
 - **JD fix applied**: `setTimeout` in route handler is properly cleared in a `finally` block to prevent timer leaks.
 - **JD fix applied**: System prompt is in English with explicit multilingual output instructions — LLMs follow instructions more reliably in English.
 - **JD fix applied**: `degraded: boolean` field in output allows callers to distinguish between useful and fallback output. Degraded output = 0 credits charged.
-- **JD fix applied**: PR breakdown restructured from 5 to 4 PRs to comply with `strict_tdd: true` — each PR includes its own tests. PR 2 split into PR 2a (skeleton + validation + cache read, ~250 lines) and PR 2b (LLM + RAG + output + error handling, ~350 lines) for better buffer management.
+- **JD fix applied**: PR breakdown restructured from 5 to 4 PRs to comply with `strict_tdd: true` — each PR includes its own tests. PR 2 split into PR 2a (skeleton + validation + cache read + partial tests, ~300 lines) and PR 2b (LLM + RAG + output + error handling + remaining tests, ~300 lines) for better buffer management.
