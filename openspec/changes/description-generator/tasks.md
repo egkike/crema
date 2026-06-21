@@ -435,6 +435,41 @@ Chain strategy: stacked-to-main
 
 **Files**: `docs/project/ai-features/TECHNICAL-SPEC.md` (MODIFY if exists)
 
+### T5.3 — Update `docs/CremaOverview.md` (AI Features table)
+
+- Add a row to the AI Features table (line 12–14, after the existing AI rows):
+  ```markdown
+  | **Description Generator** | Genera títulos, descripción, tags, learning objectives y meta descripción optimizados con LLM + RAG |
+  ```
+- Verify the "Estado de Implementación" table reflects that AI features backend is now complete through the description generator.
+
+**Files**: `docs/CremaOverview.md` (MODIFY)
+
+---
+
+### T5.4 — Update `README.md` (root, AI Features section)
+
+- Add to the "AI Features (v1.3)" list (around line 81+), after the existing AI feature entries:
+  ```markdown
+  - ✅ **Description Generator** - Generación optimizada de descripciones de productos (titles, SEO tags, learning objectives, meta description) con LLM + RAG context
+  ```
+- Verify the "AI Features Backend" status row (line 14) still reads accurately after the addition.
+
+**Files**: `README.md` (MODIFY)
+
+---
+
+### T5.5 — Update `backend/README.md` (API reference)
+
+- Add a new `#### Description Generator` subsection under the existing `### AI Features ⭐ (v1.3)` block (line 102+), placed after the last existing AI subsection (Insights).
+- Document the new endpoint:
+  ```markdown
+  | POST   | `/api/ai/product/description` | Genera descripción optimizada de producto (1 crédito) |
+  ```
+- Below the table, add a short note: `restrictTo('CREATOR')` role required, rate limit 10 req/min, capability `description.generator` registered in Orchestrator.
+
+**Files**: `backend/README.md` (MODIFY)
+
 ---
 
 ## TDD Compliance Checklist
