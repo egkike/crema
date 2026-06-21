@@ -205,8 +205,8 @@ Chain strategy: stacked-to-main
 
 **Scope**: Non-blocking RAG.
 
-- **T2.3.0 (RED)**: Test 2 cases — RAG results passed to prompt builder; RAG throws → degrades gracefully (no throw, output still generated).
-- **T2.3.1 (GREEN)**: Wrap `fetchProductRagContext` in try/catch → empty array on error.
+- [x] **T2.3.0 (RED)**: Test 2 cases — RAG results passed to prompt builder; RAG throws → degrades gracefully (no throw, output still generated).
+- [x] **T2.3.1 (GREEN)**: Wrap `fetchProductRagContext` in try/catch → empty array on error.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
 **Spec ref**: Scenario: RAG failure degrades gracefully
@@ -217,9 +217,9 @@ Chain strategy: stacked-to-main
 
 **Scope**: Primary LLM interaction.
 
-- **T2.4.0 (RED)**: Test 3 cases — `callLLMForOptimization` called with correct prompts; malformed JSON first attempt → retry with stricter prompt; both attempts fail → fallback returned with `success: true`.
-- **T2.4.1 (GREEN)**: Implement LLM call via `callLLMForOptimization` + `parseStructuredResponse`. If first parse is degraded, append strict instruction to system prompt and retry once.
-- **T2.4.2 (REFACTOR)**: Extract `buildUserPrompt()` and `buildRagContext()` helper functions.
+- [x] **T2.4.0 (RED)**: Test 3 cases — `callLLMForOptimization` called with correct prompts; malformed JSON first attempt → retry with stricter prompt; both attempts fail → fallback returned with `success: true`.
+- [x] **T2.4.1 (GREEN)**: Implement LLM call via `callLLMForOptimization` + `parseStructuredResponse`. If first parse is degraded, append strict instruction to system prompt and retry once.
+- [x] **T2.4.2 (REFACTOR)**: Extract `buildUserPrompt()` and `buildRagContext()` helper functions.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
 **Spec ref**: Scenarios: LLM success valid JSON, LLM malformed JSON (1st + 2nd attempt), Scenario: empty titles → degraded
@@ -230,9 +230,9 @@ Chain strategy: stacked-to-main
 
 **Scope**: Safe output construction.
 
-- **T2.5.0 (RED)**: Test 3 truncation cases — titles capped at 3, tags capped at 10, metaDescription capped at 155 chars. Test `degraded` flag in output (W8 fix).
-- **T2.5.1 (GREEN)**: Build output with `.slice(0, N)` on arrays and strings. Set `isDegraded` based on `parsed.degraded` flag from `parseStructuredResponse` fallback detection.
-- **T2.5.2 (REFACTOR)**: Extract `mapSources(ragResults)` helper.
+- [x] **T2.5.0 (RED)**: Test 3 truncation cases — titles capped at 3, tags capped at 10, metaDescription capped at 155 chars. Test `degraded` flag in output (W8 fix).
+- [x] **T2.5.1 (GREEN)**: Build output with `.slice(0, N)` on arrays and strings. Set `isDegraded` based on `parsed.degraded` flag from `parseStructuredResponse` fallback detection.
+- [x] **T2.5.2 (REFACTOR)**: Extract `mapSources(ragResults)` helper.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
 **Spec ref**: Output shape with `degraded: boolean`, Scenario: empty titles → degraded
@@ -241,8 +241,8 @@ Chain strategy: stacked-to-main
 
 ### T2.6 — Cache write (cacheSet after LLM)
 
-- **T2.6.0 (RED)**: Test that `cacheSet` is called with correct key, output, and TTL after successful LLM generation.
-- **T2.6.1 (GREEN)**: Call `cacheSet(cacheKey, output, CACHE_TTL)` after building output.
+- [x] **T2.6.0 (RED)**: Test that `cacheSet` is called with correct key, output, and TTL after successful LLM generation.
+- [x] **T2.6.1 (GREEN)**: Call `cacheSet(cacheKey, output, CACHE_TTL)` after building output.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
 **Spec ref**: Scenario: Cache miss triggers generation and stores result
@@ -253,8 +253,8 @@ Chain strategy: stacked-to-main
 
 **Scope**: Catch-all for service errors.
 
-- **T2.7.0 (RED)**: Test 2 cases — `AppError` passes through; unexpected error returns `{ success: false, error: '...' }`.
-- **T2.7.1 (GREEN)**: Implement try/catch wrapper around all service logic.
+- [x] **T2.7.0 (RED)**: Test 2 cases — `AppError` passes through; unexpected error returns `{ success: false, error: '...' }`.
+- [x] **T2.7.1 (GREEN)**: Implement try/catch wrapper around all service logic.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
 **Spec ref**: Scenario: LLM failure returns 500
@@ -265,8 +265,8 @@ Chain strategy: stacked-to-main
 
 **Scope**: System prompt in English with multilingual instructions.
 
-- **T2.8.0 (RED)**: Test 3 cases — Spanish input `'Aprende TypeScript...'` → `detectedLanguage: 'es'`; English input → `'en'`; Portuguese input → `'pt'`.
-- **T2.8.1 (GREEN)**: Set `SYSTEM_PROMPT` in English as per design §3.1 with explicit "FIRST detect language" instruction.
+- [x] **T2.8.0 (RED)**: Test 3 cases — Spanish input `'Aprende TypeScript...'` → `detectedLanguage: 'es'`; English input → `'en'`; Portuguese input → `'pt'`.
+- [x] **T2.8.1 (GREEN)**: Set `SYSTEM_PROMPT` in English as per design §3.1 with explicit "FIRST detect language" instruction.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
 **Spec ref**: Scenarios: Input language Spanish/English/Portuguese detected
@@ -277,13 +277,13 @@ Chain strategy: stacked-to-main
 
 **Scope**: VERIFY gate for PR 2b (T2.3–T2.8). Ensures compilation and tests pass before PR 3 starts.
 
-- **T2.8b.0 (VERIFY)**: Run `pnpm tsc --noEmit`, `pnpm lint`, `pnpm test --run description-generator.service` — all pass. If any fail, fix in PR 2b before merging.
+- [x] **T2.8b.0 (VERIFY)**: Run `pnpm tsc --noEmit`, `pnpm lint`, `pnpm test --run description-generator.service` — all pass. If any fail, fix in PR 2b before merging.
 
 ---
 
 ### T2.9 — Verify service
 
-- **T2.9.0 (VERIFY)**: Run `pnpm tsc --noEmit`, `pnpm lint`, `pnpm test --run description-generator.service` — all pass.
+- [x] **T2.9.0 (VERIFY)**: Run `pnpm tsc --noEmit`, `pnpm lint`, `pnpm test --run description-generator.service` — all pass.
 
 ---
 
