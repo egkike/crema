@@ -414,8 +414,8 @@ export const descriptionGeneratorService = {
     if (!input.productDescription || input.productDescription.trim().length < 10) {
       throw new AppError('productDescription must be at least 10 characters', 400);
     }
-    if (input.productDescription.length > 5000) {
-      throw new AppError('productDescription must be less than 5000 characters', 400);
+    if (input.productDescription.trim().length > 5000) {
+      throw new AppError('productDescription must be at most 5000 characters', 400);
     }
 
     try {
@@ -551,7 +551,7 @@ export const descriptionGeneratorSchema = z.object({
   productDescription: z
     .string()
     .min(10, { message: 'productDescription must be at least 10 characters' })
-    .max(5000, { message: 'productDescription must be less than 5000 characters' }),
+    .max(5000, { message: 'productDescription must be at most 5000 characters' }),
   productType: z.enum(['course', 'ebook', 'podcast', 'membership', 'software', 'audiobook'], {
     message: 'productType must be one of: course, ebook, podcast, membership, software, audiobook',
   }),

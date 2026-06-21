@@ -167,8 +167,8 @@ Chain strategy: stacked-to-main
 
 ### T2.0 — Create `description-generator.service.ts` skeleton
 
-- **T2.0.0 (RED)**: Test that `descriptionGeneratorService` is exported and has `generate()` method.
-- **T2.0.1 (GREEN)**: Create skeleton with empty `generate()` returning `{ success: true }`.
+- [x] **T2.0.0 (RED)**: Test that `descriptionGeneratorService` is exported and has `generate()` method.
+- [x] **T2.0.1 (GREEN)**: Create skeleton with empty `generate()` returning `{ success: true }`.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (CREATE)
 **Spec ref**: Requirement §R1 (description.generator)
@@ -179,8 +179,8 @@ Chain strategy: stacked-to-main
 
 **Scope**: Defense-in-depth validation (orchestrator path bypasses Zod).
 
-- **T2.1.0 (RED)**: Test 3 cases — empty productId → AppError(400), description < 10 chars → AppError(400), description > 5000 chars → AppError(400).
-- **T2.1.1 (GREEN)**: Add validation block before try-catch.
+- [x] **T2.1.0 (RED)**: Test 3 cases — empty productId → AppError(400), description < 10 chars → AppError(400), description > 5000 chars → AppError(400).
+- [x] **T2.1.1 (GREEN)**: Add validation block before try-catch.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
 **Spec ref**: Scenario: Valid input cache miss (pre-validation), orchestrator validation scenarios
@@ -191,8 +191,8 @@ Chain strategy: stacked-to-main
 
 **Scope**: `cacheGet` → return if hit.
 
-- **T2.2.0 (RED)**: Test 2 cases — cache hit returns output with `cached: true`, 0 LLM calls via mock assertion.
-- **T2.2.1 (GREEN)**: Compute `cacheKey` via `buildCacheKey`, call `cacheGet`, return `{ success: true, data: { ...cached, cached: true } }` on hit.
+- [x] **T2.2.0 (RED)**: Test 2 cases — cache hit returns output with `cached: true`, 0 LLM calls via mock assertion.
+- [x] **T2.2.1 (GREEN)**: Compute `cacheKey` via `buildCacheKey`, call `cacheGet`, return `{ success: true, data: { ...cached, cached: true } }` on hit.
 
 **Files**: `backend/src/services/ai/description-generator.service.ts` (MODIFY)
 **Spec ref**: Scenario: Valid input cache hit, Scenario: Cache hit returns stored result
