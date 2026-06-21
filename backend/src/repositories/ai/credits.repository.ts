@@ -6,6 +6,7 @@
 
 import pool from '../../db/postgres';
 import { config } from '../../config/index';
+import { InsufficientCreditsError } from '../../errors/InsufficientCreditsError';
 import type {
   AICredit,
   AICreditPackage,
@@ -110,7 +111,7 @@ export const creditsRepository = {
       const { rows: checkRows } = await client.query<{ balance: number }>(checkQuery, [userId]);
       
       if (checkRows.length === 0 || checkRows[0].balance < amount) {
-        throw new Error('Insufficient credits');
+        throw new InsufficientCreditsError('Insufficient credits');
       }
 
       // Deduct balance

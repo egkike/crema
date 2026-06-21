@@ -6,6 +6,7 @@
 
 import { creditsRepository } from '../../repositories/ai/credits.repository';
 import { AppError } from '../../errors/AppError';
+import { InsufficientCreditsError } from '../../errors/InsufficientCreditsError';
 import logger from '../../utils/logger';
 import type {
   AICredit,
@@ -69,15 +70,9 @@ export class AICreditService {
       );
       if (existingTx) {
         logger.info({ userId, referenceId }, 'Credits already consumed — idempotent skip');
-        // Return current balance without charging
-        return this.getBalance(userId).then((b) => ({
-          balance: b.balance,
-          expires_at: b.expiresAt,
-          user_id: userId,
-          id: '',
-          created_at: new Date(),
-          updated_at: new Date(),
-        }));
+        // Return the real credit record (no fabricated fields) so callers
+        // receive a valid AICredit without lying about id/created_at/updated_at.
+        return this.ensureCreditRecord(userId);
       }
     }
 
@@ -95,8 +90,7 @@ export class AICreditService {
       logger.info({ userId, amount, description }, 'Credits used');
       return result;
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage === 'Insufficient credits') {
+      if (error instanceof InsufficientCreditsError) {
         throw new AppError('Insufficient credits. Please purchase more credits.', 402);
       }
       throw error;
@@ -241,12 +235,13 @@ export class AICreditService {
    * Get cost estimate for AI operation
    * This can be expanded based on actual pricing
    */
-  getOperationCost(operation: 'search' | 'chat' | 'generate_insight' | 'churn_prediction'): number {
-    const costs = {
+  getOperationCost(operation: 'search' | 'chat' | 'generate_insight' | 'churn_prediction' | 'description_generation'): number {
+    const costs: Record<'search' | 'chat' | 'generate_insight' | 'churn_prediction' | 'description_generation', number> = {
       search: 1,
       chat: 5,
       generate_insight: 10,
       churn_prediction: 5,
+      description_generation: 1,
     };
     return costs[operation];
   }
