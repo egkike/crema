@@ -55,6 +55,12 @@ describe('ConfigService', () => {
       expect(ALLOWED_CONFIG_KEYS).toContain('providers.blockonomics_timeout');
     });
 
+    it('should contain description_generator.* keys (Description Generator)', () => {
+      expect(ALLOWED_CONFIG_KEYS).toContain('description_generator.temperature');
+      expect(ALLOWED_CONFIG_KEYS).toContain('description_generator.max_tokens');
+      expect(ALLOWED_CONFIG_KEYS).toContain('description_generator.model');
+    });
+
     it('should have all keys as valid config key format', () => {
       ALLOWED_CONFIG_KEYS.forEach((key) => {
         expect(typeof key).toBe('string');

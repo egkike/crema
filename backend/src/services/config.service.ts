@@ -9,6 +9,7 @@ import Redis from 'ioredis';
 import { configRepository } from '../repositories/app-config.repository';
 import { config } from '../config';
 import logger from '../utils/logger';
+import type { AppConfig } from '../types/entities';
 
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
 export type ConfigCategory = 'ai' | 'retry' | 'admin' | 'commission' | 'cache' | 'providers' | 'features' | 'support';
@@ -64,6 +65,10 @@ export const ALLOWED_CONFIG_KEYS = [
   'support.max_tokens',
   // AI Affiliate Chat
   'affiliate_chat.rate_limit',
+  // Description Generator
+  'description_generator.temperature',
+  'description_generator.max_tokens',
+  'description_generator.model',
 ];
 
 // Redis client for cache - lazy initialization
@@ -112,7 +117,7 @@ async function getConfigValue(key: string, defaultValue?: string): Promise<strin
       return cached;
     }
   } catch (error) {
-    logger.warn({ key, error: String(error) }, 'ConfigService: redis get failed, falling back');
+    logger.warn({ key, error: error instanceof Error ? error.message : String(error) }, 'ConfigService: redis get failed, falling back');
   }
 
   // 2. Check DB (app_config)
@@ -123,7 +128,7 @@ async function getConfigValue(key: string, defaultValue?: string): Promise<strin
       const redis = getRedisCache();
       await redis.setex(cacheKey, CACHE_TTL_SECONDS, dbConfig.configValue);
     } catch (error) {
-      logger.warn({ key, error: String(error) }, 'ConfigService: redis set failed');
+      logger.warn({ key, error: error instanceof Error ? error.message : String(error) }, 'ConfigService: redis set failed');
     }
     logger.debug({ key, from: 'db' }, 'ConfigService: db hit');
     return dbConfig.configValue;
@@ -227,7 +232,7 @@ export const configService = {
       const redis = getRedisCache();
       await redis.del(key);
     } catch (error) {
-      logger.warn({ key, error: String(error) }, 'ConfigService: redis del failed');
+      logger.warn({ key, error: error instanceof Error ? error.message : String(error) }, 'ConfigService: redis del failed');
     }
     logger.info({ key, type, category: extractedCategory }, 'ConfigService: config updated');
   },
@@ -255,7 +260,7 @@ export const configService = {
   /**
    * Get all configs, optionally filtered by category
    */
-  async getAll(category?: ConfigCategory) {
+  async getAll(category?: ConfigCategory): Promise<AppConfig[]> {
     if (category) {
       return configRepository.findByCategory(category);
     }
@@ -265,7 +270,7 @@ export const configService = {
   /**
    * Get a specific config by key
    */
-  async getByKey(key: string) {
+  async getByKey(key: string): Promise<AppConfig | null> {
     return configRepository.findByKey(key);
   },
 
@@ -278,7 +283,7 @@ export const configService = {
       await redis.connect();
       logger.info('ConfigService: Redis cache connected');
     } catch (error) {
-      logger.warn({ error: String(error) }, 'ConfigService: Redis connection failed, using DB fallback');
+      logger.warn({ error: error instanceof Error ? error.message : String(error) }, 'ConfigService: Redis connection failed, using DB fallback');
     }
   },
 
